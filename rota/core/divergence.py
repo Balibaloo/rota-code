@@ -101,15 +101,16 @@ def sentence_for(test_id: str, invented: list[str]) -> str:
 # never named and nobody was asked.
 # ---------------------------------------------------------------------------
 
-def _norm(path: str) -> str:
-    return (path or "").replace("\\", "/").strip().lstrip("./")
-
-
 def under(path: str, area: str) -> bool:
     """A predicted path covers itself and everything beneath it. Backslashes
     fold: the prediction is written on one platform and the diff read on
     another."""
-    p, a = _norm(path), _norm(area).rstrip("/")
+    # F8: the producer folds as the judge does, through `_grain_path`. The
+    # old fold stripped a character set and made `.github/ci.py` into
+    # `github/ci.py`.
+    from ..roles.api import _grain_path
+
+    p, a = _grain_path(path or ""), _grain_path(area or "").rstrip("/")
     return bool(a) and (p == a or p.startswith(a + "/"))
 
 
@@ -121,7 +122,11 @@ def stray_paths(touched: list[str], predicted: list[str]) -> list[str]:
     predicts its file. The caller drops bare symbols before this: a name
     alone is not ground, and only the caller knows a grain's kind.
     """
-    areas = [a for a in (_norm(g.split("::", 1)[0]) for g in predicted if g) if a]
+    from ..roles.api import _grain_path
+
+    areas = [a for a in (_grain_path(g) for g in predicted if g) if a]
     if not areas:
         return []
-    return [p for p in touched if not any(under(p, a) for a in areas)]
+    # The stray row keys the path as the judge reads it (F8).
+    return [_grain_path(p) for p in touched
+            if not any(under(p, a) for a in areas)]

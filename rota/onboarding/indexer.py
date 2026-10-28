@@ -607,10 +607,12 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
                      (area, grain))
     # A symbol is in the area of the file that defines it, as `areas.pin` has
     # it, so a new definition is not an area of its own.
+    from ..roles.api import _grain_path
+
     for row in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
             "AND area IS NULL").fetchall():
-        path = row["grain"].split("::", 1)[0]
+        path = _grain_path(row["grain"])
         area = new_areas.get(path, was.get(path))
         if area:
             conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",

@@ -3432,7 +3432,9 @@ def _criterion_surface_pushes(sb: sandbox_mod.Sandbox, wake: Wake,
         for ref in refs if isinstance(refs, list) else []:
             if not isinstance(ref, str) or "::" not in ref:
                 continue
-            path, name = ref.replace("\\", "/").split("::", 1)
+            from ..roles.api import _grain_path
+
+            path, name = _grain_path(ref), ref.split("::", 1)[1]
             key = f"surface {path}::{name}"
             if key in out:
                 continue
@@ -4143,6 +4145,18 @@ def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str) -> dict[str, str]:
     return out
 
 
+def _index_test_files(conn, limit: int = 80) -> list[str]:
+    """The index's test files, in grain order, at most `limit` of them."""
+    # F9 (ruled: Roman, 2026-10-26 20:37): the basename gives the shape and
+    # the frame's kind gives the partition. A `tests/` prefix decides neither.
+    from ..roles.api import _is_test_file
+
+    rows = conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path' "
+                        "ORDER BY grain")
+    return [g for g in (r["grain"] for r in rows)
+            if _is_test_file(conn, g)][:limit]
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4303,13 +4317,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
             # s157 never got `confirm`'s source.
-            from ..roles.api import RAISE_LINES_SHOWN, _named_callables
+            from ..roles.api import (RAISE_LINES_SHOWN, _grain_path,
+                                     _named_callables)
 
             spans: dict[str, list[tuple[int, int]]] = {}
             for grain in _named_callables(sb.ctx, hint)[:RAISE_LINES_SHOWN]:
                 row = conn.execute("SELECT line_start, line_end FROM code_index "
                                    "WHERE grain = ?", (grain,)).fetchone()
-                spans.setdefault(grain.split("::", 1)[0], []).append(
+                spans.setdefault(_grain_path(grain), []).append(
                     (row["line_start"], row["line_end"]) if row else (0, 0))
             if spans and "code.source" in have:
                 pushed["code.source"] = {}
@@ -4517,11 +4532,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # finding 2).
     if wake is not None and wake.kind == "tick:tests_missing" and wake.refs:
         from .lifecycle import grain_file, predicted_rows
+        # F9: a test file by the one reader (ruled: Roman, 2026-10-26 20:37).
+        from ..roles.api import _is_test_file
 
         paths = list(dict.fromkeys(
             grain_file(r) for r in predicted_rows(sb.ctx.conn, wake.refs[0])
             if r["grain_kind"] == "path" and r["confidence"] == "expected"
-            and grain_file(r).replace("\\", "/").startswith("tests/")))
+            and _is_test_file(sb.ctx.conn, grain_file(r))))
         if paths:
             pushed["touch"] = paths
     # The Architect that corrects a prediction sees the test files that
@@ -4535,9 +4552,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         from .scheduler import batch_relay
 
         if batch_relay(sb.ctx.conn, wake.message_id):
-            tests = [r["grain"] for r in sb.ctx.conn.execute(
-                "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-                "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+            tests = _index_test_files(sb.ctx.conn)
             if tests:
                 pushed["the index's test files"] = tests
     # The guess names one request item, and its brief says a test path is one
@@ -4551,9 +4566,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                                   (wake.refs[0],)).fetchone() if guess_tick else None
         if row:
             pushed["item"] = {"id": row["id"], "text": row["text"]}
-        tests = [r["grain"] for r in sb.ctx.conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-            "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+        tests = _index_test_files(sb.ctx.conn)
         if tests:
             pushed["the index's test files"] = tests
     probe = pushed.get("code.probe")

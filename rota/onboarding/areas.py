@@ -88,8 +88,11 @@ def kind_of(conn, path: str) -> str:
     `attached` and `program`. A symbol grain `path::name` reads its path.
     With `conn` None, the heuristic decides alone."""
     # Frame 324 (ruled: Roman, 2026-10-26 20:37): every door reads the ruled
-    # partition through this one reader, and no door re-derives it.
-    path = (path or "").replace("\\", "/").partition("::")[0]
+    # partition through this one reader, and no door re-derives it. F11: the
+    # path half of a grain has one reader too.
+    from ..roles.api import _grain_path
+
+    path = _grain_path(path or "")
     ruled = ruling_for(conn, path) if conn is not None else None
     if ruled in KINDS:
         return ruled
@@ -304,10 +307,12 @@ def pin(conn: sqlite3.Connection, proposal: Proposal) -> int:
                          (row["grain"],))
     # Symbols inherit their file's area, so `code.survey` returns a definition
     # beside the file it is defined in rather than in an area of its own.
+    from ..roles.api import _grain_path
+
     by_path = defaultdict(str, proposal.areas)
     for row in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'symbol'").fetchall():
-        path = row["grain"].split("::", 1)[0]
+        path = _grain_path(row["grain"])
         conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
                      (by_path[path] if path in by_path else None, row["grain"]))
     return len(set(proposal.areas.values()))

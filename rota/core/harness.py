@@ -403,6 +403,30 @@ def inherited_id(rel: str) -> str:
     return "inh_" + hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
 
 
+def project_tests(conn: sqlite3.Connection, worktree: Path) -> list[str]:
+    """The test files of the tree, posix paths relative to `worktree`, sorted."""
+    # F9 (ruled: Roman, 2026-10-26 20:37): the basename gives the shape of a
+    # test file, and the frame's kind says whether the file is part of the
+    # program. A glob under `tests/` decided both before.
+    import os
+
+    from ..roles.api import _is_test_file
+
+    out = []
+    for top, dirs, files in os.walk(worktree):
+        # The worktree itself lives under `.rota/`, so the walk prunes by the
+        # relative parts, not the full path's.
+        dirs[:] = [d for d in dirs if d not in (".rota", ".venv", ".git")]
+        for name in files:
+            rel = Path(top, name).relative_to(worktree).as_posix()
+            # A conftest is a test file, but pytest collects no test from
+            # it. The harness runs each inherited file, and a run with no
+            # test is an error.
+            if _is_test_file(conn, rel) and name != "conftest.py":
+                out.append(rel)
+    return sorted(out)
+
+
 def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str]:
     """
     The repository's own tests join the batch, with no criterion.
@@ -416,16 +440,10 @@ def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str
     """
     owned = {t["path"].replace("\\", "/") for t in tests_for(conn, batch_id)}
     found: list[str] = []
-    candidates = sorted(
-        {p for pat in ("tests/**/test_*.py", "tests/**/*_test.py", "test_*.py")
-         for p in worktree.glob(pat)})
-    for f in candidates:
-        relp = f.relative_to(worktree)
-        rel = relp.as_posix()
-        # The worktree itself lives under `.rota/`, so the exclusion
-        # reads the relative parts, not the full path's.
-        if rel in owned or ".rota" in relp.parts or ".venv" in relp.parts:
+    for rel in project_tests(conn, worktree):
+        if rel in owned:
             continue
+        f = worktree / rel
         tid = inherited_id(rel)
         try:
             body = f.read_text(encoding="utf-8")
