@@ -14671,6 +14671,160 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 _LINE_PART_MIN = 12
 # A value with line breaks holds at most this many lines (frame 170's review).
 _LINE_PARTS_MAX = 2
+# A branch of a statement that a pass names holds at most this many simple
+# statements. A larger branch wraps the change, and a wrapper lands on any
+# batch, which is frame 170's fault (F37, review 1 of cb5d8dc1, high 2).
+_BRANCH_BODY_MAX = 2
+# The stub that a parse puts above a run that opens on an arm, because the
+# run of added lines does not hold the arm's header (F37, review 1, low 3).
+_ARM_STUBS = ((("elif ", "elif(", "else:"), "if _:\n    pass\n"),
+              (("except", "finally:"), "try:\n    pass\n"))
+
+
+def _simple(stmt) -> bool:
+    """True when a statement holds no other statement."""
+    return not any(hasattr(stmt, f) for f in ("body", "cases"))
+
+
+def _branch_kind(node) -> str | None:
+    """The words for a branching statement that a pass may name as one line,
+    or None.
+
+    Night 171's c_1 asked for a Roaming case and a Local case, and no one
+    added line meets both (F37, `plans/night171-critic-read.md`). So one
+    `if`, `try`, `match` or conditional expression counts as one line. Each
+    branch holds at most `_BRANCH_BODY_MAX` simple statements. A branch that
+    holds a `def`, a `class` or a nested block is no branch of one case.
+    """
+    if isinstance(node, _ast.If):
+        arms, kind, at = [], "`if` statement", node
+        while True:
+            arms.append(at.body)
+            if len(at.orelse) == 1 and isinstance(at.orelse[0], _ast.If):
+                at = at.orelse[0]
+                continue
+            arms.append(at.orelse)
+            break
+    elif isinstance(node, (_ast.Try, getattr(_ast, "TryStar", _ast.Try))):
+        kind = "`try` statement"
+        arms = ([node.body] + [h.body for h in node.handlers]
+                + [node.orelse, node.finalbody])
+    elif isinstance(node, _ast.Match):
+        kind = "`match` statement"
+        arms = [c.body for c in node.cases]
+    elif _simple(node) and isinstance(getattr(node, "value", None),
+                                      _ast.IfExp):
+        return "conditional expression"
+    else:
+        return None
+    for arm in arms:
+        if len(arm) > _BRANCH_BODY_MAX or not all(_simple(s) for s in arm):
+            return None
+    return kind
+
+
+def _statement_spans(block: list[str]) -> list[tuple[int, int, str]]:
+    """Each branching statement of `block` that a pass may name, as its
+    first and last index in `block` and its kind. One parse reads the whole
+    block, and `end_lineno` gives each span (F37, review 1, low 4)."""
+    import textwrap as _tw
+    first = next((ln.strip() for ln in block if ln.strip()), "")
+    stub = next((s for starts, s in _ARM_STUBS if first.startswith(starts)),
+                "")
+    text = _tw.dedent("\n".join(block))
+    if first.startswith("case "):
+        stub, text = "match _:\n", _tw.indent(text, "    ")
+    try:
+        tree = _ast.parse(stub + text)
+    except (SyntaxError, ValueError):
+        return []
+    shift = stub.count("\n")
+    out = []
+    for node in _ast.walk(tree):
+        kind = isinstance(node, _ast.stmt) and _branch_kind(node)
+        if kind:
+            out.append((max(node.lineno - 1 - shift, 0),
+                        node.end_lineno - 1 - shift, kind))
+    return out
+
+
+def _stripped(part: str) -> str:
+    text = part.strip()
+    return text[1:].strip() if text.startswith("+") else text
+
+
+def _block_of(parts: list[str], runs: list[list[str]]
+              ) -> tuple[int, int, int, str] | None:
+    """The run, the span and the kind of the one branching statement that
+    `parts` are, as added lines in the diff's order, or None."""
+    want = [_stripped(p) for p in parts]
+    n = len(want)
+    for r, run in enumerate(runs):
+        idx = [i for i, ln in enumerate(run) if ln.strip()]
+        texts = [run[i].strip() for i in idx]
+        for s in range(len(texts) - n + 1):
+            if texts[s] != want[0] or texts[s:s + n] != want:
+                continue
+            lo, hi = idx[s], idx[s + n - 1]
+            whole = [k for a, b, k in _statement_spans(run[lo:hi + 1])
+                     if a == 0 and b == hi - lo]
+            if whole:
+                return r, lo, hi, whole[0]
+    return None
+
+
+def _block_inside(parts: list[str], runs: list[list[str]]
+                  ) -> tuple[int, int, str] | None:
+    """The longest branching statement of the diff that `parts` hold as
+    three lines or more in a row, as its first and last index in `parts`
+    and its kind, or None. Each run that shares a line with `parts` is
+    parsed once (F37, review 1, low 4)."""
+    want = [_stripped(p) for p in parts]
+    have = set(want)
+    best = None
+    for run in runs:
+        if not have & {ln.strip() for ln in run}:
+            continue
+        for lo, hi, kind in _statement_spans(run):
+            texts = [ln.strip() for ln in run[lo:hi + 1] if ln.strip()]
+            n = len(texts)
+            if n <= _LINE_PARTS_MAX or (best and n <= best[1] - best[0] + 1):
+                continue
+            at = next((s for s in range(len(want) - n + 1)
+                       if want[s] == texts[0] and want[s:s + n] == texts),
+                      None)
+            if at is not None:
+                best = (at, at + n - 1, kind)
+    return best
+
+
+def _blocks_overlap(a: list[str], b: list[str]) -> bool:
+    """True when two values of several lines share a line long enough to
+    name something. `else:` and `try:` are shorter than `_LINE_PART_MIN`."""
+    return any(len(t) >= _LINE_PART_MIN
+               for t in {_stripped(p) for p in a} & {_stripped(p) for p in b})
+
+
+def _landed_blocks(ctx, batch_id: str) -> list[tuple[str, list[str]]]:
+    """The values of several lines that earlier landed passes of the batch
+    named, each with its criterion."""
+    out = []
+    try:
+        rows = ctx.conn.execute(
+            "SELECT lines FROM verdicts WHERE batch_id = ? AND result = 'pass' "
+            "AND lines IS NOT NULL", (batch_id,)).fetchall()
+    except sqlite3.Error:
+        return out
+    for row in rows:
+        try:
+            got = _json.loads(row["lines"])
+        except (TypeError, ValueError):
+            continue
+        for cid, value in (got.items() if isinstance(got, dict) else ()):
+            parts = _line_parts(value)
+            if parts and len(parts) > _LINE_PARTS_MAX:
+                out.append((cid, parts))
+    return out
 
 
 def _line_parts(value) -> list[str] | None:
@@ -14849,7 +15003,18 @@ def _code_part(text: str) -> str:
 
 def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     """Each added line of a unified diff, stripped, with the kind of line
-    with no behaviour it is, or None.
+    with no behaviour it is, or None. `_added_walk` holds the walk."""
+    return _added_walk(diff_text)[0]
+
+
+def _added_walk(diff_text: str
+                ) -> tuple[list[tuple[str, str | None]], list[list[str]]]:
+    """Each added line of a unified diff, stripped, with the kind of line
+    with no behaviour it is, or None. Then each run of added lines with no
+    line of context between them, as the new side holds them: indented,
+    without the +. One walk reads the diff for both (F37, review 1, low 5).
+    A removed line is not on the new side, so it does not end a run, and a
+    blank line of context does not end one.
 
     A docstring line is a line inside a triple-quoted string that opens as
     the first line of a `def` or `class` body. The walk reads the new side
@@ -14869,12 +15034,24 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     in_header = expect_doc = False
     header = ""
     init_file = False
+    runs: list[list[str]] = []
+    run: list[str] = []
     for ln in diff_text.splitlines():
         if ln.startswith(("+++", "---", "@@", "diff ")):
             in_str, in_header, expect_doc = None, False, False
             if ln.startswith("+++ "):
                 init_file = ln.rstrip().endswith("__init__.py")
+            if run:
+                runs.append(run)
+            run = []
             continue
+        if ln.startswith("+"):
+            run.append(ln[1:])
+        elif run and not ln.strip():
+            run.append("")
+        elif ln.startswith(" ") and run:
+            runs.append(run)
+            run = []
         if not ln or ln[0] not in "+ ":
             continue
         text = ln[1:].strip()
@@ -14925,7 +15102,9 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
                     break
         if ln[0] == "+":
             out.append((text, kind))
-    return out
+    if run:
+        runs.append(run)
+    return out, runs
 
 
 # A part of a criterion's text with this many words or more is a quote of it.
@@ -15126,7 +15305,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # fence. Then the walk reads docstring prose as code (frame 201's review
     # 1, finding 1: night 157's bg_2, hunk `@@ -461,6 +462,9 @@`).
     diff_text = _batch_diff(ctx, batch_id, function_context=True)
-    kinds = _added_kinds(diff_text)
+    kinds, runs = _added_walk(diff_text)
     # Frame 306's case, night 162: s247 passed b_2 on six lines of a file
     # of criteria rows. A line of a file with no code is no evidence.
     notes, code_added = _note_files(ctx, batch_id, diff_text)
@@ -15167,10 +15346,53 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # night 157's W3, cause 9 of `plans/wall-guide.md`). Three Critics sent
     # bg_2's three docstring lines again and again, because the refusal
     # named no line of code and did not say that a docstring meets nothing.
+    # One branching statement of added lines counts as one line, because a
+    # criterion of several cases has no one line that meets it (F37, night
+    # 171: the door refused c_1's 4-line `if roaming:` block in 3 sessions).
+    # The diff decides, not the criterion's words, because a word list fit
+    # one wording (F37, review 1 of cb5d8dc1, high 1). The statement is
+    # the line of one criterion only. One statement given for every
+    # criterion is frame 170's fault again (review 1, high 2).
+    admitted: dict[str, tuple[int, int, int, str]] = {}
+    landed = None
     for cid in ids:
         if len(parts[cid]) <= _LINE_PARTS_MAX:
             continue
         n = len(parts[cid])
+        block = _block_of(parts[cid], runs)
+        if block:
+            if landed is None:
+                landed = _landed_blocks(ctx, batch_id)
+            other = next(
+                (o for o, (r, lo, hi, _k) in admitted.items()
+                 if r == block[0] and lo <= block[2] and block[1] <= hi),
+                None) or next(
+                (o for o, got in landed
+                 if o != cid and _blocks_overlap(got, parts[cid])), None)
+            if other is None:
+                admitted[cid] = block
+                continue
+            raise LinesRefusal(
+                f"the value for {cid} holds {n} lines, and the {block[3]} "
+                f"they are is named for {other} too, whole or in part. One "
+                f"statement of several lines is the line of one criterion "
+                f"only, because a statement named for every criterion names "
+                f"nothing. Copy for {cid} the one added line that meets it, "
+                f"without the +, and send the pass again. {listed}If no "
+                f"added line meets {cid}, that is a fail on it: "
+                f"{claim_for(cid)}")
+        # The refusal names the statement form first, and both shapes of a
+        # value of several lines (review 1, low 6). The one line comes
+        # after it, because no one line meets a criterion of several cases.
+        inner = _block_inside(parts[cid], runs)
+        form = ""
+        if inner:
+            lo, hi, what = inner
+            shown_block = ", ".join(repr(_stripped(p))
+                                    for p in parts[cid][lo:hi + 1])
+            form = (f"Lines {lo + 1} to {hi + 1} of your value are one "
+                    f"{what}: {shown_block}. Send those {hi - lo + 1} lines "
+                    f"alone for {cid}. ")
         # A part that the diff does not hold is a re-wrapped line, so only
         # the held parts give the kind (s324 cut "to the message." apart).
         held = [f for f in (_held_kinds(q, kinds_of[cid])
@@ -15201,19 +15423,28 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         noun = ("lines of the docstring"
                 if own and all(kind_of.get(a) == "a docstring line"
                                for a in own) else "added lines")
+        # A statement inside the value is the pass, so the list of single
+        # lines would point the seat away from it.
         sent = ""
-        if len(own) == 1:
+        if inner:
+            sent = ""
+        elif len(own) == 1:
             sent = (f"One of the lines you sent is the line: {shown}. "
                     f"Copy that one. ")
         elif own:
             sent = (f"The lines you sent hold these {noun}: {shown}. "
                     f"Copy the one that does what the criterion says. ")
         raise LinesRefusal(
-            f"the value for {cid} holds {n} lines, and a pass names one added "
-            f"line per criterion. Copy the one line of the [diff] block that "
-            f"meets {cid}, without the +, and send the pass again. "
-            f"{sent}{listed}If no added line meets {cid}, that is a fail on "
-            f"it: {claim_for(cid)}")
+            f"the value for {cid} holds {n} lines, and they are not one "
+            f"statement that a pass can name. A value of several lines lands "
+            f"as one `if`, `try`, `match` or conditional expression of added "
+            f"lines, with at most {_BRANCH_BODY_MAX} simple statements in "
+            f"each branch, named for one criterion only. Send it whole, as "
+            f"one text with line breaks or as a list of lines. Otherwise "
+            f"copy the one line of the [diff] block that meets {cid}, "
+            f"without the +, and send the pass again. "
+            f"{form}{sent}{listed}If no added line meets {cid}, that is a "
+            f"fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())
     added = [a for a, _ in kinds]
     for cid in ids:
@@ -18424,50 +18655,128 @@ def _call_keeps(form: str) -> bool:
 
     Frame 335, review 1, finding 2: the call's value is a literal that is
     not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
-    `\\temp` gave a TAB on the strict path only."""
+    `\\temp` gave a TAB on the strict path only. W3 review, finding 1: the
+    call kept `"say " + chr(92) + ""hi"`, which is not Python. So the form
+    must also compile."""
+    if _form_value(form) is None:
+        return False
     values = _call_values(form, escape=False)
     return bool(values) and all(v == form for v in values)
 
 
 def _raw_advice(line: str, escape: str) -> str:
     """The sentence that names a form of the string that comes through the
-    call unchanged. A path takes forward slashes first, because that form
-    holds no escape on either parse path."""
+    call unchanged and keeps the value of the string.
+
+    W3 of night 171: s153 took the forward-slash form of `"AppData\\Local"`,
+    and the test can never pass against a Windows path. A form with forward
+    slashes changes the value, so it is never the first advice. It comes
+    last, for a path that a file function reads and no assert compares."""
+    # W3 review, finding 2: on a line that compares, the short slash form
+    # is the form a seat takes, and it changes the compared value.
+    compares = _COMPARES.search(line or "") is not None
     lit = _escape_literal(line, escape)
     if lit is None:
-        return ("Write the string with no backslash. A path takes forward "
-                "slashes.")
+        return ("Write each backslash as `chr(92)` outside the quote marks, "
+                "as in `\"C:\" + chr(92) + \"Users\"`." + (
+                    "" if compares else " When a path is given to a file "
+                    "function, not compared, forward slashes also work."))
     prefix, mark, text = lit
+    # The meant value reads each backslash as a backslash, except the
+    # backslash of `\\` and of an escaped quote mark.
+    fixed = re.sub(r"\\(.)", lambda m: m.group(0) if m.group(1) in "\\'\""
+                   else "\\\\" + m.group(1), text, flags=re.S)
+    meant = _form_value(f"{prefix}{mark}{fixed}{mark}")
+
+    def _keeps(form: str | None) -> bool:
+        # W3 review, finding 1: a form that compiles can still change the
+        # value, so the form must compile to the meant value.
+        return (form is not None and meant is not None
+                and _form_value(form) == meant and _call_keeps(form))
+
     one = text.replace("\\\\", "\\")
-    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
     # A raw string cannot end in one backslash or hold its own mark.
     raw = (None if one.endswith("\\") or "\\" + mark in one
            else f"r{prefix}{mark}{one}{mark}")
-    path = _PATH_TEXT.fullmatch(one) is not None
-    kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
-            if _call_keeps(f)]
-    if not kept:
-        # Review 2, point 4: a slash form of a value that is not a path
-        # gives a wrong value, so the advice names no form.
-        return ("No form of this string with a backslash comes through the "
+    if _keeps(raw):
+        return (f"Write the string as a raw string with one backslash: "
+                f"`{raw}`.")
+    said = ""
+    if isinstance(meant, str) and "f" not in prefix.lower():
+        # Review 2, point 3: with no raw form, the value needs a form that
+        # holds each backslash. W3 review, finding 4: each quote mark goes
+        # through `chr` too, so the form holds no mark that the call needs.
+        parts: list[str] = []
+        for run in re.split(r"([\\'\"\x00-\x1f])", meant):
+            if len(run) == 1 and (run in "\\'\"" or ord(run) < 32):
+                parts.append(f"chr({ord(run)})")
+            elif run:
+                parts.append(f"{mark}{run}{mark}")
+        joined = " + ".join(parts)
+        if _keeps(joined):
+            marks = (" and each quote mark as `chr(39)` or `chr(34)`"
+                     if "chr(39)" in joined or "chr(34)" in joined else "")
+            said = (f"Write each backslash as `chr(92)`{marks}: `{joined}`. "
+                    f"That form keeps each backslash.")
+    if not said:
+        # Review 2, point 4: no form with a backslash comes through, so the
+        # advice names no form that keeps the value.
+        said = ("No form of this string with a backslash comes through the "
                 "call unchanged. Write the value with no backslash.")
-    said = (f"Write the path with forward slashes: `{kept[0]}`."
-            if kept[0] == slash else
-            f"Write the string as a raw string with one backslash: "
-            f"`{kept[0]}`.")
-    if len(kept) > 1:
-        said += (f" The raw string `{kept[1]}`, with one backslash, also "
-                 f"comes through the call unchanged.")
-    elif kept[0] == slash and not prefix:
-        # Review 2, point 3: with no raw form, a criterion about a
-        # backslash needs a form that holds a real backslash on both paths.
-        joined = " + chr(92) + ".join(f"{mark}{p}{mark}"
-                                      for p in one.split("\\"))
-        if _call_keeps(joined):
-            said += (f" For a criterion about a backslash, write `{joined}`. "
-                     f"That form keeps a real backslash on both parse "
-                     f"paths.")
+    # Review 2, point 6: `_PATH_TEXT` reads `\R` alone as no path.
+    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
+    if (not compares and _PATH_TEXT.fullmatch(one) is not None
+            and isinstance(meant, str)
+            and _form_value(slash) == meant.replace("\\", "/")
+            and _call_keeps(slash)):
+        said += (f" When the path is given to a file function, not "
+                 f"compared, `{slash}` also works.")
     return said
+
+
+#: A line that compares a value. W3 review, finding 2.
+_COMPARES = re.compile(r"\bassert\b|==| in ")
+
+
+def _form_value(form: str):
+    """The value of a form that the advice names, or None when the form is
+    not Python or holds more than strings, `+` and `chr` of a number.
+
+    W3 review, finding 1: `ast.literal_eval` reads no `+` of two strings
+    and no `chr`. So this walk reads the same constants as `literal_eval`,
+    and those two forms, and nothing else. A field of an f-string reads as
+    its tree, so two forms with one field compare equal."""
+    import warnings as _warnings
+    try:
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")
+            tree = _ast.parse(form, mode="eval")
+    except (SyntaxError, SyntaxWarning, ValueError):
+        return None
+
+    def walk(node):
+        if isinstance(node, _ast.Constant) and isinstance(
+                node.value, (str, bytes)):
+            return node.value
+        if isinstance(node, _ast.JoinedStr):
+            return tuple(v.value if isinstance(v, _ast.Constant)
+                         else _ast.dump(v) for v in node.values)
+        if isinstance(node, _ast.BinOp) and isinstance(node.op, _ast.Add):
+            left, right = walk(node.left), walk(node.right)
+            if isinstance(left, str) and isinstance(right, str):
+                return left + right
+        if (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                and node.func.id == "chr" and len(node.args) == 1
+                and not node.keywords
+                and isinstance(node.args[0], _ast.Constant)
+                and type(node.args[0].value) is int
+                and 0 <= node.args[0].value < 0x110000):
+            return chr(node.args[0].value)
+        raise ValueError(form)
+    try:
+        return walk(tree.body)
+    except ValueError:
+        return None
 
 
 def _escape_refusal(where: str, escape: str, line: str) -> str:
