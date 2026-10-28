@@ -101,12 +101,16 @@ def test_a_landed_criterion_is_replaced_through_the_vision_keeper(db):
 
 
 def test_the_same_text_twice_keeps_the_twin_refusal(db):
+    """The door still refuses a second row for one set of words, as
+    4f69d0a4 put back. The twin is the seat's own row from this session, so
+    the text says the row stands (night 170's W8)."""
     sb = _seat(db)
     _specify(sb, _FIRST, ["stream"])
     with pytest.raises(ValueError, match=r"^those are echo_json_helper's words "
-                       r"already, on the same ticket\. The same words are the "
-                       r"same criterion\. tk_2, the second slice, has no "
-                       r"criterion yet\.$"):
+                       r"already, on the same ticket\. echo_json_helper is "
+                       r"your criterion from this session\. It landed and "
+                       r"stands\. tk_2, the second slice, has no criterion "
+                       r"yet\.$"):
         _specify(sb, _FIRST, ["stream"])
     assert _texts(sb, "echo_json_helper") == [_FIRST]
 

@@ -1173,10 +1173,14 @@ REPEAT_END = "repeated its previous turn verbatim twice; ended"
 # also says how the session ended, so the refusal before it is the fault
 # (frame 267, review 2, finding 1).
 REFUSED_END = " was refused the same way in four turns; the session ended on it"
+# The copy door's end line. A turn that only sends again calls that landed
+# earlier in the session has nothing more to do (night 170's W8).
+COPIES_END = "sent again only calls that landed earlier in this session; ended"
 
 
 def _is_end_line(line: str) -> bool:
-    return line == REPEAT_END or line.endswith(REFUSED_END)
+    return (line in (REPEAT_END, COPIES_END)
+            or line.endswith(REFUSED_END))
 
 
 def _why_no_ruling(result: SessionResult,

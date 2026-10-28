@@ -5883,7 +5883,8 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
     in place of "a second sentence", and keeps the old text when every
-    ticket of the item has one.
+    ticket of the item has one. A twin that this session wrote is named as
+    the seat's own landed row, with no "second sentence".
 
     Night 163, item `clear()`: "it needs a second sentence" sent s199 to
     invent cases on tk_1 while tk_2 held nothing (frame 322, cause 9).
@@ -5897,6 +5898,15 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     written = {w[2].get("ticket_id") for w in ctx.writes
                if w[0] == "criteria" and isinstance(w[2], dict)}
     empty = criteria_tickets(ctx.conn, row["item_id"], written)[0] if row else []
+    # The twin is the seat's own row from this session. "A second sentence"
+    # sent seats to cut new words into the twin's words, or to log the row
+    # as lost: night 170's s118 and s187, night 171's s117 (night 170's W8).
+    # The row is one row for one set of words, and the text says it stands.
+    if any(w[0] == "criteria" and w[1] == twin for w in ctx.writes):
+        own = (f"those are {twin}'s words already, on the same ticket. {twin} "
+               f"is your criterion from this session. It landed and stands.")
+        return " ".join([own] + [f"{tid}, {headline}, has no criterion yet."
+                                 for tid, headline in empty])
     if not empty:
         return (f"{head}; if the ticket needs a second criterion, it needs a "
                 f"second sentence")
