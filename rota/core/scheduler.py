@@ -2087,8 +2087,9 @@ def guess_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
         refs = json.loads(row["refs"] or "[]")
     except (TypeError, ValueError):
         return False
-    return bool(refs) and all(isinstance(r, str) and r.startswith("guess:")
-                              for r in refs)
+    from .db import guess_item
+
+    return bool(refs) and all(guess_item(r) is not None for r in refs)
 
 
 def batch_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:

@@ -26,7 +26,7 @@ from pathlib import PurePath
 from types import SimpleNamespace
 from typing import Any, Callable, NamedTuple
 
-from .db import GUESS_REF, table_of
+from .db import guess_item, table_of, tables_of
 from ..roles import api
 from ..design import graph as graph_mod
 
@@ -913,10 +913,13 @@ RULED_TABLES = {
 def _owner_of_ref(conn, ref: str) -> str | None:
     """The role that writes the table holding `ref`, or None if no table does."""
     # A code line's key names the Architect's guess (frame 298's design, 3.4).
-    if isinstance(ref, str) and ref.startswith(GUESS_REF):
-        return "architect"
-    # `db.table_of` finds the row, and this map names its writer (F22).
-    table = table_of(conn, ref)
+    # The key must name an item that exists (F22 review, finding 6).
+    if guess_item(ref) is not None:
+        return "architect" if table_of(conn, ref) else None
+    # `db.table_of` finds the row, and this map names its writer (F22). The
+    # scope's order picks one owner when an id lives in two tables, as the
+    # order of the map did before F22.
+    table = table_of(conn, ref, among=(*RULED_TABLES, "batches", "ledger"))
     if table in RULED_TABLES:
         return RULED_TABLES[table]
     # A batch line is the Architect's prediction of what the change touches.
@@ -4674,15 +4677,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     split.setdefault("terminologist" + CRITERIA_RELAY, []).append(
                         test["criterion_id"])
                     continue
+                # `db.tables_of` finds the row (F22).
+                held = tables_of(ctx.conn, ref)
                 if ref in lines:
                     owner = "terminologist" + CRITERIA_RELAY
-                elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
-                                      (ref,)).fetchone():
+                elif "criteria" in held:
                     owner = "terminologist"
-                elif ref.startswith("guess:"):
+                elif guess_item(ref) is not None:
                     owner = "architect" + GUESS_RELAY
-                elif ctx.conn.execute("SELECT 1 FROM batches WHERE id = ?",
-                                      (ref,)).fetchone():
+                elif "batches" in held:
                     owner = _owner_of_ref(ctx.conn, ref) + BATCH_RELAY
                 else:
                     owner = _owner_of_ref(ctx.conn, ref) or recipient

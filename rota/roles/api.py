@@ -19,7 +19,8 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
-from ..core.db import GUESS_REF, READING_REF, elsewhere, id_tables, table_of
+from ..core.db import (GUESS_REF, READING_REF, elsewhere, guess_item,
+                       id_tables, table_of, tables_of)
 from ..core.worktrees import GIT
 
 import ast as _ast
@@ -2641,8 +2642,7 @@ def model_adopt(ctx: Ctx, ids: list[str]) -> dict:
         ids = [ids]
     both = {"constraints": [], "model_areas": []}
     for rid in ids:
-        table = ("constraints" if table_of(ctx.conn, rid) == "constraints"
-                 else "model_areas")
+        table = table_of(ctx.conn, rid, among=both) or "model_areas"
         both[table].append(rid)
     merged: dict = {"adopted": [], "skipped": []}
     for table, tids in both.items():
@@ -4230,13 +4230,15 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # The check sits here and not in `_must_exist`, because only this door
     # knows the batch. Night 95 (2026-09-28): the Architect sent a criterion
     # id as the constraint, and the refusal named 6 of 12 rows and no exit.
-    if constraint_id != ZERO and ctx.conn.execute(
-            "SELECT 1 FROM constraints WHERE id = ?", (constraint_id,)).fetchone() is None:
-        held = [t for t in ("criteria", "tests") if ctx.conn.execute(
-            f"SELECT 1 FROM {t} WHERE id = ?", (constraint_id,)).fetchone()]
-        what = (f"{constraint_id!r} is a row of {held[0]}, not a constraint"
-                if held else f"no constraints row has id={constraint_id!r}")
-        route = _escalated_test_route(ctx) if held else None
+    held = tables_of(ctx.conn, constraint_id) if constraint_id != ZERO else []
+    if constraint_id != ZERO and "constraints" not in held:
+        # `db.tables_of` names every table, a batch's id included (F22).
+        what = (f"{constraint_id!r} is a row of {' and '.join(held)}, not a "
+                f"constraint" if held
+                else f"no constraints row has id={constraint_id!r}")
+        # The escalated route is the exit for a criterion or a test only.
+        route = (_escalated_test_route(ctx)
+                 if {"criteria", "tests"} & set(held) else None)
         if route:
             raise ValueError(f"{what}. A finding names a constraint from "
                              f"model.consult. {route}")
@@ -12231,14 +12233,6 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
     return files and not content
 
 
-
-def guess_item(ref) -> str | None:
-    """The item id a `guess:<item>` key names, or None."""
-    if isinstance(ref, str) and ref.startswith(GUESS_REF) and len(ref) > len(GUESS_REF):
-        return ref[len(GUESS_REF):]
-    return None
-
-
 def _request_item(conn: sqlite3.Connection, item_id: str) -> bool:
     from .principal import _is_request_item
 
@@ -13436,7 +13430,8 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     if not row:
         return {"line": key, "ref": ref, "row": None,
                 "note": "the line names a row that no table holds"}
-    row["table"] = table_of(ctx.conn, ref) or row.get("table")
+    from ..core.runner import _label
+    row["table"] = _label(ctx.conn, ref, row)
     return {"line": key, "ref": ref, "row": row}
 
 
@@ -13784,11 +13779,15 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # A rota row under another table's name. A path or an entry as the
     # subject stays legal: reconcile logs "README says X" about README.md
     # under items, and that is the shape the design asks for.
-    home = _table_of_ref(ctx.conn, about_ref)
-    if home and about_table != home:
+    # An id can live in two homes: `sentinel` is a constraint and a glossary
+    # term on nights 161 to 170. Any home that holds it is right (F22).
+    homes = _homes_of_ref(ctx.conn, about_ref)
+    home = homes[0] if homes else None
+    if home and about_table not in homes:
         raise ValueError(_offer(
             ctx,
-            f"{about_ref!r} is a row of {home}, not of {about_table}. "
+            f"{about_ref!r} is a row of {' and '.join(homes)}, not of "
+            f"{about_table}. "
             f"about_ref and about_table name one row together; send "
             f"about_table={home!r}",
             "ledger.log", {"about_ref": about_ref, "about_table": home,
@@ -13972,28 +13971,33 @@ def _refuse_an_echo(ctx, about_ref: str) -> None:
             f"words. Adopt what they approved, and stop.")
 
 
-# The tables a ledger row can be about. This is a rule of the ledger, and no
-# reader finds a row through it: `db.table_of` finds the row (F22).
-LEDGER_HOMES = frozenset(("items", "statements", "criteria", "tickets", "tests",
-                          "constraints", "glossary_terms", "model_areas",
-                          "frame_rulings"))
+# The tables a ledger row can be about, in the order that picks one when an
+# id lives in two of them. This is a scope rule. `db.tables_of` reads it as
+# `among` (F22).
+LEDGER_HOMES = ("items", "statements", "criteria", "tickets", "tests",
+                "constraints", "glossary_terms", "model_areas", "frame_rulings")
 # The class of a parking row: the principal answered, and the answer said
 # nothing about this row. The door stamps the class; no model writes it.
 UNADDRESSED_KIND = "unaddressed_answer"
 
 
-def _table_of_ref(conn, ref: str) -> str | None:
-    """The table the row lives in, or None.
+def _homes_of_ref(conn, ref: str) -> list[str]:
+    """Every ledger home that holds the row, in the order of `LEDGER_HOMES`.
 
     A read-back line's ref, `reading:<reply id>`, lives in `messages`: it
     names his reply (the seam design, 2.3). A code line's key is no ledger
-    home, so a `guess:` ref gives None."""
+    home, so a `guess:` ref gives none."""
     if guess_item(ref) is not None:
-        return None
-    table = table_of(conn, ref)
-    if table == "messages":
-        return table if ref.startswith(READING_REF) else None
-    return table if table in LEDGER_HOMES else None
+        return []
+    if isinstance(ref, str) and ref.startswith(READING_REF):
+        return tables_of(conn, ref)
+    return tables_of(conn, ref, among=LEDGER_HOMES)
+
+
+def _table_of_ref(conn, ref: str) -> str | None:
+    """The first ledger home that holds the row, or None."""
+    homes = _homes_of_ref(conn, ref)
+    return homes[0] if homes else None
 
 
 def _stage_ledger(ctx: Ctx, about_ref: str, about_table: str, assumption: str,

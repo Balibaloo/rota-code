@@ -23,7 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..core.db import GUESS_REF, READING_REF, table_of
+from ..core.db import READING_REF, guess_item, table_of
 from ..core.runner import new_id
 
 
@@ -987,18 +987,19 @@ def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
     reply. A row of any other table is no line of a page."""
     from .api import LEDGER_HOMES
 
-    table = table_of(conn, ref)
-    if table is None or ref.startswith((READING_REF, GUESS_REF)):
-        return table
-    return table if table in LEDGER_HOMES or table in RULED_HOMES else None
+    if not isinstance(ref, str):
+        return None
+    if ref.startswith(READING_REF) or guess_item(ref) is not None:
+        return table_of(conn, ref)
+    return table_of(conn, ref, among=LEDGER_HOMES + RULED_HOMES)
 
 
 # The tables beside `LEDGER_HOMES` that a page or a question names. A ledger
 # note can be about a ruling, and a question can be about a decision (frame
-# 316's m191, frame 306's clarify about). This is a rule of the page, and no
-# reader finds a row through it (F22).
-RULED_HOMES = frozenset(("batches", "ledger", "entries", "decisions",
-                         "rulings", "findings", "verdicts", "references_"))
+# 316's m191, frame 306's clarify about). This is a scope rule, and the order
+# picks one table when an id lives in two (F22).
+RULED_HOMES = ("batches", "ledger", "entries", "decisions", "rulings",
+               "findings", "verdicts", "references_")
 
 
 def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
@@ -2096,8 +2097,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                     and (r in crits or _is_request_item(conn, r))}
         # A code line renders under its item, in the block (frame 298's
         # design, 2.1, point 4).
-        in_block |= {r for r in refs if isinstance(r, str) and r.startswith("guess:")
-                     and r[len("guess:"):] in in_block}
+        in_block |= {r for r in refs if guess_item(r) in in_block}
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
@@ -2249,7 +2249,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
 
         asked = request_block(conn, refs, order, out, said=said,
                               code=code_stamp(conn, ask_id), stalled=keys)
-        guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
+        guessed = [n for n, r in enumerate(order, 1) if guess_item(r) is not None]
         if account:
             out.append("What we are building:")
             numbered(account)
