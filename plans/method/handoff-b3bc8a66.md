@@ -6,6 +6,10 @@ Message rota-33 for anything this note withholds or you doubt. I keep the last o
 
 Every fix of sprints 28 to 31, W3 and the `how_it_works` cause lands before night 172, with a gate on each (ruled: 2026-10-26 23:4x and 2026-10-27 19:32, on frame 344). The gate is the only check besides a review. No night runs until the head holds them all.
 
+## The gate rule, ruled 2026-10-28 00:5x
+
+Partial gates on the touched test files per land, one full gate on the head before night 172 (ruled: Roman, in the terminal). The gate on 695e3beb is the last full gate until that one.
+
 ## What is on the head
 
 `rota/foundation` at 552490b1 and after holds F19, F20 with F21, F31 and F25. F6 closed by a probe, `plans/f6-probe-2026-10-27.md`. Frame 280 has a close line under the F23 ruling.
