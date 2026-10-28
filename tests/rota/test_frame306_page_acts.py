@@ -158,6 +158,21 @@ def test_six_criteria_with_one_retired_admit_a_seventh(db):
             text="The output of clear() stays exactly the same as today.")
 
 
+def test_the_follower_and_the_doors_hold_the_page_acts_of_the_wake(db):
+    """The follower and the doors read the runtime list of the wake, the
+    page acts included (the review of f4951389, finding 1)."""
+    from rota.core.sandbox import held_calls
+    from rota.roles import api
+
+    sb = _repair(db)
+    sb.ctx.wake_kind = "message"
+    mode, held = held_calls(sb)
+    assert mode == "criterion_repair"
+    assert {"criteria.specify", "criteria.retire"} <= held, sorted(held)
+    tools = set(api._wake_mode_tools(sb.ctx))
+    assert {"criteria.specify", "criteria.retire"} <= tools, sorted(tools)
+
+
 def test_the_relay_wake_offers_specify_and_names_the_added_sentence(db):
     allow = _wake_allow(_wake(), db)
     assert "criteria.specify" in allow

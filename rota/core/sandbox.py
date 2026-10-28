@@ -5381,14 +5381,32 @@ def _span_as_it_is(sb: Sandbox, o) -> dict | None:
     return {**a, "text": "\n".join(held) + "\n" if held else ""}
 
 
+def held_calls(sb: Sandbox) -> tuple[str, set[str]]:
+    """The seat's mode and the calls it holds: the sandbox's own functions,
+    narrowed by the wake's `.tools` file when the mode has one.
+
+    A sandbox that a test builds with no wake holds the whole graph of its
+    role. The doors read the runtime list through `api._wake_mode_set`, so
+    the follower reads the same list, the page acts of a criterion relay
+    included (the audit of 2026-10-27, F25; the review of f4951389,
+    finding 1)."""
+    mode = api._wake_mode_key(sb.ctx)
+    have = set(sb.functions())
+    narrowed = api._wake_mode_set(sb.ctx)
+    return mode, have if narrowed is None else have & set(narrowed)
+
+
 def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
            offers: list) -> list[dict]:
     """Send each offer of one refusal through `dry_run`. Returns one record
     per offer: the door, the sentence, the refusal, the offered call, and
     the second refusal, which is None when the doors admitted the call.
 
-    Two facts of the offer are checked too: its sentence is in the refusal,
-    and each argument it names is a parameter of its op (`bad_args`).
+    Three facts of the offer are checked too: its sentence is in the
+    refusal, each argument it names is a parameter of its op (`bad_args`),
+    and the seat's mode holds each call it names (`not_in_mode`). A dry run
+    that skips its op never reaches the working set, so the mode check
+    stands apart from it (frame 135's law; the audit of 2026-10-27, F25).
 
     A step `api.AGAIN` is the refused call, unchanged. It fails when the
     door that refused it first refuses it again. Another door's refusal of
@@ -5398,6 +5416,12 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
     door for the other two (frame 144's review of c888968, point 1).
     """
     first = _raise_site(exc)
+    mode, held = held_calls(sb)
+    # The runtime refuses an op outside the seat's list before any door. So
+    # a door that refuses the seat's op met a seat whose list holds it, and
+    # an offer of the same op is held. A test sandbox can key another mode
+    # than its seat's list (the review of f4951389, finding 2).
+    held = held | {dotted}
     out = []
     for o in offers:
         then = tuple((dotted, kwargs) if step == api.AGAIN else step
@@ -5413,6 +5437,11 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
             if names is not None:
                 bad += [f"{op}: {a}" for a in args if a not in names]
         rec["bad_args"] = bad
+        # The step AGAIN is the seat's own op, which `held` holds above.
+        rec["mode"] = mode
+        rec["not_in_mode"] = [op for op in [o.op] + [s[0] for s in o.then
+                                                    if s != api.AGAIN]
+                              if op not in held]
         try:
             try:
                 res = dry_run(sb, o.op, o.args, then)
