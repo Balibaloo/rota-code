@@ -6459,9 +6459,10 @@ def _tester_answer_open(ctx: Ctx) -> bool:
 def _closed_answer_note(ctx: Ctx, id: str) -> str:
     """What a refusal says in place of the answer route, once the session
     has sent its one answer to the Tester (frame 308)."""
+    from ..core.sandbox import _sent_this_session
+
     carried = any(id in (m.get("body_refs") or ())
-                  for m in ctx.outbound or ()
-                  if m["to_role"] == "tester" and m["verb"] == "answer")
+                  for m in _sent_this_session(ctx, "tester", "answer"))
     if carried:
         return "Your answer to the Tester carries this criterion."
     return ("Your one answer to the Tester is sent, and the answer is closed "
@@ -14658,9 +14659,9 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     # verdict five of five (CR-fail-names-its-criterion, re-earned
     # 2026-09-02). The recipient is the mechanical distinction; anything
     # finer is a judgement in disguise.
-    staged = [m for m in getattr(ctx, "outbound", [])
-              if m.get("verb") == "challenge" and m.get("to_role") == "tester"]
-    if staged:
+    from ..core.sandbox import _sent_this_session
+
+    if _sent_this_session(ctx, "tester", "challenge"):
         raise ValueError(
             "you have already challenged the tester this session, and that "
             "is your judgement of this commit until the challenge lands. "
@@ -19673,9 +19674,7 @@ def _refuse_after_challenge(ctx: Ctx) -> None:
     """
     from ..core import sandbox as _sandbox
 
-    sent = [m for m in (getattr(ctx, "outbound", None) or [])
-            if m["to_role"] == "tester" and m["verb"] == "challenge"
-            and m.get("route") != "triage"]
+    sent = _sandbox._sent_this_session(ctx, "tester", "challenge")
     if not sent:
         return
     refs = sent[-1].get("body_refs") or []

@@ -1966,16 +1966,20 @@ def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
     return rows
 
 
-def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> bool:
+def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> list[dict]:
     """
-    True when this session has staged `verb` to `recipient` already.
+    The rows of `verb` to `recipient` that this session staged, oldest
+    first. An empty list when the session sent none.
 
     The triage verdict's row is the op's, not the model's send. A question the
     model sends after the verdict is its first (frame 81).
+
+    This is the one reader of what the session sent (F24). A door that asks
+    the question calls it, so no door keeps a triage row the others drop.
     """
-    return any(m["to_role"] == recipient and m["verb"] == verb
-               and m.get("route") != "triage"
-               for m in ctx.outbound)
+    return [m for m in (getattr(ctx, "outbound", None) or [])
+            if m.get("to_role") == recipient and m.get("verb") == verb
+            and m.get("route") != "triage"]
 
 
 def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
@@ -2049,8 +2053,7 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # place of a rewrite lets the Tester read the contested words, as on
     # night 159 (frame 329, review 1b, F5).
     twinned = getattr(ctx, "respecify_twinned", None) or set()
-    stands |= {r for m in ctx.outbound
-               if m["to_role"] == "vision_keeper" and m["verb"] == "challenge"
+    stands |= {r for m in _sent_this_session(ctx, "vision_keeper", "challenge")
                for r in m.get("body_refs") or ()
                if isinstance(r, str) and r in twinned}
     unwritten = [r for r in relay_refs
