@@ -210,3 +210,12 @@ def test_night_171s_m80_contest_rests_on_the_calls_words():
                              shape, ["r1"], page) == (
         "His words neither fault nor name line 1, so line 1 takes no "
         f"contest: the words start {span!r}.")
+
+
+def test_a_hedging_adverb_starts_no_clause():
+    """Review p7 p2, finding p2-3: the seat cannot drop his hedge."""
+    from rota.roles.api import _holds_clauses
+
+    for hedge in ("Hardly", "Barely", "Scarcely", "Rarely", "Seldom", "Only"):
+        assert not _holds_clauses(f"{hedge} any of line 3 is right.",
+                                  "any of line 3 is right")

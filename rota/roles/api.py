@@ -457,11 +457,40 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     Ambiguity is left alone. A ticket in two batches has no single answer here,
     and inventing one would file a test against the wrong delivery.
     """
-    rows = ctx.conn.execute(
-        "SELECT DISTINCT bt.batch_id AS id FROM criteria c "
-        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE c.id = ?", (criterion_id,)).fetchall()
-    return rows[0]["id"] if len(rows) == 1 else None
+    batch = built_batch(ctx.conn, criterion_id)
+    return batch["id"] if batch else None
+
+
+def built_batch(conn, criterion_id: str | None, ticket_id: str | None = None):
+    """
+    The one batch with a commit that a test of the criterion attaches to, or
+    None.
+
+    Every door that asks "is this criterion's change built" calls this one
+    function. `tests.encode` attaches a test to the batch. The send door lets a
+    message reach a Tester or a Developer only when the batch exists. Night
+    173's s112 answered before any batch existed, and `tests.encode` refused
+    the woken Tester s113 12 times (W10, the count of 2026-10-28). Night 147's
+    s315 met a ticket in two batches, and the two doors disagreed.
+
+    Built means the batch has a commit, a merged batch included, so a reopen
+    after a merge reaches the Developer (the coordinator's ruling on pass 1b).
+    A live batch wins over a merged one, because the Tester writes into the
+    change that still runs. Two candidates of one rank have no single answer,
+    and a guess files a test against the wrong delivery.
+
+    `ticket_id` names the ticket of a criterion the session staged and has
+    not written yet.
+    """
+    rows = conn.execute(
+        "SELECT DISTINCT b.id AS id, b.status AS status, b.head_commit AS head_commit "
+        "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "WHERE bt.ticket_id = COALESCE(?, (SELECT ticket_id FROM criteria WHERE id = ?)) "
+        "ORDER BY b.id", (ticket_id, criterion_id)).fetchall()
+    built = [b for b in rows if b["status"] != "abandoned" and b["head_commit"]]
+    live = [b for b in built if b["status"] != "merged"]
+    pick = live or built
+    return pick[0] if len(pick) == 1 else None
 
 
 class Wall(ValueError):
@@ -11891,6 +11920,11 @@ def _clause_start_near(text: str, span: str) -> str | None:
     return None
 
 
+# An adverb that hedges or negates its clause is no lead word. "Hardly any
+# of line 3 is right." keeps its hedge (review p7 p2, finding p2-3).
+_HEDGES = frozenset({"hardly", "barely", "scarcely", "rarely", "seldom", "only"})
+
+
 def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
     """The words of `text`, lower case, and the token positions where a
     clause can start or end. Quote marks, apostrophes and other marks are
@@ -11904,7 +11938,8 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
             continue
         if s in _CLAUSE_JOIN:
             cuts.update((len(tokens), len(tokens) + 1))
-        if len(tokens) in cuts and (s in _CLAUSE_LEAD or s.endswith("ly")):
+        if len(tokens) in cuts and (s in _CLAUSE_LEAD or (
+                s.endswith("ly") and s not in _HEDGES)):
             cuts.add(len(tokens) + 1)
         # "Line 7 should say X" and "Change line 7 to say X": the quoted
         # words start after the report verb, and the cut drops no "not" or
@@ -11987,16 +12022,52 @@ _PLAIN_WORDS = frozenset(
     "what which who how when why do does i you we they".split())
 
 
-def _names_shown(said: str, shown: str) -> bool:
-    """True when `said` holds a content word of `shown`, the text the page
-    showed him for a row. "the options one" names the sense "group: a set
-    of related options". A stated choice names the option it states
-    (night 172's m33, m55 and m86, review p7 p1, finding 1)."""
-    def words_of(text: str) -> set[str]:
-        return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
-                if w not in _PLAIN_WORDS}
+# A sentence that asks: it ends with "?" or opens with a question word.
+_QUESTION_OPEN = re.compile(
+    r"\W*(?:what|which|how|why|is|are|do|does|can)\b", re.I)
+# The words that negate what follows them in a clause. The module's older
+# `_NEGATION` reads fewer words, and its readers keep it.
+_CLAUSE_NEGATION = re.compile(
+    r"\b(?:not|no|never|nor|rather\s+than|instead\s+of)\b|n't\b", re.I)
 
-    return bool(words_of(said) & words_of(shown))
+
+def _shown_words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
+            if w not in _PLAIN_WORDS}
+
+
+def _shown_mention(said: str, shown: str, others: frozenset = frozenset()) -> str:
+    """How `said` mentions a content word of `shown`, the text the page
+    showed him for a row: "named", "negated" or "".
+
+    "the options one" names the sense "group: a set of related options". A
+    question names nothing: "what is a group anyway" chose no sense. A word
+    after a negation in its clause is "negated": "not the command one"
+    refuses the command sense (review p7 p2, finding p2-1). A row named
+    outside a negation too is "named": M400's "the normal version flag"
+    names the row that "not a new flag" describes. Only a word that no row in `others`
+    shows can be negated, because a long criterion shares its words with
+    its test, and "the test should not check the version" refuses neither."""
+    want = _shown_words(shown)
+    found = ""
+    for sentence in _sentences(said):
+        if sentence.rstrip().endswith("?") or _QUESTION_OPEN.match(sentence):
+            continue
+        for clause in re.split(
+                r"[,;:]|\b(?:and|but|or|so|because)\b", sentence, flags=re.I):
+            for m in re.finditer(r"[a-z][a-z'-]+", clause.casefold()):
+                if m.group() in want:
+                    # The negation governs the word when only plain words
+                    # stand between: "not the command one". Night 172's
+                    # m55 "do not touch commands" negates the verb, and
+                    # approves the sense (P7 pass 1e, the replay).
+                    neg = list(_CLAUSE_NEGATION.finditer(clause[:m.start()]))
+                    if not neg or _shown_words(
+                            clause[neg[-1].end():m.start()]):
+                        found = "named"
+                    elif m.group() not in others and not found:
+                        found = "negated?"
+    return "negated" if found == "negated?" else found
 
 
 def _backed(conn, ref: str, verdict: str, said: str, order: list,
@@ -12026,7 +12097,7 @@ def _backed(conn, ref: str, verdict: str, said: str, order: list,
     shown = _shown_text(conn, ref, line, page_text)
     return bool(any(k in reading.named for k in lines) or ident
                 or reading.names & _line_reading(shown).names
-                or _names_shown(said, shown))
+                or _shown_mention(said, shown) == "named")
 
 
 def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
@@ -12046,23 +12117,65 @@ def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
     with no backed verdict is refused whole, on its first row (review p7
     p1, finding 1)."""
     rows = list(per_item.items())
-    # A row's span can be the clause after his "replace it with this:", and
-    # the call's words name the line. Night 171's s193 contested line 1 of
-    # m80 so, and the span alone named no line (P7 pass 1d).
-    if not rows or any(
-            _backed(conn, ref, verdict, said, order, page_text)
-            for ref, verdict in rows
-            for said in {(shape_of.get(ref) or {}).get("words") or "",
-                         words or ""} if said):
+
+    def words_of(ref: str) -> list[str]:
+        # A row's span can be the clause after his "replace it with this:",
+        # and the call's words name the line. Night 171's s193 contested
+        # line 1 of m80 so, and the span alone named no line (P7 pass 1d).
+        return [w for w in dict.fromkeys(
+            [(shape_of.get(ref) or {}).get("words") or "", words or ""]) if w]
+
+    def backed(ref: str, verdict: str) -> bool:
+        return any(_backed(conn, ref, verdict, w, order, page_text)
+                   for w in words_of(ref))
+
+    def refusal(ref: str, verdict: str) -> str:
+        said = words_of(ref)[0] if words_of(ref) else ""
+        key = key_of.get(ref, ref)
+        row = f"line {key}" if str(key).isdigit() else str(key)
+        first = (_sentences(said) or [""])[0]
+        back = "approve" if verdict == "approve" else "fault"
+        return (f"His words neither {back} nor name {row}, so {row} takes "
+                f"no {verdict}: the words start {first!r}.")
+
+    # A contest, a revise or a fault needs its own backing. Only an approve
+    # rides beside a backed verdict: "fine" carried a contest of g1 beside
+    # its approve of g2 (review p7 p2, finding p2-2).
+    # A choice of one option backs the contest of the others: "the options
+    # one" contests the command sense. A numbered page keeps its own line
+    # doors for a contest (`_unnamed_contest`), so this reads a clarify.
+    def shown_of(ref: str) -> str:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        return _shown_text(conn, ref, line, page_text)
+
+    def chose_other(ref: str) -> bool:
+        return any(_shown_mention(w, shown_of(other)) == "named"
+                   and _shown_mention(w, shown_of(ref)) != "named"
+                   for other in per_item if other != ref
+                   for w in words_of(ref))
+
+    for ref, verdict in rows:
+        if (verdict != "approve" and not order and not backed(ref, verdict)
+                and not chose_other(ref)):
+            return refusal(ref, verdict)
+    # A negated mention of a row refuses its approve: "the options one, not
+    # the command one" (review p7 p2, finding p2-1).
+    for ref, verdict in rows:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        # A numbered page reads a negation by its line doors. Night 150's
+        # m37 approved its batch line beside words that negate a test word.
+        shown = (_shown_text(conn, ref, line, page_text)
+                 if verdict == "approve" and not order else "")
+        others = frozenset().union(*[_shown_words(shown_of(o))
+                                     for o in per_item if o != ref])
+        if shown and any(_shown_mention(w, shown, others) == "negated"
+                         for w in words_of(ref)):
+            return (f"His words refuse {key_of.get(ref, ref)}: they say "
+                    f"no to {shown!r}, so it takes no approve.")
+    if not rows or any(backed(ref, verdict) for ref, verdict in rows):
         return None
     ref, verdict = next(((r, v) for r, v in rows if v == "approve"), rows[0])
-    said = (shape_of.get(ref) or {}).get("words") or words or ""
-    key = key_of.get(ref, ref)
-    row = f"line {key}" if str(key).isdigit() else str(key)
-    first = (_sentences(said) or [""])[0]
-    back = "approve" if verdict == "approve" else "fault"
-    return (f"His words neither {back} nor name {row}, so {row} takes "
-            f"no {verdict}: the words start {first!r}.")
+    return refusal(ref, verdict)
 
 
 def _words_from(ctx: Ctx, span: str) -> str | None:
@@ -13544,6 +13657,52 @@ def _earlier_answers(conn, ask_id: str, reply_id: str
     return out
 
 
+_PAGE_LINE = re.compile(r"^\s+(\d+)\. (.*)$", re.M)
+# The refusal of words that name no line of the account's page. His next
+# request page reads it from the page's note (`account_unnamed_line`).
+ACCOUNT_NO_LINE = ("The words name no line of this page, so they change no "
+                   "row on it.")
+
+
+def _account_page_refusal(words: str, ruled: set[int], page_text: str,
+                          size: int, contested: set[int]) -> str | None:
+    """The refusal of a ruling on the account's page that his words do not
+    name, or None.
+
+    The account's page has no line of a request. Words land only on a line
+    they name by number or share a name with, by the F2 name rule. Words
+    about format_filename on s272's page of claims landed 7 contests, then 7
+    approves, on 7 claims they never named (the review of P9, p2, finding
+    2, and p3, finding 1). Agreement alone approves every line, and words
+    that name lines by a word are left to the other doors.
+
+    law 6: nothing is ruled on the principal's behalf
+    """
+    if not any(1 <= n <= size for n in ruled):
+        return None
+    if _AGREEMENT_ALONE.fullmatch(words or ""):
+        return None
+    reading = _line_reading(words, size)
+    # "Drop all seven lines" names lines by a word, and the door cannot read
+    # which, as in `_agreed_contest`. Night 133's m123 said so.
+    if reading.line_word:
+        return None
+    named = {n for n in reading.named | reading.faulted | reading.matched
+             if 1 <= n <= size}
+    said = reading.names
+    if said:
+        named |= {int(m.group(1)) for m in _PAGE_LINE.finditer(page_text or "")
+                  if said & _line_reading(m.group(2)).names}
+    if not named:
+        return ACCOUNT_NO_LINE
+    unnamed = sorted(n for n in contested if 1 <= n <= size and n not in named)
+    if not unnamed:
+        return None
+    return (f"The words name {_lines(sorted(named))} and do not name "
+            f"{_lines(unnamed)}. On the account's page a contest lands only "
+            f"on a line the words name.")
+
+
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
                     request_lines: frozenset[int]) -> str | None:
     """The refusal of a contest when the words name no line, or None.
@@ -14028,7 +14187,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     from ..core.scheduler import aside_items
 
     shift = ask["id"].startswith(SHIFT_ASK)
-    off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
+    # The page's own filter, so the door keeps the rows the page numbers.
+    off = set() if (shift or is_clarify) else off_page(
+        ctx.conn, refs, confirm=ask["verb"] == "confirm")
     # His contest of a read-back line corrects the rows of that reply, and
     # the new page need not hold them. Those refs are keys here, past the
     # off-page rule (the review of pass 5, finding 1; the seam design, 2.3).
@@ -14083,12 +14244,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"you put aside.")
         # A row of another request is no line of this page, so words here
         # never change it (frame 193's design, 2.F.7).
+        # A row he saw on the page takes his words, as night 172's m131 did
+        # before P9: "Drop lines 9 to 15". A row he never saw there takes
+        # none (law 6; the review of P9, finding 3).
         if (ref is not None and ref in off and ruling in ("contest", "revise")
-                and ref not in read_keys):
+                and ref not in read_keys and ref not in (order or [])):
+            from .principal import request_of
+
             items = _items_reached(ctx.conn, ref)
+            if any(request_of(ctx.conn, i) for i in items):
+                raise ValueError(
+                    f"{key} is your earlier request, {', '.join(items)}, and "
+                    f"this page is about another request. Words on this page "
+                    f"do not change it. Leave the row out of the ruling.")
             raise ValueError(
-                f"{key} is your earlier request, {', '.join(items)}, and this "
-                f"page is about another request. Words on this page do not "
+                f"{key} is no line of this page. Words on this page do not "
                 f"change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
@@ -14499,6 +14669,22 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # A contest must rest on the words. Night 146 (frame 234): s427 contested
     # four lines the words said match, and s122 contested line 1, the
     # request, when the words faulted lines 3 and 5. Each cancelled a batch.
+    # The account's page: a present of no request and no request line
+    # (ruled: Roman, 2026-10-28 09:10, frame 344). His reply is read even
+    # when the call passes no words, so 7 approves with empty words of the
+    # review of P9, p3, finding 1, are refused too.
+    from .principal import page_owner
+
+    if (order and not is_clarify and not shift and ask["verb"] == "present"
+            and not asked
+            and page_owner(ctx.conn, row_refs) is None):
+        ruled_lines = {i + 1 for i, r in enumerate(order) if r in per_item}
+        refusal = _account_page_refusal(his, ruled_lines, page_text,
+                                        len(order), contested={
+                                            i + 1 for i, r in enumerate(order)
+                                            if per_item.get(r) != "approve"})
+        if refusal:
+            raise ValueError(refusal)
     if (words or "").strip() and not is_clarify and order:
         faulted, matched = set(read_faulted), set(read_matched)
         # law 9: batches are immutable once formed; only scope recomposes one

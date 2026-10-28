@@ -30,6 +30,7 @@ from .db import guess_item, table_of, tables_of
 from ..roles import api
 from ..design import graph as graph_mod
 from .db import author_refusal, journal_author
+from .db import OWED_A_REPLY
 
 # How many open assumptions one page to the principal may carry. The
 # interview is iterative by ruling (2026-09-12); the count is a fact the
@@ -1858,6 +1859,100 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
             raise ValueError(said)
 
 
+_BUILDERS = ("tester", "developer")
+
+
+def _unbuilt_refusal(ctx, recipient: str, verb: str, refs) -> None:
+    """
+    Refuse a message to a Tester or a Developer, or a question from one,
+    when no change of the item has a commit.
+
+    A Tester or a Developer woken on such a message has no door that lets it
+    work. Night 173's s112 answered before any batch existed, and
+    `tests.encode` refused the woken Tester s113 12 times. Night 169's s113
+    asked with no batch (m30), and the answer m31 woke s115 into the same
+    refusal (W10, the review of fe1d300c). The batch fact is
+    `api.built_batch`, the reader `tests.encode` uses.
+    """
+    trigger = getattr(ctx, "trigger", None)
+    woke = ctx.conn.execute("SELECT from_role FROM messages WHERE id = ?",
+                            (trigger,)).fetchone() if trigger else None
+    # A tick that wakes a Tester or a Developer names its batch. Only a
+    # message wake leaves the asker with no batch, as night 169's s113.
+    asker = (verb in OWED_A_REPLY and ctx.role in _BUILDERS
+             and woke is not None)
+    if recipient not in _BUILDERS and not asker:
+        return
+    # A message with no refs names no item, so the batch fact has no subject.
+    refs = [r for r in refs if isinstance(r, str)]
+    if not refs:
+        return
+    # The scheduler named the batch, so the session works inside it.
+    if getattr(ctx, "batch_id", None):
+        return
+    if not asker:
+        # A reply to the recipient's own question lands. That question passed
+        # this door, so the asker held a batch.
+        if woke and woke["from_role"] == recipient:
+            return
+        if refs and ctx.conn.execute(
+                "SELECT 1 FROM messages m, json_each(m.body_refs) j WHERE "
+                "m.from_role = ? AND m.to_role = ? AND m.status = 'unresolved' "
+                "AND j.value IN (SELECT value FROM json_each(?))",
+                (recipient, ctx.role, json.dumps(refs))).fetchone():
+            return
+    # The item's criteria, reached from a criterion, ticket, item or batch ref.
+    crit = sorted({row["id"] for r in refs for row in ctx.conn.execute(
+        "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+        "WHERE c.id = ? OR c.ticket_id = ? OR t.item_id = ? OR c.ticket_id IN "
+        "(SELECT ticket_id FROM batch_tickets WHERE batch_id = ?)", (r, r, r, r))})
+    # A criterion staged in this session has no row yet. Its ticket is in
+    # the staged write (frame 306: specify, then the note to the Tester).
+    staged = {i: rest[0].get("ticket_id") for t, i, *rest in ctx.writes
+              if t == "criteria" and rest and isinstance(rest[0], dict)}
+    # The item's tickets, reached from a criterion, ticket, item or batch
+    # ref. An item can have a batch before it has a criterion.
+    tickets = {row["id"] for r in refs for row in ctx.conn.execute(
+        "SELECT t.id FROM tickets t WHERE t.id = ? OR t.item_id = ? OR t.id IN "
+        "(SELECT ticket_id FROM criteria WHERE id = ?) OR t.id IN "
+        "(SELECT ticket_id FROM batch_tickets WHERE batch_id = ?)", (r, r, r, r))}
+    tickets |= {staged[r] for r in refs if staged.get(r)}
+    built = [b for b in (api.built_batch(ctx.conn, None, t) for t in sorted(tickets))
+             if b]
+    if any(b["status"] != "merged" for b in built):
+        return
+    # A test of an abandoned or deferred batch is one the Tester rewrites.
+    # Night 142's walk 1 heard "has written no test of it" over such a test,
+    # four times (frame 213).
+    written = [t for c in crit for t in ctx.conn.execute(
+        "SELECT t.id, t.criterion_id, t.batch_id, b.status FROM tests t "
+        "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.criterion_id = ? "
+        "ORDER BY t.id", (c,))]
+    if recipient == "tester" and any(
+            t["status"] in ("abandoned", "deferred") for t in written):
+        return
+    if recipient == "tester" and written:
+        t = written[0]
+        raise ValueError(
+            f"{t['id']} is the test of {t['criterion_id']}, and its "
+            f"batch {t['batch_id']} is {t['status'] or 'gone'}. The "
+            f"Tester rewrites a test when its change has a commit or "
+            f"has stopped. Your work here is done")
+    # A merged change is built, so a reopen after the merge reaches the
+    # Developer (the coordinator's ruling on pass 1b).
+    if built:
+        return
+    # At most three ids, so the text stays under 25 words (the review's low p2-3).
+    ids = ", ".join(refs[:3]) + (f" and {len(refs) - 3} more" if len(refs) > 3 else "")
+    if asker:
+        raise ValueError(
+            f"No change built from {ids} has a commit yet, and you hold no "
+            f"batch, so there is nothing to ask about. Stop here.")
+    raise ValueError(
+        f"No change built from {ids} has a commit yet, so the "
+        f"{recipient.capitalize()} has nothing to work on. Stop here.")
+
+
 def _escalation_over_removed_grain(ctx, refs) -> None:
     import re as _re
     from pathlib import Path as _P
@@ -2028,14 +2123,15 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     from .scheduler import park_criterion_relay
 
     def _parked(ids) -> bool:
+        # The batch fact is `api.built_batch`, the one predicate (W10, the
+        # review's low p2-1). A retired criterion holds no live change.
+        def _live_built(r) -> bool:
+            b = api.built_batch(ctx.conn, r)
+            return bool(b and b["status"] != "merged" and ctx.conn.execute(
+                "SELECT 1 FROM criteria c WHERE c.id = ?"
+                + api._live_rows(ctx.conn, "c.retired_by"), (r,)).fetchone())
         return park_criterion_relay(ctx.conn, getattr(ctx, "trigger", None)) and not any(
-            ctx.conn.execute(
-                "SELECT 1 FROM criteria c JOIN batch_tickets bt "
-                "ON bt.ticket_id = c.ticket_id JOIN batches b ON b.id = bt.batch_id "
-                "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
-                "AND b.head_commit IS NOT NULL AND b.head_commit != ''"
-                + api._live_rows(ctx.conn, "c.retired_by"),
-                (r,)).fetchone() for r in ids)
+            _live_built(r) for r in ids)
     missing = [r for r in ruled if r not in given]
     # The answer carries a criterion by its ref, so the Tester reads the row
     # as it stands. Night 159's s382 and s398 answered while no respecify had
@@ -4253,6 +4349,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # 1). A quarantined wake records its keys, so a re-render of any
         # other page never reads a key that came later (finding 4).
         notes: dict[str, str] = {}
+        account_off: list[str] = []
         if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
             from ..roles.principal import _stalled_keys, code_targets, request_rows
@@ -4293,6 +4390,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             off = off_page(ctx.conn, refs)
             if off:
+                from ..roles.principal import account_rows
+
+                # The account's rows it drops go out on the account's own
+                # page, so no row waits unseen. Night 133's m283 sign-off
+                # dropped how_it_works and 3 descriptions (the review of P9,
+                # p3, finding 2).
+                account_off = account_rows(ctx.conn, [r for r in refs if r in off])
                 refs = [r for r in refs if r not in off]
                 if stamped:
                     kept = [r for r in stamped if r not in off]
@@ -4306,6 +4410,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         notes["code"] = _json.dumps(code)
                     else:
                         notes.pop("code", None)
+        # A confirm page is about one request too, and its refs and its
+        # numbered rows are one set, as on a present (P8; ruled: Roman,
+        # 2026-10-28 09:10, frame 344).
+        if verb == "confirm" and recipient == "principal" and not park and not shift:
+            from ..roles.principal import off_page
+
+            off = off_page(ctx.conn, refs, confirm=True)
+            if off:
+                refs = [r for r in refs if r not in off]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -4579,42 +4692,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # still defined in the worktree is a fact about the files.
         if verb == "escalate" and recipient == "architect":
             _escalation_over_removed_grain(ctx, refs or [])
-        # A repaired criterion reaches the Tester only when a change built
-        # from it has a commit. Off the park page the batch has often not
-        # started, and the Tester woke in `answer` for a question it never
-        # asked (the delta review of 2c602d1b, finding 5).
-        if (verb == "answer" and recipient == "tester" and ctx.role == "terminologist"
-                and getattr(ctx, "trigger", None)):
-            from .scheduler import park_criterion_relay
-
-            if park_criterion_relay(ctx.conn, ctx.trigger):
-                built = [r for r in (refs or []) if ctx.conn.execute(
-                    "SELECT 1 FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-                    "JOIN batches b ON b.id = bt.batch_id WHERE c.id = ? "
-                    "AND b.status NOT IN ('merged', 'abandoned') "
-                    "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
-                    (r,)).fetchone()]
-                # The rows say whether a test exists, so the door reads them
-                # first. A test of an abandoned or deferred batch is one the
-                # Tester rewrites. Night 142's walk 1 heard "has written no
-                # test of it" over such a test, four times (frame 213).
-                written = [] if built else [t for r in (refs or []) for t in ctx.conn.execute(
-                    "SELECT t.id, t.criterion_id, t.batch_id, b.status FROM tests t "
-                    "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.criterion_id = ? "
-                    "ORDER BY t.id", (r,))]
-                stopped = [t for t in written if t["status"] in ("abandoned", "deferred")]
-                if written and not stopped:
-                    t = written[0]
-                    raise ValueError(
-                        f"{t['id']} is the test of {t['criterion_id']}, and its "
-                        f"batch {t['batch_id']} is {t['status'] or 'gone'}. The "
-                        f"Tester rewrites a test when its change has a commit or "
-                        f"has stopped. Your work here is done")
-                if not built and not written:
-                    raise ValueError(
-                        "no change built from this criterion has a commit yet, so "
-                        "the Tester has written no test of it. The Tester reads the "
-                        "new words when it writes the test. Your work here is done")
+        # One check, for every pair that reaches a Tester or a Developer and
+        # for the question a Tester or a Developer sends (W10).
+        _unbuilt_refusal(ctx, recipient, verb, refs or [])
         recipients = [recipient]
         if verb == "ask":
             g = graph_mod.load()
@@ -4751,13 +4831,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # the page as its read-back line. The refs hold the line, so a later
         # render numbers the same lines (the seam design, 2.3, and its
         # review, finding 3). A shift page and a park page take no approve,
-        # so they carry none (finding 2).
+        # so they carry none (finding 2). A reading rides the page of its own
+        # request only. Night 172's m47 read back e_p1's answers on e_p2's
+        # confirm page (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
         if (recipient == "principal" and verb in ("present", "confirm")
                 and not park and not shift):
             from ..roles.principal import readings_owed
 
             refs = list(refs or [])
-            refs += [r for r in readings_owed(ctx.conn) if r not in refs]
+            refs += [r for r in readings_owed(ctx.conn, refs) if r not in refs]
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         if shift:
             msg_id = shift_id
@@ -4767,6 +4849,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             from .scheduler import park_ask_id
 
             msg_id = park_ask_id(ctx.conn, ctx.wake_refs[1])
+        if account_off:
+            from ..roles.principal import account_page_refs
+
+            # The account's page goes first, so the request's page stays
+            # the call's own message (ruled: Roman, 2026-10-28 09:10).
+            shown = account_page_refs(ctx.conn, account_off)
+            if shown:
+                ctx.outbound.append({
+                    "id": new_id("m", ctx.conn,
+                                 offset=len(ctx.outbound) + len(recipients)),
+                    "to_role": "principal", "verb": "present",
+                    "body_refs": shown, "body_text": None,
+                    "round_no": round_no, "cause_id": ctx.trigger})
         for n, to_role in enumerate(recipients):
             staged = {
                 "id": msg_id if n == 0

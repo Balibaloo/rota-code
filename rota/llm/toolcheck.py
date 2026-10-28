@@ -69,7 +69,9 @@ class Result:
 def check(backend: llm.Backend, pins: llm.Pins) -> Result:
     """Run both prompts against one backend and model."""
     first = backend.complete(SYSTEM, USER, pins)
-    tool_line = any(c.name == "ledger.log" for c in _lines(first.text))
+    # A parse error is a line too, and it has no name (night 173's W11).
+    tool_line = any(isinstance(c, toolproto.ToolCall) and c.name == "ledger.log"
+                    for c in _lines(first.text))
     native_call = False
     native_said = ""
     try:

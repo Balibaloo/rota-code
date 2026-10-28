@@ -164,51 +164,36 @@ def n133(db):
     return db
 
 
-def test_the_agenda_page_numbers_the_open_request_first_and_the_seat_rows_after(n133):
+def test_the_agenda_page_of_seat_rows_is_the_accounts_page(n133):
     """Night 133, s228's dispatch and s229's turn on m122: seven seat rows
-    and no line of the request. m123 asked for the request and could not
-    name it. The description and the delivered item are no open request."""
+    of no request. Frame 190's design 2.1 added the open request, and
+    Roman's ruling of 2026-10-28 09:10 reverses it: the account's rows go
+    on their own page (frame 344, frame 241). The run has no account row,
+    so the seven rows are the page's lines, and his words land on them."""
     seven = [r[0] for r in M122]
-    want = [ITEM_133] + [c for c, _ in CRIT_133]
-    assert request_rows(n133, seven) == want
+    assert request_rows(n133, seven) == []
 
     (wake,) = tick_agenda(n133, principal_present=True)
     assert list(wake.refs) == seven
     mid = _dispatch(n133, wake, f"TOOL: msg.present_principal(refs={json.dumps(seven)})")
     refs = json.loads(n133.execute("SELECT body_refs FROM messages WHERE id = ?",
                                    (mid,)).fetchone()["body_refs"])
-    assert refs == seven + want, "added, never substituted"
+    assert refs == seven, "no request row is added"
 
     (ask,) = pending_asks(n133)
     page = ask.rendered
-    assert ask.order == want + seven
-    assert len(set(ask.order)) == len(ask.order), "no row is numbered twice"
-    lines = page.splitlines()
-    assert lines[:3] == ["Here is what I understand you want, on one page.",
-                         "You asked:", f"  1. {TEXT_133}"]
-    # No guess exists, so the item's code line is the unnumbered "not
-    # guessed" line (frame 298's design, 2.3).
-    assert lines[3] == "     The team has not guessed the code this touches yet."
-    assert lines[4] == "It must:" and page.count("check: none yet.") == 3
-    assert page.index("  4. When stdin is closed") < page.index(TEAM_NOTES) \
-        < page.index("  5. term")
-    assert "Users define commands" not in page, "a description is no request line"
-    assert page.endswith("To change what you asked for, name line 1."), page
+    assert ask.order == seven
+    assert "You asked:" not in page and TEXT_133 not in page
+    assert "Users define commands" not in page, "a description is no line"
 
     reply = _reply(n133, mid, M123)
-    # Every line takes a ruling. The criteria lines approve, and off the
-    # sign-off page an approve of a request line travels nowhere.
-    ruling = {"1": "revise", "2": "approve", "3": "approve", "4": "approve",
-              **{str(n): "contest" for n in range(5, 12)}}
+    ruling = {str(n): "contest" for n in range(1, 8)}
     _landing(n133, reply, ruling, M123)
     verdict, ruled = _verdict(n133, mid)
-    assert ruled[ITEM_133] == "revise", "the words land on the item"
-    assert not any(c in ruled for c, _ in CRIT_133)
     # A contested note still goes back to the desk that assumed it, by its
     # `about_ref` (ruled: 2026-09-03).
     assert ruled["src/click"] == "contest"
-    assert n133.execute("SELECT approval FROM items WHERE id = ?",
-                        (ITEM_133,)).fetchone()["approval"] == "contested"
+    assert ITEM_133 not in ruled, "no word lands on the request here"
     assert n133.execute("SELECT COUNT(*) n FROM ledger WHERE status = 'open'"
                         ).fetchone()["n"] == 0
 
@@ -459,21 +444,30 @@ def test_a_note_about_an_inherited_test_reaches_no_request(db):
     assert wake.refs == ("l_req", "l_a94d65762d", "l_96c403d182")
 
 
-def test_every_open_request_has_its_own_line(m399):
-    """Night 136's m399 held one constraint row. Every open request is
-    numbered with its criteria, and the closing sentence names each request
-    line (frame 190's design, 2.F, amendment 2)."""
+# A constraint row is the account's row, so a page of it alone is the
+# account's page (ruled: Roman, 2026-10-28 09:10, frame 344). A page is
+# about one request, so the scenes that test the request's lines name the
+# version option request beside the row: line 1 is the item, lines 2 to 4
+# its criteria and line 5 the row. The run has no request message, so the
+# row stays on the page.
+M399_CALL = ("TOOL: msg.present_principal(refs="
+             + json.dumps([ITEM_VO, "l_d24f6997d1"]) + ")")
+
+
+def test_the_agenda_wake_of_a_constraint_row_is_the_accounts_page(m399):
+    """Night 136's m399 held one constraint row. Frame 190's design 2.F,
+    amendment 2, numbered every open request above it. A page is about one
+    request, and the account's rows go on their own page (ruled: Roman,
+    2026-10-28 09:10, frame 344), so the row is the page's one line."""
     (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
+    assert list(wake.refs) == ["l_d24f6997d1"]
+    mid = _dispatch(m399, wake,
+                    'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
     (ask,) = [a for a in pending_asks(m399) if a.message_id == mid]
     page = ask.rendered
-    assert ask.order == ([ITEM_136] + [c for c, _ in CRIT_136] + [ITEM_VO]
-                         + [c for c, _ in CRIT_VO] + ["l_d24f6997d1"])
-    assert f"  1. {TEXT_136}" in page and f"  5. {TEXT_VO}" in page
-    assert page.count("You asked:") == 1 and "You also asked:" in page
-    assert page.index("  8. If `show_python`") < page.index(TEAM_NOTES) \
-        < page.index("  9. The principal contested")
-    assert page.endswith("To change what you asked for, name its line, 1 or 5."), page
+    assert ask.order == ["l_d24f6997d1"]
+    assert "You asked:" not in page and TEXT_VO not in page
+    assert "  1. The principal contested" in page
 
 
 def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
@@ -484,9 +478,9 @@ def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
     m399.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM_VO,))
     m399.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM_136,))
     (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
+    mid = _dispatch(m399, wake, M399_CALL)
     reply = _reply(m399, mid, "ok")
-    _landing(m399, reply, {str(n): "approve" for n in range(1, 10)}, "ok")
+    _landing(m399, reply, {str(n): "approve" for n in range(1, 6)}, "ok")
     verdict, ruled = _verdict(m399, mid)
     assert ruled == {}, ruled
     assert verdict["status"] == "answered", "nothing is left to relay"
@@ -502,11 +496,11 @@ def test_a_contested_criterion_travels_and_an_approved_one_does_not(m399):
     carries the contested criterion and no approved one, on a page that is
     no park page (frame 190's design, 2.F, amendment 1)."""
     (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
-    words = "line 6 is wrong: the flag prints the version only when it is set"
+    mid = _dispatch(m399, wake, M399_CALL)
+    words = "line 2 is wrong: the flag prints the version only when it is set"
     reply = _reply(m399, mid, words)
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["6"] = "contest"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["2"] = "contest"
     _landing(m399, reply, ruling, words)
     verdict, ruled = _verdict(m399, mid)
     assert ruled == {"c1_version_option_show_python": "contest"}
@@ -563,12 +557,14 @@ def test_the_account_page_approves_the_account_and_no_stamped_request(db):
     stamped = [ITEM_133] + [c for c, _ in CRIT_133]
     refs = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
                                  (mid,)).fetchone()["body_refs"])
-    assert refs == ["how_it_works", "l_e7c6ed5501"] + stamped
-    assert json.loads(db.execute("SELECT value FROM config WHERE key = ?",
-                                 (f"stamped:{mid}",)).fetchone()["value"]) == stamped
+    # The account's page carries no request row, so the door stamps none
+    # (P9; ruled: Roman, 2026-10-28 09:10, frame 344).
+    assert refs == ["how_it_works", "l_e7c6ed5501"]
+    assert db.execute("SELECT 1 FROM config WHERE key = ?",
+                      (f"stamped:{mid}",)).fetchone() is None
 
     reply = _reply(db, mid, "ok")
-    _landing(db, reply, {str(n): "approve" for n in range(1, 7)}, "ok")
+    _landing(db, reply, {"1": "approve", "2": "approve"}, "ok")
     verdict, ruled = _verdict(db, mid)
     assert not set(ruled) & set(stamped), ruled
     row = db.execute("SELECT approval, version FROM items WHERE id = ?",
@@ -663,29 +659,29 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     from rota.core.runner import _resolve_contest
 
     (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
+    mid = _dispatch(m399, wake, M399_CALL)
     reply = _reply(m399, mid, M400)
 
     # A revise of the team's note is refused. The refusal names the drop
     # first, and names a request line only when the words name it by number
     # or quote it (frame 190's design, 2.F, amendment 2, and frame 296).
-    # The words do not name line 9, so the refusal also names the change
+    # The words do not name line 5, so the refusal also names the change
     # route of the note (frame 305).
     sb = _sandbox(m399, "liaison", "landing", reply)
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["9"] = "revise"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["5"] = "revise"
     with pytest.raises(ValueError) as refused:
         sb.call("rulings.rule", rulings=ruling, words=M400)
     assert str(refused.value) == (
-        "line 9 is the team's note, not your request. To drop the note, contest "
-        "it. To change the note, revise it only on words that name line 9 by number "
+        "line 5 is the team's note, not your request. To drop the note, contest "
+        "it. To change the note, revise it only on words that name line 5 by number "
         "and say the change. A revise of the request rewrites a line of what the "
         "principal asked for. The words "
         "name no line of the request, and a revise of the request needs the principal's words "
         "on the request.")
 
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["5"], ruling["9"] = "revise", "contest"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["1"], ruling["5"] = "revise", "contest"
     _landing(m399, reply, ruling, M400)
     verdict, ruled = _verdict(m399, mid)
     assert ruled[ITEM_VO] == "revise"
@@ -1470,7 +1466,7 @@ def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
              ["c1_version_option_show_python"], cause="m501", status="open")
     m399.commit()
     sb = _sandbox(m399, "terminologist", "criterion_repair", "m502")
-    with pytest.raises(ValueError, match="no change built from this criterion has a commit"):
+    with pytest.raises(ValueError, match="has a commit yet"):
         sb.call("msg.answer_tester", refs=["c1_version_option_show_python"])
 
 
@@ -1841,7 +1837,10 @@ def test_the_agenda_wakes_for_a_seat_row_and_carries_the_reply_row(bg4):
     assert kinds.index("tick:touch_note") < kinds.index("tick:agenda"), kinds
 
     (wake,) = tick_agenda(bg4, principal_present=True)
-    mid = _dispatch(bg4, wake, 'TOOL: msg.present_principal(refs=["l_a9c0ca7d82"])')
+    # A note about a description is the account's row, so the Liaison names
+    # the request for its lines (ruled: Roman, 2026-10-28 09:10, frame 344).
+    mid = _dispatch(bg4, wake, "TOOL: msg.present_principal(refs="
+                    + json.dumps([ITEM_VO, "l_a9c0ca7d82"]) + ")")
     (ask,) = [a for a in pending_asks(bg4) if a.message_id == mid]
     # bg_4 is live and holds a plan, so the send stamps it as the item's
     # code line, line 2 (frame 298's design, 2.1).

@@ -23,7 +23,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..core.db import READING_REF, guess_item, mark_answered, table_of
+from ..core.db import (READING_REF, guess_item, mark_answered, table_of,
+                       tables_of)
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -362,6 +363,17 @@ def render_state(conn: sqlite3.Connection) -> str:
     gone = merged_removal_line(conn) if merged else ""
     if gone:
         out.append(gone)
+    # A reading of a delivered request rides no page, so the state view
+    # shows it, in the words the page uses (ruled: Roman, 2026-10-28 09:10,
+    # frame 344; every answer is read back, ruled 2026-10-26 22:5x). No page
+    # takes an answer to it, so the line asks for none (the review of P9,
+    # finding 4).
+    late = [line.removesuffix(READ_BACK_ASK)
+            for line in (reading_line(conn, r) for r in readings_owed(conn)
+                         if reading_delivered(conn, r)) if line]
+    if late:
+        out.append("Your answers about delivered work, as the team read them:")
+        out += [f"  - {line}" for line in late]
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -1149,15 +1161,19 @@ _READ_BACK_VERDICT = {"approve": "is approved", "contest": "is wrong",
 # The read-back line quotes the start of his answer. A clock time in the
 # page changes the prompt of every recorded case on each run.
 READ_BACK_WORDS = 8
+# The ask that ends a read-back line on a page. The state view leaves it out.
+READ_BACK_ASK = " Say ok, or say what we misread."
 
 
 def _is_reading(ref) -> bool:
     return isinstance(ref, str) and ref.startswith(READING_REF)
 
 
-def readings_owed(conn: sqlite3.Connection) -> list[str]:
+def readings_owed(conn: sqlite3.Connection,
+                  page: list | None = None) -> list[str]:
     """The `reading:<reply id>` refs that the next page reads back, oldest
-    first.
+    first. `page` names the refs of a present or a confirm page, and then
+    only the readings that ride that page come back (`page_readings`).
 
     A reply is owed while the Liaison's landed reading of it has rows and no
     landed row rules its read-back line. His approve confirms the rows. His
@@ -1178,7 +1194,32 @@ def readings_owed(conn: sqlite3.Connection) -> list[str]:
                 "SELECT 1 FROM ruled_refs_live WHERE ref = ? "
                 "AND ruling_status = 'landed'", (ref,)).fetchone():
             out.append(ref)
-    return out
+    return out if page is None else page_readings(conn, page, out)
+
+
+def page_readings(conn: sqlite3.Connection, refs: list,
+                  readings: list[str]) -> list[str]:
+    """The readings of `readings` that ride the page of `refs`.
+
+    A page is about one request, so a reading rides the page of its own
+    request. A page of no request takes the account's readings. A reading
+    of a delivered request rides no page, and the state view shows it
+    (ruled: Roman, 2026-10-28 09:10, frame 344). A run with no request
+    message has one request, so every reading of it rides.
+    """
+    live = [r for r in readings if not reading_delivered(conn, r)]
+    if not current_request(conn, unread=False):
+        return live
+    req = page_owner(conn, [r for r in refs or [] if not _is_reading(r)])
+    return [r for r in live if request_of(conn, r) == req]
+
+
+def reading_delivered(conn: sqlite3.Connection, ref: str) -> bool:
+    """True when the request of a reading is delivered or dropped."""
+    from ..core.predicates import _request_finished
+
+    req = request_of(conn, ref)
+    return req is not None and _request_finished(conn, {"entries": [req]})
 
 
 def read_back_rows(conn: sqlite3.Connection, reply: str) -> list:
@@ -1220,7 +1261,7 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     if approves:
         clauses.append(f"{approves} line{'s' if approves != 1 else ''} approved")
     return (f'Your answer "{quote}", as the team read it: '
-            f"{'; '.join(clauses)}. Say ok, or say what we misread.")
+            f"{'; '.join(clauses)}.{READ_BACK_ASK}")
 
 
 def ratified_request(conn: sqlite3.Connection, *,
@@ -1284,10 +1325,18 @@ def uncovered_statements(conn: sqlite3.Connection) -> list[dict]:
 
 def row_items(conn: sqlite3.Connection, ref: str | None) -> list[str] | None:
     """The items one row is about: an item, a criterion, a ticket, a batch,
-    a test, a ledger row or a page ref. None when the row is an inherited
-    test, which reaches no item and no writer's batch."""
+    a test, a ledger row, a read-back line or a page ref. None when the row
+    is an inherited test, which reaches no item and no writer's batch."""
     if not ref:
         return []
+    # A read-back line is about the rows it reads back, so it rides the
+    # page of their request. Night 172's m47 read back e_p1's answers on
+    # e_p2's confirm page (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
+    if _is_reading(ref):
+        out: list[str] = []
+        for r in read_back_rows(conn, ref[len(READING_REF):]):
+            out += [i for i in row_items(conn, r["ref"]) or [] if i not in out]
+        return out
     # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
     # `tst_c2_version_on` reached no item (frame 316, pass 2).
     row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?", (ref,)).fetchone()
@@ -1317,8 +1366,55 @@ def request_of(conn: sqlite3.Connection, ref: str | None) -> str | None:
     any row, so a row of one request and the account is that request's.
     Night 161's s1 reaches `echo_json` and `how_it_works` (F15 review 1,
     finding 2). A row of no request or of two requests has no owner."""
-    owners = requests_of(conn, ref) - {None}
+    owners = _owners(conn, ref)
     return next(iter(owners)) if len(owners) == 1 else None
+
+
+def _owners(conn: sqlite3.Connection, ref: str | None) -> set[str]:
+    """The requests that own a row. A row that reaches no item is owned
+    through the statements it names, so a confirm page's statement has its
+    request before any item cites it."""
+    items = row_items(conn, ref)
+    if items:
+        return {_item_request(conn, i) for i in items} - {None}
+    # Night 172's m17 confirmed e_p1 before any item cited s1, and it read
+    # back the onboarding answer m14 (P8, the night 172 read, W8).
+    if not ref or items is None:
+        return set()
+    names = ([r["ref"] for r in read_back_rows(conn, ref[len(READING_REF):])]
+             if _is_reading(ref) else [ref])
+    # A seat's note about a statement is the request's row, as the sign-off's
+    # lineage rows are (P9).
+    note = conn.execute("SELECT about_ref FROM ledger WHERE id = ?",
+                        (ref,)).fetchone()
+    if note is not None and note["about_ref"]:
+        names.append(note["about_ref"])
+    out: set[str] = set()
+    for sid in names:
+        row = _statement_request(conn, sid) if isinstance(sid, str) else None
+        if row is not None:
+            out.add(row[0])
+    return out
+
+
+def page_owner(conn: sqlite3.Connection, refs: list) -> str | None:
+    """The request a page is about, or None for a page of no request.
+
+    The newest request its rows reach, as `page_request` reads it. A page
+    whose rows reach no item takes the request of the statement it names,
+    so a confirm page of a new request is that request's page."""
+    req = page_request(conn, refs)
+    if req is not None:
+        return req
+    best = None
+    for ref in refs or []:
+        if not isinstance(ref, str) or _is_reading(ref) or row_items(conn, ref):
+            continue
+        for entry in _owners(conn, ref):
+            order = _entry_order(conn, entry)
+            if best is None or order > best[1]:
+                best = (entry, order)
+    return best[0] if best else None
 
 
 def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
@@ -1337,13 +1433,22 @@ def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
     for r in conn.execute(
             "SELECT r.target FROM refs r WHERE r.src_table = 'items' "
             "AND r.src_id = ? AND r.kind = 'statement'", (item,)):
-        root = _root_statement(conn, r["target"])
-        row = conn.execute(
-            "SELECT e.id, e.ts_order FROM statements s JOIN entries e "
-            "ON e.id = s.span_entry WHERE s.id = ?", (root,)).fetchone()
-        if row is not None and (best is None or row["ts_order"] < best[1]):
-            best = (row["id"], row["ts_order"])
+        row = _statement_request(conn, r["target"])
+        if row is not None and (best is None or row[1] < best[1]):
+            best = row
     return best[0] if best else None
+
+
+def _statement_request(conn: sqlite3.Connection,
+                       sid: str) -> tuple[str, int] | None:
+    """The entry of a statement's request and its order, or None. The one
+    walk from a statement to its request: a follow-up is the request of
+    the statement it says again (F15)."""
+    row = conn.execute(
+        "SELECT e.id, e.ts_order FROM statements s JOIN entries e "
+        "ON e.id = s.span_entry WHERE s.id = ?",
+        (_root_statement(conn, sid),)).fetchone()
+    return (row["id"], row["ts_order"]) if row is not None else None
 
 
 def _entry_order(conn: sqlite3.Connection, entry: str) -> int:
@@ -1443,8 +1548,10 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     best = None
     # The page reads the row walk of `request_of`, so a test reaches its
     # criterion's item here as in `land` (F15 review 1, finding 1).
+    # A read-back line rides the page of its request and never decides it
+    # (P8).
     reached = {i for ref in refs or [] if isinstance(ref, str)
-               for i in row_items(conn, ref) or []}
+               and not _is_reading(ref) for i in row_items(conn, ref) or []}
     for item in reached:
         # `request_of` gives a description no request. A description citing
         # s3 put the confirm item off its own page (the review of e406e976,
@@ -1460,13 +1567,18 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     return best[0] if best else None
 
 
-def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
+def off_page(conn: sqlite3.Connection, refs: list, *,
+             confirm: bool = False) -> set[str]:
     """
     The refs that a page of one request does not number (2.F.7). A row
     whose items are all set aside, or all of another request than the page's,
     leaves the page. A note about a delivered item of an earlier request
-    stays, so a ruling closes it. The send door drops the same rows, so a
-    page's refs and its numbered rows are one set.
+    stays, so a ruling closes it. A row of no item, a glossary term, a
+    constraint or a claim about one, leaves a request's page and rides the
+    account's page. A read-back line leaves a page that `page_readings`
+    does not give it. The send door drops the same rows, so a page's refs
+    and its numbered rows are one set. `confirm` keeps every statement,
+    because a confirm page can take his words as separate requests.
     """
     from ..core.scheduler import aside_items
 
@@ -1474,41 +1586,92 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     # Requests are told apart by their boundaries. A run with no request
     # message has one request, and every open item keeps its line (frame
     # 190's design, 2.F, amendment 2).
-    req = page_request(conn, refs) if current_request(conn, unread=False) else None
+    req = page_owner(conn, refs) if current_request(conn, unread=False) else None
     out: set[str] = set()
     for ref in refs or []:
         if not isinstance(ref, str):
             continue
+        # The rulings door reads this set, so a read-back line is off where
+        # the page leaves it out (P8).
+        if _is_reading(ref):
+            if ref not in page_readings(conn, refs, [ref]):
+                out.add(ref)
+            continue
+        # The intake door refuses a statement of another entry, so the
+        # Liaison learns to say it again (frame 193, pass 3, finding 4).
+        if confirm and tables_of(conn, ref, among=["statements"]):
+            continue
         # One row walk with `land`: a note about a test of another
         # request's item leaves the page, and his answer on it contests
         # nothing (F15 review 1, finding 1).
-        items = row_items(conn, ref) or []
+        items = row_items(conn, ref)
+        # An inherited test reaches no item and keeps its row (frame 209).
+        if items is None:
+            continue
+        # A page is about one request. The account's own rows go on their
+        # own page and never on a request's page. Night 172's m71 carried
+        # 19 glossary and constraint rows (P9; frame 241; ruled: Roman,
+        # 2026-10-28 09:10, frame 344). A statement of the page's request
+        # stays before any item cites it.
         if not items:
+            if req is not None and req not in _owners(conn, ref):
+                out.add(ref)
             continue
         if all(i in aside for i in items):
             out.add(ref)
             continue
         if req is None:
             continue
-        # A row that reaches an item of no request, the account included,
-        # stays. `request_of` gives a description no request (F15).
+        # A row whose every item has no request is the account's row, so it
+        # leaves a request's page too: the account, a description or an
+        # observed behaviour (F15). The review of P9: a claim about
+        # how_it_works, then one about parses_and_executes_inputs, was
+        # line 4 of e_p3's page.
         others = requests_of(conn, ref)
+        if others <= {None}:
+            out.add(ref)
+            continue
+        # A row that reaches the page's request and an item of no request
+        # stays (F15 review 1, finding 2).
         if not all(e is not None and e != req for e in others):
             continue
-        is_note = conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone()
+        is_note = tables_of(conn, ref, among=["ledger"])
         if is_note and all(_delivered(conn, i) for i in items):
             continue
         out.add(ref)
     return out
 
 
+def account_rows(conn: sqlite3.Connection, refs: list) -> list[str]:
+    """The refs that are the account's own rows: a row that no request
+    owns, a read-back line and an inherited test apart."""
+    return [r for r in refs or [] if isinstance(r, str) and not _is_reading(r)
+            and row_items(conn, r) is not None and not _owners(conn, r)]
+
+
+def account_page_refs(conn: sqlite3.Connection, rows: list[str]) -> list[str]:
+    """The refs of the account's page for `rows`, how_it_works first when
+    the row exists, or [] when an open page to him shows every row."""
+    shown = {r for m in conn.execute(
+        "SELECT body_refs FROM messages WHERE to_role = 'principal' "
+        "AND status = 'open'") for r in json.loads(m["body_refs"] or "[]")}
+    owed = [r for r in rows if r not in shown]
+    if not owed:
+        return []
+    account = conn.execute(
+        "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
+    head = ["how_it_works"] if account and "how_it_works" not in owed else []
+    return head + sorted(owed, key=lambda r: r != "how_it_works")
+
+
 def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     """
     The request's own rows for a page: each item, then its criteria by id.
 
-    The items are the ones the refs reach. When the refs reach none, they
-    are every open request. When no request is open, the row is the account,
-    which renders under its own heading.
+    The items are the ones the refs reach. When the refs name a request and
+    reach none of its items, they are every open request. When the refs
+    name no request, or no request is open, the row is the account, which
+    renders under its own heading.
     """
     # Night 136's 49 agenda pages carried no line of the request, so the
     # principal's words had no row to land on (frame 190's design, 2.1).
@@ -1523,20 +1686,28 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     held = held_items(conn)
     items: list[str] = []
     for ref in refs or []:
-        if not isinstance(ref, str) or ref in off:
+        if not isinstance(ref, str) or ref in off or _is_reading(ref):
             continue
         for item in row_items(conn, ref) or []:
             if item not in items and item not in held and _is_request_item(conn, item):
                 items.append(item)
-    if not items:
+    # Rows of no request make the account's page, and the account row is
+    # the row his words land on, so law 8 holds. The open request on that
+    # page put night 172's m71 under clear() (P9; frame 241; ruled: Roman,
+    # 2026-10-28 09:10, frame 344). With no account row, the page is still
+    # the account's: its rows are numbered, so his words land on them, and
+    # the door sends them. The open request there dropped s179's 19 rows
+    # (the review of P9, finding 2).
+    account = conn.execute(
+        "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
+    if not items and any(_owners(conn, r) for r in refs or []
+                         if isinstance(r, str) and not _is_reading(r)):
         aside = aside_items(conn) | held
         items = [i for i in open_requests(conn) if i not in aside]
         cur = current_request(conn, unread=False)
         mine = [i for i in items if cur and request_of(conn, i) in cur["entries"]]
         items = mine or items
     if not items:
-        account = conn.execute(
-            "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
         return ["how_it_works"] if account else []
     # A retired ticket's criteria are no line. After a slice again, the page
     # listed the old criteria above the new one, and a contest went to
@@ -1813,25 +1984,91 @@ def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
 def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
     """'the team could not write the tests after 3 attempts', one part per
     key, in the words of TICK_WORDS and never the tick's name."""
-    return "; ".join(f"{_tick_words(kind)} after {_tries(n)}"
-                     for kind, n in _stuck_ticks(conn, "", keys))
+    return "; ".join(_stalled_parts(conn, keys))
+
+
+def _stalled_parts(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
+    """The parts of `_stalled_words`, one per key."""
+    return [_key_words(conn, key, kind, n)
+            for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys))]
 
 
 def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
-    """'the team could not write the tests for b_3 after 3 attempts', one
-    part per key, with what the key is about."""
+    """'the team could not write the tests after 3 attempts', one part per
+    key, with what the key is about."""
     # The page printed the kind's name, "tests_missing for b_3", at the end
     # of night 170. The page contract shows his words, never rota's names
     # (fact F21, frame 312, review 1, finding 1).
+    from ..core.db import tables_of
     from ..core.scheduler import key_parts
 
     out = []
     for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
         what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
                          if w)
-        out.append(f"{_tick_words(kind)}{f' for {what}' if what else ''} "
-                   f"after {_tries(n)}")
-    return out
+        refs = key_parts(key)[2]
+        batch = bool(refs) and all(tables_of(conn, r, among=("batches",)) for r in refs)
+        out.append((_key_words(conn, key, kind, n, what), batch))
+    # A batch prints as no words, so two stuck batches gave one clause twice
+    # (review of P12 pass 1, finding 3). A repeated clause prints once with
+    # its count.
+    seen: dict[str, list[bool]] = {}
+    for words, batch in out:
+        seen.setdefault(words, []).append(batch)
+    return [words if len(b) == 1 else
+            f"{words}, on {len(b)} changes" if all(b) else f"{words}, {len(b)} times"
+            for words, b in seen.items()]
+
+
+# The sentence about a red test stays under 25 words (P12 of the night 172
+# read). The page puts "The team gave up:" before it, so the clause gets 20.
+RED_CLAUSE_WORDS = 20
+# A clause names this many test files at most, and counts the rest.
+RED_FILES_SHOWN = 2
+
+
+def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
+               what: str = "") -> str:
+    """
+    One quarantined key in words with its attempts. A `tests_failing` key
+    names each red test file and its error line.
+    """
+    # Night 172's m120 said "the tests still fail" while every check line
+    # said "Passes". The red test had no criterion, so no line named it (wall
+    # W12). The test goes in prose and never as a numbered line, because the
+    # principal never rules on a test (ruled: Roman, 2026-10-08, cited in
+    # `check_line`).
+    from ..core.scheduler import key_parts, park_reds
+
+    tail = f"after {_tries(n)}"
+    if kind == "tests_failing":
+        batch = next((r for r in key_parts(key)[2] if conn.execute(
+            "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone()), None)
+        own, project = park_reds(conn, batch) if batch else ([], [])
+        errors: dict[str, str] = {}
+        for r in own + project:
+            errors.setdefault(r["path"] or r["test_id"], _failure_line(r["output"]))
+        if errors:
+            # Two files and one error line keep the clause short. Five files
+            # with their errors made 77 words (review of P12 pass 1, finding 1).
+            files = list(errors)
+            shown = files[:RED_FILES_SHOWN]
+            more = len(files) - len(shown)
+            names = shown + ([f"{more} more test file{'' if more == 1 else 's'}"]
+                             if more else [])
+            subject = (names[0] if len(names) == 1
+                       else ", ".join(names[:-1]) + " and " + names[-1])
+            head = f"{subject} still fail{'s' if len(files) == 1 else ''} {tail}"
+            error = next((errors[f] for f in shown if errors[f]), "")
+            room = RED_CLAUSE_WORDS - len(head.split())
+            return head + (f": {_cut_words(error, room)}" if error and room > 0 else "")
+    return f"{_tick_words(kind)}{f' for {what}' if what else ''} {tail}"
+
+
+def _cut_words(text: str, most: int) -> str:
+    """The text cut to `most` words, with ' ...' as the last word when cut."""
+    words = text.split()
+    return text if len(words) <= most else " ".join(words[:most - 1]) + " ..."
 
 
 # The bare refs a scheduler wake names, in words. A bare ref with no entry
@@ -1851,7 +2088,13 @@ def _ref_words(conn: sqlite3.Connection, ref: str) -> str:
         return ref.rsplit(":", 1)[-1]
     # A ledger id is rota's key for a question. The words of the kind say
     # the question already (review of F20 pass 1, finding 3).
-    if conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone():
+    # A batch id is rota's key for a change. The words of each kind say "the
+    # change" or name the red test already. Night 172's state said "for bg_3"
+    # (wall W12, section 4, item 3). The one reader of an id's table is
+    # `tables_of` (fact F22).
+    from ..core.db import tables_of
+
+    if tables_of(conn, ref, among=("ledger", "batches")):
         return ""
     return ref
 
@@ -1899,6 +2142,9 @@ TICK_WORDS = {
     "constraint_zero": "the team could not read the code first",
     "batch_start": "the change could not start",
     "touch_strayed": "the change went outside the files it expected",
+    # Night 172's m127 showed the fallback for this kind (wall W12). The
+    # Developer puts back code that the Architect judged a mistake.
+    "touch_mistaken": "the team could not put back code it was not asked to change",
 }
 
 
@@ -1910,6 +2156,12 @@ def _tick_words(kind: str) -> str:
 
 def _capital(text: str) -> str:
     """The text with its first letter in capitals, for a sentence start."""
+    # A path is copied exactly. A stopped sentence can open with a red
+    # test's path (wall W12). A test file at the root has no "/" (review of
+    # P12 pass 1, finding 2).
+    first = text.split(" ", 1)[0]
+    if "/" in first or re.fullmatch(r"[\w.-]+\.\w+", first):
+        return text
     return text[:1].upper() + text[1:]
 
 
@@ -2127,8 +2379,58 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     # page about its item, whatever kind of page that is. The line is not
     # numbered, so `parse_reply` reads the same order.
     gone = removal_line(conn, refs) if returned else ""
-    top = "\n".join(x for x in (back, gone) if x)
+    unnamed = account_unnamed_line(conn, ask_id) if returned else ""
+    top = "\n".join(x for x in (back, unnamed, gone) if x)
     return (f"{top}\n{page}" if top else page), order
+
+
+# The sentence on his next request page after an answer to the account's
+# page that named no line there (the review of P9, p3, finding 1).
+ACCOUNT_UNNAMED = ("Your last answer named no line of the page about the "
+                   "project today, and answers about your request land on "
+                   "this page.")
+
+
+def account_unnamed_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
+    """The sentence `ACCOUNT_UNNAMED` on his first request page after his
+    answer to the account's page named no line there, or "".
+
+    The rulings door refuses such words on the account's page, and
+    `session_commit` keeps the refusal as the page's note, "<reply>:
+    <refusal>". The refusal speaks to the seat, so his page holds this
+    sentence and no refusal text (frame 267)."""
+    from .api import ACCOUNT_NO_LINE
+
+    if not ask_id:
+        return ""
+    page = conn.execute(
+        "SELECT seq, body_refs FROM messages WHERE id = ? AND to_role = "
+        "'principal' AND verb IN ('present', 'confirm')", (ask_id,)).fetchone()
+    if page is None:
+        return ""
+    back = conn.execute(
+        "SELECT unresolved_note FROM messages WHERE to_role = 'principal' "
+        "AND verb = 'present' AND seq < ? AND unresolved_note LIKE ? "
+        "ORDER BY seq DESC LIMIT 1",
+        (page["seq"], f"%{ACCOUNT_NO_LINE}%")).fetchone()
+    reply = conn.execute(
+        "SELECT seq FROM messages WHERE id = ? AND from_role = 'principal'",
+        (back["unresolved_note"].split(":", 1)[0],)).fetchone() if back else None
+    if reply is None or not _request_page(conn, page["body_refs"]):
+        return ""
+    # His next request page only: a request page between them took it.
+    for r in conn.execute(
+            "SELECT body_refs FROM messages WHERE to_role = 'principal' "
+            "AND verb IN ('present', 'confirm') AND seq > ? AND seq < ?",
+            (reply["seq"], page["seq"])):
+        if _request_page(conn, r["body_refs"]):
+            return ""
+    return ACCOUNT_UNNAMED
+
+
+def _request_page(conn: sqlite3.Connection, body_refs: str | None) -> bool:
+    refs = [r for r in json.loads(body_refs or "[]") if not _is_reading(r)]
+    return page_owner(conn, refs) is not None
 
 
 # The removals that one page names. The rest are counted, so ten removals
@@ -2321,8 +2623,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     refs = [r for r in refs or [] if not _is_reading(r)]
     # A page is about one request. A row of an item set aside, or of another
     # request than the page's, is no line here (frame 193's design, 2.F.7).
-    if verb == "present":
-        off = off_page(conn, refs)
+    # A confirm page is about one request too. Night 172's confirm pages
+    # ran no filter (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
+    if verb in ("present", "confirm"):
+        off = off_page(conn, refs, confirm=verb == "confirm")
         refs = [r for r in refs if r not in off]
     resolved = _resolve_refs(conn, refs)
     # The block's rows leave every group, so no id is numbered twice. The
@@ -2470,7 +2774,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                               stalled=keys)
         numbered(does)
         account_lines()
-        out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
+        # One sentence per key: m127's two keys in one sentence made 32
+        # words (review of P12 pass 1, finding 1).
+        out.append(" ".join(f"The team gave up: {p}."
+                            for p in _stalled_parts(conn, keys)))
         out.append("The team expects to touch:")
         numbered(touches)
         out.append("Reply 'ok' if every line says what you want. Name a line "
@@ -2554,8 +2861,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                 + does + does_not + assumed
                 + terms + touches + other]
     # A reading he ruled on another page is no line here any more (the
-    # review of pass 5, finding 4).
-    owed = set(readings_owed(conn)) if readings else set()
+    # review of pass 5, finding 4). A reading of another request is no line
+    # either, as at the send door (P8).
+    owed = set(readings_owed(conn, refs)) if readings else set()
     for ref in readings:
         line = reading_line(conn, ref) if ref in owed else None
         if line:

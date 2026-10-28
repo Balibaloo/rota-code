@@ -335,7 +335,8 @@ def test_a_contest_beside_the_approve_on_a_clarify_backs_no_approve(db):
     beside an approve does not stand for the approve."""
     _two_senses(db)
     sb, _ = _answering(db, "what time is the meeting")
-    with pytest.raises(ValueError, match=_NO_APPROVE):
+    # The contest needs its own backing, so it is refused first (p2-2).
+    with pytest.raises(ValueError, match="neither fault nor name g2"):
         sb.call("rulings.rule", rulings={"g1": "approve", "g2": "contest"})
     assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
 
@@ -468,3 +469,38 @@ def test_one_adopted_sense_does_not_silence_a_live_sense(db):
     db.commit()
 
     assert term_collision(db), "one live sense is still a collision"
+
+
+def test_a_question_that_shares_the_term_backs_no_approve(db):
+    """Review p7 p2, finding p2-1: both senses show "group", and the
+    question chose neither."""
+    _two_senses(db)
+    sb, _ = _answering(db, "what is a group anyway")
+    with pytest.raises(ValueError, match="neither approve nor name g1"):
+        sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"},
+                words="what is a group anyway")
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
+
+
+def test_a_negated_sense_takes_no_approve_and_the_named_one_does(db):
+    """Review p7 p2, finding p2-1: "not the command one" refuses g2."""
+    _two_senses(db)
+    said = "the options one, not the command one"
+    sb, _ = _answering(db, said)
+    with pytest.raises(ValueError, match="His words refuse g2"):
+        sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"},
+                words=said)
+    out = sb.call("rulings.rule", rulings={"g1": "approve"}, words=said)
+    assert out["per_item"] == {"g1": "approve"}
+
+
+def test_an_agreement_backs_no_contest_beside_its_approve(db):
+    """Review p7 p2, finding p2-2: "fine" backs the approve of g2 and not
+    the contest of g1."""
+    _two_senses(db)
+    sb, _ = _answering(db, "fine")
+    with pytest.raises(ValueError, match="neither fault nor name g1, so g1 "
+                       "takes no contest"):
+        sb.call("rulings.rule", rulings={"g1": "contest", "g2": "approve"},
+                words="fine")
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
