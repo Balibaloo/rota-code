@@ -241,7 +241,8 @@ def test_the_red_line_door_reads_the_escaped_marks(db):
     refused it with the same line."""
     _red(db)
     line = "assert invoices_for(\\'a1\\') == []"
-    assert sandbox._quote_holds(line, "assert invoices_for('a1') == []")
+    assert sandbox._quote_reads(line, "assert invoices_for('a1') == []",
+                                holds=True)
     assert _send(db, CHANNELS[0], ["leaves its invoices in place", line]
                  ).ctx.outbound
 
