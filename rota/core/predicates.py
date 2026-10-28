@@ -196,9 +196,10 @@ def _request_finished(conn, cur: dict) -> bool:
     from .scheduler import dropped_items
 
     here = set(cur["entries"])
+    # `request_of` gives a description no request, so it is no work item
+    # of the request (F15).
     mine = [r["id"] for r in conn.execute(
-                "SELECT id FROM items WHERE kind = 'in_scope' "
-                "AND is_description = 0")
+                "SELECT id FROM items WHERE kind = 'in_scope'")
             if request_of(conn, r["id"]) in here]
     if not mine:
         return False

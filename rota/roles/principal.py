@@ -1271,9 +1271,55 @@ def uncovered_statements(conn: sqlite3.Connection) -> list[dict]:
         if _root_statement(conn, r["id"]) not in cited]
 
 
-def request_of(conn: sqlite3.Connection, item: str) -> str | None:
+def row_items(conn: sqlite3.Connection, ref: str | None) -> list[str] | None:
+    """The items one row is about: an item, a criterion, a ticket, a batch,
+    a test, a ledger row or a page ref. None when the row is an inherited
+    test, which reaches no item and no writer's batch."""
+    if not ref:
+        return []
+    # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
+    # `tst_c2_version_on` reached no item (frame 316, pass 2).
+    row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?", (ref,)).fetchone()
+    target = row["about_ref"] if row is not None and row["about_ref"] else ref
+    test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                        (target,)).fetchone()
+    if test is not None:
+        # An inherited test has no criterion, so its row reaches no request
+        # (frame 209; frame 316's review 2, finding 4).
+        if not test["criterion_id"]:
+            return None
+        return _items_reached(conn, test["criterion_id"])
+    return _items_reached(conn, ref)
+
+
+def requests_of(conn: sqlite3.Connection, ref: str | None) -> set[str | None]:
+    """The request of each item one row reaches. None in the set stands for
+    an item of no request: the account, a description or an observed
+    behaviour."""
+    return {_item_request(conn, i) for i in row_items(conn, ref) or []}
+
+
+def request_of(conn: sqlite3.Connection, ref: str | None) -> str | None:
+    """The entry of the one request that owns a row, or None.
+
+    This is the one reader of the fact (F15). A row of no item, of no
+    request or of two requests has no single owner."""
+    owners = requests_of(conn, ref)
+    return next(iter(owners)) if len(owners) == 1 else None
+
+
+def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
     """The entry of the request an item belongs to, or None when the item
-    cites no statement, such as the account or an observed behaviour."""
+    cites no statement or is a description."""
+    from ..core.runner import _is_description
+
+    # The account belongs to no request, whatever statement it cites. Night
+    # 133's m283 dropped `defines_commands_and_options` off later pages, and
+    # each sign-off submitted it again (the review of 61a0f41d, finding 2).
+    # A description that cites a new statement ended the park before the
+    # work existed (the review of a1bd448f, finding 1).
+    if _is_description(conn, item):
+        return None
     best = None
     for r in conn.execute(
             "SELECT r.target FROM refs r WHERE r.src_table = 'items' "
@@ -1313,7 +1359,7 @@ def open_earlier_items(conn: sqlite3.Connection, cur: dict | None = None,
     answered for the current request (2.F.1). The oldest request first.
     `asked` False also leaves out an item whose question is already sent.
     """
-    from ..core.scheduler import aside_items, not_described
+    from ..core.scheduler import aside_items
 
     cur = cur if cur is not None else current_request(conn)
     if not cur:
@@ -1322,10 +1368,11 @@ def open_earlier_items(conn: sqlite3.Connection, cur: dict | None = None,
     at = min(_entry_order(conn, e) for e in cur["entries"])
     aside = aside_items(conn)
     out: list[tuple[int, str]] = []
+    # `request_of` gives a description no request, so no description is
+    # an earlier request's item (F15).
     for r in conn.execute(
             "SELECT i.id FROM items i WHERE i.kind = 'in_scope' "
-            "AND i.approval IN ('approved', 'contested', 'draft')"
-            + not_described(conn, "i.id") + " ORDER BY i.id"):
+            "AND i.approval IN ('approved', 'contested', 'draft') ORDER BY i.id"):
         item = r["id"]
         if item in aside or _delivered(conn, item):
             continue
@@ -1377,16 +1424,15 @@ def held_asks(conn: sqlite3.Connection) -> set[str]:
 def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     """The newest request that a page's refs reach, set-aside items and
     descriptions apart."""
-    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
     best = None
     for item in _reached(conn, refs):
-        # The account belongs to no request, as in `off_page`. A description
-        # citing s3 put the confirm item off its own page (the review of
-        # e406e976, finding 1).
-        if item in aside or _is_description(conn, item):
+        # `request_of` gives a description no request. A description citing
+        # s3 put the confirm item off its own page (the review of e406e976,
+        # finding 1).
+        if item in aside:
             continue
         entry = request_of(conn, item)
         if entry is None:
@@ -1405,7 +1451,6 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     stays, so a ruling closes it. The send door drops the same rows, so a
     page's refs and its numbered rows are one set.
     """
-    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
@@ -1425,13 +1470,9 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
             continue
         if req is None:
             continue
-        # The account belongs to no request, whatever statement it cites.
-        # Night 133's m283 dropped `defines_commands_and_options`, which
-        # cites s1, and each sign-off submitted it again (the review of
-        # 61a0f41d, finding 2).
-        if all(_is_description(conn, i) for i in items):
-            continue
-        others = [request_of(conn, i) for i in items]
+        # A row that reaches an item of no request, the account included,
+        # stays. `request_of` gives a description no request (F15).
+        others = requests_of(conn, ref)
         if not all(e is not None and e != req for e in others):
             continue
         is_note = conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone()
@@ -2946,21 +2987,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                     row["about_ref"] not in stamped:
                 if page_req is unread:
                     page_req = page_request(conn, ask.refs)
-                from ..core.runner import _is_description
-
-                # The account belongs to no request, as in `off_page`. A
-                # description cites the earliest request, so the skip lost
-                # the contest of a note about `how_it_works` (frame 274's
-                # review 1, finding 1).
-                # The owner comes from the items the note reaches, not from
-                # its `about_ref` alone. `request_of` reads an item id only,
-                # so a note about `cr_1` had no owner, and night 161's m234
+                # The owner comes from the items the note reaches. A note
+                # about `cr_1` once had no owner, and night 161's m234
                 # contested the merged confirm item's `cr_1` (frame 316,
-                # `plans/frame316-provenance.md`, repair 1). A note that
+                # `plans/frame316-provenance.md`, repair 1). A description
+                # has no request, so a note about `how_it_works` keeps its
+                # contest (frame 274's review 1, finding 1). A note that
                 # reaches no item keeps the carrier.
-                reached = _items_reached(conn, row["about_ref"])
-                owners = {None if _is_description(conn, item)
-                          else request_of(conn, item) for item in reached}
+                owners = requests_of(conn, row["about_ref"])
                 elsewhere = bool(owners) and all(
                     o is not None and o != page_req for o in owners)
                 if page_req is None or not elsewhere:
