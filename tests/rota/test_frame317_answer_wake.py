@@ -361,7 +361,9 @@ def test_the_raising_line_is_the_first_e_line_not_a_source_line():
     lines = head.splitlines()
     assert lines[1].startswith("E               AssertionError: Unexpected")
     assert lines[0].startswith(">               assert") and lines[-1] == "..."
-    # No `E ` line: the first Traceback line, and none inside the tail.
-    assert _raising_line_head("a\nTraceback (most recent call last):\nb\n"
-                              + "x" * 800).startswith("a\nTraceback")
+    # No `E ` line: the native error line (fact F5), and none inside the tail.
+    native = ('Traceback (most recent call last):\n  File "r.py", line 1, in <module>\n'
+              '    raise KeyError("k")\nKeyError: \'k\'\n')
+    assert _raising_line_head(native + "x" * 800).startswith(
+        '    raise KeyError("k")\nKeyError: \'k\'\n')
     assert _raising_line_head("x" * 800 + "\nE   KeyError: 'k'\n") == ""

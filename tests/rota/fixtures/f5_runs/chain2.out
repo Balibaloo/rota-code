@@ -1,0 +1,29 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+___________________________ test_caught_then_assert ___________________________
+
+    def test_caught_then_assert():
+        d = {}
+        try:
+>           d["missing"]
+E           KeyError: 'missing'
+
+test_c2.py:4: KeyError
+
+During handling of the above exception, another exception occurred:
+
+    def test_caught_then_assert():
+        d = {}
+        try:
+            d["missing"]
+        except KeyError:
+>           assert d.get("other") == 5, "the fallback must hold 5"
+E           AssertionError: the fallback must hold 5
+E           assert None == 5
+E            +  where None = <built-in method get of dict object at 0x0000022AEEA07D40>('other')
+E            +    where <built-in method get of dict object at 0x0000022AEEA07D40> = {}.get
+
+test_c2.py:6: AssertionError
+=========================== short test summary info ===========================
+FAILED test_c2.py::test_caught_then_assert - AssertionError: the fallback mus...
+1 failed in 0.12s

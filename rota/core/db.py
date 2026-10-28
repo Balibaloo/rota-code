@@ -1010,12 +1010,13 @@ def _running(conn: sqlite3.Connection, batch_id: str) -> bool:
 
 
 def _first_error(output: str) -> str:
-    """The first `E ` line of a run, with object addresses blanked."""
+    """The error line of a run, with object addresses blanked."""
+    # Fact F5: `harness.error_line` is the one reader of the line. harness
+    # imports this module, so the import waits for the call.
+    from .harness import error_line
+
     # Night 160: the same red printed a new `0x...` address on each run.
-    for line in (output or "").splitlines():
-        if line.startswith("E "):
-            return re.sub(r"0x[0-9a-fA-F]+", "0x", line[1:].strip())
-    return ""
+    return re.sub(r"0x[0-9a-fA-F]+", "0x", error_line(output))
 
 
 def _red_of(rows) -> dict[str, str]:

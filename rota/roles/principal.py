@@ -514,18 +514,13 @@ def _strip_comment(line: str) -> str:
 
 
 def _failure_line(output: str | None) -> str:
-    """The first `E   ` line of a pytest run, without its marker. When that
-    line is a traceback frame, the last `E   ` line."""
+    """The error line of a pytest run, without its marker (fact F5)."""
+    from ..core.harness import error_line
+
     # pytest cuts the `FAILED` line's reason to the terminal width: night
     # 132's run tr248 ends `assert F...` (frame 142's design review, finding 5).
-    lines = [x[1:].strip() for x in (output or "").splitlines() if x.startswith("E   ")]
-    if not lines:
-        return ""
-    # A collection error puts the traceback frame first and the error last.
-    # Night 168's m53 showed him only the file and the line (frame 336).
-    line = lines[-1] if re.match(r'File ".*", line \d+', lines[0]) else lines[0]
     # The line's own period goes, because check_line's tail adds one.
-    return line.removesuffix(".")
+    return error_line(output).removesuffix(".")
 
 
 def check_line(conn: sqlite3.Connection, test_id: str) -> str:

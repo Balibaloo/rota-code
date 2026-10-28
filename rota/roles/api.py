@@ -18102,18 +18102,21 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
         # A long assert made a sentence of 1915 characters (the same review).
         return s if len(s) <= 200 else s[:197] + "..."
 
+    from ..core.harness import error_at, error_line
+
     for test_id, _sha, output, _attempt in rows:
         lines = (output or "").splitlines()
-        # pytest marks the failing source line with `>` and its error with
-        # `E` below it. The last `>` is the frame that raised.
-        marks = [i for i, x in enumerate(lines) if x.startswith(">")]
-        err = [x[1:].strip() for x in lines[marks[-1]:] if x.startswith("E ")] if marks else []
+        # Fact F5: `error_at` names the line of the last raise. pytest marks
+        # the source line of that frame with the `>` above it.
+        at = error_at(lines).line
+        marks = [i for i in range(at or 0) if lines[i].startswith(">")]
+        err = error_line(output) if marks else ""
         if err:
             src = lines[marks[-1]][1:].strip()
             more = (f", and {len(red) - 1} more fail; tests.load lists them"
                     if len(red) > 1 else "")
             return (f"{said} Commit {short} holds it. {test_id} fails at {short} on "
-                    f"`{_cut(src)}`, and pytest said `{_cut(err[0])}`{more}. Read what "
+                    f"`{_cut(src)}`, and pytest said `{_cut(err)}`{more}. Read what "
                     f"this assertion needs before the next write.")
     return (f"{said} Commit {short} holds it. tests.load shows what the harness "
             f"said about each failing test.")
@@ -18527,6 +18530,7 @@ def _own_reds(body: str, path: str, said: str) -> list[dict]:
     with two red tests in one body, each test keeps its own name and its
     own line.
     """
+    from ..core.harness import error_line
     from ..core.runner import _LOCATION
 
     lines = (said or "").splitlines()
@@ -18557,10 +18561,8 @@ def _own_reds(body: str, path: str, said: str) -> list[dict]:
                   f"{found[-1][1].group(1).replace(chr(92), '/')} line "
                   f"{found[-1][1].group(2)}")
         kind = lines[at].split(": ", 1)[1].strip() if ": " in lines[at] else ""
-        arrow = max((i for i in range(start, at) if lines[i].startswith(">")),
-                    default=start - 1)
-        error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
-                      if ln.startswith("E ")), kind or "an error")
+        # Fact F5: the error line of this test's own section, the last raise.
+        error = error_line("\n".join(lines[start:end])) or kind or "an error"
         out.append({"line": line, "name": name, "raised": raised,
                     "quote": (src[line - 1].strip()
                               if line and 0 < line <= len(src) else ""),
@@ -18791,7 +18793,9 @@ _COLLECT_HEADER = re.compile(r"^_{3,} ERROR collecting (\S.*?) _{3,}$")
 def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
                            notes: list) -> None:
     """Add the encode note for a run that errored at collection: the file
-    pytest collected and the run's last `E ` line."""
+    pytest collected and the run's error line (fact F5)."""
+    from ..core.harness import error_line
+
     lines = (said or "").splitlines()
     where = next((m.group(1) for ln in lines
                   if (m := _COLLECT_HEADER.match(ln))), "")
@@ -18799,8 +18803,7 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
         where = next((ln[len("ERROR "):].split(" - ", 1)[0].strip()
                       for ln in lines if ln.startswith("ERROR ")), "")
     where = where.replace("\\", "/") or path
-    error = next((ln[1:].strip() for ln in reversed(lines)
-                  if ln.startswith("E ") and ln[1:].strip()), "")
+    error = error_line(said)
     advice = ""
     escape = _invalid_escape(error)
     # Review 1, finding 1: an ImportError, a NameError and an

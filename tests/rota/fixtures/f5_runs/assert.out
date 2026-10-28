@@ -1,0 +1,18 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________________________________ test_dict __________________________________
+
+    def test_dict():
+        got = {"a": 1, "b": [1, 2, 3], "c": "hello"}
+>       assert got == {"a": 1, "b": [1, 2, 4], "c": "hello"}
+E       AssertionError: assert {'a': 1, 'b':... 'c': 'hello'} == {'a': 1, 'b':... 'c': 'hello'}
+E         
+E         Omitting 2 identical items, use -vv to show
+E         Differing items:
+E         {'b': [1, 2, 3]} != {'b': [1, 2, 4]}
+E         Use -v to get more diff
+
+test_a.py:3: AssertionError
+=========================== short test summary info ===========================
+FAILED test_a.py::test_dict - AssertionError: assert {'a': 1, 'b':... 'c': 'h...
+1 failed in 0.13s
