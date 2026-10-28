@@ -1102,7 +1102,7 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             got = conn.execute(f"SELECT version FROM {table} WHERE id = ?",
                                (ref,)).fetchone()
             version = got["version"] if got else None
-        rows.append({
+        own = {
             "id": ruled_ref_id(ruling_id, ref), "ruling_id": ruling_id,
             "ref": ref, "line": order.index(ref) + 1 if ref in order else None,
             "verdict": verdict, "act": act, "target_kind": kind,
@@ -1113,8 +1113,31 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             "words_from": (value["words_from"] if "words_from" in value
                            else words_from),
             "old_text": contested_texts(conn, {ref: verdict}).get(ref),
-            "ref_version": version, "source": source})
+            "ref_version": version, "source": source}
+        rows += _identifier_grants(table, own)
+        rows.append(own)
     return rows
+
+
+def _identifier_grants(table: str | None, own: dict) -> list[dict]:
+    """The grant rows of the names that his words on a contested criterion
+    ask for, from the line parser's reading (fact F3).
+
+    `criteria.respecify` lets a contested name come back only on a grant
+    row with the name as its target. The Liaison's brief asks for no such
+    target, so the record writes one for each name of the contested text
+    that his words name (the F2 review, finding 2). The rows come before
+    the Liaison's own row, so its act still decides every untargeted read.
+    """
+    from .api import _line_reading, _named_tokens
+
+    if table != "criteria" or own["verdict"] not in ("contest", "revise"):
+        return []
+    names = (_line_reading(own["words"]).names
+             & _named_tokens(own["old_text"] or "")) - {own["target"]}
+    return [{**own, "id": f"{own['id']}~{name}", "act": "rewrite",
+             "target_kind": "identifier", "target": name}
+            for name in sorted(names)]
 
 
 def insert_ruling_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:

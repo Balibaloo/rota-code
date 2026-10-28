@@ -167,6 +167,35 @@ def test_the_name_must_sit_in_the_contest_rows_own_words(db):
         _respecify(db, V15)
 
 
+def test_a_name_his_landed_words_ask_for_is_admitted(db):
+    """Fact F3, the F2 review, finding 2: his words ask for a parameter of
+    `version_option`, and the ruling lands with no target from the seat.
+    The parser's reading writes the grant row, so the Architect's V15
+    lands. s546's `--show-python` is not in his words and stays refused."""
+    from rota.roles.principal import Answer, Ask, land
+
+    _criterion(db, V14)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m374', 'm374', 'liaison', "
+               "'principal', 'present', ?, 1, 'open')", (json.dumps([CID]),))
+    db.commit()
+    land(db, Ask(message_id="m374", verb="present", refs=[CID]),
+         Answer(verb="verdict", text=WORDS_374, per_item={CID: "contest"}))
+    # An earlier repair dropped the name from the criterion.
+    db.execute("UPDATE criteria SET text = ? WHERE id = ?",
+               ("The decorator appends the running Python version "
+                "(major.minor.micro) when the `show_python` parameter is "
+                "True.", CID))
+    db.commit()
+    grants = {tuple(r) for r in db.execute(
+        "SELECT act, target FROM ruled_refs WHERE ref = ? AND "
+        "target_kind = 'identifier'", (CID,))}
+    assert ("rewrite", "version_option") in grants
+    assert _respecify(db, V15)["respecified"]
+    with pytest.raises(ValueError, match="No row of ruling"):
+        _respecify(db, V16)
+
+
 def test_a_contest_that_land_writes_keeps_the_text_it_contested(db):
     """The review of 33cd99b2, finding 3: a verdict straight from the seat
     lands through `land`, whose raw INSERT wrote no texts."""

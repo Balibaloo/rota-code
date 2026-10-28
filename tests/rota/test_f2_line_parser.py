@@ -167,7 +167,97 @@ def test_no_second_reader_of_the_line_rule():
         for scope, name, line in hits:
             if name in DELETED or path != api_path or scope not in PARSER_SITES:
                 strays.append(f"{path.relative_to(PACKAGE)}:{line} {scope} {name}")
-    assert strays == []
+    # The pin asserts by behaviour too, so a list under a new name fails.
+    assert strays + _behaviour_strays() == []
+
+
+# The behaviour pin (the F2 review, finding 1). A pin by name misses a new
+# list under a new name. So every literal pattern of an `re` call is run on
+# probe words. A pattern that reads a numbered line, two fault cues, or the
+# files and tests words is a cue reader. It sits in the parser, or it is a
+# named residue below.
+_RE_CALLS = {"compile", "search", "match", "fullmatch", "findall",
+             "finditer", "sub", "split"}
+_REF_PROBES = ("line 3", "lines 2 and 3", "Note 7")
+_CUE_PROBES = ("wrong", "drop", "remove", "strike")
+_TOUCH_PROBES = ("files", "tests")
+# Clause cues outside line references, kept by pass 1 and pass 1b.
+CUE_RESIDUE = {
+    ("roles/api.py", "_CUE_FILES"), ("roles/api.py", "_CUE_FAULT"),
+    ("roles/api.py", "_FILES_TALK"), ("roles/api.py", "_CALLABLE_SPAN"),
+    ("roles/api.py", "_CHECK_SUBJECT"), ("roles/api.py", "code_concordance"),
+    ("roles/api.py", "_REMOVAL_WORDS"), ("roles/api.py", "_REQUEST_VERBS"),
+    # These read a traceback's "line N" and a finding id, not his words.
+    ("core/harness.py", "_E_LINE"), ("roles/api.py", "_free_finding_id"),
+}
+
+
+def _whole(rx: re.Pattern, word: str) -> bool:
+    m = rx.search(word)
+    return bool(m) and m.group(0).lower() == word
+
+
+def _cue_reader(pattern: str) -> str | None:
+    try:
+        rx = re.compile(pattern, re.I)
+    except re.error:
+        return None
+    # A pattern that reads any word or any number reads no cue.
+    if rx.search("zebra quilt 9 zebra"):
+        return None
+    if any((m := rx.search(p)) and re.search(r"[a-z]", m.group(0), re.I)
+           and re.search(r"\d", m.group(0)) for p in _REF_PROBES):
+        return "line reference"
+    if sum(_whole(rx, w) for w in _CUE_PROBES) >= 2:
+        return "fault cues"
+    if all(_whole(rx, w) for w in _TOUCH_PROBES):
+        return "files words"
+    return None
+
+
+def _patterns(path: Path):
+    """Each literal pattern of an `re` call, with its module-level name or
+    its function."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for top in tree.body:
+        scope = (top.name if isinstance(top, (ast.FunctionDef, ast.ClassDef,
+                                              ast.AsyncFunctionDef))
+                 else top.targets[0].id if isinstance(top, ast.Assign)
+                 and isinstance(top.targets[0], ast.Name) else "<module>")
+        for node in ast.walk(top):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in _RE_CALLS and node.args
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "re"
+                    and isinstance(node.args[0], ast.Constant)
+                    and isinstance(node.args[0].value, str)):
+                yield scope, node.lineno, node.args[0].value
+
+
+def _behaviour_strays() -> list[str]:
+    api_path = PACKAGE / "roles" / "api.py"
+    allowed = PARSER_SITES | {"_LINE_REF", "_LINE_FAULT", "_LINE_WORD",
+                              "_FAULT_WORDS", "_TOUCH_WORDS", "_NOTE_DROP",
+                              "_BARE_FAULT_TAIL", "_CHECK_AFTER"}
+    strays = []
+    for path in sorted(PACKAGE.rglob("*.py")):
+        rel = path.relative_to(PACKAGE).as_posix()
+        for scope, line, pattern in _patterns(path):
+            kind = _cue_reader(pattern)
+            if kind is None or (rel, scope) in CUE_RESIDUE:
+                continue
+            if path == api_path and scope in allowed:
+                continue
+            strays.append(f"{rel}:{line} {scope} {kind}")
+    return strays
+
+
+def test_page_cue_quotes_the_whole_reference_list():
+    # The parser's page cue is the whole reference, where `_PAGE_CUE` gave
+    # "Lines 3" alone (the F2 review, finding 3).
+    got = api._page_reply_fault(None, "x", "Lines 3, 4 and 5 should say more.",
+                                "Lines 3, 4 and 5 should say more.")
+    assert got and "'Lines 3, 4 and 5'" in got
 
 
 def test_no_second_line_reference_regex():
@@ -186,4 +276,5 @@ def test_no_second_line_reference_regex():
                 continue
             if LINE_REGEX.search(text) and not (path == api_path and i in homes):
                 strays.append(f"{path.relative_to(PACKAGE)}:{i}")
-    assert strays == []
+    # The pin asserts by behaviour too, so a list under a new name fails.
+    assert strays + _behaviour_strays() == []

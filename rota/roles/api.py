@@ -6982,8 +6982,10 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
-                f"His words: {contested['words']!r}. Write what he asked for, "
-                f"without {', '.join(back)}")
+                f"His words: {contested['words']!r}. No row of ruling "
+                f"{contested['id']} grants {', '.join(back)} as its target. "
+                f"`rulings.rule` writes that row when his words name it. "
+                f"Write what he asked for, without {', '.join(back)}")
     # law 9: a ratified amendment drops the item to pending, stops batches
     # A contested sentence sent back is not a repair. Night 144's s583 and
     # s591 sent it back, and the note below did not say that the principal
@@ -11906,6 +11908,12 @@ class LineReading:
 
     # What his words permit or ask of a named target (fact F3). The phrase
     # lists sit in the parser's helpers below, and no door reads them.
+
+    @property
+    def names(self) -> set[str]:
+        """The quoted spans, flags and identifiers that the words name, in
+        lower case. A grant on a name has the name as its target."""
+        return _named_tokens(self.words)
 
     @property
     def touches_files(self) -> bool:
