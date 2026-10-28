@@ -752,14 +752,13 @@ def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
             or getattr(ctx, "wake_kind", "") != "tick:signoff"
             or recipient != "liaison" or verb != "submit"):
         return
-    # The tick drops a parked draft, so the door drops one parked after the
-    # tick (frame 261, review 1, finding 2).
-    from ..core.scheduler import not_parked
+    # The door reads the tick's own set, so a draft parked after the tick
+    # drops out here too (frame 261, review 1, finding 2, and F32).
+    from ..core.scheduler import signoff_drafts
     sent = list(refs or [])
+    drafts = set(signoff_drafts(ctx.conn))
     left = [r for r in (getattr(ctx, "wake_refs", ()) or ())
-            if isinstance(r, str) and r not in sent and ctx.conn.execute(
-                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'"
-                + not_parked(ctx.conn, "id"), (r,)).fetchone()]
+            if isinstance(r, str) and r not in sent and r in drafts]
     if not left:
         return
     full = sent + left

@@ -576,6 +576,20 @@ def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:
             f"tests failing: {shown}")
 
 
+def signoff_drafts(conn: sqlite3.Connection) -> list[str]:
+    """
+    The draft items a signoff submits, in id order. A parked draft is not
+    one of them (frame 193's design, 2.F.4).
+
+    This is the one reader of the set (F32). `tick_signoff` wakes on it, and
+    the submit door refuses a submit that leaves out one of its woken items.
+    law 8: signoff is per-item approval, presented as one document.
+    """
+    return [r["id"] for r in conn.execute(
+        "SELECT id FROM items WHERE approval = 'draft'"
+        + not_parked(conn, "id") + " ORDER BY id")]
+
+
 def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     """
     Draft items with no gate open on them: Vision Keeper submits them for approval.
@@ -590,9 +604,7 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     # question is not an open gate (frame 193's design, 2.F.4).
     from ..roles.principal import held_asks
 
-    drafts = [r["id"] for r in conn.execute(
-        "SELECT id FROM items WHERE approval = 'draft'"
-        + not_parked(conn, "id") + " ORDER BY id")]
+    drafts = signoff_drafts(conn)
     if not drafts:
         return []
     # A touch note is set aside (P4, 2026-09-03): this guard exists so an
