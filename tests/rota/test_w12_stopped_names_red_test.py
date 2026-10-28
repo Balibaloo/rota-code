@@ -85,9 +85,17 @@ def test_the_red_test_gets_no_numbered_line(bg3):
 def test_m127_says_touch_mistaken_in_words(bg3):
     page = render_page(bg3, "present", REFS, stalled=[FAILING, MISTAKEN])[0]
     assert "could not finish a step" not in page, page
+    # One sentence per key, each under 25 words (review of pass 1, finding 1).
     assert ("still fails after 3 attempts: AssertionError: Regex pattern did not "
-            "match; the team could not put back code it was not asked to change "
-            "after 3 attempts.") in page, page
+            "match. The team gave up: the team could not put back code it was not "
+            "asked to change after 3 attempts.") in page, page
+    assert all(len(s.split()) < 25 for s in _gave_up_sentences(page)), page
+
+
+def _gave_up_sentences(page: str) -> list[str]:
+    """Each sentence of the page that starts "The team gave up:"."""
+    return ["The team gave up:" + s for line in page.splitlines()
+            for s in line.split("The team gave up:")[1:]]
 
 
 def test_a_green_batch_keeps_the_kinds_words(bg3):
@@ -95,24 +103,62 @@ def test_a_green_batch_keeps_the_kinds_words(bg3):
     assert _stalled_words(bg3, [FAILING]) == "the tests still fail after 3 attempts"
 
 
-def test_two_red_files_are_named_with_their_errors(bg3):
-    bg3.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
-                "('inh_2', 'bg_3', NULL, 'tests/test_core.py', 'def test(): pass')")
-    bg3.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
-                "output) VALUES ('tr_3', 'bg_3', 'inh_2', ?, 'fail', "
-                "'E       KeyError: ''name''')", (HEAD,))
+def _red(db, n: int, path: str, output: str = "E       KeyError: 'name'") -> None:
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "(?, 'bg_3', NULL, ?, 'def test(): pass')", (f"inh_{n}", path))
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output) VALUES (?, 'bg_3', ?, ?, 'fail', ?)",
+               (f"tr_{n + 10}", f"inh_{n}", HEAD, output))
+
+
+def test_two_red_files_are_named_with_one_error_line(bg3):
+    _red(bg3, 2, "tests/test_core.py")
     assert _stalled_words(bg3, [FAILING]) == (
         "tests/test_types.py and tests/test_core.py still fail after 3 attempts: "
-        "tests/test_types.py with AssertionError: Regex pattern did not match, "
-        "tests/test_core.py with KeyError: 'name'")
+        "AssertionError: Regex pattern did not match")
 
 
-def test_a_long_error_line_is_cut(bg3):
+def test_a_third_red_file_is_one_more_test_file(bg3):
+    """Review of pass 1, finding 4: "1 more test files"."""
+    _red(bg3, 2, "tests/test_core.py")
+    _red(bg3, 3, "tests/test_utils.py")
+    assert _stalled_words(bg3, [FAILING]).startswith(
+        "tests/test_types.py, tests/test_core.py and 1 more test file still fail")
+    _red(bg3, 4, "tests/test_main.py")
+    assert "and 2 more test files still fail" in _stalled_words(bg3, [FAILING])
+
+
+def test_a_long_error_line_is_cut_on_the_page(bg3):
+    """Review of pass 1, finding 5: the page's sentence is the span."""
     long = "E       AssertionError: " + " ".join(f"w{k}" for k in range(40))
     bg3.execute("UPDATE test_runs SET output = ? WHERE id = 'tr_2'", (long,))
-    words = _stalled_words(bg3, [FAILING])
-    assert words.endswith(" ..."), words
-    assert len(words.split()) < 25, words
+    for n in range(2, 6):
+        _red(bg3, n, f"tests/test_{n}.py", long)
+    page = render_page(bg3, "present", REFS, stalled=[FAILING])[0]
+    (sentence,) = _gave_up_sentences(page)
+    assert sentence.rstrip().endswith("..."), sentence
+    assert len(sentence.split()) < 25, sentence
+
+
+def test_a_red_file_at_the_root_keeps_its_case(bg3):
+    """Review of pass 1, finding 2: `code_gaps` printed "Test_types.py"."""
+    from rota.roles.api import Ctx, code_gaps
+
+    bg3.execute("UPDATE tests SET path = 'test_types.py' WHERE id = 'inh_137414af'")
+    facts = code_gaps(Ctx(conn=bg3, role="liaison"))["facts"]
+    assert any(f.startswith("test_types.py still fails") for f in facts), facts
+
+
+def test_two_stuck_batches_never_print_one_clause_twice(bg3):
+    """Review of pass 1, finding 3: "no verdict ...; no verdict ..."."""
+    bg3.execute("INSERT INTO batches (id, item_id, head_commit, status) VALUES "
+                "('bg_4', ?, ?, 'running')", (ITEM, HEAD))
+    keys = ["critic|tick:review|bg_3", "critic|tick:review|bg_4"]
+    for key in keys:
+        bg3.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                    "reported) VALUES (?, 3, 1, 1)", (key,))
+    assert _gave_up_words(bg3, keys) == [
+        "the review gave no verdict after 3 attempts, on 2 changes"]
 
 
 def test_the_gave_up_words_print_no_batch_id(bg3):
