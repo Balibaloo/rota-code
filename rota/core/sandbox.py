@@ -4600,38 +4600,44 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # from it has a commit. Off the park page the batch has often not
         # started, and the Tester woke in `answer` for a question it never
         # asked (the delta review of 2c602d1b, finding 5).
-        if (verb == "answer" and recipient == "tester" and ctx.role == "terminologist"
-                and getattr(ctx, "trigger", None)):
-            from .scheduler import park_criterion_relay
-
-            if park_criterion_relay(ctx.conn, ctx.trigger):
-                built = [r for r in (refs or []) if ctx.conn.execute(
-                    "SELECT 1 FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-                    "JOIN batches b ON b.id = bt.batch_id WHERE c.id = ? "
-                    "AND b.status NOT IN ('merged', 'abandoned') "
-                    "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
-                    (r,)).fetchone()]
-                # The rows say whether a test exists, so the door reads them
-                # first. A test of an abandoned or deferred batch is one the
-                # Tester rewrites. Night 142's walk 1 heard "has written no
-                # test of it" over such a test, four times (frame 213).
-                written = [] if built else [t for r in (refs or []) for t in ctx.conn.execute(
-                    "SELECT t.id, t.criterion_id, t.batch_id, b.status FROM tests t "
-                    "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.criterion_id = ? "
-                    "ORDER BY t.id", (r,))]
-                stopped = [t for t in written if t["status"] in ("abandoned", "deferred")]
-                if written and not stopped:
-                    t = written[0]
-                    raise ValueError(
-                        f"{t['id']} is the test of {t['criterion_id']}, and its "
-                        f"batch {t['batch_id']} is {t['status'] or 'gone'}. The "
-                        f"Tester rewrites a test when its change has a commit or "
-                        f"has stopped. Your work here is done")
-                if not built and not written:
-                    raise ValueError(
-                        "no change built from this criterion has a commit yet, so "
-                        "the Tester has written no test of it. The Tester reads the "
-                        "new words when it writes the test. Your work here is done")
+        # The check runs on every wake, not only on a park relay. Night 173's
+        # s112 answered on a `tick:criteria` wake before any batch existed.
+        # The woken Tester s113 was refused 12 times by `tests.encode` (W10).
+        # Only criterion refs are read: an answer of glossary ids is not a
+        # repaired criterion.
+        # A Tester's open question about the criterion waits for this answer,
+        # so the answer is a reply and lands.
+        crit = [r for r in (refs or []) if isinstance(r, str) and ctx.conn.execute(
+            "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
+            and not ctx.conn.execute(
+                "SELECT 1 FROM messages m, json_each(m.body_refs) j WHERE "
+                "m.from_role = 'tester' AND m.to_role = 'terminologist' AND "
+                "m.status = 'unresolved' AND j.value = ?", (r,)).fetchone()]
+        if verb == "answer" and recipient == "tester" and ctx.role == "terminologist" and crit:
+            built = [r for r in crit if any(
+                b["status"] not in ("merged", "abandoned") and b["head_commit"]
+                for b in api.criterion_batches(ctx.conn, r))]
+            # The rows say whether a test exists, so the door reads them
+            # first. A test of an abandoned or deferred batch is one the
+            # Tester rewrites. Night 142's walk 1 heard "has written no
+            # test of it" over such a test, four times (frame 213).
+            written = [] if built else [t for r in crit for t in ctx.conn.execute(
+                "SELECT t.id, t.criterion_id, t.batch_id, b.status FROM tests t "
+                "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.criterion_id = ? "
+                "ORDER BY t.id", (r,))]
+            stopped = [t for t in written if t["status"] in ("abandoned", "deferred")]
+            if written and not stopped:
+                t = written[0]
+                raise ValueError(
+                    f"{t['id']} is the test of {t['criterion_id']}, and its "
+                    f"batch {t['batch_id']} is {t['status'] or 'gone'}. The "
+                    f"Tester rewrites a test when its change has a commit or "
+                    f"has stopped. Your work here is done")
+            if not built and not written:
+                raise ValueError(
+                    "no change built from this criterion has a commit yet, so "
+                    "the Tester has written no test of it. The Tester reads the "
+                    "new words when it writes the test. Your work here is done")
         recipients = [recipient]
         if verb == "ask":
             g = graph_mod.load()

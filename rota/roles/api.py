@@ -457,11 +457,25 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     Ambiguity is left alone. A ticket in two batches has no single answer here,
     and inventing one would file a test against the wrong delivery.
     """
-    rows = ctx.conn.execute(
-        "SELECT DISTINCT bt.batch_id AS id FROM criteria c "
-        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE c.id = ?", (criterion_id,)).fetchall()
+    rows = criterion_batches(ctx.conn, criterion_id)
     return rows[0]["id"] if len(rows) == 1 else None
+
+
+def criterion_batches(conn, criterion_id: str) -> list:
+    """
+    The batches of a criterion's ticket, each with its status and head commit.
+
+    Two doors read this one fact. `tests.encode` attaches a test to the one
+    batch. The `msg.answer_tester` door lets an answer wake a Tester only
+    when a batch of the criterion has a commit. Night 173's s112 answered
+    before any batch existed, and the woken Tester s113 was refused 12 times
+    (W10, the count of 2026-10-28).
+    """
+    return conn.execute(
+        "SELECT DISTINCT b.id AS id, b.status AS status, b.head_commit AS head_commit "
+        "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "JOIN batches b ON b.id = bt.batch_id WHERE c.id = ? ORDER BY b.id",
+        (criterion_id,)).fetchall()
 
 
 class Wall(ValueError):
