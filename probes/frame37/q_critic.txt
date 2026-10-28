@@ -1,0 +1,9 @@
+In one sentence, what were you asked to do?
+Quote the criterion text of c_2_format_filename_example exactly as it appeared in your prompt. If none appeared, say `none`.
+Quote the added lines of the diff exactly as they appeared in your prompt, one per line. If no diff appeared, say `not shown`.
+Does your prompt say how many lines of the diff a criterion may name in a pass? Quote the words, or say `none`.
+Does your prompt say what to send when two added lines together meet one criterion? Quote the words, or say `none`.
+Quote the sentence of your prompt that held your pass and asked you a question, exactly. If none appeared, say `none`.
+List every id you were given, exactly as they appeared. If you were given none, say `none`.
+Name the functions you called, and any you considered and decided against.
+Was there anything you needed in order to decide, and could not find? Name it, or say `nothing`.
