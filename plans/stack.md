@@ -45,6 +45,14 @@ the biggest issue first:
    2ebac251's scratchpad.
 6. The Liaison bench of his replies, blocked on Roman's word of
    2026-10-28 (his doubt in the terminal, not ruled).
+7. W5, the round_close tick asks him again and closes no round
+   (`plans/w5-provenance-2026-10-28.md`). Two causes, neither under a
+   fact: the night drivers put his messages in thread `t_p1`, so
+   `trigger_message` finds none and the page lands on its own thread,
+   where the TUI joins the round; and `report_is_settled` never settles a
+   glossary ref. Reach: `tick_round_close`, `tick:contradiction`, and six
+   readers of open reports. Priced 2 build and a review, about 60k on
+   Opus; the driver thread first, because the TUI already does it.
 
 ## Sprint 33, recommended on night 173's read, 2026-10-28 10:38
 
