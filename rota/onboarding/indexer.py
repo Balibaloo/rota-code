@@ -377,6 +377,43 @@ def walk(root: Path) -> list[Path]:
     return out
 
 
+def unindexed(conn: sqlite3.Connection, root: str | Path) -> dict[str, str | None]:
+    """
+    The Python files of `root` whose text the index does not hold, as the
+    next refresh would read them: path to text, and None for a removed file.
+
+    The runner refreshes the index after a session commits. A batch's
+    earlier commits can still be ahead of the index, for example after a
+    failed refresh or before the first one. A reader of the definer reads
+    these texts over the index rows, so it sees the tree that `build` sees.
+    """
+    # F13 (rule C76): `walk` and the content hash are the refresh's source.
+    # A second walk with its own rules would disagree with the next index.
+    root = Path(root)
+    if not root.is_dir():
+        return {}
+    held = {r["grain"].replace("\\", "/"): r["content_hash"] for r in conn.execute(
+        "SELECT grain, content_hash FROM code_index WHERE grain_kind = 'path' "
+        "AND grain LIKE '%.py'")}
+    out: dict[str, str | None] = {}
+    seen: set[str] = set()
+    for path in walk(root):
+        if path.suffix != ".py":
+            continue
+        rel = path.relative_to(root).as_posix()
+        seen.add(rel)
+        try:
+            source = path.read_bytes()
+        except OSError:                                     # pragma: no cover
+            continue
+        if len(source) > MAX_BYTES:
+            continue
+        if held.get(rel) != hashlib.sha256(source).hexdigest()[:16]:
+            out[rel] = source.decode("utf-8", "replace")
+    out.update({rel: None for rel in held if rel not in seen})
+    return out
+
+
 class IndexRefreshError(RuntimeError):
     """
     The tree cannot be indexed, so the old index stays.

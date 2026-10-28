@@ -18656,9 +18656,22 @@ def _stage_code_write(ctx, path: str, text) -> None:
 
 
 def staged_writes(ctx) -> tuple:
-    """The session's `code.write` files as (path, text) pairs, sorted. The
-    text is None for a file the session removed."""
-    return tuple(sorted((getattr(ctx, "code_writes", None) or {}).items()))
+    """The batch tree's Python files that the index does not hold, and the
+    session's `code.write` files over them, as (path, text) pairs, sorted.
+    The text is None for a removed file."""
+    # F13 gate reds (2026-10-28): a name that the batch's own commit defines
+    # can be ahead of the index. `indexer.unindexed` reads it as the next
+    # refresh reads it, so no door walks the tree with its own rule.
+    from ..onboarding.indexer import unindexed
+
+    tree: dict = {}
+    bid = getattr(ctx, "batch_id", None)
+    conn = getattr(ctx, "conn", None)
+    if bid and conn is not None:
+        row = conn.execute("SELECT worktree FROM batches WHERE id = ?", (bid,)).fetchone()
+        if row and row["worktree"]:
+            tree = unindexed(conn, row["worktree"])
+    return tuple(sorted({**tree, **(getattr(ctx, "code_writes", None) or {})}.items()))
 
 
 # The index's `grain_kind` of a binding that is not a definition: an
