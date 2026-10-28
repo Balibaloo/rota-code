@@ -19,9 +19,10 @@ Read, not built:
 
 ## In flight at the hand-off
 
-- The seam branch `seamroot` in `C:/Users/roman/rota_seam` at 90c5d390, the merge of the head eeb0db69 onto pass 3f eed16a28. Passes 3 to 3f are on frame 344's status lines; reviews p3 to p5 are in `plans/seam-review-p1.md`, and p6's section is in my scratchpad folder `p3rev/` if it ran, to append. **The land waits on Roman's word, land or hold**, asked in the terminal after his direction of 2026-10-28, below. On "land": a touched-file run in `rota_g328` at the merge, then the full gate with `--rerecord-now` from `rota_g328`, then night 175 from a copy of `.rota/launch_night174.sh` with the new sha and `GAUNTLET_NIGHT=175`. On "hold": write the branch's state on the frame and leave it.
-- The reviewer worktree is `rota_rseam`; the implementer's reports are `seam_pass3_report.md` in my scratchpad, `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/`.
-- Night 175 is sprint 34 row 5: night 1 for W11, W10 and the seam, night 2 for P7, P89 and P12. Its read copies `n174_read_brief.md` in my scratchpad.
+- The seam landed at dfcffd40 on Roman's word of 14:45, reviews p1 to p6 in `plans/seam-review-p1.md`. The full gate on it, `gate_dfcffd40.txt` in my scratchpad, showed two reds from the lands: a Tester's first test refused by W10's commit rule, fixed by W10 pass 1e and landed at 21d145df, and `L1-LI-a-separate-request-is-later` at 3 of 5 since the seam's prompt edits, a re-earn still owed.
+- **Night 175 runs from 21d145df since 17:05**, to `.rota/night175_launch.log`, the worktree `rota_n175`. Night 1 for the seam, W11 and W10, night 2 for P7, P89 and P12. Read its CYCLE lines at once; the m53 loop, the team's-note revise and the whole-page approve on the account's page, `ACCOUNT_NO_LINE`, are its counts. At its end copy `.rota/clickI.db` and `.principal.jsonl` to `clickI_night175.*`, and run the read from a copy of `n174_read_brief.md` in my scratchpad with the night's numbers.
+- Frame 345, the deep Liaison cases, is pushed on his go, "And you can make the cases with your judgement". It waits on a clean context. Judge the 20 cases first, in the Fable seat, and ask him to read the 20 lines.
+- The implementer's seam reports are `seam_pass3_report.md`, W10's `w10_report.md`, W11's `w11_report.md`, all in my scratchpad `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/`.
 
 ## Roman's direction of 2026-10-28, the next frame
 
@@ -35,4 +36,4 @@ Doubt first the seam branch's size: 12 cycles against about 6, and each pass clo
 
 ## Worktrees
 
-`rota_seam` and `rota_rseam` are the seam's. `rota_w11`, `rota_rw11`, `rota_w10` and `rota_rw10` are landed and can go. `rota_g328` is the gate worktree, detached at eeb0db69. `rota_n174` holds night 174's untracked files and can go with `--force`.
+`rota_seam` and `rota_rseam` are the seam's. `rota_w11`, `rota_rw11`, `rota_w10` and `rota_rw10` are landed and can go. `rota_g328` is the gate worktree, detached at 7f7a6d88; `rota_w10` is on w10e, landed. `rota_n174` holds night 174's untracked files and can go with `--force`.
