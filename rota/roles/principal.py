@@ -1813,13 +1813,13 @@ def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
 def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
     """'the team could not write the tests after 3 attempts', one part per
     key, in the words of TICK_WORDS and never the tick's name."""
-    return "; ".join(f"{_tick_words(kind)} after {_tries(n)}"
-                     for kind, n in _stuck_ticks(conn, "", keys))
+    return "; ".join(_key_words(conn, key, kind, n)
+                     for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)))
 
 
 def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
-    """'the team could not write the tests for b_3 after 3 attempts', one
-    part per key, with what the key is about."""
+    """'the team could not write the tests after 3 attempts', one part per
+    key, with what the key is about."""
     # The page printed the kind's name, "tests_missing for b_3", at the end
     # of night 170. The page contract shows his words, never rota's names
     # (fact F21, frame 312, review 1, finding 1).
@@ -1829,9 +1829,59 @@ def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
     for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
         what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
                          if w)
-        out.append(f"{_tick_words(kind)}{f' for {what}' if what else ''} "
-                   f"after {_tries(n)}")
+        out.append(_key_words(conn, key, kind, n, what))
     return out
+
+
+# The error line of a red test is cut to this many words. The sentence then
+# stays under 25 words per test (P12 of the night 172 read).
+RED_ERROR_WORDS = 15
+# A sentence names this many test files at most, and counts the rest.
+RED_FILES_SHOWN = 3
+
+
+def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
+               what: str = "") -> str:
+    """
+    One quarantined key in words with its attempts. A `tests_failing` key
+    names each red test file and its error line.
+    """
+    # Night 172's m120 said "the tests still fail" while every check line
+    # said "Passes". The red test had no criterion, so no line named it (wall
+    # W12). The test goes in prose and never as a numbered line, because the
+    # principal never rules on a test (ruled: Roman, 2026-10-08, cited in
+    # `check_line`).
+    from ..core.scheduler import key_parts, park_reds
+
+    tail = f"after {_tries(n)}"
+    if kind == "tests_failing":
+        batch = next((r for r in key_parts(key)[2] if conn.execute(
+            "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone()), None)
+        own, project = park_reds(conn, batch) if batch else ([], [])
+        errors: dict[str, str] = {}
+        for r in own + project:
+            errors.setdefault(r["path"] or r["test_id"],
+                              _cut_words(_failure_line(r["output"]), RED_ERROR_WORDS))
+        if errors:
+            files = list(errors)
+            shown = files[:RED_FILES_SHOWN]
+            names = shown + ([f"{len(files) - len(shown)} more test files"]
+                             if len(files) > len(shown) else [])
+            subject = (names[0] if len(names) == 1
+                       else ", ".join(names[:-1]) + " and " + names[-1])
+            if len(files) == 1:
+                return f"{subject} still fails {tail}" + (
+                    f": {errors[subject]}" if errors[subject] else "")
+            said = [f"{f} with {errors[f]}" for f in shown if errors[f]]
+            return f"{subject} still fail {tail}" + (
+                ": " + ", ".join(said) if said else "")
+    return f"{_tick_words(kind)}{f' for {what}' if what else ''} {tail}"
+
+
+def _cut_words(text: str, most: int) -> str:
+    """The text cut to its first `most` words, with ' ...' when cut."""
+    words = text.split()
+    return text if len(words) <= most else " ".join(words[:most]) + " ..."
 
 
 # The bare refs a scheduler wake names, in words. A bare ref with no entry
@@ -1851,7 +1901,13 @@ def _ref_words(conn: sqlite3.Connection, ref: str) -> str:
         return ref.rsplit(":", 1)[-1]
     # A ledger id is rota's key for a question. The words of the kind say
     # the question already (review of F20 pass 1, finding 3).
-    if conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone():
+    # A batch id is rota's key for a change. The words of each kind say "the
+    # change" or name the red test already. Night 172's state said "for bg_3"
+    # (wall W12, section 4, item 3). The one reader of an id's table is
+    # `tables_of` (fact F22).
+    from ..core.db import tables_of
+
+    if tables_of(conn, ref, among=("ledger", "batches")):
         return ""
     return ref
 
@@ -1899,6 +1955,9 @@ TICK_WORDS = {
     "constraint_zero": "the team could not read the code first",
     "batch_start": "the change could not start",
     "touch_strayed": "the change went outside the files it expected",
+    # Night 172's m127 showed the fallback for this kind (wall W12). The
+    # Developer puts back code that the Architect judged a mistake.
+    "touch_mistaken": "the team could not put back code it was not asked to change",
 }
 
 
@@ -1910,6 +1969,10 @@ def _tick_words(kind: str) -> str:
 
 def _capital(text: str) -> str:
     """The text with its first letter in capitals, for a sentence start."""
+    # A path is copied exactly. A stopped sentence can open with a red
+    # test's path (wall W12).
+    if "/" in text.split(" ", 1)[0]:
+        return text
     return text[:1].upper() + text[1:]
 
 
