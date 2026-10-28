@@ -13651,12 +13651,29 @@ def _note_words(words: str, n: int, page_text: str,
                 and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
                                   r"instead|rather)\b", rest, re.I)):
             continue
-        if _NOTE_CHANGE.search(rest):
+        # A negated change verb asks to keep the line: "Do not change line
+        # 4." The drop verbs' guard serves (the seam review, p3-5).
+        if any(not _NEGATED.search(rest[:m.start()])
+               for m in _NOTE_CHANGE.finditer(rest)):
             found.add("change")
     for kind in ("drop", "change", "own"):
         if kind in found:
             return kind
     return None
+
+
+def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
+    """The text that shows the prediction of `ref`: its page line with the
+    line's sub-lines, or, for a guess key off the page, the words of the
+    item's code line as the request page shows them (`code_line`)."""
+    from .principal import code_line, code_target
+
+    if order and ref in order:
+        return _line_body(page_text, order.index(ref) + 1)
+    if not str(ref).startswith("guess:"):
+        return ""
+    item = str(ref).split(":", 1)[1]
+    return code_line(conn, item, code_target(conn, item))
 
 
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
@@ -14102,10 +14119,32 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # decides, never `target_kind`: `grant` matches a row by its target
         # alone, and s179's call with no kind landed the same grant (the seam
         # review, p2-2).
+        line = (f"line {order.index(ref) + 1}" if order and ref in order
+                else ref)
+        # A removal with no target skipped the rule above, and `grant` with
+        # no target read the row as his permission (the seam review, p3-1).
+        # A page line or its check is the act's own row, so it needs none.
+        if (shape["act"] in ("remove", "drop")
+                and not (shape.get("target") or "").strip()
+                and shape.get("target_kind") not in ("row", "check",
+                                                      "sentence")):
+            raise ValueError(
+                f"{line}: a {shape['act']} needs its target. Put in `target` "
+                f"the code or the line that his words ask to {shape['act']}")
+        # An `exclude` takes a path off the prediction that his page shows.
+        # The door checks a fact: the contested line names the path, or a
+        # guess key's current guess holds it (law 6, the seam review, p3-4).
+        if shape["act"] == "exclude":
+            target = (shape.get("target") or "").strip().strip("`")
+            if not target or not _says(_shown_prediction(
+                    ctx.conn, ref, order, page_text), target):
+                raise ValueError(
+                    f"{line}: an exclude takes a path off the prediction, and "
+                    f"{line} shows no path {target or '(none)'}. Leave the "
+                    f"act out")
         if (shape["act"] in ("remove", "drop")
                 and _code_target(ctx.conn, shape.get("target") or "")
-                and not _asks_removal_of(span, shape.get("target") or "",
-                                         page_text)):
+                and not _asks_removal_of(span, shape.get("target") or "")):
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
             raise ValueError(
@@ -23601,8 +23640,7 @@ def _gone_statements(text: str, e: dict) -> list[dict]:
 # The words that ask for a removal (frame 283's W1 a, pass 2). A sentence
 # with a word that demands the line asks for no removal.
 _REMOVAL_WORDS = re.compile(
-    r"\b(?:(?:i|we)\s+(?:do\s+not|don[’']t|no\s+longer)\s+want(?!\s+to\b)|"
-    r"remov\w*|drop\w*|delet\w*|(?:take|takes|taking|took|taken)\s+"
+    r"\b(?:remov\w*|drop\w*|delet\w*|(?:take|takes|taking|took|taken)\s+"
     r"(?:\S+\s+){0,4}?out|no\s+longer|stop\w*|without)\b", re.I)
 # A word before the removal word that forbids the removal or demands the
 # line. "Do not remove ctx.exit()." admitted the removal (review 2, finding 2).
@@ -23621,13 +23659,8 @@ _CLAUSE_BREAK = re.compile(r"[,:;]|\b(?:so|and|which|but)\b", re.I)
 # breaks the clause. Any other form names the removal as a fault or a
 # consequence: "Removing X is a bug", "rather than drop X", "wrong to drop
 # X", "without X".
-# Seam pass 3b: "I don't want a flag" asks that the flag go, and "without X"
-# asks it when X follows the word at once. The "want" forms carry their own
-# subject, so they take no lead. "I don't want to drop it" asks nothing.
 _REQUEST_VERBS = re.compile(
-    r"(?:i|we)\s+(?:do\s+not|don[’']t|no\s+longer)\s+want(?!\s+to\b)"
-    r"|remove|drop|delete|take\s+(?:\S+\s+){0,4}?out|stop|no\s+longer"
-    r"|without", re.I)
+    r"remove|drop|delete|take\s+(?:\S+\s+){0,4}?out|stop|no\s+longer", re.I)
 _REQUEST_LEADS = re.compile(
     r"(?:please"
     r"|(?:you|we)\s+(?:can|could|may|should|must)"
@@ -23708,14 +23741,6 @@ def _removal_spans(s: str, names: tuple = ()) -> list[str]:
         start = breaks[-1].end() if breaks else 0
         lead = s[start:m.start()].strip(" \t\"'`*-")
         got = _REQUEST_LEADS.fullmatch(lead)
-        # "without" asks only for the words after it, so the clause starts
-        # at the word. A "without" that opens its clause states a condition,
-        # and a negation or a demand before it keeps the name: "Without
-        # ctx.exit(), the program runs" asks nothing (frame 283, review 3).
-        if verb.lower() == "without":
-            if not lead or _NEGATION_WORDS.search(lead):
-                continue
-            start, got = m.start(), _REQUEST_LEADS.fullmatch("")
         if got is None:
             continue
         if got.group("who") is not None and (
@@ -23800,7 +23825,7 @@ def _code_target(conn, target: str) -> bool:
                if p.strip())
 
 
-def _asks_removal_of(span: str, target: str, page: str = "") -> bool:
+def _asks_removal_of(span: str, target: str) -> bool:
     """True when a sentence of `span` holds a removal request for `target`.
 
     The request clause comes from `_removal_spans`, the removal door's
@@ -23808,17 +23833,8 @@ def _asks_removal_of(span: str, target: str, page: str = "") -> bool:
     "remove the string helper, not the clear function" grants no `clear`.
     A clause about the touch list or the scope removes no code: m75's
     "remove the five formatting tests from what you expect to touch" asks
-    the plan to touch less (the seam review of pass 1, findings 2 to 4).
-
-    His words can name the target by the noun that the page `page` writes
-    after the target's name: the page's "the show_python flag" lets "I
-    don't want a flag" name `show_python` (seam pass 3b)."""
+    the plan to touch less (the seam review of pass 1, findings 2 to 4)."""
     names = _target_names(target)
-    names |= {f"a {w}" for n in list(names) for w in re.findall(
-        rf"(?<![\w.]){re.escape(n)}`?\s+([a-z]+)\b", (page or "").lower())
-        if w not in _NOT_A_NOUN}
-    names |= {n.replace("a ", f"{d} ", 1) for n in list(names)
-              if n.startswith("a ") for d in ("the", "any", "an")}
     for s in re.split(r"(?<=[.!?])\s+|\n+", span or ""):
         for c in _removal_spans(s):
             verb = _REQUEST_VERBS.search(c)
@@ -23830,11 +23846,6 @@ def _asks_removal_of(span: str, target: str, page: str = "") -> bool:
     return False
 
 
-# The words after a name that are no noun of it: "show_python only needs".
-_NOT_A_NOUN = frozenset({
-    "is", "are", "was", "were", "be", "only", "and", "or", "to", "in", "on",
-    "of", "with", "for", "the", "a", "an", "that", "which", "when", "it",
-    "not", "does", "do", "must", "should", "can", "will", "has", "have"})
 # A removal clause with no object: "drop nothing" (review finding 4).
 _NO_OBJECT = re.compile(r"\s*(?:nothing|none)\b", re.I)
 # A removal from the touch list, the plan or the scope, not from the code.

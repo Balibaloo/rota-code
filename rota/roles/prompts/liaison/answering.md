@@ -27,7 +27,7 @@ A later line with no act ends an earlier act on the line or its check, and it ke
 Each `rulings=` example below is the whole map. Each other example is the value of one line. In `acts`, leave out the verdict and give the verdict in `rulings`.
 Most rows take no act. A row he approves as it stands takes the word `approve` alone, with no act.
 The acts:
-- `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
+- `remove` deletes the code that his words name, and never a file of the guess: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
 - `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
 - `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
 - `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
@@ -36,7 +36,7 @@ The acts:
 The target kinds:
 - `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
 - `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`, and the line takes `{"verdict": "contest", "act": "exclude", "target_kind": "path", "target": "tests/test_options.py"}`.
-- `identifier` is a name in the item: "I don't want a flag" on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
+- `identifier` is a name in the item: "Remove the show_python flag, I don't want it." on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
 - `sentence` is a sentence of the item: "take it out and keep only what I asked for" is `{"verdict": "contest", "act": "remove", "target_kind": "sentence"}`.
 - `check` is the test of a line, and `row` is the line itself.
 - `request` is a line of his request.

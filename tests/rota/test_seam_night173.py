@@ -408,21 +408,53 @@ def test_an_older_register_takes_the_act_exclude(night):
     conn.execute("SELECT COUNT(*) FROM ruled_refs_live").fetchone()
 
 
-# The criterion of night 156's version_option_show_python, as the page shows it.
-SHOW_PY = ("When the show_python flag is turned on, the --version output must "
-           "end with the running Python version.")
+# Seam pass 3c: the review's p3-1, p3-4 and p3-5.
+
+def test_s179s_call_with_no_target_is_refused(night):
+    """A removal with no target skipped the removal rule, and `grant` with
+    no target read the row as his permission (p3-1)."""
+    from rota.roles.principal import grant
+    ctx = night(173, "m62", merged=False)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={
+            "1": A, "2": A, "3": A, "4": A, "6": A,
+            "5": {"verdict": "contest", "act": "remove",
+                  "target_kind": "identifier", "words": S62}})
+    msg = str(e.value)
+    assert msg == ("line 5: a remove needs its target. Put in `target` the "
+                   "code or the line that his words ask to remove")
+    assert len(msg.split()) < 25
+    assert not ctx.writes
+    assert grant(ctx.conn, "bg_2", "remove") is None
 
 
-@pytest.mark.parametrize("span, target, page, asks", [
-    # The prompt's identifier example: his words ask that the flag go.
-    ("I don't want a flag", "show_python", SHOW_PY, True),
-    ("I do not want the flag.", "show_python", SHOW_PY, True),
-    ("We no longer want show_python.", "show_python", "", True),
-    ("Build it without show_python.", "show_python", "", True),
-    # The page writes no noun after the name, so "a flag" names nothing.
-    ("I don't want a flag", "show_python", "", False),
-    ("I don't want to drop show_python.", "show_python", SHOW_PY, False),
-    ("I don't want a test", "show_python", SHOW_PY, False),
-])
-def test_i_dont_want_asks_a_removal(span, target, page, asks):
-    assert api._asks_removal_of(span, target, page) is asks
+@pytest.mark.parametrize("path", ["src/click/core.py", "src/click/termui.py"])
+def test_an_exclude_on_a_path_the_line_does_not_show_is_refused(night, path):
+    """The words name the terminal UI file, and an exclude still needs the
+    contested line to show the path (p3-4)."""
+    ctx = night(173, "m62", merged=False)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={
+            "1": A, "2": A, "3": A, "4": A, "6": A,
+            "5": {"verdict": "contest", "act": "exclude",
+                  "target_kind": "path", "target": path,
+                  "words": S62}})
+    assert str(e.value).startswith("line 5: an exclude takes a path off")
+
+
+def test_a_negated_change_verb_backs_no_revise(night, monkeypatch):
+    """"Do not change line 4." asks to keep line 4 (p3-5)."""
+    from rota.roles import principal
+
+    said = W35.replace(
+        "because I approved two lines, lines 1 and 4, not one.",
+        "because it misses a line. Do not change line 4.")
+    orig = principal.said
+    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
+        said if mid == "m35" else orig(conn, mid, *a, **k)))
+    ctx = night(173, "m35")
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
+                                       "4": "revise", "5": A, "6": A,
+                                       "7": "contest", "8": "drop"}, words=said)
+    assert str(e.value).startswith("line 4: a revise rewrites the line")
