@@ -585,8 +585,6 @@ def touch_notes(conn: sqlite3.Connection, status: str | None = "open") -> set[st
             if batches & set(refs_of(r["body_refs"]))}
 
 
-# The verbs whose sender waits for a reply (frame 204's design, section 3.2).
-OWED_VERBS = ("question", "challenge", "escalate")
 # The ledger words that say the change contradicts an owned row (section 2).
 HOLDING_KINDS = ("conflict", "scope")
 # The tables whose rows belong to one batch through its tickets.
@@ -742,20 +740,20 @@ def _next_rungs(conn: sqlite3.Connection) -> dict[str, str]:
 def waiting_on_a_seat(conn: sqlite3.Connection, batch_id: str) -> str | None:
     """`waiting on <owner>: <ids>` while a seat owes a reply about the batch.
 
-    A `question`, `challenge` or `escalate` holds while it is `open`, or
+    A message with a verb of `db.OWED_A_REPLY` holds while it is `open`, or
     `unresolved` with a next rung. A `quarantined` message holds nothing:
     nothing moves a message out of it, so the quarantine is the release
     (frame 204's design review, finding 2). A `conflict` or `scope` row holds
     only through such a message about it. A row that no seat was asked about
     waits on a page, and nothing waits on a page after intent (finding 1).
     """
-    from .db import refs_of
+    from .db import OWED_A_REPLY, refs_of
 
     msgs = conn.execute(
         "SELECT id, to_role, body_refs, status FROM messages "
-        f"WHERE verb IN ({','.join('?' * len(OWED_VERBS))}) "
+        f"WHERE verb IN ({','.join('?' * len(OWED_A_REPLY))}) "
         "AND status IN ('open', 'unresolved') ORDER BY seq, id",
-        OWED_VERBS).fetchall()
+        OWED_A_REPLY).fetchall()
     if not msgs:
         return None
     rows = _batch_rows(conn, batch_id)

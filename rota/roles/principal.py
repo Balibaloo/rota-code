@@ -23,6 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from ..core.db import mark_answered
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -2656,9 +2657,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     if not (answer.text or "").strip() and not answer.per_item:
         return None
 
-    closed = conn.execute(
-        "UPDATE messages SET status = 'answered' "
-        "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
+    closed = mark_answered(conn, ask.message_id, only_open=True)
     if not closed:
         return None
     # A landed answer to a stopped page lifts the quarantined Developer start
@@ -3131,8 +3130,7 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
             if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= {item}:
                 continue
-            conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                         (r["id"],))
+            mark_answered(conn, r["id"])
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                          (f"closed:{r['id']}", msg_id))
         # The ledger branch of `land`, with the principal's words, and no
