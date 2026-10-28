@@ -734,12 +734,17 @@ def observed_entries(conn) -> list[Wake]:
     if limbo:
         deferred = {r["about_ref"] for r in conn.execute(
             "SELECT about_ref FROM ledger")}
+        from .db import tables_of
+
+        # `db.tables_of` finds the tables that hold the id (F22). The basis
+        # is then read in the provenance view of each one.
         still = [i for i in dict.fromkeys(limbo)
                  if i in presented and i not in deferred and any(
                      conn.execute(f"SELECT 1 FROM {PROVENANCE_VIEW_OF_TABLE[t]} "
                                   f"WHERE id = ? AND basis = 'code'", (i,)).fetchone()
-                     for t in ("glossary_terms", "constraints",
-                               "model_areas", "items"))]
+                     for t in tables_of(conn, i, among=(
+                         "glossary_terms", "constraints", "model_areas",
+                         "items")))]
         if still:
             return [Wake(SCHEDULER, "do:defer_baseline", refs=tuple(still),
                          detail=f"deferred without ruling: {len(still)}")]

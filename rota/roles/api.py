@@ -1339,11 +1339,15 @@ _CITE_TABLES = {
 def _cite_op(artefact: str, tables: tuple[str, ...]) -> Callable:
     def cite(ctx: Ctx, id: str, kind: str, target: str) -> dict:
         """One refs row for a row of this artefact: what the row rests on."""
-        table = next(
-            (t for t in tables
-             if any(w[0] == t and w[1] == id for w in ctx.writes)
-             or ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                 (id,)).fetchone()), None)
+        # A refs row needs the raw id, and `tables_of` reads a prefixed ref as
+        # the row of its key. So the door refuses a prefix first (F22).
+        if guess_item(id) is not None or str(id).startswith(READING_REF):
+            raise ValueError(f"{id!r} is a key, not a row of {artefact}")
+        # A row that this session staged is not on file yet. The artefact's
+        # order picks the table, as before F22.
+        held = tables_of(ctx.conn, id, among=tables)
+        table = next((t for t in tables if t in held or any(
+            w[0] == t and w[1] == id for w in ctx.writes)), None)
         if table is None:
             raise ValueError(f"{id!r} is not a row of {artefact}")
         # The target names a row of its kind, as the owner ops check
@@ -13602,9 +13606,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         request_first = not shift and _is_request_item(ctx.conn, order[0])
         # A code line holds only files, as a batch line does (frame 298's
         # design, 3.1, point 4).
+        # `db.tables_of` finds the table of each page line (F22).
+        line_tables = [tables_of(ctx.conn, r, among=("batches", "criteria"))
+                       for r in order]
         batch_lines = frozenset(
-            i + 1 for i, r in enumerate(order) if guess_item(r) or ctx.conn.execute(
-                "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
+            i + 1 for i, r in enumerate(order)
+            if guess_item(r) or "batches" in line_tables[i])
         closed_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ? AND status IN "
@@ -13615,8 +13622,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # `how_it_works` on a sentence with no line number (frame 258).
         request_lines = frozenset(n for n, _ in asked)
         item_lines = request_lines | frozenset(
-            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
-                "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone())
+            i + 1 for i in range(len(order)) if "criteria" in line_tables[i])
         earlier_read, earlier_fine = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
@@ -14039,8 +14045,10 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # A message is no row of the project. 7 reply rows of nights 133 and 136
     # named a message and passed every other door (frame 190's design, 2.F,
     # amendment 7).
-    if ctx.conn.execute("SELECT 1 FROM messages WHERE id = ?",
-                        (about_ref,)).fetchone():
+    # `db.tables_of` finds the row. A message and a ledger row each get their
+    # own refusal (F22).
+    held = tables_of(ctx.conn, about_ref, among=("messages", "ledger"))
+    if "messages" in held:
         raise ValueError(
             f"{about_ref} is a message. An assumption is about a row of the "
             f"project, never about a message.")
@@ -14092,8 +14100,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # a tool refusal as the assumption, the agenda put it to the principal,
     # the approval woke the Terminologist, which logged the next one: 36
     # rounds of a ledger about the ledger.
-    if about_table == "ledger" or ctx.conn.execute(
-            "SELECT 1 FROM ledger WHERE id = ?", (about_ref,)).fetchone():
+    if about_table == "ledger" or "ledger" in held:
         raise ValueError(
             f"{about_ref!r} is a ledger row. An assumption is about an "
             f"artefact, never about another assumption. If a ruling on it "

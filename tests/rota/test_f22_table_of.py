@@ -256,14 +256,15 @@ def _scores(src: str) -> dict[str, int]:
     return scorer.out
 
 
-def _lookup_sites() -> set[tuple[str, str]]:
+def _lookup_sites() -> dict[tuple[str, str], int]:
+    """Each function that scores 2 or more, with its score."""
     root = Path(rota.__file__).parent
-    out = set()
+    out = {}
     for path in root.rglob("*.py"):
         rel = "rota/" + path.relative_to(root).as_posix()
         for name, score in _scores(path.read_text(encoding="utf-8")).items():
             if score >= 2:
-                out.add((rel, name))
+                out[rel, name] = score
     return out
 
 
@@ -298,55 +299,51 @@ def test_the_pin_catches_the_review_forms(src):
     assert max(_scores(src).values()) >= 2
 
 
-# Each allowed function, with its reason. A new lookup goes red.
+# Each allowed site with its reason and its score now. A score that rises is a new lookup
+# inside an allowed site (F22 review 2, finding 1).
 ALLOWED = {
     # The one reader of F22.
-    ("rota/core/db.py", "tables_of"),
+    ("rota/core/db.py", "tables_of"): 2,
     # Law 14 at the id: a new id must be free in every artefact table. This
     # checks a writer's id, not where a ref lives.
-    ("rota/core/sandbox.py", "_scalar_id_fault"),
-    ("rota/core/sandbox.py", "wrapper"),
-    ("rota/roles/api.py", "_id_taken"),
+    ("rota/core/sandbox.py", "_scalar_id_fault"): 2,
+    ("rota/core/sandbox.py", "wrapper"): 2,
+    ("rota/roles/api.py", "_id_taken"): 2,
     # A row's columns per table, once the table is known.
-    ("rota/core/runner.py", "_resolve_refs"),
+    ("rota/core/runner.py", "_resolve_refs"): 2,
     # Pass 2 read each site below. Each calls an F22 reader for the table,
     # then reads the words column of that table. The pin scores the column
     # read as a probe, because its table is a variable.
-    ("rota/core/loop.py", "_perform"),
-    ("rota/core/sandbox.py", "_quoted_rows"),
-    ("rota/roles/api.py", "_misplaced_conflict"),
+    ("rota/core/loop.py", "_perform"): 3,
+    ("rota/core/sandbox.py", "_quoted_rows"): 3,
+    ("rota/roles/api.py", "_misplaced_conflict"): 3,
     # Calls `tables_of` for the target. The last probe tests a different id,
     # the statement that the segment writes.
-    ("rota/roles/api.py", "brief_segment"),
+    ("rota/roles/api.py", "brief_segment"): 2,
     # The send door. Each verb branch tests its own refs against one table.
     # The relay split and the Terminologist's answer call the F22 readers.
-    ("rota/core/sandbox.py", "stage"),
-    # Reads the `basis` column of four provenance views, not the table of an id.
-    ("rota/core/predicates.py", "observed_entries"),
+    ("rota/core/sandbox.py", "stage"): 7,
+    # Calls `tables_of` for the id, then reads the `basis` column in the
+    # provenance view of each table. The view read has a variable table.
+    ("rota/core/predicates.py", "observed_entries"): 3,
     # Reads the provenance view of the one table that the ruling names.
-    ("rota/roles/api.py", "_adopt_rows"),
+    ("rota/roles/api.py", "_adopt_rows"): 2,
     # Reads one item and its provenance. The table is `items` by the door.
-    ("rota/roles/api.py", "_assert_words_fault"),
+    ("rota/roles/api.py", "_assert_words_fault"): 2,
     # Tests the wake's refs and the asserted id, two different ids, against
     # `items` and its provenance.
-    ("rota/roles/api.py", "_contested_elsewhere"),
+    ("rota/roles/api.py", "_contested_elsewhere"): 2,
     # Reads the `text` of a quoted sentence, and finds no table (review 1, 3).
-    ("rota/roles/api.py", "_reply_sentence_fault"),
-    # Reads the session's staged writes, which `tables_of` cannot see. A refs
-    # row needs the raw id, and `tables_of` reads a `guess:` ref as its item.
-    ("rota/roles/api.py", "cite"),
+    ("rota/roles/api.py", "_reply_sentence_fault"): 2,
     # Tests the ticket id and the item refs, two different ids, one table each.
-    ("rota/roles/api.py", "criteria_specify"),
+    ("rota/roles/api.py", "criteria_specify"): 2,
     # Tests the resolved refs and `supersedes`, two different ids.
-    ("rota/roles/api.py", "decisions_author"),
-    # Each refusal tests `about_ref` against the one table it names, then
-    # `_homes_of_ref` finds the home.
-    ("rota/roles/api.py", "ledger_log"),
-    # Tests the batch refs, the criteria of the page lines and the text of a
-    # faulted line. Each is one table, or the words of a known line.
-    ("rota/roles/api.py", "rulings_rule"),
+    ("rota/roles/api.py", "decisions_author"): 2,
+    # Calls `tables_of` for the page lines. The other probes test a batch
+    # by its status or its item, or read the text of a known line.
+    ("rota/roles/api.py", "rulings_rule"): 2,
     # Reads the version column once `ruled_ref_home` names the table.
-    ("rota/roles/principal.py", "ruling_rows"),
+    ("rota/roles/principal.py", "ruling_rows"): 3,
 }
 
 # The sites that pass 2 moved to an F22 reader, each with the tables of the
@@ -365,6 +362,12 @@ MOVED = {
     ("rota/roles/api.py", "_misplaced_conflict"): ("{}", "decisions"),
     ("rota/roles/api.py", "_owner_call"): ("{}",),
     ("rota/roles/api.py", "brief_segment"): ("entries",),
+    # Pass 2b, from F22 review 2, findings 2 to 5. An empty scope checks the
+    # reader call only, because the basis read keeps a variable table.
+    ("rota/roles/api.py", "ledger_log"): ("messages", "ledger"),
+    ("rota/roles/api.py", "rulings_rule"): ("criteria",),
+    ("rota/core/predicates.py", "observed_entries"): (),
+    ("rota/roles/api.py", "cite"): ("{}",),
 }
 
 
@@ -391,7 +394,7 @@ def test_a_moved_site_keeps_no_probe_of_its_own():
     """The sites that score below 2 now leave the pin's allowed set."""
     sites = _lookup_sites()
     gone = {s for s in MOVED if s not in ALLOWED}
-    assert not gone & sites, sorted(gone & sites)
+    assert not gone & set(sites), sorted(gone & set(sites))
 
 
 def test_a_reading_ref_is_no_source(conn):
@@ -412,8 +415,31 @@ def test_a_note_on_the_code_line_of_the_batch_item_is_the_batch(conn):
     assert [r["id"] for r in _batch_notes(conn, "b_1", {"i1"})] == ["l_g"]
 
 
+def _over(scores: dict) -> list:
+    """The sites whose score is above their recorded count."""
+    return sorted(s for s, n in scores.items() if n > ALLOWED.get(s, 1))
+
+
+# Review 2's plant (f22p2/pin/plant3.py): a batches-then-tests lookup inside
+# the allowed `_adopt_rows`. The first pin stayed green on it.
+PLANT_ANCHOR = ("    from ..core.db import PROVENANCE_VIEW_OF_TABLE\n"
+                "    view = PROVENANCE_VIEW_OF_TABLE[table]\n")
+PLANT = ('    _x = ctx.conn.execute("SELECT 1 FROM batches WHERE id = ?", '
+         '(ids[0],)).fetchone() or ctx.conn.execute("SELECT 1 FROM tests '
+         'WHERE id = ?", (ids[0],)).fetchone()\n')
+
+
+def test_the_pin_catches_a_lookup_inside_an_allowed_site():
+    src = (Path(rota.__file__).parent / "roles" / "api.py").read_text(
+        encoding="utf-8")
+    assert src.count(PLANT_ANCHOR) == 1
+    planted = _scores(src.replace(PLANT_ANCHOR, PLANT + PLANT_ANCHOR))
+    scores = {("rota/roles/api.py", n): s for n, s in planted.items()}
+    assert ("rota/roles/api.py", "_adopt_rows") in _over(scores)
+
+
 def test_one_reader_finds_the_table_of_an_id():
-    extra = _lookup_sites() - ALLOWED
+    extra = _over(_lookup_sites())
     assert not extra, (
         f"{sorted(extra)} look an id up across tables. Call db.tables_of "
         f"(F22) with a scope, or name the site in ALLOWED with its reason")
