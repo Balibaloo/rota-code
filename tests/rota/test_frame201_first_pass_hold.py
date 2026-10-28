@@ -114,8 +114,8 @@ def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
             f"the criterion says, or the opposite? {_MORE} Say which in "
-            f"your own words, and in the same reply send the same pass again "
-            f"or your own fail on the criterion.")
+            f"your own words, and in the same reply send the pass again or "
+            f"your own fail on the criterion.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -239,8 +239,8 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         "the opposite? "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
         f"that line do what the criterion says, or the opposite? {_MORE} Say "
-        "which in your own words, and in the same reply send the same pass "
-        "again or your own fail on the criterion.")
+        "which in your own words, and in the same reply send the pass again "
+        "or your own fail on the criterion.")
 
 
 def test_the_one_line_hold_names_the_list_form(case):

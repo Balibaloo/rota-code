@@ -15999,8 +15999,10 @@ _HOLD_MORE = ("If the criterion needs more than that line, send the pass "
 # `failed_criterion` only (frame 201, review 5, finding 1).
 # On night 161 the prefilled fail turned 2 right passes of 5 into wrong
 # fails, and it caught no wrong pass (frame 201, sprint 18, pass 1).
+# "the pass", not "the same pass": the one-line hold may ask for a list, and
+# "same" told the seat to keep its one line (F37 pass 2b).
 _HOLD_SAY = ("Say which in your own words, and in the same reply send the "
-             "same pass again or your own fail on the criterion.")
+             "pass again or your own fail on the criterion.")
 
 
 def _or_list(ids: list[str], last: str) -> str:
