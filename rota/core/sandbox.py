@@ -1942,7 +1942,8 @@ def _unbuilt_refusal(ctx, recipient: str, verb: str, refs) -> None:
     # Developer (the coordinator's ruling on pass 1b).
     if built:
         return
-    ids = ", ".join(refs) or "these refs"
+    # At most three ids, so the text stays under 25 words (the review's low p2-3).
+    ids = ", ".join(refs[:3]) + (f" and {len(refs) - 3} more" if len(refs) > 3 else "")
     if asker:
         raise ValueError(
             f"No change built from {ids} has a commit yet, and you hold no "
@@ -2122,14 +2123,15 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     from .scheduler import park_criterion_relay
 
     def _parked(ids) -> bool:
+        # The batch fact is `api.built_batch`, the one predicate (W10, the
+        # review's low p2-1). A retired criterion holds no live change.
+        def _live_built(r) -> bool:
+            b = api.built_batch(ctx.conn, r)
+            return bool(b and b["status"] != "merged" and ctx.conn.execute(
+                "SELECT 1 FROM criteria c WHERE c.id = ?"
+                + api._live_rows(ctx.conn, "c.retired_by"), (r,)).fetchone())
         return park_criterion_relay(ctx.conn, getattr(ctx, "trigger", None)) and not any(
-            ctx.conn.execute(
-                "SELECT 1 FROM criteria c JOIN batch_tickets bt "
-                "ON bt.ticket_id = c.ticket_id JOIN batches b ON b.id = bt.batch_id "
-                "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
-                "AND b.head_commit IS NOT NULL AND b.head_commit != ''"
-                + api._live_rows(ctx.conn, "c.retired_by"),
-                (r,)).fetchone() for r in ids)
+            _live_built(r) for r in ids)
     missing = [r for r in ruled if r not in given]
     # The answer carries a criterion by its ref, so the Tester reads the row
     # as it stands. Night 159's s382 and s398 answered while no respecify had

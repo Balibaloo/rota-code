@@ -151,10 +151,22 @@ def test_two_abandoned_batches_refuse(db):
 
 def test_one_reader_holds_the_criterion_to_batch_query():
     """A second query of a criterion's batches cannot return to either door."""
-    for fn in (sandbox._unbuilt_refusal, api._batch_of_criterion):
+    for fn in (sandbox._unbuilt_refusal, api._batch_of_criterion,
+               sandbox._ruling_answer_refusal):
         src = inspect.getsource(fn)
         assert "head_commit" not in src, fn
         calls = {getattr(n.func, "attr", getattr(n.func, "id", None))
                  for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Call)}
         assert "built_batch" in calls, fn
     assert "_unbuilt_refusal(ctx, recipient, verb" in inspect.getsource(sandbox._bind_send)
+
+
+def test_a_refusal_over_many_refs_stays_under_25_words(db):
+    for n in range(2, 6):
+        db.execute("INSERT INTO criteria (id, ticket_id, text, version) "
+                   "VALUES (?, ?, ?, 1)", (f"c_{n}", TICKET, C1))
+    sb = _s112(db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR, "c_2", "c_3", "c_4", "c_5"], round_no=0)
+    said = str(refused.value)
+    assert "and 2 more" in said and len(said.split()) < 25, said
