@@ -487,9 +487,11 @@ def grain_file(row: dict) -> str | None:
     and the row landed with the kind `path` (the review of pass 1,
     finding 2).
     """
+    from . import worktrees
+
     grain = row["grain"]
     if "::" in grain:
-        return grain.split("::", 1)[0]
+        return worktrees.grain_path(grain)
     return grain if row["grain_kind"] == "path" else None
 
 

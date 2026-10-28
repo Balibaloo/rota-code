@@ -20,7 +20,8 @@ PACKAGE = Path(__file__).resolve().parents[2] / "rota"
 # The functions that may still split `::` and keep the path half by their own
 # rule, with the reason for each.
 ALLOWED = {
-    # The reader itself.
+    # The reader itself, in core since F27, and its name in the roles layer.
+    ("core/worktrees.py", "grain_path"),
     ("roles/api.py", "_grain_path"),
     # A pytest node id, not a grain.
     ("tools/gate.py", "of_the_suite"),
