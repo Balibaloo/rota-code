@@ -2274,13 +2274,10 @@ def resume_behind(conn: sqlite3.Connection) -> int:
         # review of 61a0f41d, finding 1).
         # A description is no item of the request: one that cites the new
         # statement ended the park before the work items existed (the
-        # review of a1bd448f, finding 1).
-        cited = [r for r in conn.execute(
-                     "SELECT id, kind, is_description FROM items "
-                     "WHERE is_description = 0")
+        # review of a1bd448f, finding 1). `request_of` gives it no request.
+        cited = [r for r in conn.execute("SELECT id, kind FROM items")
                  if request_of(conn, r["id"]) in entries]
-        mine = [r["id"] for r in cited
-                if r["kind"] == "in_scope" and not r["is_description"]]
+        mine = [r["id"] for r in cited if r["kind"] == "in_scope"]
         # A request with items and no work item asks nothing to deliver, so
         # the park ends. A request with no item yet still waits. B with
         # only out-of-scope items held A for ever (the review of e406e976,
