@@ -124,10 +124,11 @@ def test_the_wake_says_the_tests_still_fail_after_3_attempts(night_168):
     def details(conn):
         return [w.detail for w in P.exhausted(conn)]
 
-    assert details(night_168) == ["the tests still fail after 3 attempts"]
+    # Wall W12: the words name the red test file, here `p`, and not the kind.
+    assert details(night_168) == ["p still fails after 3 attempts"]
     _asked(night_168, *LADDER)
     (wake,) = P.preempt(night_168)
-    assert wake.detail == ("batch_1: the tests still fail after 3 attempts, "
+    assert wake.detail == ("batch_1: p still fails after 3 attempts, "
                            "and its ladder is spent")
 
     night_168.execute("DELETE FROM sessions")
@@ -208,7 +209,7 @@ def test_a_quarantined_rung_counts_as_asked(night_168):
                       "reported) VALUES ('developer|tick:exhausted|batch_1', 3, 1, 1)")
     assert _ladder(night_168) == [("architect", "tick:exhausted", ("batch_1",))]
     assert [w.detail for w in P.exhausted(night_168)] == [
-        "the team could not finish a step after 3 attempts; the tests still fail "
+        "the team could not finish a step after 3 attempts; p still fails "
         "after 3 attempts"]
 
 
