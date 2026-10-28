@@ -15273,6 +15273,31 @@ def _block_of(parts: list[str], runs: list[list[str]]
     return None
 
 
+def _doc_run_of(parts: list[str], runs: list[list[str]],
+                kind_of: dict[str, str | None]
+                ) -> tuple[int, int, int, str] | None:
+    """The run and the span of the added docstring or comment lines that
+    `parts` are, in the diff's order with no line of code between them, or
+    None.
+
+    A docstring example has no one line that shows both its call and its
+    result. Night 172's s238 failed c_2 for that reason (F37 pass 2c, high
+    1). So for a criterion that asks for documentation, such a run counts as
+    one line. Blank lines inside the run do not break it.
+    """
+    want = [_stripped(p) for p in parts]
+    if not all(kind_of.get(w) in _DOC_KINDS for w in want):
+        return None
+    n = len(want)
+    for r, run in enumerate(runs):
+        idx = [i for i, ln in enumerate(run) if ln.strip()]
+        texts = [run[i].strip() for i in idx]
+        for s in range(len(texts) - n + 1):
+            if texts[s:s + n] == want:
+                return r, idx[s], idx[s + n - 1], "run of docstring lines"
+    return None
+
+
 def _block_inside(parts: list[str], runs: list[list[str]]
                   ) -> tuple[int, int, str] | None:
     """The longest branching statement of the diff that `parts` hold as
@@ -15332,7 +15357,10 @@ def _line_parts(value) -> list[str] | None:
 
     Two shapes have one reading, so both are read (frame 170): a list of
     text is several lines, and text with line breaks is one line per part.
-    The door refuses more than `_LINE_PARTS_MAX` parts.
+    The door refuses more than `_LINE_PARTS_MAX` parts, unless the parts are
+    one unit. A unit is one branching statement of added lines (F37). For a
+    criterion that asks for documentation, a run of added docstring or
+    comment lines is a unit too (F37 pass 2c).
     """
     if isinstance(value, str):
         parts = value.splitlines()
@@ -15859,7 +15887,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         if len(parts[cid]) <= _LINE_PARTS_MAX:
             continue
         n = len(parts[cid])
-        block = _block_of(parts[cid], runs)
+        # The docs rule reads the walk's kinds, not `kinds_of`, because
+        # `kinds_of` gives a docs line no kind for this criterion.
+        block = _block_of(parts[cid], runs) or (
+            _doc_run_of(parts[cid], runs, kind_of)
+            if asks_for_docs(texts_of[cid]) else None)
         if block:
             if landed is None:
                 landed = _landed_blocks(ctx, batch_id)
@@ -15875,10 +15907,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             raise LinesRefusal(
                 f"the value for {cid} holds {n} lines, and the {block[3]} "
                 f"they are is named for {other} too, whole or in part. One "
-                f"statement of several lines is the line of one criterion "
-                f"only, because a statement named for every criterion names "
-                f"nothing. Copy for {cid} the one added line that meets it, "
-                f"without the +, and send the pass again. {listed}If no "
+                f"unit, one statement or one docstring run, is the line of "
+                f"one criterion only, because a unit named for every "
+                f"criterion names nothing. Copy for {cid} the added line or "
+                f"the unit that meets it, without the +, and send the pass "
+                f"again. {listed}If no "
                 f"added line meets {cid}, that is a fail on it: "
                 f"{claim_for(cid)}")
         # The refusal names the statement form first, and both shapes of a
@@ -15903,8 +15936,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             plural = _NO_BEHAVIOUR_PLURAL.get(kind, "lines with no behaviour")
             raise LinesRefusal(
                 f"the value for {cid} holds {n} lines, and they are {plural}. "
-                f"{_why_refused(cid, kind)} A pass names one added line per "
-                f"criterion. Copy "
+                f"{_why_refused(cid, kind)} A pass names one added line or "
+                f"one unit per criterion. A unit is one branching statement, "
+                f"or a run of docstring lines for a criterion that asks for "
+                f"documentation. Copy "
                 f"the one added line of code that does what {cid} says, "
                 f"without the +, and send the pass again. {listed}If no "
                 f"added line meets {cid}, that is a fail on it: "
@@ -15933,16 +15968,20 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                     f"Copy that one. ")
         elif own:
             sent = (f"The lines you sent hold these {noun}: {shown}. "
-                    f"Copy the one that does what the criterion says. ")
+                    f"Copy the line among them that does what the criterion "
+                    f"says. ")
+        # The refusal names both units, so a docs criterion is not told
+        # "one line" (F37 review 3, P3-1).
         raise LinesRefusal(
-            f"the value for {cid} holds {n} lines, and they are not one "
-            f"statement that a pass can name. A value of several lines lands "
-            f"as one `if`, `try`, `match` or conditional expression of added "
-            f"lines, with at most {_BRANCH_BODY_MAX} simple statements in "
-            f"each branch, named for one criterion only. Send it whole, as "
-            f"one text with line breaks or as a list of lines. Otherwise "
-            f"copy the one line of the [diff] block that meets {cid}, "
-            f"without the +, and send the pass again. "
+            f"the value for {cid} holds {n} lines, and they are not one unit "
+            f"that a pass can name. A unit is one `if`, `try`, `match` or "
+            f"conditional expression of added lines, with at most "
+            f"{_BRANCH_BODY_MAX} simple statements in each branch. For a "
+            f"criterion that asks for documentation, a run of adjacent "
+            f"docstring lines is a unit too. A unit is named for one "
+            f"criterion only. Send it whole, as one text with line breaks or "
+            f"as a list of lines. Otherwise copy a line of the [diff] block "
+            f"that meets {cid}, without the +, and send the pass again. "
             f"{form}{sent}{listed}If no added line meets {cid}, that is a "
             f"fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())
@@ -16014,13 +16053,21 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
 _HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
 _HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
                        "opposite?")
+# Night 172, s238: the seat read the hold on one line as "copy one line per
+# criterion" and failed a right pass. The door reads a list (frame 170), so
+# the one-line hold names that form (F37). The hold says it once, because
+# a sentence per criterion moved right lines to lists (F37 pass 2c, low 4).
+_HOLD_MORE = ("If a criterion needs more than one line, send the pass again "
+              "with its lines as a list.")
 # One instruction ends the hold, and it names no call for the fail route.
 # The fail names its criterion, because the claim check reads
 # `failed_criterion` only (frame 201, review 5, finding 1).
 # On night 161 the prefilled fail turned 2 right passes of 5 into wrong
 # fails, and it caught no wrong pass (frame 201, sprint 18, pass 1).
+# "the pass", not "the same pass": the one-line hold may ask for a list, and
+# "same" told the seat to keep its one line (F37 pass 2b).
 _HOLD_SAY = ("Say which in your own words, and in the same reply send the "
-             "same pass again or your own fail on the criterion.")
+             "pass again or your own fail on the criterion.")
 
 
 def _or_list(ids: list[str], last: str) -> str:
@@ -16059,8 +16106,14 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
         return
     if ctx.pass_held:
         # A test or a caller that spent the hold leaves no lines on record.
+        # A value that keeps every held line and adds lines answers the
+        # hold's list sentence, so it is no move. Night 172's s238 needed a
+        # third call for that answer (F37 pass 2c, high 2). A value that
+        # drops a held line is still a move.
+        def moved_from(held, p) -> bool:
+            return held != p and not (held and all(h in p for h in held))
         moved = {cid: p for cid, p in sent.items()
-                 if ctx.held_lines and ctx.held_lines.get(cid) != p}
+                 if ctx.held_lines and moved_from(ctx.held_lines.get(cid), p)}
         if not moved:
             return
         ctx.pass_held_again = True
@@ -16083,6 +16136,8 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
     else:
         body = " ".join(f"Criterion {cid} says: \"{texts[cid]}\". "
                         f"{holds(ask[cid])}" for cid in ids)
+    if any(len(p) == 1 for p in ask.values()):
+        body = f"{body} {_HOLD_MORE}"
     # The seat writes a fail itself, with its own claim when it needs one.
     # So the hold offers the pass route only (frame 201, sprint 18, pass 1).
     _offer(ctx, _HOLD_SAY, "verdicts.emit",

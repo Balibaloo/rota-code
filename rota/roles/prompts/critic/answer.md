@@ -19,7 +19,9 @@ the answer in hand, then finish the review the way any review ends:
 2. `verdicts.emit`: pass if the diff satisfies every criterion, fail naming the
    criterion the diff does not satisfy. A pass carries `lines=`: for every
    criterion, its id and the added line of the diff that meets it, copied
-   without the `+`.
+   without the `+`. When the lines of one statement, or of one docstring run
+   for a documentation criterion, meet it, copy them as a list, each without
+   the `+`.
 
 A second challenge on the same test is the same argument again and is refused.
 If the Tester fixed the test instead of defending it, the new test is in

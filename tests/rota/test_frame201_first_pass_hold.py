@@ -104,12 +104,18 @@ def _held(sb, **kwargs) -> str:
     return str(exc.value)
 
 
+# F37: the one-line hold names the list form, because s238 of night 172 read
+# the hold as "one line per criterion" and failed a right pass.
+_MORE = ("If a criterion needs more than one line, send the pass again "
+         "with its lines as a list.")
+
+
 def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
-            f"the criterion says, or the opposite? Say which in your own "
-            f"words, and in the same reply send the same pass again or your "
-            f"own fail on the criterion.")
+            f"the criterion says, or the opposite? {_MORE} Say which in "
+            f"your own words, and in the same reply send the pass again or "
+            f"your own fail on the criterion.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -232,9 +238,49 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         f"then '{L_ACCOUNT}'. Do those lines do what the criterion says, or "
         "the opposite? "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
-        "that line do what the criterion says, or the opposite? Say which in "
-        "your own words, and in the same reply send the same pass again or "
-        "your own fail on the criterion.")
+        f"that line do what the criterion says, or the opposite? {_MORE} Say "
+        "which in your own words, and in the same reply send the pass again "
+        "or your own fail on the criterion.")
+
+
+def test_the_one_line_hold_names_the_list_form(case):
+    """F37, night 172, s238: the seat read the hold on one line as "copy one
+    line per criterion" and sent a fail. The hold names the list form."""
+    said = _held(_critic(case), lines={C1: L_INVOICES})
+    assert _MORE in said
+
+
+def test_the_hold_on_many_lines_keeps_its_question(case):
+    """The list form is named on the one-line hold only."""
+    said = _held(_critic(case), lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert "Do those lines do what the criterion says, or the opposite?" in said
+    assert _MORE not in said
+
+
+@pytest.mark.parametrize("piece", ["review.md", "answer.md"])
+def test_each_critic_prompt_names_the_list_form(piece):
+    """F37: the interview of s238 found no prompt words on two lines that
+    meet one criterion together. Each piece is read from its file."""
+    from pathlib import Path
+
+    import rota.roles
+    path = Path(rota.roles.__file__).parent / "prompts" / "critic" / piece
+    text = " ".join(path.read_text(encoding="utf-8").split())
+    assert ("When the lines of one statement, or of one docstring run for a "
+            "documentation criterion, meet it, copy them as a list, each "
+            "without the `+`.") in text
+
+
+def test_a_two_line_list_sent_again_lands(case):
+    """F37: a pass that names two lines for one criterion, as a list, is
+    held once. The same pass sent again lands on the many-form path."""
+    sb = _critic(case)
+    said = _held(sb, lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert f"Your lines hold '{L_INVOICES}', then '{L_ACCOUNT}'." in said
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert out["result"] == "pass"
+    assert len(_verdicts(sb)) == 1
 
 
 def test_a_second_hold_quotes_only_the_moved_criterion(case):
@@ -254,3 +300,125 @@ def test_a_refused_pass_is_refused_before_the_hold(case):
     assert "has no line" in str(exc.value)
     assert not sb.ctx.pass_held
     _held(sb, lines={C1: L_INVOICES})
+
+
+def test_the_hold_names_the_list_form_once(case):
+    """F37 pass 2c, low 4: the sentence followed each one-line criterion, and
+    it could move right lines to lists. The hold says it once."""
+    _two_criteria(case)
+    said = _held(_critic(case), lines={C1: L_INVOICES, C2: L_NONE})
+    assert said.count(_MORE) == 1
+    assert said.endswith(f"{_MORE} Say which in your own words, and in the "
+                         "same reply send the pass again or your own fail "
+                         "on the criterion.")
+
+
+def test_a_list_that_keeps_the_held_line_lands(case):
+    """F37 pass 2c, high 2: a list that keeps the held line and adds one is
+    the answer to the hold, so it lands on the second call."""
+    sb = _critic(case)
+    _held(sb, lines={C1: L_INVOICES})
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert out["result"] == "pass"
+    assert len(_verdicts(sb)) == 1
+
+
+def test_a_list_that_drops_the_held_line_is_held_again(case):
+    """A list without the held line is a move, so the hold asks about it with
+    the many form."""
+    sb = _critic(case)
+    _held(sb, lines={C1: L_INVOICES})
+    said = _held(sb, lines={C1: [L_ACCOUNT, L_LOAD]})
+    assert (f"Your lines hold '{L_ACCOUNT}', then '{L_LOAD}'. "
+            f"{_HOLD_MANY}") in said
+    assert _MORE not in said
+
+
+_HOLD_MANY = "Do those lines do what the criterion says, or the opposite?"
+
+# Night 172, s238: three criteria that ask for a docstring example, and a
+# diff that adds the example block, `Example:`, the call and the result.
+S238_CALL = '>>> format_filename("a/b/c.txt", shorten=True)'
+S238_OUT = '"c.txt"'
+_S238_BEFORE = (
+    "import os\n\n\n"
+    "def format_filename(filename, shorten=False):\n"
+    '    """Format a filename.\n\n'
+    "    :param shorten: this optionally shortens the filename.\n"
+    '    """\n'
+    "    if shorten:\n"
+    "        filename = os.path.basename(filename)\n"
+    "    return filename\n")
+_S238_AFTER = _S238_BEFORE.replace(
+    "the filename.\n",
+    "the filename.\n\n    Example:\n"
+    f"        {S238_CALL}\n        {S238_OUT}\n\n")
+S238_TEXTS = {
+    "c_1": "The docstring of format_filename must include an example "
+           "demonstrating that when shorten=True, a path like \"a/b/c.txt\" "
+           "is displayed as \"c.txt\".",
+    "c_2": "The example in the docstring must explicitly show the input path "
+           "and the resulting shortened output to verify the behavior.",
+    "c_3": "The docstring must include an example showing that when "
+           "shorten=True, a path like \"a/b/c.txt\" is displayed as "
+           "\"c.txt\".",
+}
+
+
+@pytest.fixture
+def s238(tmp_path):
+    root = tmp_path / "root"
+    (root / "src").mkdir(parents=True)
+    _git(root, "init", "-q")
+    (root / "src" / "utils.py").write_bytes(_S238_BEFORE.encode())
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    tree = tmp_path / "batch"
+    _git(root, "worktree", "add", "-q", "-b", "batch/b1", str(tree))
+    (tree / "src" / "utils.py").write_bytes(_S238_AFTER.encode())
+    _git(tree, "commit", "-q", "-am", "example")
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+                 (str(root),))
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','x','in_scope','approved',1,1)")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+                 "('tk1','i1','x')")
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree, "
+                 "head_commit) VALUES ('b1', 'i1', 'running', ?, 'abc123')",
+                 (str(tree),))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+                 "('b1', 'tk1')")
+    for cid, text in S238_TEXTS.items():
+        conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                     "(?, 'tk1', ?)", (cid, text))
+    conn.commit()
+    return conn
+
+
+def test_s238_the_three_line_example_lands(s238):
+    """F37 pass 2c, high 1: c_2 asks for documentation, and its example is
+    three docstring lines. The run is one unit, so the door admits it, the
+    hold asks once, and the same pass lands."""
+    from rota.roles import api
+    lines = {"c_1": S238_CALL, "c_3": S238_CALL,
+             "c_2": ["Example:", S238_CALL, S238_OUT]}
+    sb = _critic(s238)
+    with pytest.raises(api.PassHeld):
+        sb.call("verdicts.emit", batch_id="b1", result="pass", lines=lines)
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass", lines=lines)
+    assert out["result"] == "pass"
+
+
+def test_s238_the_list_with_the_held_line_lands_on_the_second_call(s238):
+    """F37 pass 2c, high 2: s238's shape. The one-line pass is held, and the
+    list that keeps the held line lands on the second call."""
+    from rota.roles import api
+    sb = _critic(s238)
+    one = {"c_1": S238_CALL, "c_2": S238_CALL, "c_3": S238_CALL}
+    with pytest.raises(api.PassHeld):
+        sb.call("verdicts.emit", batch_id="b1", result="pass", lines=one)
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={**one, "c_2": [S238_CALL, S238_OUT]})
+    assert out["result"] == "pass"
