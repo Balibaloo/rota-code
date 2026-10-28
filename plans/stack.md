@@ -14,6 +14,56 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 32, recommended on night 172's read, 2026-10-28 05:56
+
+Night 172 merged 2 of 3 items on the baseline that holds all 37 facts
+of frame 344, the same count as night 170 (observed:
+`plans/night172-read.md`, section 0). Walk 3 stopped on a chain of six
+walls, W1 to W6, each under a built fact (observed: the read, sections 2
+and 5). The Critic failed a two-line docstring example because the pass
+form names one added line per criterion (W1, F37). The Developer then
+rewrote the function, and two commits removed base code with no grant
+(W2, F7). No seat could put the code back: the restore doors refused
+each form the Developer sent (W3, F25), and the `touch_mistaken`
+Developers re-sent the head's own text because the removal row names
+two statements the head still holds and not the `surrogateescape` line
+it lost (W4, F7). The rulings door then landed a contest on a line his
+words did not name (W5, F2), and refused his last four answers, 14
+refusals, so the night ended quiet with his words unlanded (W6, F2). The
+count of the rulings seam: 65 of 93 calls refused, against 75 of 92 on
+night 171 (observed: the read, section 7). No frame closes on this
+night: frame 330's count is 0 of 3 on three nights with no sample, and
+frame 342 names that close as a false one. Order, the biggest issue
+first:
+
+1. The rulings door, W5 and W6, under F2 and F3. His words are the
+   feedback, and the night ended because they could not land. A C76 read
+   on one agent, no site and no cause in the brief: s258's contest on
+   line 4, s271's and s274's "words is empty" on calls that held his
+   words under the line, the reach of each refusal text, a proposal at
+   the smallest place. Then the fix at the reach, with s271's call as the
+   red test.
+2. The removal route, W2 to W4, under F7, F8 and F25. Two removals with
+   no grant landed, and the route that should restore them reached a
+   `mistake` verdict for the first time and then moved nothing. A C76
+   read on one agent: s239's and s242's commits against the diff, s262's
+   note, s263's write, s243's range refusal, the reach over every
+   removal row of nights 170 to 172. Then the fix at the reach, with
+   128bec7e's row as the red test.
+3. The Critic's one-line pass, W1, under F37. The seat had the two
+   lines in front of it and chose fail. By C33, an interview replay of
+   s238 before any second brief shape, and by C36 no escalation on one
+   sample.
+4. The page lines he spent answers on: W7 under F1, W8 and W9 under F15,
+   W12 under F21. Each is a count on the fact's debt until rows 1 to 3
+   land, then the cheap path.
+5. Night 173 after rows 1 to 3 land, with a gate on each: night 3 of 3
+   for frame 343, night 2 of 3 for frames 339 and 324, and the first
+   sample of the three fixes.
+6. W13, a Tester that retires every inherited test on a contest of
+   criteria, 102 refusals and the night's one fault row, under F6 with
+   doubt. A count until a second night shows it.
+
 ## Sprint 27, recommended on night 170's read, 2026-10-27 13:37
 
 Night 170 merged 2 of 3 items, from 0 of 3 on nights 168 and 169. The
