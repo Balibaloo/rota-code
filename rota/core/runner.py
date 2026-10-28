@@ -4153,6 +4153,18 @@ def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str) -> dict[str, str]:
     return out
 
 
+def _index_test_files(conn, limit: int = 80) -> list[str]:
+    """The index's test files, in grain order, at most `limit` of them."""
+    # F9 (ruled: Roman, 2026-10-26 20:37): the basename gives the shape and
+    # the frame's kind gives the partition. A `tests/` prefix decides neither.
+    from ..roles.api import _is_test_file
+
+    rows = conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path' "
+                        "ORDER BY grain")
+    return [g for g in (r["grain"] for r in rows)
+            if _is_test_file(conn, g)][:limit]
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4523,10 +4535,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # set and the principal named other files (frame 190's design, question
     # 5.2, ruled on the records by the holding session, 2026-10-09).
     if wake is not None and wake.kind == "tick:tests_missing" and wake.refs:
+        # F9: a test file by the one reader (ruled: Roman, 2026-10-26 20:37).
+        from ..roles.api import _is_test_file
+
         paths = [r["grain"] for r in sb.ctx.conn.execute(
             "SELECT grain FROM batch_touch WHERE batch_id = ? AND grain_kind = 'path' "
             "AND confidence = 'expected' ORDER BY grain", (wake.refs[0],))
-            if r["grain"].replace("\\", "/").startswith("tests/")]
+            if _is_test_file(sb.ctx.conn, r["grain"])]
         if paths:
             pushed["touch"] = paths
     # The Architect that corrects a prediction sees the test files that
@@ -4540,9 +4555,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         from .scheduler import batch_relay
 
         if batch_relay(sb.ctx.conn, wake.message_id):
-            tests = [r["grain"] for r in sb.ctx.conn.execute(
-                "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-                "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+            tests = _index_test_files(sb.ctx.conn)
             if tests:
                 pushed["the index's test files"] = tests
     # The guess names one request item, and its brief says a test path is one
@@ -4556,9 +4569,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                                   (wake.refs[0],)).fetchone() if guess_tick else None
         if row:
             pushed["item"] = {"id": row["id"], "text": row["text"]}
-        tests = [r["grain"] for r in sb.ctx.conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-            "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+        tests = _index_test_files(sb.ctx.conn)
         if tests:
             pushed["the index's test files"] = tests
     probe = pushed.get("code.probe")

@@ -7410,6 +7410,17 @@ def _test_shaped(f: str) -> bool:
                              f.rpartition("/")[2]))
 
 
+def _is_test_file(conn, path: str) -> bool:
+    """A test file: a test-shaped basename that the frame marks attached."""
+    # Frame 324 (ruled: Roman, 2026-10-26 20:37): the basename gives the
+    # shape of a test file, and the frame's kind says whether the file is
+    # part of the program. F9: every door asks this one question.
+    from ..onboarding.areas import kind_of
+
+    p = _grain_path(path or "")
+    return _test_shaped(p) and kind_of(conn, p) == "attached"
+
+
 def _test_dirs(indexed: set[str], conn=None) -> set[str]:
     """The folders of the indexed paths that hold a test-shaped file that
     the frame marks attached."""
@@ -20676,8 +20687,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # holds in exactly one other module is a unique surface, and a
         # second definition of it is a copy. A name defined in several
         # modules already (`main`, `setup`) is a convention and passes;
-        # tests and private names pass.
-        if not _is_test_path(path):
+        # tests and private names pass. F9: the frame's kind decides what is
+        # the program (ruled: Roman, 2026-10-26 20:37).
+        from ..onboarding.areas import kind_of
+
+        if kind_of(ctx.conn, path) == "program":
             # A name the file defined before this write is the tree's own
             # duplicate, not this change's. tipsBF (2026-09-13): tipsI keeps
             # `calculate_tip` in main.py and tip_calculator.py both, and a
@@ -20716,7 +20730,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     # cannot reach `web/format.js::truncate` (frame 326).
                     and _splitext(_grain_path(r["grain"]))[1] == _splitext(path)[1]
                     and _grain_path(r["grain"]) != path.replace("\\", "/")
-                    and not _is_test_path(_grain_path(r["grain"]))}
+                    and kind_of(ctx.conn, _grain_path(r["grain"])) == "program"}
                 # The index is the tree at onboarding; the batch's own commits
                 # are not in it. clickI night 42 (2026-09-13): `echo_json`
                 # landed in utils.py, then a second `echo_json` in a new
@@ -20762,11 +20776,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # the merge carried the Developer's file, and the merged tree's own
         # test suite was broken. A test file is not the Developer's to
         # write: the harness holds the tests from the database.
-        from pathlib import Path as _TP
-        _tp = _TP(path)
-        if ctx.role == "developer" and (
-                "tests" in _tp.parts[:-1] or _tp.name.startswith("test_")
-                or _tp.name.endswith("_test.py")):
+        if ctx.role == "developer" and _is_test_file(ctx.conn, path):
             raise ValueError(
                 f"{path} is a test file, and the tests are the Tester's. The "
                 f"harness runs the tests on record; a test you cannot pass "
@@ -23353,7 +23363,7 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
     # batch: clickI night 41 (2026-09-13) raised six test files as the
     # Developer's strays. A test path is never a stray.
     return [p for p in stray_paths(touched, _predicted_touch(ctx, batch_id))
-            if p not in judged and not _is_test_path(p)]
+            if p not in judged and not _is_test_file(ctx.conn, p)]
 
 
 def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
@@ -23371,7 +23381,7 @@ def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
     for path in touched:
         rel = path.replace("\\", "/")
         if (not rel.endswith(".py") or rel in path_strays or rel in judged
-                or _is_test_path(rel)):
+                or _is_test_file(ctx.conn, rel)):
             continue
         try:
             new = (_P(tree) / rel).read_text(encoding="utf-8", errors="replace")
@@ -25211,10 +25221,3 @@ def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
         except OSError:
             continue
     return found
-
-def _is_test_path(path: str) -> bool:
-    """A test file by pytest's own rule, or anything under a tests directory."""
-    p = (path or "").replace("\\", "/")
-    name = p.rsplit("/", 1)[-1]
-    return ("/tests/" in f"/{p}" or p.startswith("tests/")
-            or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py")
