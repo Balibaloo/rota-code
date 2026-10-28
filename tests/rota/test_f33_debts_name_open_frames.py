@@ -248,12 +248,47 @@ def test_one_reader_of_the_stack_frames():
     assert defs == ["rota/tools/state.py"], defs
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "frame 344: at 9b9582c7 debts name a closed frame or no frame. The F33 pass "
-    "names each one in its report, and a later session moves each debt to an "
-    "open frame"))
+#: The debts that name a closed frame or no frame, at 5b59b63a. The F33 pass
+#: names each one in its report, and a later session moves each debt to an
+#: open frame and takes its name out of this list. A new name goes red here,
+#: as `OWED_CEILING` does. A strict xfail hid a new debt until all 28 moved
+#: (the F33 review, finding 1).
+FRAMELESS_CEILING = frozenset({
+    'KNOWN_REFUSED_OFFERS tests/rota/test_desk_guards.py::test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer :: m.py is not valid Python (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_desk_guards.py::test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary :: m.py is not valid Python (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_desk_guards.py::test_a_start_on_a_decorated_def_line_names_the_decorators :: m.py defines f twice (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_crash_of_one_offer_keeps_the_records_of_the_others :: MemoryError (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[attr2000] :: m.py defines a twice (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[minus400] :: m.py defines a twice (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[spaced] :: m.py defines a twice (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_cut_refusal_quotes_lines_that_are_true :: m.py is not valid Python (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_decorator_line_off_by_one_reads_false_on_a_twin_decorator :: m.py defines a twice (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_session_records_no_offer_and_a_test_records_frames :: m.py is not valid Python (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_a_text_that_breaks_the_parser_gets_the_cut_refusal :: MemoryError (frame 144)',
+    'KNOWN_REFUSED_OFFERS tests/rota/test_offers_followed.py::test_the_add_after_offer_of_a_cut_span_is_admitted :: m.py defines f twice (frame 144)',
+    'case L1-TE-log-the-word-you-took-one-way red:',
+    'tests/rota/test_chaos_confirm.py:163',
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['_revert_refusal:msg.challenge_tester']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['_revert_refusal:msg.escalate_architect']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['glossary_amend:surveys.attest']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['ledger_log:surveys.attest']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['surveys_attest:problem.assert']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['tests_encode:ledger.log']",
+    "tests/rota/test_f25_offers_in_mode.py KNOWN_UNHELD['tests_encode:schedule.reask']",
+    'tests/rota/test_frame234_verdict_lines.py:885',
+    'tests/rota/test_frame234_verdict_lines.py:898',
+    'tests/rota/test_frame234_verdict_lines.py:939',
+    'tests/rota/test_frame234_verdict_lines.py:945',
+    'tests/rota/test_offers_followed.py:186 (frame 144)',
+    'tests/rota/test_offers_followed.py:226 (frame 144)',
+    'tests/rota/test_toolproto_quotes.py:757',
+})
+
+
 def test_each_debt_names_an_open_frame():
     found = faults(debts(), state.open_frames(STACK))
-    assert found == {"no frame": [], "closed frame": []}, (
+    new = {kind: [n for n in names if n not in FRAMELESS_CEILING]
+           for kind, names in found.items()}
+    assert new == {"no frame": [], "closed frame": []}, (
         "a debt must name an open frame of plans/stack.md:\n"
-        + "\n".join(f"{kind}: {name}" for kind, names in found.items() for name in names))
+        + "\n".join(f"{kind}: {name}" for kind, names in new.items() for name in names))
