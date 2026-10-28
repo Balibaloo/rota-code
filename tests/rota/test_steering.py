@@ -30,8 +30,9 @@ def db(tmp_path):
                  "'approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('t1','i1','do it')")
-    conn.execute("INSERT INTO batches (id, item_id, status) VALUES "
-                 "('b1','i1','running')")
+    # A reopen follows a built change, so the batch has a commit (W10).
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+                 "('b1','i1','running','c0ffee1')")
     conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
                  "('b1','t1')")
     conn.commit()

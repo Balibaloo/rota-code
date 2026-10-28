@@ -1463,7 +1463,7 @@ def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
              ["c1_version_option_show_python"], cause="m501", status="open")
     m399.commit()
     sb = _sandbox(m399, "terminologist", "criterion_repair", "m502")
-    with pytest.raises(ValueError, match="no change built from this criterion has a commit"):
+    with pytest.raises(ValueError, match="has a commit yet"):
         sb.call("msg.answer_tester", refs=["c1_version_option_show_python"])
 
 

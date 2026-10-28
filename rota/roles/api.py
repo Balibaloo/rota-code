@@ -457,25 +457,40 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     Ambiguity is left alone. A ticket in two batches has no single answer here,
     and inventing one would file a test against the wrong delivery.
     """
-    rows = criterion_batches(ctx.conn, criterion_id)
-    return rows[0]["id"] if len(rows) == 1 else None
+    batch = built_batch(ctx.conn, criterion_id)
+    return batch["id"] if batch else None
 
 
-def criterion_batches(conn, criterion_id: str) -> list:
+def built_batch(conn, criterion_id: str | None, ticket_id: str | None = None):
     """
-    The batches of a criterion's ticket, each with its status and head commit.
+    The one batch with a commit that a test of the criterion attaches to, or
+    None.
 
-    Two doors read this one fact. `tests.encode` attaches a test to the one
-    batch. The `msg.answer_tester` door lets an answer wake a Tester only
-    when a batch of the criterion has a commit. Night 173's s112 answered
-    before any batch existed, and the woken Tester s113 was refused 12 times
-    (W10, the count of 2026-10-28).
+    Every door that asks "is this criterion's change built" calls this one
+    function. `tests.encode` attaches a test to the batch. The send door lets a
+    message reach a Tester or a Developer only when the batch exists. Night
+    173's s112 answered before any batch existed, and `tests.encode` refused
+    the woken Tester s113 12 times (W10, the count of 2026-10-28). Night 147's
+    s315 met a ticket in two batches, and the two doors disagreed.
+
+    Built means the batch has a commit, a merged batch included, so a reopen
+    after a merge reaches the Developer (the coordinator's ruling on pass 1b).
+    A live batch wins over a merged one, because the Tester writes into the
+    change that still runs. Two candidates of one rank have no single answer,
+    and a guess files a test against the wrong delivery.
+
+    `ticket_id` names the ticket of a criterion the session staged and has
+    not written yet.
     """
-    return conn.execute(
+    rows = conn.execute(
         "SELECT DISTINCT b.id AS id, b.status AS status, b.head_commit AS head_commit "
-        "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "JOIN batches b ON b.id = bt.batch_id WHERE c.id = ? ORDER BY b.id",
-        (criterion_id,)).fetchall()
+        "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "WHERE bt.ticket_id = COALESCE(?, (SELECT ticket_id FROM criteria WHERE id = ?)) "
+        "ORDER BY b.id", (ticket_id, criterion_id)).fetchall()
+    built = [b for b in rows if b["status"] != "abandoned" and b["head_commit"]]
+    live = [b for b in built if b["status"] != "merged"]
+    pick = live or built
+    return pick[0] if len(pick) == 1 else None
 
 
 class Wall(ValueError):
