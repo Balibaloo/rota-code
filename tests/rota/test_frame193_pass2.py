@@ -539,7 +539,9 @@ def test_a_ratified_follow_up_keeps_the_request_and_its_coverage(db):
     db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's5'")
     db.commit()
     assert open_requests(db) == [VERSION]
-    assert request_rows(db, [])[0] == VERSION
+    # The follow-up s5 names the request, so its page keeps the item. A page
+    # of no request is the account's (ruled: Roman, 2026-10-28 09:10).
+    assert request_rows(db, ["s5"])[0] == VERSION
     assert "s5" not in [s["id"] for s in uncovered_statements(db)]
     assert request_shift(db) == []
 

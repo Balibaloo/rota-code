@@ -172,4 +172,7 @@ def test_a_reading_of_a_delivered_request_shows_on_the_state_view(db):
     state = render_state(db)
     assert "Your answers about delivered work, as the team read them:" in state
     assert 'Your answer "ok", as the team read it: 2 lines approved.' in state
+    # No page takes an answer to the line, so it asks for none (the review
+    # of P9, finding 4).
+    assert "Say ok, or say what we misread." not in state
     assert ref in readings_owed(db)

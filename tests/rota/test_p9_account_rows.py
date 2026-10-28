@@ -117,3 +117,46 @@ def test_a_note_about_the_request_statement_stays_on_its_page(tmp_path):
     assert request_of(db, "l_1") == "e1"
     assert request_of(db, "l_2") is None
     assert off_page(db, ["s1", "l_1", "l_2"]) == {"l_2"}
+
+
+def test_a_row_about_the_account_item_alone_is_off_a_request_page(night):
+    """The review's probe p1: a claim, a ledger note, a glossary term and a
+    constraint that reach only how_it_works were lines 4 to 7 of e_p3's
+    page."""
+    night.execute("INSERT INTO ledger (id, about_ref, about_table, "
+                  "default_taken, kind, status, author) VALUES "
+                  "('challenge_items_how_it_works', 'items:how_it_works', "
+                  "'items', 'the account holds', 'default', 'open', 'critic')")
+    for target in ("command", "argument"):
+        night.execute("INSERT INTO refs (src_table, src_id, kind, target, "
+                      "resolves) VALUES ('items', 'how_it_works', 'statement', "
+                      "?, 1)", (target,))
+    account = ["command", "argument", "challenge_items_how_it_works",
+               "l_e7c6ed5501"]
+    refs = ["format_filename_example", "c_1_format_filename_example"] + account
+    assert off_page(night, refs) == set(account)
+    _, order = _page_body(night, "present", refs, ask_id="m_probe")
+    assert not set(account) & set(order)
+    assert "format_filename_example" in order
+
+
+@pytest.mark.parametrize("session, kind, n", [
+    ("s179", "tick:observed_entries", 19),
+    ("s272", "tick:agenda", 7),
+])
+def test_the_account_page_needs_no_account_row(night, session, kind, n):
+    """The review's probe p5: with no how_it_works row, the door added the
+    open request and then dropped every row the wake named."""
+    night.execute("DELETE FROM items WHERE id = 'how_it_works'")
+    refs = _wake_refs(night, session)
+    sb = build("liaison", night, mode="normal", session_id=f"{session}_bare",
+               allow=prompts.mode_tools("liaison", "normal"),
+               wake=Wake("liaison", kind, refs=tuple(refs)))
+    sb.call("msg.present_principal", refs=refs, round_no=0)
+    sent = [r for r in sb.ctx.outbound[-1]["body_refs"]
+            if not r.startswith(READING_REF)]
+    assert sent == refs, sent
+    page, order = _page_body(night, "present", sent, ask_id="m_bare")
+    assert order == refs and len(order) == n
+    assert "You asked:" not in page
+    assert not any(r in page for r in REQUESTS)

@@ -365,9 +365,12 @@ def render_state(conn: sqlite3.Connection) -> str:
         out.append(gone)
     # A reading of a delivered request rides no page, so the state view
     # shows it, in the words the page uses (ruled: Roman, 2026-10-28 09:10,
-    # frame 344; every answer is read back, ruled 2026-10-26 22:5x).
-    late = [line for line in (reading_line(conn, r) for r in readings_owed(conn)
-                              if reading_delivered(conn, r)) if line]
+    # frame 344; every answer is read back, ruled 2026-10-26 22:5x). No page
+    # takes an answer to it, so the line asks for none (the review of P9,
+    # finding 4).
+    late = [line.removesuffix(READ_BACK_ASK)
+            for line in (reading_line(conn, r) for r in readings_owed(conn)
+                         if reading_delivered(conn, r)) if line]
     if late:
         out.append("Your answers about delivered work, as the team read them:")
         out += [f"  - {line}" for line in late]
@@ -1156,6 +1159,8 @@ _READ_BACK_VERDICT = {"approve": "is approved", "contest": "is wrong",
 # The read-back line quotes the start of his answer. A clock time in the
 # page changes the prompt of every recorded case on each run.
 READ_BACK_WORDS = 8
+# The ask that ends a read-back line on a page. The state view leaves it out.
+READ_BACK_ASK = " Say ok, or say what we misread."
 
 
 def _is_reading(ref) -> bool:
@@ -1256,7 +1261,7 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     if approves:
         clauses.append(f"{approves} line{'s' if approves != 1 else ''} approved")
     return (f'Your answer "{quote}", as the team read it: '
-            f"{'; '.join(clauses)}. Say ok, or say what we misread.")
+            f"{'; '.join(clauses)}.{READ_BACK_ASK}")
 
 
 def ratified_request(conn: sqlite3.Connection, *,
@@ -1617,8 +1622,14 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
             continue
         if req is None:
             continue
-        # A row that reaches an item of no request, the account included,
-        # stays. `request_of` gives a description no request (F15).
+        # A row about the account item alone is the account's row, so it
+        # leaves a request's page too. The review of P9, finding 1: a claim
+        # about how_it_works was line 4 of e_p3's page.
+        if set(items) <= {"how_it_works"}:
+            out.add(ref)
+            continue
+        # A row that reaches another item of no request stays. `request_of`
+        # gives a description no request (F15).
         others = requests_of(conn, ref)
         if not all(e is not None and e != req for e in others):
             continue
@@ -1659,14 +1670,14 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     # Rows of no request make the account's page, and the account row is
     # the row his words land on, so law 8 holds. The open request on that
     # page put night 172's m71 under clear() (P9; frame 241; ruled: Roman,
-    # 2026-10-28 09:10, frame 344). A run with no account row keeps the open
-    # request, so his words never land on a seat's row alone, night 136's
-    # shape.
+    # 2026-10-28 09:10, frame 344). With no account row, the page is still
+    # the account's: its rows are numbered, so his words land on them, and
+    # the door sends them. The open request there dropped s179's 19 rows
+    # (the review of P9, finding 2).
     account = conn.execute(
         "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
-    if not items and (account is None or any(
-            _owners(conn, r) for r in refs or []
-            if isinstance(r, str) and not _is_reading(r))):
+    if not items and any(_owners(conn, r) for r in refs or []
+                         if isinstance(r, str) and not _is_reading(r)):
         aside = aside_items(conn) | held
         items = [i for i in open_requests(conn) if i not in aside]
         cur = current_request(conn, unread=False)

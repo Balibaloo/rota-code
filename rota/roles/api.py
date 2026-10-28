@@ -13677,17 +13677,22 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"you put aside.")
         # A row of another request is no line of this page, so words here
         # never change it (frame 193's design, 2.F.7).
+        # A row he saw on the page takes his words, as night 172's m131 did
+        # before P9: "Drop lines 9 to 15". A row he never saw there takes
+        # none (law 6; the review of P9, finding 3).
         if (ref is not None and ref in off and ruling in ("contest", "revise")
-                and ref not in read_keys):
+                and ref not in read_keys and ref not in (order or [])):
+            from .principal import request_of
+
             items = _items_reached(ctx.conn, ref)
-            # A row of no item is the account's, not an earlier request's.
-            # A page sent before P9 numbered such rows, and his words on
-            # them still land. Night 172's m131: "Drop lines 9 to 15".
-            if items:
+            if any(request_of(ctx.conn, i) for i in items):
                 raise ValueError(
                     f"{key} is your earlier request, {', '.join(items)}, and "
                     f"this page is about another request. Words on this page "
                     f"do not change it. Leave the row out of the ruling.")
+            raise ValueError(
+                f"{key} is no line of this page. Words on this page do not "
+                f"change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key
