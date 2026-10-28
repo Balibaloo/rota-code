@@ -6762,7 +6762,7 @@ def _ruling_rows(conn: sqlite3.Connection, ruled: dict,
 def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
     """The row ids of the page the ruling `ruled` is on, in page order, or
     None when the page is not known."""
-    from .principal import Ask, _page_order, door_rows
+    from .principal import page_ask, seen_order
 
     row = conn.execute(
         "SELECT r.reply_id, m.id, m.verb, m.body_refs FROM rulings r "
@@ -6770,20 +6770,12 @@ def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
         (ruled.get("id"),)).fetchone()
     if row is None:
         return None
-    # His line numbers belong to the page as he saw it, and `principal.land`
-    # records that order at his reply (frame 272). A render reads today's
-    # rows: night 158's render put cr_2 on line 3, and m98 named it line 4.
-    order = door_rows(conn, row["reply_id"], "order")
-    if not order:
-        # A database from before frame 272 holds no record. Today's render
-        # is the only order there is, so the reader takes it.
-        try:
-            order = _page_order(conn, Ask(
-                message_id=row["id"], verb=row["verb"],
-                refs=json.loads(row["body_refs"] or "[]")))
-        except Exception:  # noqa: BLE001 - an unreadable page gives no line
-            return None
-    return order
+    # His line numbers belong to the page as he saw it (fact F28). Night
+    # 158's render put cr_2 on line 3, and m98 named it line 4.
+    try:
+        return seen_order(conn, row["reply_id"], page_ask(row))
+    except Exception:  # noqa: BLE001 - an unreadable page gives no line
+        return None
 
 
 def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
@@ -13132,15 +13124,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # A park page is a present with rows, so this door applies to it as to
     # every page (ruled: Roman, 2026-10-08, the park ask is a page with rows).
     ask = page
-    from .principal import READING_REF
+    from .principal import READING_REF, page_ask, seen_order
 
     # A read-back line is no row of the page's request. An empty ruling
     # acknowledges the rows and confirms no reading (the seam design's
     # review, finding 1).
     refs = json.loads(ask["body_refs"] or "[]")
-    page_text, order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
-                                   ask_id=ask["id"])
-    order = order or []
+    page_text = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
+                            ask_id=ask["id"])[0]
+    # His line numbers name the rows he saw at this reply (fact F28).
+    order = seen_order(ctx.conn, ctx.trigger, page_ask(ask))
     row_refs = [r for r in refs if not str(r).startswith(READING_REF)]
     row_order = [r for r in order if not str(r).startswith(READING_REF)]
     # A page with no numbered line, the touch note, takes an empty ruling:
@@ -13748,7 +13741,7 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     when the seat asks for it, which is the whole point of the change.
     """
     from ..core.runner import _resolve_refs, _table_of
-    from .principal import render_page
+    from .principal import page_ask, seen_order
 
     page = _ask_of(ctx)
     if page is None:
@@ -13757,8 +13750,8 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
             "confirm, a present or a clarify, so there is no line to read. "
             "Stop")
     refs = json.loads(page["body_refs"] or "[]")
-    order = render_page(ctx.conn, page["verb"], refs,
-                        page["body_text"], ask_id=page["id"])[1] or refs
+    # A line is the row he saw on that line at this reply (fact F28).
+    order = seen_order(ctx.conn, ctx.trigger, page_ask(page)) or refs
     # A long page numbers its lines `"3": "l_1 (ledger)"`, so a seat that
     # copies the value back is passing the id with its kind on it.
     key = str(line).strip().split(" (")[0].strip()

@@ -2633,20 +2633,43 @@ def door_rows(conn: sqlite3.Connection, message_id: str | None, kind: str) -> li
     return [r for r in rows if isinstance(r, str)]
 
 
-def _page_order(conn: sqlite3.Connection, ask: Ask) -> list[str]:
-    """The rows the page numbers, as `rulings_rule` reads them. A ruling
-    from `apply_rulings` carries no order, and the line numbers of the
-    words need one."""
-    # This order can differ from the order the Liaison ruled on. The window
+def seen_order(conn: sqlite3.Connection, reply_id: str | None,
+               ask: Ask | None) -> list[str]:
+    """The rows of page `ask` in the order he saw them at reply `reply_id`.
+    This is the one reader of that order (fact F28).
+
+    `land` records the order at his reply, and the record comes first. His
+    line numbers belong to the page as he saw it, and a render reads today's
+    rows. Frame 272 counted 73 of 693 named rows on nights 158 and 159 that
+    were not the row he saw. A reply with no record, from before frame 272,
+    takes today's render of `ask`. With no `ask`, the reader takes the
+    record only, for a reader that keeps his words when no record exists."""
+    order = door_rows(conn, reply_id, "order")
+    if order or ask is None:
+        return order
+    # The render can differ from the order the Liaison ruled on. The window
     # is an earlier open ruling that lands first in the same `apply_rulings`
     # loop and moves a row. The batch's line then shifts, and `land` drops
-    # the contest with no error (frame 255, review 1, finding 2). Night 150
-    # counts it before a frame stages the refs on the `rulings` row.
+    # the contest with no error (frame 255, review 1, finding 2).
     row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
                        (ask.message_id,)).fetchone()
     return render_page(conn, ask.verb, list(ask.refs),
                        row["body_text"] if row else None,
                        ask_id=ask.message_id)[1]
+
+
+def page_ask(row) -> Ask:
+    """The `Ask` of a `messages` row of a page, for `seen_order`."""
+    return Ask(message_id=row["id"], verb=row["verb"],
+               refs=json.loads(row["body_refs"] or "[]"))
+
+
+def _reply_of(conn: sqlite3.Connection, ruling_id: str | None) -> str | None:
+    """The reply that ruling `ruling_id` reads, or None for a verdict
+    straight from the seat."""
+    row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
+                       (ruling_id,)).fetchone() if ruling_id else None
+    return row["reply_id"] if row else None
 
 
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
@@ -2779,7 +2802,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             from .api import _line_reading, built_line_faulted
 
             faulted = _line_reading(answer.text)[0]
-            order = ask.order or (_page_order(conn, ask) if faulted else [])
+            order = ask.order or (seen_order(conn, _reply_of(conn, ruling_id), ask)
+                                  if faulted else [])
             for ref in built:
                 batches[ref] = built_line_faulted(answer.text, order, ref, faulted)
         if set(batches) & set(ask.refs):
@@ -2830,7 +2854,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 if batch["head_commit"]:
                     from .api import code_line_faulted
 
-                    order = ask.order or _page_order(conn, ask)
+                    order = ask.order or seen_order(
+                        conn, _reply_of(conn, ruling_id), ask)
                     if not code_line_faulted(answer.text or "", order, key):
                         continue
                 per_item[batch_id] = ruling
