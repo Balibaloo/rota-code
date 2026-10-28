@@ -36,6 +36,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from rota.llm import llm
+
 #: The temp root for the child. The value takes the Windows form `C:/...`,
 #: because a Git Bash form `/c/...` resolves to `C:\c\...` (observed: the
 #: design review of 2026-09-17, finding 7). The suite spends three quarters of
@@ -59,10 +61,6 @@ DROPPED_NAMES = RECORDING_NAMES + ("PYTEST_ADDOPTS",)
 #: The one tree the gate runs. Extra pytest arguments are not passed through,
 #: so every gate run measures the same thing.
 SUITE = "tests/rota"
-
-#: The server the children use when `OLLAMA_HOST` is unset, the fallback of
-#: `rota/llm/llm.py:44`. A night holds this server for hours.
-DEFAULT_HOST = "http://127.0.0.1:11434"
 
 #: The exit code of a run whose stale cases wait for the main card. It is
 #: not 1, because a wait is no red.
@@ -125,9 +123,10 @@ def main_card_held(env: dict[str, str]) -> list[str]:
     reply to the same prompt, so its recording is no evidence for this
     register (ruled: Roman, frame 124).
     """
-    # Read as `rota/llm/llm.py:44` reads it, so the probe asks the server
-    # the re-records would call (observed: frame 124's diff review).
-    host = env.get("OLLAMA_HOST", DEFAULT_HOST).rstrip("/")
+    # The fallback is `llm.OLLAMA_HOST`, the one reader of the model host
+    # (F29). The probe then asks the server the re-records call. A night
+    # holds that server for hours (observed: frame 124's diff review).
+    host = env.get("OLLAMA_HOST", llm.OLLAMA_HOST).rstrip("/")
     ps = _get_json(f"{host}/api/ps") or {}
     models = ps.get("models")
     if not isinstance(models, list):

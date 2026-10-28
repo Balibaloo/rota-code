@@ -22,6 +22,8 @@ from __future__ import annotations
 from ..core.db import (GUESS_REF, READING_REF, elsewhere, guess_item,
                        id_tables, table_of, tables_of)
 from ..core.worktrees import GIT
+# The grain fold lives in core, beside the batch furniture it folds (F27).
+from ..core.worktrees import grain_path as _grain_path
 from ..core.db import author_refusal, journal_author
 
 import ast as _ast
@@ -756,14 +758,13 @@ def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
             or getattr(ctx, "wake_kind", "") != "tick:signoff"
             or recipient != "liaison" or verb != "submit"):
         return
-    # The tick drops a parked draft, so the door drops one parked after the
-    # tick (frame 261, review 1, finding 2).
-    from ..core.scheduler import not_parked
+    # The door reads the tick's own set, so a draft parked after the tick
+    # drops out here too (frame 261, review 1, finding 2, and F32).
+    from ..core.scheduler import signoff_drafts
     sent = list(refs or [])
+    drafts = set(signoff_drafts(ctx.conn))
     left = [r for r in (getattr(ctx, "wake_refs", ()) or ())
-            if isinstance(r, str) and r not in sent and ctx.conn.execute(
-                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'"
-                + not_parked(ctx.conn, "id"), (r,)).fetchone()]
+            if isinstance(r, str) and r not in sent and r in drafts]
     if not left:
         return
     full = sent + left
@@ -6451,9 +6452,10 @@ def _tester_answer_open(ctx: Ctx) -> bool:
 def _closed_answer_note(ctx: Ctx, id: str) -> str:
     """What a refusal says in place of the answer route, once the session
     has sent its one answer to the Tester (frame 308)."""
+    from ..core.sandbox import _sent_this_session
+
     carried = any(id in (m.get("body_refs") or ())
-                  for m in ctx.outbound or ()
-                  if m["to_role"] == "tester" and m["verb"] == "answer")
+                  for m in _sent_this_session(ctx, "tester", "answer"))
     if carried:
         return "Your answer to the Tester carries this criterion."
     return ("Your one answer to the Tester is sent, and the answer is closed "
@@ -14851,9 +14853,9 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     # verdict five of five (CR-fail-names-its-criterion, re-earned
     # 2026-09-02). The recipient is the mechanical distinction; anything
     # finer is a judgement in disguise.
-    staged = [m for m in getattr(ctx, "outbound", [])
-              if m.get("verb") == "challenge" and m.get("to_role") == "tester"]
-    if staged:
+    from ..core.sandbox import _sent_this_session
+
+    if _sent_this_session(ctx, "tester", "challenge"):
         raise ValueError(
             "you have already challenged the tester this session, and that "
             "is your judgement of this commit until the challenge lands. "
@@ -18329,8 +18331,7 @@ def _uncommitted(ctx, root, batch_id=None) -> list[str]:
     and the Developer's commits leave them out, so they are furniture."""
     from ..core import worktrees as _wt
     bid = batch_id or ctx.batch_id
-    furniture = {_grain_path(r[0]) for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (bid,))} if bid else set()
+    furniture = _wt.batch_furniture(ctx.conn, bid) if bid else set()
     return [f for f in _wt.changed_since(root, _wt.head(root))
             if _grain_path(f) not in furniture]
 
@@ -18411,23 +18412,6 @@ def _worktree_of(ctx, batch_id=None) -> "Path":
         if row and row["worktree"]:
             return _P(row["worktree"])
     return project_root(ctx.conn)
-
-
-def _grain_path(grain: str) -> str:
-    """
-    The file a grain lives in, normalised for comparison.
-
-    Grains come in two shapes — `oauth1/rfc5849/signature.py` and
-    `oauth1/rfc5849/signature.py::sign_hmac` — and a session that read the file
-    has read the symbol. Backslashes fold to forward, because the index is built
-    on one platform and read on another.
-    """
-    g = grain.split("::", 1)[0].replace("\\", "/").strip()
-    # Prefixes, not a character set: `lstrip("./")` made `.github/ci.py`
-    # into `github/ci.py`, which no index row holds (frame 91's diff review).
-    while g.startswith(("./", "/")):
-        g = g[2:] if g.startswith("./") else g[1:]
-    return g
 
 
 def _dotted_module(path: str, keep_root: bool = False) -> str:
@@ -19888,9 +19872,7 @@ def _refuse_after_challenge(ctx: Ctx) -> None:
     """
     from ..core import sandbox as _sandbox
 
-    sent = [m for m in (getattr(ctx, "outbound", None) or [])
-            if m["to_role"] == "tester" and m["verb"] == "challenge"
-            and m.get("route") != "triage"]
+    sent = _sandbox._sent_this_session(ctx, "tester", "challenge")
     if not sent:
         return
     refs = sent[-1].get("body_refs") or []
@@ -21914,8 +21896,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # reached only the database, and walk 2 inherited a test that could
     # never pass. The merge delivers the current bodies in a commit of
     # their own (lifecycle.merge).
-    test_paths = tuple(r["path"] for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (ctx.batch_id,)) if r["path"])
+    test_paths = tuple(sorted(worktrees.batch_furniture(ctx.conn, ctx.batch_id)))
     sha = worktrees.commit(tree, message, exclude=test_paths)
     if sha is None and drift:
         raise ValueError(

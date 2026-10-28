@@ -1039,7 +1039,8 @@ def _quote_pairs(quote: str, source: str) -> list[tuple[str, tuple[str, ...]]]:
 
 
 def _quote_reads(quote: str, source: str, table: str = "",
-                 floor: int | None = None, run: str = "") -> bool:
+                 floor: int | None = None, run: str = "",
+                 holds: bool = False) -> bool:
     """The quote is a `_span_of` one view of the source that the seat was
     shown (ruled: Roman, 2026-08-26, a contiguous span of the disputed
     row, verbatim, on all five channels).
@@ -1047,13 +1048,22 @@ def _quote_reads(quote: str, source: str, table: str = "",
     Frame 333, pass 1b: this one function decides on every channel. A
     test row is its code, because a comment pays no reading (click night
     58). `run` is the latest run of the test, which the seat was shown as
-    a view of the test, so a quote of its `E` line reads that test."""
+    a view of the test, so a quote of its `E` line reads that test.
+
+    With `holds`, one view of the whole source is a span of the quote
+    instead. The red line door asks that the quote hold the failing line
+    (frame 333, item 3). F18: the door reads the same forms, views and
+    compare, so it keeps no compare of its own."""
     floor = QUOTE_MIN if floor is None else floor
     if table == "tests":
         quote, source = _code_only(quote), _code_only(source)
     sources = [source or ""] + ([run] if run else [])
     for s in sources:
         for f, views in _quote_pairs(quote, s):
+            if holds:
+                if any(_span_of(v, f, 0) for v in views):
+                    return True
+                continue
             # A line break that the call decoded from the seat's `\n` must
             # meet a line break (frame 328, review 1, finding 4).
             lined = f.count("\n") > quote.count("\n")
@@ -1083,21 +1093,6 @@ def _reads_row(ctx: api.Ctx, quote: str, rid: str, rows: dict,
     table, words = rows[rid]
     return _quote_reads(quote, words, table, floor,
                         _run_view(ctx, rid) if table == "tests" else "")
-
-
-def _quote_holds(quote: str, line: str) -> bool:
-    """One view of the whole line is inside the quote, whitespace
-    normalised. Frame 333, item 3: a quote of part of the line names a
-    part of the conflict, as night 142's m83 did. The quote is read in
-    each form of `_quote_forms`, as the evidence door reads it."""
-    for q, views in _quote_pairs(quote or "", line or ""):
-        q = " ".join(q.split())
-        swap = q.replace("'", '"')
-        for v in views:
-            n = " ".join(v.split())
-            if n and (n in q or n.replace("'", '"') in swap):
-                return True
-    return False
 
 
 def _quoted_rows(ctx: api.Ctx, refs) -> dict[str, tuple[str, str]]:
@@ -1423,13 +1418,14 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str,
         said = harness.error_line(run["output"]) or None
         if not line and not said:
             continue
-        if any(_quote_holds(q, s) for q in quoted for s in (line, said) if s):
+        if any(_quote_reads(q, s, holds=True) for q in quoted
+               for s in (line, said) if s):
             continue
         # Frame 304, night 159: s185 quoted the `FakeStdin` stub and the
         # call that read it, and this door wanted the assert line. A run
         # that fails in the test's own arrange step fails at that line.
         fault = _arrange_fault_of(ctx, ref, run["output"] or "")
-        if fault and any(_quote_holds(q, s) for q in quoted for s in
+        if fault and any(_quote_reads(q, s, holds=True) for q in quoted for s in
                          (fault["quote"], fault["error"]) if s):
             continue
         # Frame 328, review of pass 3, finding 3: tst_tk3's line holds raw
@@ -1974,16 +1970,20 @@ def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
     return rows
 
 
-def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> bool:
+def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> list[dict]:
     """
-    True when this session has staged `verb` to `recipient` already.
+    The rows of `verb` to `recipient` that this session staged, oldest
+    first. An empty list when the session sent none.
 
     The triage verdict's row is the op's, not the model's send. A question the
     model sends after the verdict is its first (frame 81).
+
+    This is the one reader of what the session sent (F24). A door that asks
+    the question calls it, so no door keeps a triage row the others drop.
     """
-    return any(m["to_role"] == recipient and m["verb"] == verb
-               and m.get("route") != "triage"
-               for m in ctx.outbound)
+    return [m for m in (getattr(ctx, "outbound", None) or [])
+            if m.get("to_role") == recipient and m.get("verb") == verb
+            and m.get("route") != "triage"]
 
 
 def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
@@ -2057,8 +2057,7 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # place of a rewrite lets the Tester read the contested words, as on
     # night 159 (frame 329, review 1b, F5).
     twinned = getattr(ctx, "respecify_twinned", None) or set()
-    stands |= {r for m in ctx.outbound
-               if m["to_role"] == "vision_keeper" and m["verb"] == "challenge"
+    stands |= {r for m in _sent_this_session(ctx, "vision_keeper", "challenge")
                for r in m.get("body_refs") or ()
                if isinstance(r, str) and r in twinned}
     unwritten = [r for r in relay_refs
@@ -2563,7 +2562,8 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     - no test of `tests` holds that line now.
 
     The challenge door joins the quotes with " ... " into `body_text`. A
-    line is an exact substring with whitespace normalised. A 12-character
+    test holds a line when the whole line reads its body by `_quote_reads`
+    (F18). A 12-character
     window is not used, because it matches `result.output` across any two
     versions of night 142's test. A quote that matched only by such a
     window is not exact, so it keeps counting (the review of
@@ -2578,21 +2578,29 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     crit = " ".join(_flat(r["text"]) for r in conn.execute(
         "SELECT c.text FROM criteria c JOIN tests t ON t.criterion_id = c.id "
         f"WHERE t.id IN ({','.join('?' * len(tests))})", tuple(tests)))
-    lines = [_flat(part).strip("'\"` ")
+    # Each part keeps its line breaks for the body compare. `_quote_reads`
+    # cuts a comment per line, and a flat part is one line, so the cut
+    # dropped the code after the first `#` (review of F18 pass 1, finding 1,
+    # nights 161 m100 and 168 m38).
+    parts = [(_flat(part).strip("'\"` "), part.strip("'\"` "))
              for part in ((row["body_text"] if row else None) or "").split(" ... ")]
-    lines = [line for line in lines
+    parts = [(line, part) for line, part in parts
              if len(line) >= QUOTED_LINE_MIN and line not in crit]
-    if not lines:
+    if not parts:
         return False
     seen = _sender_prompt(conn, msg_id)
-    lines = [line for line in lines if seen is not None and line in seen]
-    if not lines:
+    parts = [(line, part) for line, part in parts
+             if seen is not None and line in seen]
+    if not parts:
         return False
+    # F18: the live body holds a line when `_quote_reads` says so, the one
+    # reader of a quote against a row (ruled: Roman, 2026-08-26).
     for test in tests:
         got = conn.execute("SELECT body FROM tests WHERE id = ?",
                            (test,)).fetchone()
-        body = _flat(got["body"] if got else None)
-        if any(line in body for line in lines):
+        body = (got["body"] if got else None) or ""
+        if any(_quote_reads(part, body, "tests", floor=QUOTED_LINE_MIN)
+               for _line, part in parts):
             return False
     return True
 
