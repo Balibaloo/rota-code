@@ -11063,9 +11063,7 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said, "
         "       r.commit_sha AS run_sha "
         "FROM tests t "
-        "LEFT JOIN test_runs r ON r.id = ("
-        "    SELECT id FROM test_runs WHERE test_id = t.id AND batch_id = t.batch_id "
-        "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
+        "LEFT JOIN latest_runs r ON r.test_id = t.id AND r.batch_id = t.batch_id "
         "WHERE t.batch_id = ? "
         "ORDER BY t.criterion_id IS NULL, t.rowid", (bid,)))
     # A run is a statement about one commit. Finding 66 (2026-09-14): the
@@ -17611,16 +17609,17 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
     if not sha:
         return said
     short = sha[:8]
-    # The latest attempt on this commit, in the order the harness ran it.
-    # Frame 93's review (2026-09-30): `rowid DESC` named the last test run.
+    # The newest run of each test on this commit, in the order the harness
+    # ran it. Frame 93's review (2026-09-30): `rowid DESC` named the last
+    # test run. The harness deletes a commit's runs before it runs that
+    # commit again, so the runs of one commit are of one attempt (fact F4).
     rows = ctx.conn.execute(
-        "SELECT test_id, commit_sha, output, attempt FROM test_runs "
+        "SELECT test_id, commit_sha, output, attempt FROM latest_runs "
         "WHERE batch_id = ? AND result != 'pass' "
-        "ORDER BY attempt DESC, rowid ASC", (ctx.batch_id,)).fetchall()
+        "ORDER BY run_seq", (ctx.batch_id,)).fetchall()
     # A run records the sha the harness read. Either form may be short.
     rows = [r for r in rows
             if r[1] and (sha.startswith(r[1]) or r[1].startswith(sha))]
-    rows = [r for r in rows if r[3] == rows[0][3]] if rows else []
     red = list(dict.fromkeys(r[0] for r in rows))
 
     def _cut(s):
@@ -20828,6 +20827,8 @@ def _runs_at(ctx: Ctx, sha: str | None) -> dict:
     Empty when the harness ran no test at `sha`."""
     if not sha:
         return {}
+    # Fact F4 leaves this read on `test_runs`. The revert door reads HEAD~1,
+    # a past commit, and a later run supersedes the runs of that commit.
     out = {}
     for r in ctx.conn.execute(
             "SELECT test_id, result FROM test_runs WHERE batch_id = ? AND commit_sha = ? "

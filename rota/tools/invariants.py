@@ -122,9 +122,8 @@ def i3(conn) -> list[Finding]:
     for b in _rows(conn, "SELECT id, head_commit FROM batches WHERE status = 'merged' "
                          "ORDER BY id"):
         for t in _rows(conn, "SELECT id FROM tests WHERE batch_id = ? ORDER BY id", (b[0],)):
-            run = _rows(conn, "SELECT result FROM test_runs WHERE batch_id = ? AND test_id = ? "
-                              "AND commit_sha = ? ORDER BY rowid DESC LIMIT 1",
-                        (b[0], t[0], b[1]))
+            run = _rows(conn, "SELECT result FROM latest_runs WHERE batch_id = ? AND test_id = ? "
+                              "AND commit_sha = ?", (b[0], t[0], b[1]))
             if not run:
                 out.append(Finding("I3", f"merged {b[0]}: {t[0]} has no run at its head "
                                          f"{str(b[1])[:10]}"))
@@ -135,6 +134,8 @@ def i3(conn) -> list[Finding]:
 
 
 def i4(conn) -> list[Finding]:
+    # Fact F4 leaves this read on `test_runs`: it counts every run that names
+    # a test of another batch, not the newest run.
     out = []
     for r in _rows(conn, "SELECT r.test_id, r.batch_id, t.batch_id, COUNT(*) FROM test_runs r "
                          "LEFT JOIN tests t ON t.id = r.test_id "
@@ -328,6 +329,9 @@ def open_readonly(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(f"file:{p}?mode=ro&immutable=1", uri=True)
     # `scheduler.parked` reads its rows by name, as every rota connection does.
     conn.row_factory = sqlite3.Row
+    # A night's file from before fact F4 has no `latest_runs` view.
+    from ..core.db import latest_runs_view
+    latest_runs_view(conn)
     return conn
 
 

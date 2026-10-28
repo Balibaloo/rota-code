@@ -166,7 +166,9 @@ def run(conn: sqlite3.Connection, batch_id: str,
     before = red_before(conn, batch_id)
     # A run at this head already exists, so a new red is a new test, not a
     # new commit (frame 318, pass 3b). A no-worktree error row ran no code,
-    # so it is no run at this head (review 3, low).
+    # so it is no run at this head (review 3, low). Fact F4 leaves this read
+    # on `test_runs`: it asks whether any run at this head exists, not which
+    # run is the newest.
     from .db import NO_WORKTREE
 
     same_head = conn.execute(

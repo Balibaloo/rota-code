@@ -144,6 +144,8 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA journal_mode = WAL")
+    # A file that no `init_db` of fact F4 opened has no `latest_runs` view.
+    latest_runs_view(conn)
     return conn
 
 
@@ -153,8 +155,24 @@ def connect_readonly(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # `query_only` refuses a temp view too, so the view comes first.
+    latest_runs_view(conn)
     conn.execute("PRAGMA query_only = ON")
     return conn
+
+
+def latest_runs_view(conn: sqlite3.Connection) -> None:
+    """Give a read-only connection the `latest_runs` view when its file has
+    none. A night's file from before fact F4 holds no such view, and every
+    reader of the newest run reads the view. A temp view writes nothing to
+    the file. The body is the schema's own, so the order rule stays one."""
+    have = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name IN ('latest_runs', 'test_runs')")}
+    if have != {"test_runs"}:
+        return
+    body = re.search(r"CREATE VIEW IF NOT EXISTS latest_runs AS(.*?);",
+                     SCHEMA_PATH.read_text(encoding="utf-8"), re.S).group(1)
+    conn.execute(f"CREATE TEMP VIEW IF NOT EXISTS latest_runs AS{body}")
 
 
 # The schema marker (frame 21). `init_db` writes it when it creates the
@@ -936,6 +954,8 @@ def red_before(conn: sqlite3.Connection, batch_id: str,
     from .scheduler import live_tests
 
     alive = live_tests(conn, "test_id") if live else ""
+    # Fact F4 leaves this read on the table. It needs the newest run that ran
+    # code, and `latest_runs` can hold a no-worktree row that ran none.
     return _red_of(conn.execute(
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
         f"(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ?{_real_run()}"
@@ -961,9 +981,8 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     from .scheduler import live_tests
 
     now = _red_of(conn.execute(
-        "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
-        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        f"AND commit_sha = ?{live_tests(conn, 'test_id')} GROUP BY test_id)",
+        "SELECT test_id, result, output FROM latest_runs WHERE batch_id = ? "
+        f"AND commit_sha = ?{live_tests(conn, 'test_id')}",
         (batch_id, head)))
     if now.keys() - before.keys():
         # Night 164: s229's commit 63c65435 cured one red and broke four, and

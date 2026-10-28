@@ -590,6 +590,21 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
     attempt     INTEGER NOT NULL DEFAULT 1
 );
 
+-- The newest run of each test in each batch. Every door, gate and page that
+-- asks "what did the harness last say about this test" reads this view, so
+-- one order rule answers it (fact F4, the root-cause audit of 2026-10-27).
+-- The order is `rowid`, the insert order. `attempt` is a counter of the
+-- batch's harness passes: two runs can share it, and it can fall after a
+-- delete. `run_seq` gives the order to a reader that sorts the rows. A test
+-- counts for its own batch only, because an inherited test keeps its id
+-- across batches (frames 210 and 239). Night 170: a door told s201 to
+-- restore inh_fe7f4bfc, and that test passed 7 of 7 runs of b_3. The view
+-- holds no data, so `init_db` drops it and makes it again.
+DROP VIEW IF EXISTS latest_runs;
+CREATE VIEW IF NOT EXISTS latest_runs AS
+SELECT r.*, r.rowid AS run_seq FROM test_runs r
+WHERE r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY batch_id, test_id);
+
 -- Every run that `record_test_run` records, kept. `test_runs` holds the live
 -- run per test, because the review gate and the hold guard read it so. Two
 -- deletes keep it live, and night 159's table lost 663 results to them
