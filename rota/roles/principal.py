@@ -2199,6 +2199,21 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             shown = f'"{text}"' if quote else text
             out.append(f"  {len(order)}. {shown}")
 
+    def account_lines(plan: str | None = None) -> None:
+        """The one print of the account rows. An account read from the code
+        is the project today, not his request, on every page that shows it.
+        Night 150: he contested it six times as the work. Ruled: Roman,
+        2026-10-17 04:33, frame 264. An account from his statement on a new
+        program is the plan, and `plan` is its heading where a page has one."""
+        if not account:
+            return
+        today = any((resolved.get(ref) or {}).get("provenance") == "observed"
+                    for ref, _ in account)
+        heading = ACCOUNT_TODAY if today else plan
+        if heading:
+            out.append(heading)
+        numbered(account)
+
     if verb == "confirm":
         n = len(said) or len(other) or len(refs)
         out.append("Did I hear you right? I have taken this as "
@@ -2228,7 +2243,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("The team stopped work on this change.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
-        numbered(does + account)
+        numbered(does)
+        account_lines()
         out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
         out.append("The team expects to touch:")
         numbered(touches)
@@ -2239,7 +2255,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("Before I build this, here is what I expect to touch.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
-        numbered(does + account)
+        numbered(does)
+        account_lines()
         out.append("The team expects to touch:")
         numbered(touches)
         if zero:
@@ -2265,15 +2282,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         asked = request_block(conn, refs, order, out, said=said,
                               code=code_stamp(conn, ask_id), stalled=keys)
         guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
-        if account:
-            # An account read from the code is the project today, not his
-            # request. Night 150: he contested it six times as the work.
-            # Ruled: Roman, 2026-10-17 04:33, frame 264. An account from his
-            # statement on a new program stays the plan.
-            today = any((resolved.get(ref) or {}).get("provenance") == "observed"
-                        for ref, _ in account)
-            out.append(ACCOUNT_TODAY if today else "What we are building:")
-            numbered(account)
+        account_lines(plan="What we are building:")
         if described:
             out.append("How it is described:")
             numbered(described)
