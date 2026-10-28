@@ -100,8 +100,11 @@ def test_one_reader_of_the_code_stamp():
 
 
 def _commit_pattern(node) -> bool:
+    # The old `LANDED` rule held the quoted flag alone, so the pin matches
+    # the flag alone (the F26 review, finding 2). A dict key or a column
+    # name holds no quote marks.
     return (isinstance(node, ast.Constant) and isinstance(node.value, str)
-            and '"committed"' in node.value and '"head_commit"' in node.value)
+            and '"committed"' in node.value)
 
 
 def test_one_reader_of_the_landed_commit():

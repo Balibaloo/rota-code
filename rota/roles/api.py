@@ -13192,6 +13192,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "\"2\": \"contest\"}")
     if not is_clarify:
         order = order or refs
+    from .principal import ruled_ref_home
+
+    # The rows of the page that no table holds now. His verdict on one stays
+    # in `per_item`, and a fault names it, because a ruled_refs row needs a
+    # home (the F26 review, finding 1).
+    gone = {r for r in [*order, *keys] if not str(r).startswith(READING_REF)
+            and ruled_ref_home(ctx.conn, r) is None}
     from .principal import SHIFT_ASK, _items_reached, off_page
     from ..core.scheduler import aside_items
 
@@ -13556,9 +13563,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # A read-back line the reply leaves out stays unconfirmed. The rule's
         # "a line the reply does not contest is approve" would read his
         # silence as consent there (the seam design's review, finding 1).
+        # A line whose row left the tables after his reply takes no ruling.
+        # The F28 fixture, night 159's shape, refused every ruling here, and
+        # only an ask to him landed (the F26 review, finding 1).
         unnamed = [str(i + 1) for i, r in enumerate(order)
                    if r not in per_item and not is_test_row(ctx.conn, r)
-                   and not str(r).startswith(READING_REF)]
+                   and not str(r).startswith(READING_REF) and r not in gone]
         if unnamed:
             raise ValueError(
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
@@ -13691,8 +13701,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The rows are built before any write is staged: the builder refuses a
     # ref that no table holds, and a refusal stages nothing.
     rid = _ruling_id(ctx, ask["id"])
-    rows = _ruled_rows(ctx, rid, [] if is_clarify else order, per_item, words,
-                       shape_of)
+    rows = _ruled_rows(ctx, rid, [] if is_clarify else order,
+                       {r: v for r, v in per_item.items() if r not in gone},
+                       words, shape_of)
+    from .principal import unheld_text
+
+    for ref in [r for r in per_item if r in gone]:
+        _stage_fault(ctx, "rulings.rule", unheld_text(rid, ref), "fault")
     parked = []
     if is_clarify:
         from ..core.predicates import UNADDRESSED_ANSWER

@@ -2409,6 +2409,20 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
                     resolved_row["table"] = _table_of(conn, ref)
+                # A row he saw can leave the tables after his reply. The
+                # line names it, so the Liaison rules the other lines (the
+                # F26 review, finding 1). Only a page with such a line gets
+                # the key, so no recorded prompt changes.
+                from ..roles.principal import READING_REF, ruled_ref_home
+
+                gone = {str(i + 1): (
+                    f"no table holds {ref} now. The line takes no ruling, and "
+                    f"a ruling on it lands as a fault")
+                    for i, ref in enumerate(order)
+                    if not str(ref).startswith(READING_REF)
+                    and ruled_ref_home(conn, ref) is None}
+                if gone:
+                    landing["gone_lines"] = gone
                 # A read-back line names the rows of an earlier reply by
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
