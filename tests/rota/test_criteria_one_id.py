@@ -109,8 +109,8 @@ def test_the_same_text_twice_keeps_the_twin_refusal(db):
     with pytest.raises(ValueError, match=r"^those are echo_json_helper's words "
                        r"already, on the same ticket\. echo_json_helper is "
                        r"your criterion from this session\. It landed and "
-                       r"stands\. tk_2, the second slice, has no criterion "
-                       r"yet\.$"):
+                       r"stands, and nothing more is needed for it\. tk_2, "
+                       r"the second slice, has no criterion yet\.$"):
         _specify(sb, _FIRST, ["stream"])
     assert _texts(sb, "echo_json_helper") == [_FIRST]
 

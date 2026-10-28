@@ -5879,6 +5879,12 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
             f"documentation and send it again.")
 
 
+# The step for a seat's own work that landed in this session. The runner's
+# copy line, the criteria twin and the batch twin end with it, so one
+# situation gets one answer (night 170's W8, review finding 4).
+LANDED_STANDS = "nothing more is needed for it"
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
@@ -5902,9 +5908,12 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     # sent seats to cut new words into the twin's words, or to log the row
     # as lost: night 170's s118 and s187, night 171's s117 (night 170's W8).
     # The row is one row for one set of words, and the text says it stands.
+    # The step is the runner's step for a copy, in the same words (the W8
+    # review, finding 4).
     if any(w[0] == "criteria" and w[1] == twin for w in ctx.writes):
         own = (f"those are {twin}'s words already, on the same ticket. {twin} "
-               f"is your criterion from this session. It landed and stands.")
+               f"is your criterion from this session. It landed and stands, "
+               f"and {LANDED_STANDS}.")
         return " ".join([own] + [f"{tid}, {headline}, has no criterion yet."
                                  for tid, headline in empty])
     if not empty:
@@ -7257,7 +7266,17 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
     staged_twin = next((w[1] for w in ctx.writes if w[0] == "batches"
                         and isinstance(w[2], dict)
                         and w[2].get("item_id") == item_id), None)
-    twin = staged_twin or (open_twin and open_twin["id"])
+    # The seat's own batch from this session. A batch row is a staged
+    # relation and no journal, so a new id on it gets the copy answer and
+    # not the refusal. L1-AR-group-into-batches sent a second id at turn 4
+    # and read "reorder it with problem.prioritize" (the W8 review,
+    # finding 5).
+    if staged_twin:
+        return {"id": staged_twin, "unchanged": True,
+                "note": f"{item_id}'s work is your batch {staged_twin} from "
+                        f"this session. It landed and stands, and "
+                        f"{LANDED_STANDS}."}
+    twin = open_twin and open_twin["id"]
     if twin:
         raise ValueError(
             f"{item_id}'s work is already batched as {twin}. A batch "
