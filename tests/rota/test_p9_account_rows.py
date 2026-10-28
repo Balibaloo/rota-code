@@ -140,6 +140,51 @@ def test_a_row_about_the_account_item_alone_is_off_a_request_page(night):
     assert "format_filename_example" in order
 
 
+def test_a_claim_about_a_description_is_off_a_request_page(night):
+    """The review's probe p7: the night's claim about the description
+    `parses_and_executes_inputs` was line 4 of e_p3's page."""
+    claim = "challenge_items_parses_and_executes_inputs"
+    refs = ["format_filename_example", "c_1_format_filename_example", claim]
+    assert off_page(night, refs) == {claim}
+    _, order = _page_body(night, "present", refs, ask_id="m_probe")
+    assert claim not in order and "format_filename_example" in order
+
+
+def test_words_that_name_no_line_land_on_nothing_on_the_account_page(night):
+    """The review's probe p6: his words about format_filename on s272's
+    account page, with no account row, landed 7 contests on 7 claims."""
+    from rota.roles.principal import land, parse_reply, pending_asks
+
+    night.execute("DELETE FROM items WHERE id = 'how_it_works'")
+    night.execute("UPDATE messages SET status = 'answered' "
+                  "WHERE to_role = 'principal' AND status = 'open'")
+    refs = _wake_refs(night, "s272")
+    sb = build("liaison", night, mode="normal", session_id="s272_p6",
+               allow=prompts.mode_tools("liaison", "normal"),
+               wake=Wake("liaison", "tick:agenda", refs=tuple(refs)))
+    sb.call("msg.present_principal", refs=refs, round_no=0)
+    seq = night.execute("SELECT MAX(seq) FROM messages").fetchone()[0] + 1
+    night.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                  "verb, body_refs, seq, status) VALUES ('m900', 'm900', "
+                  "'liaison', 'principal', 'present', ?, ?, 'open')",
+                  (json.dumps(sb.ctx.outbound[-1]["body_refs"]), seq))
+    night.commit()
+    ask = next(a for a in pending_asks(night) if a.message_id == "m900")
+    words = ("The format_filename example is wrong: it must show a/b/c.txt "
+             "becoming c.txt with shorten=True.")
+    reply = land(night, ask, parse_reply(ask, words))
+    night.commit()
+    door = build("liaison", night, mode="normal", session_id="s_p6",
+                 allow=prompts.mode_tools("liaison", "landing"))
+    door.ctx.trigger = reply
+    with pytest.raises(ValueError) as refused:
+        door.call("rulings.rule", rulings={str(i): "contest" for i in range(1, 8)},
+                  words=words)
+    assert str(refused.value) == ("The words name no line of this page, so "
+                                  "they change no row on it.")
+    assert not [w for w in door.ctx.writes if w[0] == "ruled_refs"]
+
+
 @pytest.mark.parametrize("session, kind, n", [
     ("s179", "tick:observed_entries", 19),
     ("s272", "tick:agenda", 7),

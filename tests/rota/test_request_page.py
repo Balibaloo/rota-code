@@ -445,27 +445,29 @@ def test_a_note_about_an_inherited_test_reaches_no_request(db):
 
 
 # A constraint row is the account's row, so a page of it alone is the
-# account's page (ruled: Roman, 2026-10-28 09:10, frame 344). These
-# scenes test the request's lines, so the Liaison names both requests.
+# account's page (ruled: Roman, 2026-10-28 09:10, frame 344). A page is
+# about one request, so the scenes that test the request's lines name the
+# version option request beside the row: line 1 is the item, lines 2 to 4
+# its criteria and line 5 the row. The run has no request message, so the
+# row stays on the page.
 M399_CALL = ("TOOL: msg.present_principal(refs="
-             + json.dumps([ITEM_136, ITEM_VO, "l_d24f6997d1"]) + ")")
+             + json.dumps([ITEM_VO, "l_d24f6997d1"]) + ")")
 
 
-def test_every_open_request_has_its_own_line(m399):
-    """Night 136's m399 held one constraint row. Every open request is
-    numbered with its criteria, and the closing sentence names each request
-    line (frame 190's design, 2.F, amendment 2)."""
+def test_the_agenda_wake_of_a_constraint_row_is_the_accounts_page(m399):
+    """Night 136's m399 held one constraint row. Frame 190's design 2.F,
+    amendment 2, numbered every open request above it. A page is about one
+    request, and the account's rows go on their own page (ruled: Roman,
+    2026-10-28 09:10, frame 344), so the row is the page's one line."""
     (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, M399_CALL)
+    assert list(wake.refs) == ["l_d24f6997d1"]
+    mid = _dispatch(m399, wake,
+                    'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
     (ask,) = [a for a in pending_asks(m399) if a.message_id == mid]
     page = ask.rendered
-    assert ask.order == ([ITEM_136] + [c for c, _ in CRIT_136] + [ITEM_VO]
-                         + [c for c, _ in CRIT_VO] + ["l_d24f6997d1"])
-    assert f"  1. {TEXT_136}" in page and f"  5. {TEXT_VO}" in page
-    assert page.count("You asked:") == 1 and "You also asked:" in page
-    assert page.index("  8. If `show_python`") < page.index(TEAM_NOTES) \
-        < page.index("  9. The principal contested")
-    assert page.endswith("To change what you asked for, name its line, 1 or 5."), page
+    assert ask.order == ["l_d24f6997d1"]
+    assert "You asked:" not in page and TEXT_VO not in page
+    assert "  1. The principal contested" in page
 
 
 def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
@@ -478,7 +480,7 @@ def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
     (wake,) = tick_agenda(m399, principal_present=True)
     mid = _dispatch(m399, wake, M399_CALL)
     reply = _reply(m399, mid, "ok")
-    _landing(m399, reply, {str(n): "approve" for n in range(1, 10)}, "ok")
+    _landing(m399, reply, {str(n): "approve" for n in range(1, 6)}, "ok")
     verdict, ruled = _verdict(m399, mid)
     assert ruled == {}, ruled
     assert verdict["status"] == "answered", "nothing is left to relay"
@@ -495,10 +497,10 @@ def test_a_contested_criterion_travels_and_an_approved_one_does_not(m399):
     no park page (frame 190's design, 2.F, amendment 1)."""
     (wake,) = tick_agenda(m399, principal_present=True)
     mid = _dispatch(m399, wake, M399_CALL)
-    words = "line 6 is wrong: the flag prints the version only when it is set"
+    words = "line 2 is wrong: the flag prints the version only when it is set"
     reply = _reply(m399, mid, words)
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["6"] = "contest"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["2"] = "contest"
     _landing(m399, reply, ruling, words)
     verdict, ruled = _verdict(m399, mid)
     assert ruled == {"c1_version_option_show_python": "contest"}
@@ -663,23 +665,23 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     # A revise of the team's note is refused. The refusal names the drop
     # first, and names a request line only when the words name it by number
     # or quote it (frame 190's design, 2.F, amendment 2, and frame 296).
-    # The words do not name line 9, so the refusal also names the change
+    # The words do not name line 5, so the refusal also names the change
     # route of the note (frame 305).
     sb = _sandbox(m399, "liaison", "landing", reply)
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["9"] = "revise"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["5"] = "revise"
     with pytest.raises(ValueError) as refused:
         sb.call("rulings.rule", rulings=ruling, words=M400)
     assert str(refused.value) == (
-        "line 9 is the team's note, not your request. To drop the note, contest "
-        "it. To change the note, revise it only on words that name line 9 by number "
+        "line 5 is the team's note, not your request. To drop the note, contest "
+        "it. To change the note, revise it only on words that name line 5 by number "
         "and say the change. A revise of the request rewrites a line of what the "
         "principal asked for. The words "
         "name no line of the request, and a revise of the request needs the principal's words "
         "on the request.")
 
-    ruling = {str(n): "approve" for n in range(1, 10)}
-    ruling["5"], ruling["9"] = "revise", "contest"
+    ruling = {str(n): "approve" for n in range(1, 6)}
+    ruling["1"], ruling["5"] = "revise", "contest"
     _landing(m399, reply, ruling, M400)
     verdict, ruled = _verdict(m399, mid)
     assert ruled[ITEM_VO] == "revise"

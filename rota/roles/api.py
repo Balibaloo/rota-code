@@ -13234,6 +13234,45 @@ def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
     return out
 
 
+_PAGE_LINE = re.compile(r"^\s+(\d+)\. (.*)$", re.M)
+
+
+def _account_page_refusal(words: str, contested: set[int],
+                          page_text: str, size: int) -> str | None:
+    """The refusal of a contest on the account's page that his words do
+    not name, or None.
+
+    The account's page has no line of a request. Words land only on a line
+    they name by number or share a name with, by the F2 name rule. Words
+    about format_filename on s272's page of claims landed 7 contests on 7
+    claims they never named (the review of P9, p2, finding 2).
+
+    law 6: nothing is ruled on the principal's behalf
+    """
+    if not any(1 <= n <= size for n in contested):
+        return None
+    reading = _line_reading(words, size)
+    # "Drop all seven lines" names lines by a word, and the door cannot read
+    # which, as in `_agreed_contest`. Night 133's m123 said so.
+    if reading.line_word:
+        return None
+    named = {n for n in reading.named | reading.faulted | reading.matched
+             if 1 <= n <= size}
+    said = reading.names
+    if said:
+        named |= {int(m.group(1)) for m in _PAGE_LINE.finditer(page_text or "")
+                  if said & _line_reading(m.group(2)).names}
+    if not named:
+        return ("The words name no line of this page, so they change no row "
+                "on it.")
+    unnamed = sorted(n for n in contested if 1 <= n <= size and n not in named)
+    if not unnamed:
+        return None
+    return (f"The words name {_lines(sorted(named))} and do not name "
+            f"{_lines(unnamed)}. On the account's page a contest lands only "
+            f"on a line the words name.")
+
+
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
                     request_lines: frozenset[int]) -> str | None:
     """The refusal of a contest when the words name no line, or None.
@@ -14079,6 +14118,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             i + 1 for i in range(len(order)) if "criteria" in line_tables[i])
         earlier_read, earlier_fine = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
+        # The account's page: a present of no request and no request line
+        # (ruled: Roman, 2026-10-28 09:10, frame 344).
+        from .principal import page_owner
+
+        if (ask["verb"] == "present" and not shift and not request_lines
+                and page_owner(ctx.conn, row_refs) is None):
+            refusal = _account_page_refusal(his, contested, page_text,
+                                            len(order))
+            if refusal:
+                raise ValueError(refusal)
         refusal = _line_refusal(
             his, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(his, page_text, 1), batch_lines,

@@ -513,13 +513,18 @@ def _m283(db) -> list[str]:
             "provides_command_line_interface", VERSION]
 
 
-def test_m283_keeps_the_account_item_that_cites_an_earlier_statement(db):
-    """The review of 61a0f41d, finding 2."""
+def test_m283_puts_the_account_item_on_the_accounts_page(db):
+    """The review of 61a0f41d, finding 2, kept the description on every
+    request page. Roman ruled on 2026-10-28 09:10 that the account's rows go
+    on their own page and never on a request's page (frame 344). A
+    description has no request (F15), so it leaves the request's page."""
     from rota.roles.principal import off_page
 
     m283 = _m283(db)
-    assert "defines_commands_and_options" not in off_page(db, m283)
-    assert "defines_commands_and_options" in render_page(db, "present", m283)[1]
+    assert "defines_commands_and_options" in off_page(db, m283)
+    assert "defines_commands_and_options" not in render_page(
+        db, "present", m283)[1]
+    assert VERSION in render_page(db, "present", m283)[1]
 
 
 def test_a_ratified_follow_up_keeps_the_request_and_its_coverage(db):

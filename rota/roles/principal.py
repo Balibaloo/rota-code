@@ -1622,15 +1622,17 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
             continue
         if req is None:
             continue
-        # A row about the account item alone is the account's row, so it
-        # leaves a request's page too. The review of P9, finding 1: a claim
-        # about how_it_works was line 4 of e_p3's page.
-        if set(items) <= {"how_it_works"}:
+        # A row whose every item has no request is the account's row, so it
+        # leaves a request's page too: the account, a description or an
+        # observed behaviour (F15). The review of P9: a claim about
+        # how_it_works, then one about parses_and_executes_inputs, was
+        # line 4 of e_p3's page.
+        others = requests_of(conn, ref)
+        if others <= {None}:
             out.add(ref)
             continue
-        # A row that reaches another item of no request stays. `request_of`
-        # gives a description no request (F15).
-        others = requests_of(conn, ref)
+        # A row that reaches the page's request and an item of no request
+        # stays (F15 review 1, finding 2).
         if not all(e is not None and e != req for e in others):
             continue
         is_note = tables_of(conn, ref, among=["ledger"])
