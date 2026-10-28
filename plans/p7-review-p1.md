@@ -107,3 +107,87 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/77c8dc
 ## (d) Usage
 
 Input about 140k tokens, output about 20k tokens, about 160k in total. These are estimates from the session count, because the harness shows no per-call counts. The cap was 70k, and the replay, the gate and the probes used the rest.
+
+# p2
+
+Review p2 of passes 1c and 1d, 0ae7ab54..3b31077a, in `C:/Users/roman/rota_r7` at 3b31077a. No tracked file was edited.
+
+**Verdict: NOT READY.** The two highs of p1 are closed, and so is finding 3. The new backing rule has two new high holes on a clarify page, which has no line order. One shared content word backs a verdict even in a question or a negated clause. One backed verdict also carries an unbacked contest. Two findings are high and two are low.
+
+## (a) The verdict on each point
+
+1. The p1 highs: CLOSED. All seven probes of `probe3.py` now refuse. The question passed as `words`, the contest beside an approve, the hidden column and the plain-word id each give "His words neither approve nor name ...".
+2. The replay: 4 of 240 results move against 0ae7ab54, and 13 move against the parent. Every move goes from one refusal to another refusal, and no land moves. Each new text is right on his words. The 9 recorded clarify calls still land.
+3. Law 6 on the backing rule: FAIL, high. On a clarify page, an approve lands on a row that his words refuse, and "fine" carries a contest (findings p2-1 and p2-2). On the numbered page m129, the read-back and agreement doors still refuse every probe.
+4. The lead-word rule: PASS on the closed list, with a low finding on the -ly rule (finding p2-3). A lead word inside a clause makes no cut. A clause that is only a lead word, "Now." or "Please", passes, and it backs no verdict.
+5. The tests: PASS. The 38 files give 1 failed and 1010 passed, and the red is the known `test_pins.py` test. The gate gives 6 failed and 5834 passed, with 0 new reds against the baseline at 0ae7ab5. The 6 reds are the known set. The diff holds no CR byte, and every hunk is in the claim. One test edit changes what the test pins (finding p2-4).
+
+## (b) Findings
+
+- **p2-1. rota/roles/api.py 11956 to 11966, high. CONFIRMED.** `_names_shown` backs a verdict when his words share one content word with the text that the page showed for the row. The rule does not read a question or a negation. On the clarify page, g1 shows "group: a set of related options" and g2 shows the command sense. The question "what is a group anyway" lands approves on g1 and g2, because both rows show "group". The reply "the options one, not the command one" lands an approve on g2, which is the sense he refused. "the options one is fine" backs a contest of g1. The parent lands these calls when `words` is passed, so p2-1 is a hole that the new rule claims to close, not a regression. Fix: count only a word that one row shows and the other rows do not show, and back nothing from a question or from a clause that negates the word.
+- **p2-2. rota/roles/api.py 12014 to 12019, high. CONFIRMED.** One backed verdict lets every other verdict of the call land, contests included. The stated rule lets only an approve of an unnamed row ride beside a backed verdict. On the reply "fine", the call g1 contest with g2 approve lands, because "fine" backs the approve, and nothing faults g1. With two contests, the same reply is refused. Fix: require each contest and each revise to be backed on its own, and let only an approve ride.
+- **p2-3. rota/roles/api.py 11888, low. CONFIRMED.** Any word that ends in -ly at a clause start opens a new clause, so the seat can drop a hedge or a negative adverb. "any of line 3 is right" passes for his "Hardly any of line 3 is right.", which inverts his meaning. "line 4 is wrong" passes for "Possibly line 4 is wrong.", and "line 4 is right" passes for "Only line 4 is right.". "the patch to line 2" passes for "Apply the patch to line 2.". Fix: remove the -ly suffix test and name the lead adverbs in `_CLAUSE_LEAD`.
+- **p2-4. tests/rota/test_frame234_verdict_lines.py 154, low. CONFIRMED by reading.** `test_a_clarify_is_not_read_for_lines` now passes "Lines 1 to 4 are wrong." in place of "Lines 1 to 4 match what I asked for.". The words now back the contests, so the test no longer shows that a clarify is not read for lines. Fix: rename the test, or keep the agreeing words and expect the new refusal.
+
+Open from p1: findings 4 to 8 are outside the claim of 1c and 1d, and they stay open.
+
+## (c) The replay moves
+
+Against 0ae7ab54:
+
+| Night, session | Trigger | 0ae7ab54 refusal | 3b31077a refusal | Right? |
+|---|---|---|---|---|
+| 171 s139, 2 calls | m41 | words cut "Please" off his clause | lines 1 and 4 have no ruling, and the naming refusal, as at the parent | yes, "add a check ..." is now his clause after "Please" |
+| 171 s171, 2 calls | m63 | lines with no ruling, and the fault on line 6 | the act span "look for backslashes like the roaming check" is not his | yes by the clause rule. The span cuts "change the check to look for ...", and the call needs one more turn |
+
+Against the parent, the 13 moves are the 13 moves of p1 with s139 gone and s171 added. These are s92 four times, s171 twice, s177 five times, s91 once and s214 once. Each is right on his words, as point 2 of p1 says.
+
+## (d) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/77c8dc39-1322-4ba4-bcb6-9a1031822837/scratchpad/p7r/`.
+
+- `head3/`: `git archive` of 3b31077a.
+- `probe3.py` at `head3/`: the p1 highs (point 1).
+- `replay.py` to `new3.json`, and `cdiff2.py` against `new.json` and `par.json` (point 2).
+- `probe_p2.py`: the backing rule on the term collision clarify page, `_line_reading` of "fine", and 14 lead-word cases (points 3 and 4).
+- `probe_p2b.py`: the backing rule on the m129 numbered page (point 3).
+- `gate3.txt`: the gate output. The 38 test files ran with pytest (point 5).
+
+## (e) Usage
+
+Input about 40k tokens, output about 9k tokens, about 49k in total for p2. These are estimates from the session count. The cap was 40k.
+
+# p3
+
+Review p3 of pass 1e, 3b31077a..9923a021, in `C:/Users/roman/rota_r7` at 9923a021. No tracked file was edited.
+
+**Verdict: NOT READY.** Pass 1e closes p2-2, the question that ends with "?", the negated clause "not the command one", "Hardly" and "Only". The name rule still backs a verdict whatever the clause says about the name. On a clarify page, an approve lands on "the command one is wrong" and on "I do not like the command one". A contest lands on "the options one is fine". Two findings are high and one is low.
+
+## (a) The verdict on each point
+
+1. The p2 probes: the question, the negated clause and the contest beside "fine" now refuse. "Hardly" and "Only" keep their hedge. "the options one is fine" still backs a contest of g1 (finding p3-2). "Possibly", "Probably" and "Supposedly" still drop off (finding p3-3).
+2. The judgement cases: each leaves a law 6 hole on a clarify page. The negation rule does not read a fault word, a negated verb, or a question with no "?" that opens with "when" (finding p3-1). The choice rule backs a contest of g2 on "the options one confuses me", which chooses nothing (finding p3-2). The numbered page holds: on m129 with the reply "Line 11 is wrong. Line 3 is fine. Lines 9 and 10 are right.", a contest of line 3 and a contest of line 5 are each refused by the line doors.
+3. The replay: 0 of 240 results move against 3b31077a. Against the parent, the 13 moves of p2 stay, and each is right on his words.
+4. The tests: PASS. The rename removes a clash: `_content_words` at api.py 906 is an older helper that `test_frame193_pass3.py` tests. The 39 files, which include `test_frame193_pass3.py`, give 1 failed and 1040 passed, and the red is the known `test_pins.py` test. The gate gives 6 failed and 5838 passed, with 0 new reds against the baseline at 0ae7ab5. The diff holds no CR byte, and every hunk is in the claim. The test rename of p2-4 is done.
+
+## (b) Findings
+
+- **p3-1. rota/roles/api.py 11961 to 12000 and 12031, high. CONFIRMED.** `_shown_mention` gives "named" for any mention that no direct negation governs, and a "named" mention backs an approve. On the clarify page, both approves land for "the options one is right, the command one is wrong". The approve of g2 lands for "I do not like the command one", because "like" stands between "not" and "command". Both approves land for "when does the group meet", because `_QUESTION_OPEN` has no "when", "where", "who", "should" or "could". The approve of g2 lands for "Not the command one. The command one confuses me.", because the second sentence counts as a positive mention. Fix: back an approve by a name only when the clause that holds the name reads as an agreement or a choice by `_line_reading`, and back nothing from a clause that faults or negates.
+- **p3-2. rota/roles/api.py 12031 and 12082 to 12086, high. CONFIRMED.** A name backs a verdict in either direction, so a name backs a contest. "the options one is fine" lands a contest of g1. `chose_other` reads any positive mention of g1 as a choice, so "the options one confuses me" lands an approve of g1 and a contest of g2. Fix: back a contest by a name only when the clause that holds the name faults, and count a mention as a choice only in a clause with no fault word and no complaint.
+- **p3-3. rota/roles/api.py 11875 and 11891, low. CONFIRMED.** `_HEDGES` lists six words, and every other word that ends in -ly is still a lead word. "line 4 is wrong" passes for "Possibly line 4 is wrong." and for "Probably line 4 is wrong.". "the docstring is fine" passes for "Supposedly the docstring is fine.". Fix: remove the -ly suffix test and name the lead adverbs in `_CLAUSE_LEAD`, as p2-3 said.
+
+Open from p1: findings 4 to 8 stay open, outside the claim of 1e.
+
+## (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/77c8dc39-1322-4ba4-bcb6-9a1031822837/scratchpad/p7r/`.
+
+- `head4/`: `git archive` of 9923a021.
+- `probe_p3.py`: the p2 probes, five hedges and six judgement cases on the term collision clarify page (points 1 and 2).
+- `probe_p3b.py`: three contests on m129 with his reply set to "Line 11 is wrong. Line 3 is fine. Lines 9 and 10 are right." on a copy (point 2).
+- `replay.py` to `new4.json`, and `cdiff2.py` against `new3.json` and `par.json` (point 3).
+- `gate4.txt`: the gate output. The 39 test files ran with pytest (point 4).
+
+## (d) Usage
+
+Input about 22k tokens, output about 6k tokens, about 28k in total for p3. These are estimates from the session count. The cap was 25k.
