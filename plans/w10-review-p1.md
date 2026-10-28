@@ -96,3 +96,30 @@ The texts at f0642982:
 ### (d) Usage
 
 The harness reports no token counts to this agent. The figures are estimates for p2: input about 60k tokens, output about 7k tokens, total about 67k. The run went past the 30k cap.
+
+## p3
+
+This section reviews commit 308b257f on top of f0642982. Verdict: READY. Findings: 0 high, 2 low. Both lows are left over from p2.
+
+### (a) Verdicts on the points
+
+1. p2-1: PARTLY. `_parked` calls `api.built_batch` and has no commit query of its own. The pin now scans `_ruling_answer_refusal`. `_parked` still drops a merged batch, and the send door counts a merged batch as built (finding p3-1).
+2. p2-3: NOT MET. With four refs, the Tester text has 28 words, and the answer text has 24. Both texts still carry rota identifiers (finding p3-2).
+3. The tests: `test_answer_tester_no_batch.py` and `test_invoke_door.py` gave 56 passed.
+
+### (b) Findings
+
+p3-1. LOW. PLAUSIBLE. `rota/core/sandbox.py` line 2130, `_parked._live_built`. The filter `b["status"] != "merged"` keeps the old rule. On a park relay where the only built batch is merged, `_parked` says the send door refuses. `_unbuilt_refusal` lets the answer land, so the ruling door stays silent and its check is lost. The probe did not run a park relay.
+   Fix: drop the merged filter, so that `_parked` returns true exactly when `_unbuilt_refusal` refuses.
+
+p3-2. LOW. CONFIRMED. `rota/core/sandbox.py` lines 1946 to 1953. Probe `rv3_p2.py` sent four refs. The Tester text: "No change built from c_1, c_2, c_3 and 1 more has a commit yet, and you hold no batch, so there is nothing to ask about. Stop here." The text has 28 words, because the cap of three ids adds "and 1 more".
+   Fix: name no ids: "No change from these criteria has a commit yet, and you hold no batch. Stop here."
+
+### (c) Probes
+
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/rv3_p2.py`: the night-173 copy with no batch. A Tester woken by m29 asks `msg.question_vision_keeper`, and a Terminologist sends `msg.answer_tester`. Each call sends refs c_1 to c_4, and each is refused.
+- pytest on the two files: 56 passed in 12 s.
+
+### (d) Usage
+
+The figures are estimates for p3: input about 25k tokens, output about 2k tokens, total about 27k. The run went past the 10k cap.
