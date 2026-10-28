@@ -138,3 +138,44 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac2
 ### (d) Usage
 
 Input about 70k tokens, output about 13k tokens, about 83k in total. These are estimates. The cap was 40k, and the review went over it.
+
+## p4
+
+**Verdict: NOT READY.** Pass 3c and 3d at 9b2d34d6 and 3944adee close five of the six p3 findings on their probes. The new clause start after "say" lands a rewrite that his words forbid, and an `exclude` still lands on words that name no path. Findings: 2 high, 4 low.
+
+### (a) Verdicts on the points
+
+1. p3 findings: p3-1, p3-2, p3-3, p3-5 and p3-6 are closed. A target-less `remove` is refused. All 15 "want", "without" and page-noun spans give False. "Do not change line 4." is refused as a revise. p3-4 is half closed (finding p4-2). The prompt example "Remove the show_python flag, I don't want it." gives True at `_asks_removal_of`, and the brief-example door test passes.
+2. Exclude check: the m62 `exclude` on `src/click/termui.py` is refused, and so is the one on `src/click/core.py`. Both P10 tests pass. The check reads only the lines of the act's own ref, so a path on another line of the page is refused. m62 shows no path on any line, so this is read from the code, not probed. The check reads no words (finding p4-2).
+3. No-target acts: a no-target `drop` never reaches `grant(ref, "remove")`, because the newest act must equal `remove`. No code removal reader reaches it, because those readers pass targets and `grant` then skips rows with no target. A no-target `remove` of kind `row`, `check` or `sentence` does reach `grant(ref, "remove")` (finding p4-5).
+4. Fault A: `_lines_of` and `_ref_of_key` are right on the read. The remaining one-line readers change only refusal text, or read the first line where a reply can name the second (finding p4-6). `_backed` needs a connection, so I probed only its approve case. No wrong land was found.
+5. Fault B: "Line 4 should say the local variable matters." lands the rewrite with his whole clause, and that is right. The s175 call 2 span is right by law 6. It keeps a whole clause, and the dropped ", not only that it might" restates his "for certain". A cut is right only when the dropped words do not negate or frame the kept clause. A cut after "say" can drop a negation before it (finding p4-1).
+6. Replay: 27 moves against 3b31077a. 25 are the p3 set. 2 are text only, 171 s171 calls 3 and 6, where the new hint quotes his whole clause. No move is wrong. `r174.py` on s168, s175 and s177 gives the builder's results.
+7. Tests: 46 files, 2 failed, 1353 passed, 13 xfailed. The reds are `test_pins` (known) and `test_a_clause_starts_after_should_say` (finding p4-3). New stale cases: 0. `casestatus` gives 59 stale on 3944adee and on d28e6e05, with the same 11 Liaison cases.
+
+### (b) Findings
+
+- p4-1. **rota/roles/api.py 11875 to 11893, `_clause_tokens`, high. CONFIRMED.** A clause now starts after "say" behind "to" or a modal, whatever comes before. On m35, "Line 4 is fine, and it is wrong to say the local variable matters." lands `revise` with `rewrite` "the local variable matters" on line 4. 5cd73a2d refused the same call. `_holds_clauses` also accepts "the tests pass" in "I never said line 7 should say the tests pass." and in "Nobody wants line 7 to say the tests pass.". Fix: start the clause after "say" only when no negation or fault word stands earlier in its clause.
+- p4-2. **rota/roles/api.py `rulings_rule`, the exclude check, high. CONFIRMED.** The check reads the prediction and never his words. On the P10 guess page, `exclude` on `tests/test_defaults.py` with "Lines 2 to 4 are still wrong" lands. `resolve_inbound` then disputes that path. The same holds for `tests/test_options.py` with "Lines 9 and 11 are wrong too". Law 6 is broken: the row is written on his behalf. Fix: refuse an `exclude` whose words do not name the target by `_target_names`.
+- p4-3. **tests/rota/test_seam_night173.py 30 to 33, `_home`, low. CONFIRMED.** `test_a_clause_starts_after_should_say` is red in this worktree. `_home(174)` now picks `D:/repos/rota/.rota/clickI_night174.db` (13:59), where `bg_2` is merged. The builder ran it against the copy in `C:/Users/roman/rota_seam/.rota` (13:36). Fix: set the batch's state in the test, as the replays do, or read one fixed copy.
+- p4-4. **rota/roles/api.py `rulings_rule`, the exclude check, low. CONFIRMED.** The check uses `_says`, so any word that the line shows passes. On m62, `exclude` on the identifier `clear` lands, because line 5 shows "clear()". Fix: refuse an `exclude` target that has no path shape.
+- p4-5. **rota/roles/api.py, the no-target exemption, low. PLAUSIBLE.** A no-target `remove` of kind `row`, `check` or `sentence` passes the removal rule. `grant(ref, "remove")` with no target returns it. `_amend_step` at 1534 and `_assert_words_fault` at 1881 then let an amend drop his sentences. The m62 probe stopped at another rule. Fix: give the sentence example a target, and drop the exemption for `remove`, as the builder recommends.
+- p4-6. **rota/roles/api.py 6769, 12001, 13249, 14298 and the refusal lines, low. PLAUSIBLE.** `_backed` and `pointer_fault` read the first line of a ref that the page shows on two lines. A mixed reply such as "Line 8 is wrong, line 47 is right" is then judged on line 8 only. `_ruling_line`, the guess key line and the refusal lines change only the line that a text names. Fix: move `_backed` and `pointer_fault` to `_lines_of`.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/p3rev/`.
+
+- `probe.py`, `probe2.py` and `probe3b.py`: the p3 probes at 3944adee. `probe3b.py` is `probe3.py` without the `page` argument.
+- `probe5.py`: prints the paths that each m62 line shows. There are none.
+- `test_p4_exclude.py`: runs from the worktree root with pytest. It lands three `exclude` calls on the P10 guess page of `test_guess_route.py`.
+- `probe6.py`: three "say" replies on m35 at 3944adee. `probe6_old.py` runs them on `t5cd73a2d/`.
+- `probe7.py`: a no-target `remove` of each exempt kind on m62 line 1. Another rule refused all three.
+- `new5.json`, `diff5.py` and `moves5.txt`: the replay of the 290 calls and its 27 moves.
+- `../r174.py` on s168, s175 and s177.
+- `t3944adee/` and `cs_3944adee.txt`: `casestatus` on an archive of 3944adee with the register copy.
+- Tests: `pytest` on `test_seam_night173.py`, `test_seam_permission_readers.py` and the 44 files that name the readers.
+
+### (d) Usage
+
+Input about 26k tokens, output about 7k tokens, about 33k in total. These are estimates. The cap was 40k.
