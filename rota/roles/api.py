@@ -18655,50 +18655,128 @@ def _call_keeps(form: str) -> bool:
 
     Frame 335, review 1, finding 2: the call's value is a literal that is
     not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
-    `\\temp` gave a TAB on the strict path only."""
+    `\\temp` gave a TAB on the strict path only. W3 review, finding 1: the
+    call kept `"say " + chr(92) + ""hi"`, which is not Python. So the form
+    must also compile."""
+    if _form_value(form) is None:
+        return False
     values = _call_values(form, escape=False)
     return bool(values) and all(v == form for v in values)
 
 
 def _raw_advice(line: str, escape: str) -> str:
     """The sentence that names a form of the string that comes through the
-    call unchanged. A path takes forward slashes first, because that form
-    holds no escape on either parse path."""
+    call unchanged and keeps the value of the string.
+
+    W3 of night 171: s153 took the forward-slash form of `"AppData\\Local"`,
+    and the test can never pass against a Windows path. A form with forward
+    slashes changes the value, so it is never the first advice. It comes
+    last, for a path that a file function reads and no assert compares."""
+    # W3 review, finding 2: on a line that compares, the short slash form
+    # is the form a seat takes, and it changes the compared value.
+    compares = _COMPARES.search(line or "") is not None
     lit = _escape_literal(line, escape)
     if lit is None:
-        return ("Write the string with no backslash. A path takes forward "
-                "slashes.")
+        return ("Write each backslash as `chr(92)` outside the quote marks, "
+                "as in `\"C:\" + chr(92) + \"Users\"`." + (
+                    "" if compares else " When a path is given to a file "
+                    "function, not compared, forward slashes also work."))
     prefix, mark, text = lit
+    # The meant value reads each backslash as a backslash, except the
+    # backslash of `\\` and of an escaped quote mark.
+    fixed = re.sub(r"\\(.)", lambda m: m.group(0) if m.group(1) in "\\'\""
+                   else "\\\\" + m.group(1), text, flags=re.S)
+    meant = _form_value(f"{prefix}{mark}{fixed}{mark}")
+
+    def _keeps(form: str | None) -> bool:
+        # W3 review, finding 1: a form that compiles can still change the
+        # value, so the form must compile to the meant value.
+        return (form is not None and meant is not None
+                and _form_value(form) == meant and _call_keeps(form))
+
     one = text.replace("\\\\", "\\")
-    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
     # A raw string cannot end in one backslash or hold its own mark.
     raw = (None if one.endswith("\\") or "\\" + mark in one
            else f"r{prefix}{mark}{one}{mark}")
-    path = _PATH_TEXT.fullmatch(one) is not None
-    kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
-            if _call_keeps(f)]
-    if not kept:
-        # Review 2, point 4: a slash form of a value that is not a path
-        # gives a wrong value, so the advice names no form.
-        return ("No form of this string with a backslash comes through the "
+    if _keeps(raw):
+        return (f"Write the string as a raw string with one backslash: "
+                f"`{raw}`.")
+    said = ""
+    if isinstance(meant, str) and "f" not in prefix.lower():
+        # Review 2, point 3: with no raw form, the value needs a form that
+        # holds each backslash. W3 review, finding 4: each quote mark goes
+        # through `chr` too, so the form holds no mark that the call needs.
+        parts: list[str] = []
+        for run in re.split(r"([\\'\"\x00-\x1f])", meant):
+            if len(run) == 1 and (run in "\\'\"" or ord(run) < 32):
+                parts.append(f"chr({ord(run)})")
+            elif run:
+                parts.append(f"{mark}{run}{mark}")
+        joined = " + ".join(parts)
+        if _keeps(joined):
+            marks = (" and each quote mark as `chr(39)` or `chr(34)`"
+                     if "chr(39)" in joined or "chr(34)" in joined else "")
+            said = (f"Write each backslash as `chr(92)`{marks}: `{joined}`. "
+                    f"That form keeps each backslash.")
+    if not said:
+        # Review 2, point 4: no form with a backslash comes through, so the
+        # advice names no form that keeps the value.
+        said = ("No form of this string with a backslash comes through the "
                 "call unchanged. Write the value with no backslash.")
-    said = (f"Write the path with forward slashes: `{kept[0]}`."
-            if kept[0] == slash else
-            f"Write the string as a raw string with one backslash: "
-            f"`{kept[0]}`.")
-    if len(kept) > 1:
-        said += (f" The raw string `{kept[1]}`, with one backslash, also "
-                 f"comes through the call unchanged.")
-    elif kept[0] == slash and not prefix:
-        # Review 2, point 3: with no raw form, a criterion about a
-        # backslash needs a form that holds a real backslash on both paths.
-        joined = " + chr(92) + ".join(f"{mark}{p}{mark}"
-                                      for p in one.split("\\"))
-        if _call_keeps(joined):
-            said += (f" For a criterion about a backslash, write `{joined}`. "
-                     f"That form keeps a real backslash on both parse "
-                     f"paths.")
+    # Review 2, point 6: `_PATH_TEXT` reads `\R` alone as no path.
+    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
+    if (not compares and _PATH_TEXT.fullmatch(one) is not None
+            and isinstance(meant, str)
+            and _form_value(slash) == meant.replace("\\", "/")
+            and _call_keeps(slash)):
+        said += (f" When the path is given to a file function, not "
+                 f"compared, `{slash}` also works.")
     return said
+
+
+#: A line that compares a value. W3 review, finding 2.
+_COMPARES = re.compile(r"\bassert\b|==| in ")
+
+
+def _form_value(form: str):
+    """The value of a form that the advice names, or None when the form is
+    not Python or holds more than strings, `+` and `chr` of a number.
+
+    W3 review, finding 1: `ast.literal_eval` reads no `+` of two strings
+    and no `chr`. So this walk reads the same constants as `literal_eval`,
+    and those two forms, and nothing else. A field of an f-string reads as
+    its tree, so two forms with one field compare equal."""
+    import warnings as _warnings
+    try:
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")
+            tree = _ast.parse(form, mode="eval")
+    except (SyntaxError, SyntaxWarning, ValueError):
+        return None
+
+    def walk(node):
+        if isinstance(node, _ast.Constant) and isinstance(
+                node.value, (str, bytes)):
+            return node.value
+        if isinstance(node, _ast.JoinedStr):
+            return tuple(v.value if isinstance(v, _ast.Constant)
+                         else _ast.dump(v) for v in node.values)
+        if isinstance(node, _ast.BinOp) and isinstance(node.op, _ast.Add):
+            left, right = walk(node.left), walk(node.right)
+            if isinstance(left, str) and isinstance(right, str):
+                return left + right
+        if (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                and node.func.id == "chr" and len(node.args) == 1
+                and not node.keywords
+                and isinstance(node.args[0], _ast.Constant)
+                and type(node.args[0].value) is int
+                and 0 <= node.args[0].value < 0x110000):
+            return chr(node.args[0].value)
+        raise ValueError(form)
+    try:
+        return walk(tree.body)
+    except ValueError:
+        return None
 
 
 def _escape_refusal(where: str, escape: str, line: str) -> str:
