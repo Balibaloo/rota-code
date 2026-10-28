@@ -4253,6 +4253,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # 1). A quarantined wake records its keys, so a re-render of any
         # other page never reads a key that came later (finding 4).
         notes: dict[str, str] = {}
+        account_off: list[str] = []
         if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
             from ..roles.principal import _stalled_keys, code_targets, request_rows
@@ -4293,6 +4294,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             off = off_page(ctx.conn, refs)
             if off:
+                from ..roles.principal import account_rows
+
+                # The account's rows it drops go out on the account's own
+                # page, so no row waits unseen. Night 133's m283 sign-off
+                # dropped how_it_works and 3 descriptions (the review of P9,
+                # p3, finding 2).
+                account_off = account_rows(ctx.conn, [r for r in refs if r in off])
                 refs = [r for r in refs if r not in off]
                 if stamped:
                     kept = [r for r in stamped if r not in off]
@@ -4306,6 +4314,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         notes["code"] = _json.dumps(code)
                     else:
                         notes.pop("code", None)
+        # A confirm page is about one request too, and its refs and its
+        # numbered rows are one set, as on a present (P8; ruled: Roman,
+        # 2026-10-28 09:10, frame 344).
+        if verb == "confirm" and recipient == "principal" and not park and not shift:
+            from ..roles.principal import off_page
+
+            off = off_page(ctx.conn, refs, confirm=True)
+            if off:
+                refs = [r for r in refs if r not in off]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -4751,13 +4768,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # the page as its read-back line. The refs hold the line, so a later
         # render numbers the same lines (the seam design, 2.3, and its
         # review, finding 3). A shift page and a park page take no approve,
-        # so they carry none (finding 2).
+        # so they carry none (finding 2). A reading rides the page of its own
+        # request only. Night 172's m47 read back e_p1's answers on e_p2's
+        # confirm page (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
         if (recipient == "principal" and verb in ("present", "confirm")
                 and not park and not shift):
             from ..roles.principal import readings_owed
 
             refs = list(refs or [])
-            refs += [r for r in readings_owed(ctx.conn) if r not in refs]
+            refs += [r for r in readings_owed(ctx.conn, refs) if r not in refs]
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         if shift:
             msg_id = shift_id
@@ -4767,6 +4786,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             from .scheduler import park_ask_id
 
             msg_id = park_ask_id(ctx.conn, ctx.wake_refs[1])
+        if account_off:
+            from ..roles.principal import account_page_refs
+
+            # The account's page goes first, so the request's page stays
+            # the call's own message (ruled: Roman, 2026-10-28 09:10).
+            shown = account_page_refs(ctx.conn, account_off)
+            if shown:
+                ctx.outbound.append({
+                    "id": new_id("m", ctx.conn,
+                                 offset=len(ctx.outbound) + len(recipients)),
+                    "to_role": "principal", "verb": "present",
+                    "body_refs": shown, "body_text": None,
+                    "round_no": round_no, "cause_id": ctx.trigger})
         for n, to_role in enumerate(recipients):
             staged = {
                 "id": msg_id if n == 0

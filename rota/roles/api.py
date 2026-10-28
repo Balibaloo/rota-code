@@ -13500,6 +13500,52 @@ def _earlier_answers(conn, ask_id: str, reply_id: str
     return out
 
 
+_PAGE_LINE = re.compile(r"^\s+(\d+)\. (.*)$", re.M)
+# The refusal of words that name no line of the account's page. His next
+# request page reads it from the page's note (`account_unnamed_line`).
+ACCOUNT_NO_LINE = ("The words name no line of this page, so they change no "
+                   "row on it.")
+
+
+def _account_page_refusal(words: str, ruled: set[int], page_text: str,
+                          size: int, contested: set[int]) -> str | None:
+    """The refusal of a ruling on the account's page that his words do not
+    name, or None.
+
+    The account's page has no line of a request. Words land only on a line
+    they name by number or share a name with, by the F2 name rule. Words
+    about format_filename on s272's page of claims landed 7 contests, then 7
+    approves, on 7 claims they never named (the review of P9, p2, finding
+    2, and p3, finding 1). Agreement alone approves every line, and words
+    that name lines by a word are left to the other doors.
+
+    law 6: nothing is ruled on the principal's behalf
+    """
+    if not any(1 <= n <= size for n in ruled):
+        return None
+    if _AGREEMENT_ALONE.fullmatch(words or ""):
+        return None
+    reading = _line_reading(words, size)
+    # "Drop all seven lines" names lines by a word, and the door cannot read
+    # which, as in `_agreed_contest`. Night 133's m123 said so.
+    if reading.line_word:
+        return None
+    named = {n for n in reading.named | reading.faulted | reading.matched
+             if 1 <= n <= size}
+    said = reading.names
+    if said:
+        named |= {int(m.group(1)) for m in _PAGE_LINE.finditer(page_text or "")
+                  if said & _line_reading(m.group(2)).names}
+    if not named:
+        return ACCOUNT_NO_LINE
+    unnamed = sorted(n for n in contested if 1 <= n <= size and n not in named)
+    if not unnamed:
+        return None
+    return (f"The words name {_lines(sorted(named))} and do not name "
+            f"{_lines(unnamed)}. On the account's page a contest lands only "
+            f"on a line the words name.")
+
+
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
                     request_lines: frozenset[int]) -> str | None:
     """The refusal of a contest when the words name no line, or None.
@@ -13926,7 +13972,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     from ..core.scheduler import aside_items
 
     shift = ask["id"].startswith(SHIFT_ASK)
-    off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
+    # The page's own filter, so the door keeps the rows the page numbers.
+    off = set() if (shift or is_clarify) else off_page(
+        ctx.conn, refs, confirm=ask["verb"] == "confirm")
     # His contest of a read-back line corrects the rows of that reply, and
     # the new page need not hold them. Those refs are keys here, past the
     # off-page rule (the review of pass 5, finding 1; the seam design, 2.3).
@@ -13981,12 +14029,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"you put aside.")
         # A row of another request is no line of this page, so words here
         # never change it (frame 193's design, 2.F.7).
+        # A row he saw on the page takes his words, as night 172's m131 did
+        # before P9: "Drop lines 9 to 15". A row he never saw there takes
+        # none (law 6; the review of P9, finding 3).
         if (ref is not None and ref in off and ruling in ("contest", "revise")
-                and ref not in read_keys):
+                and ref not in read_keys and ref not in (order or [])):
+            from .principal import request_of
+
             items = _items_reached(ctx.conn, ref)
+            if any(request_of(ctx.conn, i) for i in items):
+                raise ValueError(
+                    f"{key} is your earlier request, {', '.join(items)}, and "
+                    f"this page is about another request. Words on this page "
+                    f"do not change it. Leave the row out of the ruling.")
             raise ValueError(
-                f"{key} is your earlier request, {', '.join(items)}, and this "
-                f"page is about another request. Words on this page do not "
+                f"{key} is no line of this page. Words on this page do not "
                 f"change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
@@ -14324,6 +14381,22 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # A contest must rest on the words. Night 146 (frame 234): s427 contested
     # four lines the words said match, and s122 contested line 1, the
     # request, when the words faulted lines 3 and 5. Each cancelled a batch.
+    # The account's page: a present of no request and no request line
+    # (ruled: Roman, 2026-10-28 09:10, frame 344). His reply is read even
+    # when the call passes no words, so 7 approves with empty words of the
+    # review of P9, p3, finding 1, are refused too.
+    from .principal import page_owner
+
+    if (order and not is_clarify and not shift and ask["verb"] == "present"
+            and not asked
+            and page_owner(ctx.conn, row_refs) is None):
+        ruled_lines = {i + 1 for i, r in enumerate(order) if r in per_item}
+        refusal = _account_page_refusal(his, ruled_lines, page_text,
+                                        len(order), contested={
+                                            i + 1 for i, r in enumerate(order)
+                                            if per_item.get(r) != "approve"})
+        if refusal:
+            raise ValueError(refusal)
     if (words or "").strip() and not is_clarify and order:
         faulted, matched = set(read_faulted), set(read_matched)
         # law 9: batches are immutable once formed; only scope recomposes one

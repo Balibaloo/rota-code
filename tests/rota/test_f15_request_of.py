@@ -141,7 +141,9 @@ RAW_SITES = {
     # reads text, not the owner of a row.
     "push_working_set",
 }
-ROOT_SITES = {"_item_request", "_root_statement", "uncovered_statements"}
+# The one walk from a statement to its request. `_item_request` and the
+# owner of a statement that no item cites read it (P8).
+ROOT_SITES = {"_statement_request", "_root_statement", "uncovered_statements"}
 
 
 def _functions():

@@ -339,9 +339,16 @@ def test_m192_numbers_no_line_of_a_parked_or_earlier_request(db):
     sb = build("liaison", db, mode="normal", session_id="sess_m192",
                allow=prompts.mode_tools("liaison", "submit"))
     sb.call("msg.present_principal", refs=m192)
-    (sent,) = [m for m in sb.ctx.outbound if m["verb"] == "present"]
+    # The account's rows the door drops go out on the account's page first
+    # (the review of P9, p3, finding 2), and the call's page is the last.
+    *account, sent = [m for m in sb.ctx.outbound if m["verb"] == "present"]
     assert sorted(sent["body_refs"]) == sorted(
         render_page(db, "present", sent["body_refs"])[1])
+    from rota.roles.principal import account_rows
+
+    for page in account:
+        refs = [r for r in page["body_refs"] if r != "how_it_works"]
+        assert refs and account_rows(db, refs) == refs
 
 
 def test_a_challenge_row_reaches_its_item(db):
@@ -513,13 +520,38 @@ def _m283(db) -> list[str]:
             "provides_command_line_interface", VERSION]
 
 
-def test_m283_keeps_the_account_item_that_cites_an_earlier_statement(db):
-    """The review of 61a0f41d, finding 2."""
+def test_m283_puts_the_account_item_on_the_accounts_page(db):
+    """The review of 61a0f41d, finding 2, kept the description on every
+    request page. Roman ruled on 2026-10-28 09:10 that the account's rows go
+    on their own page and never on a request's page (frame 344). A
+    description has no request (F15), so it leaves the request's page."""
     from rota.roles.principal import off_page
 
+    from rota.core.sandbox import build
+
     m283 = _m283(db)
-    assert "defines_commands_and_options" not in off_page(db, m283)
-    assert "defines_commands_and_options" in render_page(db, "present", m283)[1]
+    assert "defines_commands_and_options" in off_page(db, m283)
+    assert "defines_commands_and_options" not in render_page(
+        db, "present", m283)[1]
+    assert VERSION in render_page(db, "present", m283)[1]
+    # The sign-off's send drops the account's rows, and the door sends them
+    # on the account's page, how_it_works first (the review of P9, p3,
+    # finding 2, the probe t/test_p89_m283.py).
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m282', 'm282', 'vision_keeper', "
+               "'liaison', 'submit', ?, 900, 'open')", (json.dumps(m283),))
+    db.commit()
+    sb = build("liaison", db, mode="normal", session_id="s_m283")
+    sb.ctx.trigger = "m282"
+    sb.call("msg.present_principal", refs=m283)
+    account, page = sb.ctx.outbound[-2], sb.ctx.outbound[-1]
+    assert VERSION in page["body_refs"]
+    assert account["to_role"] == "principal" and account["verb"] == "present"
+    assert account["body_refs"] == [
+        "how_it_works", "defines_commands_and_options",
+        "parses_and_executes_inputs", "provides_command_line_interface"]
+    assert not {"how_it_works", "defines_commands_and_options"} & set(
+        page["body_refs"])
 
 
 def test_a_ratified_follow_up_keeps_the_request_and_its_coverage(db):
@@ -539,7 +571,9 @@ def test_a_ratified_follow_up_keeps_the_request_and_its_coverage(db):
     db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's5'")
     db.commit()
     assert open_requests(db) == [VERSION]
-    assert request_rows(db, [])[0] == VERSION
+    # The follow-up s5 names the request, so its page keeps the item. A page
+    # of no request is the account's (ruled: Roman, 2026-10-28 09:10).
+    assert request_rows(db, ["s5"])[0] == VERSION
     assert "s5" not in [s["id"] for s in uncovered_statements(db)]
     assert request_shift(db) == []
 

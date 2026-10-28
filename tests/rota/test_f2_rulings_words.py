@@ -283,3 +283,15 @@ def test_s274s_call_with_no_words_meets_the_reversal(night):
         api.rulings_rule(ctx, rulings={**R18, "4": "contest", "18": "contest"},
                          acts=S274_ACTS)
     assert str(e.value) == REVERSAL
+
+
+def test_a_contest_by_the_id_of_a_row_he_never_saw_is_refused(night):
+    """The review of P9, finding 3: with no recorded order, the door reads
+    today's render of m130, which numbers none of the 7 claims. A contest
+    keyed by a claim's id lands on no row he saw (law 6)."""
+    ctx = night("m131", LATE[3:])
+    ctx.conn.execute("DELETE FROM config WHERE key LIKE '%m131%'")
+    rulings = {str(i): A for i in range(1, 9)}
+    rulings["challenge_constraints_sentinel"] = "contest"
+    with pytest.raises(ValueError, match="is no line of this page"):
+        api.rulings_rule(ctx, rulings=rulings, words=W131)
