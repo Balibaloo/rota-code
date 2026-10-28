@@ -300,17 +300,58 @@ def test_a_reply_that_names_no_row_lands_no_approve(db):
     reply "what time is the meeting".
 
     The door cannot read the words, so it holds the two facts it can check.
-    An empty map on a clarify is silence, not consent. A reading with no
-    words on file has nothing behind it.
+    An empty map on a clarify is silence, not consent. A reply that is a
+    question approves no row and names no row, so its approves have
+    nothing behind them.
     """
     _two_senses(db)
     sb, _ = _answering(db, "what time is the meeting")
     with pytest.raises(ValueError, match="rulings is a map"):
         sb.call("rulings.rule", rulings={}, words="what time is the meeting")
-    with pytest.raises(ValueError, match="words is empty"):
+    # His reply is a question, and law 6 reads no consent in it (wall W7).
+    with pytest.raises(ValueError, match=_NO_APPROVE):
         sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"})
     assert not [w for w in sb.ctx.writes if w[0] == "rulings"], (
         "no approve is on file for a reply that ruled nothing")
+
+
+_NO_APPROVE = ("His words neither approve nor name g1, so g1 takes no "
+               "approve: the words start 'what time is the meeting'")
+
+
+def test_passed_words_that_are_his_question_back_no_approve(db):
+    """Review p7 p1, finding 1: the seat passed his question as `words`, and
+    two approves landed. The words are his, and they approve nothing."""
+    _two_senses(db)
+    sb, _ = _answering(db, "what time is the meeting")
+    with pytest.raises(ValueError, match=_NO_APPROVE):
+        sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"},
+                words="what time is the meeting")
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
+
+
+def test_a_contest_beside_the_approve_on_a_clarify_backs_no_approve(db):
+    """Review p7 p1, finding 1: a clarify has no line order, so a contest
+    beside an approve does not stand for the approve."""
+    _two_senses(db)
+    sb, _ = _answering(db, "what time is the meeting")
+    with pytest.raises(ValueError, match=_NO_APPROVE):
+        sb.call("rulings.rule", rulings={"g1": "approve", "g2": "contest"})
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
+
+
+def test_a_hidden_column_names_no_row(db):
+    """Review p7 p1, finding 2: only the text the page showed him names a
+    row. `sense_body` is not on the page."""
+    _two_senses(db)
+    db.execute("UPDATE glossary_terms SET sense_body = 'see the meeting_time "
+               "flag' WHERE id = 'g1'")
+    db.commit()
+    sb, _ = _answering(db, "what about meeting_time")
+    with pytest.raises(ValueError, match="neither approve nor name g1"):
+        sb.call("rulings.rule", rulings={"g1": "approve"},
+                words="what about meeting_time")
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
 
 
 def test_a_signoff_on_a_parking_row_does_not_rule_the_word(db):

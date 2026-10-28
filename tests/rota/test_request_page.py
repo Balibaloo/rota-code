@@ -19,8 +19,8 @@ from rota.core.runner import run_session
 from rota.core.scheduler import open_tips, tick_agenda, verdict_rows
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import (
-    ACCOUNT_TODAY, TEAM_NOTES, parse_reply, land, pending_asks, render_page,
-    request_rows,
+    ACCOUNT_TODAY, TEAM_NOTES, parse_reply, land, pending_asks, record_entry,
+    render_page, request_rows,
 )
 from rota.testkit.fixtures import seed_provenance, seed_ref
 from rota.roles.principal import verdict_for
@@ -1560,6 +1560,8 @@ def test_a_revise_of_a_test_row_travels_to_the_criterions_writer(m399):
     _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
     _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
              status="open")
+    # `land` keeps the words of a clarify's answer in the transcript only.
+    record_entry(m399, "m400", M400_WORDS)
     m399.commit()
     sb = _sandbox(m399, "liaison", "answering", "m400")
     sb.call("rulings.rule", rulings={C1_VO: "approve", TST_VO: "revise"},
@@ -1582,6 +1584,8 @@ def test_a_revised_test_row_wakes_the_terminologist_in_the_repair_mode(m399):
     _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
     _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
              status="open")
+    # `land` keeps the words of a clarify's answer in the transcript only.
+    record_entry(m399, "m400", M400_WORDS)
     m399.commit()
     (wake,) = [w for w in open_tips(m399) if w.message_id == "m400"]
     calls = [f"TOOL: rulings.rule(rulings={json.dumps({C1_VO: 'approve', TST_VO: 'revise'})}, "

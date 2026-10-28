@@ -2488,17 +2488,25 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # Night 135's s224 saw four answers and no question, and
                 # asked the answered question a fourth time (frame 142,
                 # night 135's read, fix 5).
+                # His answers read through `said`. A clarify answer lands
+                # with no `body_text`, and night 172's walls hid it (W7).
+                from ..roles.principal import said as his_words
+
                 earlier = []
                 for r in conn.execute(
-                        "SELECT from_role, body_text FROM messages "
+                        "SELECT id, from_role, body_text FROM messages "
                         "WHERE ((cause_id = ? AND verb = 'converse' AND id != ?) "
                         "  OR (from_role = 'liaison' AND to_role = 'principal' "
                         "      AND verb IN ('clarify', 'converse') AND cause_id IN "
                         "      (SELECT id FROM messages WHERE cause_id = ? "
                         "       AND from_role = 'principal'))) "
-                        "AND body_text IS NOT NULL ORDER BY seq",
+                        "ORDER BY seq",
                         (clarify["id"], row["id"], clarify["id"])):
-                    turn = dict(r)
+                    text = (his_words(conn, r["id"]) or None
+                            if r["from_role"] == "principal" else r["body_text"])
+                    if text is None:
+                        continue
+                    turn = {"from_role": r["from_role"], "body_text": text}
                     if turn["from_role"] == "liaison":
                         turn["asked"] = True
                     earlier.append(turn)

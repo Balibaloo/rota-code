@@ -3732,11 +3732,17 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # the text named no other route (frame 320, cause 9).
         if recipient == "principal" and verb == "clarify" and text:
             asked = re.findall(r"[a-z0-9']+", text.lower())
-            for row in ctx.conn.execute(
-                    "SELECT text AS said FROM entries WHERE author = 'principal' "
-                    "UNION ALL SELECT body_text AS said FROM messages "
-                    "WHERE from_role = 'principal' AND body_text IS NOT NULL"):
-                run = _longest_word_run(asked, re.findall(r"[a-z0-9']+", (row["said"] or "").lower()))
+            # His words of a message read through `said`, the one reader
+            # (night 172, wall W7). An entry of no message, as intake's,
+            # still counts.
+            from ..roles.principal import said as his_words
+
+            heard = [r["text"] for r in ctx.conn.execute(
+                "SELECT text FROM entries WHERE author = 'principal'")]
+            heard += [his_words(ctx.conn, r["id"]) for r in ctx.conn.execute(
+                "SELECT id FROM messages WHERE from_role = 'principal'")]
+            for one in heard:
+                run = _longest_word_run(asked, re.findall(r"[a-z0-9']+", (one or "").lower()))
                 if len(run) >= QUOTE_RUN:
                     # Only a mode that holds brief.segment is told to use it.
                     # Four Liaison modes hold this door and not brief.segment

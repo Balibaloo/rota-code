@@ -282,13 +282,15 @@ def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
 
 def test_his_reply_alone_confirms_a_reading(db):
     """The review of pass 5b, finding 5, probe P2d: his reply skips line 3,
-    and the Liaison passes the words "ok"."""
+    and the Liaison passes the words "ok". Since F2 pass 2f, `words` must be
+    his clause, so his reply holds "ok" as a clause. Read alone, "ok"
+    approves the whole page, so a guard that read `words` would land."""
     from rota.core.sandbox import build
     from rota.roles import prompts
 
     reply, _ = _first_reply(db)
     ask = _present(db, "m_p2", ["calculate_tip", "s1", READING_REF + reply], 5)
-    his = land(db, ask, parse_reply(ask, "2 is fine, and 1 is fine as well."))
+    his = land(db, ask, parse_reply(ask, "2 is fine, ok, and 1 is fine as well."))
     db.commit()
     sb = build("liaison", db, mode="normal", session_id="s_p2d",
                allow=prompts.mode_tools("liaison", "landing"))
