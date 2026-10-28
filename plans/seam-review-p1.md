@@ -179,3 +179,37 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac2
 ### (d) Usage
 
 Input about 26k tokens, output about 7k tokens, about 33k in total. These are estimates. The cap was 40k.
+
+## p5
+
+**Verdict: NOT READY.** Pass 3e at 22f98cf2 closes p4-1 to p4-4 and p4-6 on their probes. The cut after "say" still lands a rewrite on a line that he calls fine, when the frame is not in the six-word list. Seamroot is not ready to merge rota/foundation at eeb0db69 and land. Findings: 1 high, 3 low.
+
+### (a) Verdicts on the points
+
+1. p4-1: closed on its probes. On m35, "it is wrong to say ..." and "I never said line 4 should say ..." are refused. "Line 4 should say the local variable matters." lands with his whole clause. `_REPORT_DENIALS` is a second negation reader, beside `_NEGATED` and `_NEGATION_WORDS` (finding p5-3). "wrong" inside a quoted or described line refuses a right span: "Line 4 with the wrong variable should say ..." gives False. A frame outside the list lands (finding p5-1).
+2. p4-2 and p4-4: closed. `clear` has no path stems, and "Lines 2 to 4 are still wrong" names no file. The changed span on the request page is his M85 words. It names `tests/test_defaults.py` in the sense of exclusion, so it is right. A shared stem misfires: "the termui tests" names `src/click/termui.py` as well as `tests/test_termui.py` (finding p5-2).
+3. p4-3: closed. `test_a_clause_starts_after_should_say` passes and reads no register. p4-6: closed. `_backed` on a ref that the page shows on lines 2 and 4 backs "Line 4 is wrong." for a contest and "Line 4 is right." for an approve. "Line 2 is wrong, line 4 is right." backs an approve. That reply gives one ref two verdicts, so no finding.
+4. Replay: 27 moves against 3b31077a, and 0 moves against the p4 run (`new5.json`). All 27 were judged right in p3 and p4. No move is wrong.
+5. Tests: 46 files, 1 failed, 1360 passed, 13 xfailed. The red is `test_pins`, a known red. The worktree stays clean.
+6. Merge: eeb0db69 is not an ancestor, and 97 commits of rota/foundation are missing. `git merge-tree` shows one conflict in `rota/roles/api.py` at 11902. The 22f98cf2 side adds `_REPORT_DENIALS` and `_clause_start_near`, and the eeb0db69 side adds `_HEDGES`. Both are additions, so keep both. Both sides change the clause reader, so run the gate after the merge.
+
+### (b) Findings
+
+- p5-1. **rota/roles/api.py `_clause_tokens` 11915 to 11926, high. CONFIRMED.** The cut needs a line name and no listed denial anywhere in the lead. On m35, "Line 4 is fine, though some say line 4 has to say the local variable matters." lands `revise` with `rewrite` "the local variable matters". He says that line 4 is fine. 5cd73a2d refused this cut. Fix: cut only when the lead opens with "line N", after an optional "and" or "but", before the modal or "to".
+- p5-2. **rota/roles/api.py `_path_stems` 13723, low. CONFIRMED at the reader, PLAUSIBLE at the door.** A stem counts in any sense and for every file that shares it. "the termui tests" names `src/click/termui.py`. "the termui source must change" names `tests/test_termui.py`. "the core of the change is the flag" names `src/click/core.py`. "put the new tests with the other utils tests" names `src/click/utils.py`. The door also needs the path on the line, so a land needs both. Fix: accept the bare stem only with "test" or "file" beside it, and match a `test_` stem only to a test path.
+- p5-3. **rota/roles/api.py `_REPORT_DENIALS`, low. CONFIRMED.** The list is a third negation reader, beside `_NEGATED` and `_NEGATION_WORDS`. It refuses right spans: "I have no doubt line 4 should say ..." and "Line 4 now reads wrong path and should say ..." give False. Fix: drop the list when the p5-1 fix lands, because a lead that opens with "line N" holds no outside frame.
+- p5-4. **Outside the points: the merge with eeb0db69, low. CONFIRMED.** There is one content conflict in `rota/roles/api.py`, and the gate has not run on the merged tree. Fix: keep both sides, then run the gate before the land.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/p3rev/`.
+
+- `probe6.py`: the three m35 "say" replies at 22f98cf2. `probe9.py`: the "though some say" reply.
+- `probe8.py`: 6 spans through `_holds_clauses`, 6 targets through `_path_stems` and `_says`, and 3 replies through `_backed` on a ref shown on two lines.
+- `new6.json`, `diff6.py` and `moves6.txt`: the replay of the 290 calls.
+- `git merge-tree --write-tree 22f98cf2 eeb0db69`: the conflict list. It writes objects only, and it changes no tree or index.
+- Tests: `pytest` on the four named files and the files that name the readers.
+
+### (d) Usage
+
+Input about 12k tokens, output about 4k tokens, about 16k in total. These are estimates. The cap was 25k.
