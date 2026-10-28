@@ -5378,6 +5378,15 @@ def run_session(
                 # clean, and the work silently never happened.
                 refused = []
                 for hc in held_calls:
+                    # The hold keeps the turn's tail whole, so a parse error
+                    # behind the held write reaches here. It has no name and
+                    # runs nothing, so it gets the turn loop's answer to a
+                    # parse error. Night 173's s130 read `hc.name` on one
+                    # and failed (W11).
+                    if isinstance(hc, toolproto.ToolError):
+                        outcome.errors.append(hc.reason)
+                        refused.append(f"ERROR {hc.raw}: {hc.reason}")
+                        continue
                     # A held call can write the rows of a landed call, and
                     # the copy of that call must then go to its door. A held
                     # call that lands is a landed call too: the retry turn
