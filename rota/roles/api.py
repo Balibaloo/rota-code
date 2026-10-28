@@ -1733,8 +1733,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # finding 2). The contested brief says "One call, on the item's own id".
     wake_refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
                  if isinstance(r, str)]
-    if wake == "tick:contested" and wake_refs and id not in wake_refs:
-        return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
+    contested = _contested_rows(ctx)
+    if contested and id not in contested:
+        return _contested_elsewhere(ctx, id, cur is not None, contested)
     reply = _reply_sentence_fault(ctx, id, text, row, wake_refs)
     if reply:
         return reply
@@ -1942,6 +1943,42 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"{_amend_step(ctx, id, cur['text'], ' '.join(words))}")
 
 
+def _contested_rows(ctx: Ctx) -> list[str]:
+    """The rows a `tick:contested` wake contests, or an empty list on any
+    other wake. The one reader of which row a contest may amend."""
+    if (getattr(ctx, "wake_kind", "") or "") != "tick:contested":
+        return []
+    return [r for r in (getattr(ctx, "wake_refs", ()) or ())
+            if isinstance(r, str)]
+
+
+# The deliver brief's route for a request, `deliver.md` lines 37 and 38.
+DESCRIPTION_ROUTE = ("Assert it as its own item, with an id that names the "
+                     "behaviour, one `problem.assert` per distinct thing. Do "
+                     "not put the statement into the account.")
+
+
+def _description_kept(ctx: Ctx, id: str) -> str:
+    """
+    The refusal for a text on an observed description row.
+
+    The route goes only to a seat whose mode brief holds it. A seat on
+    another mode does not read the deliver brief, and a new item does not
+    end its wake, so the refusal names no call there (the review of hiwroot
+    pass 1, finding 2).
+    """
+    from . import prompts as _prompts
+
+    fact = (f"{id} is a description read from the code, and only an "
+            f"onboarding wake changes its words. The row keeps its words")
+    brief = " ".join(_prompts.piece(ctx.role, _wake_mode_key(ctx) or "").split())
+    if (DESCRIPTION_ROUTE in brief
+            and "problem.assert" in _wake_mode_tools(ctx)):
+        return (f"{fact}. What the principal asked for is its own item. Your "
+                f"brief says: \"{DESCRIPTION_ROUTE}\"")
+    return f"{fact}."
+
+
 def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
                          wake_refs: list[str]) -> str:
     """
@@ -2040,6 +2077,17 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             "SELECT i.text FROM items i JOIN item_provenance p ON p.id = i.id "
             "WHERE i.id = ? AND p.provenance = 'observed'",
             (id,)).fetchone()
+        # An observed description says what the code does today. Only a
+        # wake that reads the code changes its words. Night 171: s152, woken
+        # by a deliver that named a ledger row, rewrote the approved account,
+        # and the word doors below let it pass. A contest carries his words,
+        # and "an observed item stays observed until their words change it",
+        # so a contested wake amends the row it contests and no other (the
+        # review of hiwroot pass 1, finding 1).
+        from ..core.runner import _is_description
+        if (observed and _is_description(ctx.conn, id)
+                and id not in _contested_rows(ctx)):
+            raise ValueError(_description_kept(ctx, id))
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
             new_words = set(_prose_words(text))
@@ -2121,8 +2169,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                 f"how_it_works is the account of the whole program, and this "
                 f"text keeps almost none of its words ({cur_acc['text']!r}). A "
                 f"behaviour the principal asked for is its own item: assert it "
-                f"under its own name, kind in_scope. Amend the account only to "
-                f"add the new behaviour to what it already says")
+                f"under its own name, kind in_scope")
 
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
@@ -5880,11 +5927,18 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
             f"documentation and send it again.")
 
 
+# The step for a seat's own work that landed in this session. The runner's
+# copy line, the criteria twin and the batch twin end with it, so one
+# situation gets one answer (night 170's W8, review finding 4).
+LANDED_STANDS = "nothing more is needed for it"
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
     in place of "a second sentence", and keeps the old text when every
-    ticket of the item has one.
+    ticket of the item has one. A twin that this session wrote is named as
+    the seat's own landed row, with no "second sentence".
 
     Night 163, item `clear()`: "it needs a second sentence" sent s199 to
     invent cases on tk_1 while tk_2 held nothing (frame 322, cause 9).
@@ -5898,6 +5952,18 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     written = {w[2].get("ticket_id") for w in ctx.writes
                if w[0] == "criteria" and isinstance(w[2], dict)}
     empty = criteria_tickets(ctx.conn, row["item_id"], written)[0] if row else []
+    # The twin is the seat's own row from this session. "A second sentence"
+    # sent seats to cut new words into the twin's words, or to log the row
+    # as lost: night 170's s118 and s187, night 171's s117 (night 170's W8).
+    # The row is one row for one set of words, and the text says it stands.
+    # The step is the runner's step for a copy, in the same words (the W8
+    # review, finding 4).
+    if any(w[0] == "criteria" and w[1] == twin for w in ctx.writes):
+        own = (f"those are {twin}'s words already, on the same ticket. {twin} "
+               f"is your criterion from this session. It landed and stands, "
+               f"and {LANDED_STANDS}.")
+        return " ".join([own] + [f"{tid}, {headline}, has no criterion yet."
+                                 for tid, headline in empty])
     if not empty:
         return (f"{head}; if the ticket needs a second criterion, it needs a "
                 f"second sentence")
@@ -7275,7 +7341,17 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
     staged_twin = next((w[1] for w in ctx.writes if w[0] == "batches"
                         and isinstance(w[2], dict)
                         and w[2].get("item_id") == item_id), None)
-    twin = staged_twin or (open_twin and open_twin["id"])
+    # The seat's own batch from this session. A batch row is a staged
+    # relation and no journal, so a new id on it gets the copy answer and
+    # not the refusal. L1-AR-group-into-batches sent a second id at turn 4
+    # and read "reorder it with problem.prioritize" (the W8 review,
+    # finding 5).
+    if staged_twin:
+        return {"id": staged_twin, "unchanged": True,
+                "note": f"{item_id}'s work is your batch {staged_twin} from "
+                        f"this session. It landed and stands, and "
+                        f"{LANDED_STANDS}."}
+    twin = open_twin and open_twin["id"]
     if twin:
         raise ValueError(
             f"{item_id}'s work is already batched as {twin}. A batch "
@@ -15670,11 +15746,6 @@ def schedule_consult(ctx: Ctx) -> list[dict]:
         "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
 
 
-# The verbs that open a question somebody is waiting on an answer to. `ask` is
-# the read-only inquiry route, `question` the escalation ladder; both leave the
-# asker blocked, which is the condition `reask` reports.
-ASKING_VERBS = ("question", "ask")
-
 
 @op("schedule", "reask")
 def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
@@ -15732,8 +15803,12 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     # inquiry route -- so the one role that talks to the principal could not
     # say an answer had not landed, which is the case where it matters most:
     # the alternative is spending the principal's attention on "we don't know"
-    # while two owners who might know have not been asked.
-    if row is None or row["verb"] not in ASKING_VERBS:
+    # while two owners who might know have not been asked. The verbs come
+    # from `db.OWED_A_REPLY`, the one list of the verbs that owe a reply
+    # (fact F16, rule C76).
+    from ..core.db import OWED_A_REPLY
+
+    if row is None or row["verb"] not in OWED_A_REPLY:
         raise ValueError(
             "the message that woke you is not a reply to a question you asked")
     # Fact F23: the asker is the author of the question row, and the commit

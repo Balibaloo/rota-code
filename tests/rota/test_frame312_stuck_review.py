@@ -266,3 +266,42 @@ def test_the_next_start_window_holds_his_answer(bg1):
     pushed = push_working_set("developer", sb,
                               Wake("developer", "tick:batch_start", refs=("bg_1",)))
     assert words in str(pushed.get(START_RULED_KEY)), list(pushed)
+
+
+# Frame 264, pass 1b: every page that prints the observed account prints it
+# under the heading that says it is the project today (ruled: Roman,
+# 2026-10-17 04:33). Rule C76: one print of the account row serves each page.
+ACCOUNT = ("Click is a toolkit for command-line interfaces in Python. Users "
+           "define commands and options, and Click runs them.")
+
+
+def _account(db):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, priority, is_description) VALUES ('how_it_works', ?, "
+               "'in_scope', 'approved', 2, 2, 1, 1)", (ACCOUNT,))
+    seed_provenance(db, "items", "how_it_works", "observed")
+    db.commit()
+
+
+def test_the_touch_note_shows_the_observed_account_as_the_project_today(bg1):
+    from rota.roles.principal import ACCOUNT_TODAY
+
+    _account(bg1)
+    page = render_page(bg1, "present", M45_REFS + ["how_it_works"],
+                       stalled=[])[0]
+    assert page.startswith("Before I build this"), page
+    head = page.index(ACCOUNT_TODAY)
+    assert head < page.index(ACCOUNT) < page.index("The team expects to touch:")
+
+
+def test_the_stopped_page_shows_the_observed_account_as_the_project_today(bg1):
+    from rota.roles.principal import ACCOUNT_TODAY
+
+    _account(bg1)
+    key = "tester|tick:tests_missing|bg_1"
+    _quarantine(bg1, key)
+    page = render_page(bg1, "present", M45_REFS + ["how_it_works"],
+                       stalled=[key])[0]
+    assert page.startswith("The team stopped work on this change."), page
+    head = page.index(ACCOUNT_TODAY)
+    assert head < page.index(ACCOUNT) < page.index("The team gave up:")

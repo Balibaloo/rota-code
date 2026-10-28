@@ -1091,10 +1091,34 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     return True
 
 
-# The verbs whose addressee owes a reply. A woken session that sends nothing
-# caused by one of these and writes no receipt for it leaves it unresolved
-# (frame 174, design 200 change 5).
-OWED_A_REPLY = ("challenge", "propose", "escalate")
+# The verbs whose addressee owes a reply or work. This is the one list of
+# that fact (fact F16, rule C76). `session_commit`, `waiting_on`,
+# `waiting_on_a_seat` and `schedule_reask` read it. A woken session that
+# sends nothing caused by one of these and writes no receipt for it leaves
+# it unresolved (frame 174, design 200 change 5).
+OWED_A_REPLY = (
+    # `scheduler.waiting_on`: an open `question` is what waiting is.
+    "question",
+    # `schedule_reask`: Liaison's read-only inquiry leaves the asker blocked.
+    "ask",
+    # Frame 174 and frame 204's design, section 3.2: the challenger waits.
+    "challenge",
+    # `vision_keeper/propose.md` answers with msg.report_liaison (frame 303).
+    "propose",
+    # The escalate brief: "model.amend, and say so with msg.answer_developer".
+    "escalate",
+    # `liaison/submit.md`: "Send one `msg.present_principal`".
+    "submit",
+    # `developer/reopen.md`: "You elect, with `msg.elect_vision_keeper`".
+    # A reopen caused by an elect hands the batch back and owes nothing
+    # (`_owes_a_reply`).
+    "reopen",
+    # `vision_keeper/elect.md`: "Record it and unblock them" with a reopen.
+    "elect",
+)
+# `verdict` owes nothing: `liaison/verdict.md` ends the session with no call
+# when every statement is contested. A deliver, a relay, a report and an
+# answer carry information, so the wake answers them.
 UNRECEIVED_NOTE = ("unresolved: the woken session sent nothing and wrote no "
                    "row that cites this message")
 
@@ -1244,6 +1268,48 @@ def _tell_unread(conn: sqlite3.Connection, trig: sqlite3.Row, request: str,
 
 # The tables whose write lands a request (frame 320, review 1, finding 2).
 REQUEST_LANDS = ("statements", "items")
+# The tables whose write lands nothing. A fault row records a refused call,
+# so a session whose every call was refused landed no row (fact F16).
+NOT_LANDED = ("faults",)
+
+
+def landed(result: SessionResult) -> bool:
+    """
+    Whether the session landed a row or sent a message.
+
+    Night 170's W17 counted 21 sessions with no landed write and no
+    message. s202 met three refusals and sent nothing. Its fault rows read
+    as writes, so the old rule called the session not barren (fact F16).
+
+    law 6: a question nobody answers climbs, so a barren session leaves it unresolved
+    """
+    return bool(result.messages) or any(w.table not in NOT_LANDED
+                                        for w in result.writes)
+
+
+def mark_answered(conn: sqlite3.Connection, message_id: str,
+                  note: str | None = None, *, only_open: bool = False) -> int:
+    """
+    Set the answered mark of one message. Returns the count of rows set.
+
+    This is the one writer of the mark (fact F16). A session sets it through
+    `session_commit`. A trigger that asks for a reply needs `landed` first.
+    A trigger that asks for nothing is answered by its wake. The principal's
+    `land` and
+    `_land_shift`, the park-ask sweeps and the cockpit set it on their own
+    landed fact: his ruling, the batch's commit, the line he saw. A note
+    stays on the row as the reason, and `None` keeps the note there.
+    """
+    if note is None:
+        sql = "UPDATE messages SET status = 'answered' WHERE id = ?"
+        args: tuple = (message_id,)
+    else:
+        sql = ("UPDATE messages SET status = 'answered', unresolved_note = ? "
+               "WHERE id = ?")
+        args = (note, message_id)
+    if only_open:
+        sql += " AND status = 'open'"
+    return conn.execute(sql, args).rowcount or 0
 # The note of a request miss with no refusal and no error. A request owes no
 # ruling, so frame 267's note does not fit it (review 1, finding 5).
 REQUEST_NOTHING = "the session landed nothing and sent nothing"
@@ -1284,10 +1350,14 @@ REPEAT_END = "repeated its previous turn verbatim twice; ended"
 # also says how the session ended, so the refusal before it is the fault
 # (frame 267, review 2, finding 1).
 REFUSED_END = " was refused the same way in four turns; the session ended on it"
+# The copy door's end line. A turn that only sends again calls that landed
+# earlier in the session has nothing more to do (night 170's W8).
+COPIES_END = "sent again only calls that landed earlier in this session; ended"
 
 
 def _is_end_line(line: str) -> bool:
-    return line == REPEAT_END or line.endswith(REFUSED_END)
+    return (line in (REPEAT_END, COPIES_END)
+            or line.endswith(REFUSED_END))
 
 
 def _why_no_ruling(result: SessionResult,
@@ -1315,17 +1385,26 @@ def _receipt_rule(trig: sqlite3.Row) -> str | None:
     return RECEIPT_RULES.get((trig["from_role"], trig["to_role"], trig["verb"]))
 
 
-def _owes_a_reply(trig: sqlite3.Row) -> bool:
+def _owes_a_reply(conn: sqlite3.Connection, trig: sqlite3.Row) -> bool:
     """
-    Whether `trig` is a challenge, a proposal or an escalation on a channel
-    the graph declares. A test can seed a carrier on no channel, as the
+    Whether `trig` has a verb of `OWED_A_REPLY` on a channel the graph
+    declares. A test can seed a carrier on no channel, as the
     synthetic arc's Liaison challenge to the Critic. No session can send one.
 
     An edge whose rule in `RECEIPT_RULES` is "none" owes no reply.
+
+    A `reopen` caused by an `elect` hands the batch back, and it owes no
+    reply. `runner.py` reads the same key and gives it the `batch_start`
+    mode, which builds and sends nothing. tipsAL's s75 woke on m37, such a
+    reopen, and committed code (F16 review 1, finding 1).
     """
     if trig["verb"] not in OWED_A_REPLY:
         return False
     if _receipt_rule(trig) == "none":
+        return False
+    if trig["verb"] == "reopen" and trig["cause_id"] and conn.execute(
+            "SELECT 1 FROM messages WHERE id = ? AND verb = 'elect'",
+            (trig["cause_id"],)).fetchone():
         return False
     from ..design import graph as graph_mod
     return any(e.s == trig["from_role"] and e.t == trig["to_role"]
@@ -1500,11 +1579,11 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # Not messages this role sent itself: the asker can send in its own
         # thread while still blocked, and that is not somebody picking it up.
         for thread in {_thread_of(conn, m) for m in result.messages}:
-            conn.execute(
-                "UPDATE messages SET status = 'answered' "
-                "WHERE status = 'unresolved' AND thread_id = ? AND from_role != ?",
-                (thread, result.role),
-            )
+            for r in conn.execute(
+                    "SELECT id FROM messages WHERE status = 'unresolved' "
+                    "AND thread_id = ? AND from_role != ?",
+                    (thread, result.role)).fetchall():
+                mark_answered(conn, r["id"])
 
 
         for turn in result.turns:
@@ -1541,8 +1620,11 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # how a repair that declined silently killed the thread: the question
         # closed, the once-guard stopped the repair re-firing, and nothing
         # remained to carry it. Left unresolved, the ladder resumes.
+        # A session that landed no row and sent nothing did not answer an
+        # open trigger that asks either. The trigger goes unresolved and
+        # climbs (fact F16, night 170's W17).
         if result.trigger_msg:
-            barren = not result.writes and not result.messages
+            barren = not landed(result)
             trig = conn.execute(
                 "SELECT status, verb, body_refs, from_role, to_role, "
                 "cause_id, attempts FROM messages WHERE id = ?",
@@ -1556,7 +1638,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # A suspended session keeps its claim and can still reply.
             if (trig and trig["status"] == "open"
                     and result.checkpoint is None
-                    and _owes_a_reply(trig)
+                    and _owes_a_reply(conn, trig)
                     and not (barren and trig["verb"] == "challenge")
                     and not _received(conn, result, trig)):
                 # law 6: a question nobody answers climbs, so a barren session leaves it unresolved
@@ -1564,11 +1646,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 # and wrote no receipt for it did not answer it. Night 127's
                 # m72 and m112 were escalations, and the Architect wrote
                 # nothing and sent nothing. Invariant I9 found such rows that
-                # read answered.
+                # read answered. Fact F16: the note names the refusal when a
+                # call was refused, as night 170's s202.
+                note = ": ".join(filter(None, (UNRECEIVED_NOTE,
+                                               _why_no_ruling(result, ""))))
                 conn.execute(
                     "UPDATE messages SET status = 'unresolved', "
                     "unresolved_note = COALESCE(unresolved_note, ?) WHERE id = ?",
-                    (UNRECEIVED_NOTE, result.trigger_msg))
+                    (note, result.trigger_msg))
             elif barren and trig and trig["verb"] == "challenge" and trig["status"] == "open":
                 # A barren session on a challenge is not an answer to it.
                 # clickI night 33 (2026-09-13): the Tester's every answer was
@@ -1587,9 +1672,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 # reply to a returned page closes the reply, and the page
                 # keeps its note, so no driver answers it again (frame 267,
                 # review 1, finding 6: a page the seat cannot land looped).
-                conn.execute(
-                    "UPDATE messages SET status = 'answered' WHERE id = ?",
-                    (result.trigger_msg,))
+                mark_answered(conn, result.trigger_msg)
             elif page is not None and (trig["attempts"] or 0) < REPLY_SESSIONS:
                 # Frame 267, the first miss: the reply stays open, so the
                 # Liaison wakes on it again. The note goes into that wake's
@@ -1612,17 +1695,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 # the route `pending_replies` shows him. The request keeps
                 # the reason, so the record says why it closed.
                 why = _why_no_ruling(result, REQUEST_NOTHING)
-                conn.execute(
-                    "UPDATE messages SET status = 'answered', "
-                    "unresolved_note = ? WHERE id = ?",
-                    (why, result.trigger_msg))
+                mark_answered(conn, result.trigger_msg, why)
                 if not _answers_unread(conn, trig):
                     _tell_unread(conn, trig, result.trigger_msg, why)
             elif not (barren and was_unresolved):
-                conn.execute(
-                    "UPDATE messages SET status = 'answered' WHERE id = ?",
-                    (result.trigger_msg,),
-                )
+                # A verb outside `OWED_A_REPLY` asks for nothing, so its wake
+                # answers it (fact F16). His request takes frame 320's path
+                # above, and a page reply takes frame 267's.
+                mark_answered(conn, result.trigger_msg)
                 # A request that lands after a first miss drops its note, so
                 # `closed_requests` lists only the requests that closed
                 # unlanded (frame 320, finding 9).
@@ -1644,17 +1724,18 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # harvest's carrier, and its siblings were never addressed to a
             # session of their own. Left open they would tip one by one after
             # the reply went out, and Liaison would relay a round it had
-            # already relayed.
-            conn.execute(
-                "UPDATE messages SET status = 'answered' "
-                "WHERE status = 'open' AND verb = 'answer' "
-                "  AND thread_id = (SELECT thread_id FROM messages WHERE id = ?) "
-                "  AND EXISTS (SELECT 1 FROM messages q "
-                "              WHERE q.id = (SELECT cause_id FROM messages "
-                "                            WHERE id = ?) AND q.verb = 'ask') "
-                "  AND cause_id IN (SELECT id FROM messages WHERE verb = 'ask')",
-                (result.trigger_msg, result.trigger_msg),
-            )
+            # already relayed. The round's answers ask for nothing, so the
+            # wake answers them, as it answers its trigger (fact F16).
+            for r in conn.execute(
+                    "SELECT id FROM messages "
+                    "WHERE status = 'open' AND verb = 'answer' "
+                    "  AND thread_id = (SELECT thread_id FROM messages WHERE id = ?) "
+                    "  AND EXISTS (SELECT 1 FROM messages q "
+                    "              WHERE q.id = (SELECT cause_id FROM messages "
+                    "                            WHERE id = ?) AND q.verb = 'ask') "
+                    "  AND cause_id IN (SELECT id FROM messages WHERE verb = 'ask')",
+                    (result.trigger_msg, result.trigger_msg)).fetchall():
+                mark_answered(conn, r["id"])
 
         # The question reached the person who asked it, which is what the end
         # of the ladder is for.
@@ -1671,12 +1752,11 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # on seven of eight questions.
         if any(m.to_role == "principal" for m in result.messages):
             for thread in {_thread_of(conn, m) for m in result.messages}:
-                conn.execute(
-                    "UPDATE messages SET status = 'answered' "
-                    "WHERE status = 'unresolved' AND thread_id = ? "
-                    "  AND from_role = ?",
-                    (thread, result.role),
-                )
+                for r in conn.execute(
+                        "SELECT id FROM messages WHERE status = 'unresolved' "
+                        "AND thread_id = ? AND from_role = ?",
+                        (thread, result.role)).fetchall():
+                    mark_answered(conn, r["id"])
 
         # A demonstrated non-landing is a reask nobody has to declare.
         #
@@ -1713,9 +1793,9 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "SELECT q.id AS qid, q.body_refs AS refs FROM messages a "
                     "JOIN messages q ON q.id = a.cause_id "
                     "WHERE a.id = ? AND a.verb = 'answer' "
-                    "  AND q.verb IN ('question', 'ask') "
+                    f"  AND q.verb IN ({','.join('?' * len(OWED_A_REPLY))}) "
                     "  AND q.from_role = ?",
-                    (result.trigger_msg, result.role)).fetchone()
+                    (result.trigger_msg, *OWED_A_REPLY, result.role)).fetchone()
                 if q and any(
                         conn.execute("SELECT 1 FROM criteria WHERE id = ?",
                                      (ref,)).fetchone()

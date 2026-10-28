@@ -34,8 +34,9 @@ from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
-from .db import (OutboundMessage, REPEAT_END, SessionResult, Turn, Write,
-                 session_commit, session_fail, session_note)
+from .db import (COPIES_END, OutboundMessage, REPEAT_END, SessionResult, Turn,
+                 Write, session_commit, session_fail, session_note)
+from .identity import NATURAL_KEYS
 from .scheduler import Wake, claim, not_retired, release
 
 _log = logging.getLogger(__name__)
@@ -4974,6 +4975,53 @@ def run_session(
         # repeats night 88's s137 (the design review of frame 77, finding 3).
         served: dict[str, int] = {}
         by_path: dict[str, set[str]] = {}
+        # The writes that landed in this session: the key, the turn, the
+        # answer and the rows the call staged. A copy of such a call does not
+        # go to its door. Night 170 refused 37 copies in 27 sessions, and
+        # each refusal read as a rejection of a row that had landed (night
+        # 170's W8). Law 14 keeps a journal out: saying a thing twice is two
+        # events. A later write to the same rows drops the entry, because
+        # the copy then changes the rows again.
+        landed: dict[str, tuple[int, str, set[tuple[str, str]]]] = {}
+
+        def staged_rows(before: list,
+                        sent: int) -> tuple[set[tuple[str, str]], bool]:
+            """
+            The rows one call staged or withdrew, and whether it sent.
+
+            The list is compared by object, because a door can take a staged
+            row back out (`ctx.writes[:] = ...`), so a length is no measure.
+            """
+            now = sb.ctx.writes or []
+            old = {id(w) for w in before}
+            new = {id(w) for w in now}
+            rows = {(w[0], w[1]) for w in now if id(w) not in old}
+            rows |= {(w[0], w[1]) for w in before if id(w) not in new}
+            return rows, len(getattr(sb.ctx, "outbound", None) or []) > sent
+
+        def drop_landed(rows: set[tuple[str, str]]) -> None:
+            for gone in [k for k, v in landed.items() if v[2] & rows]:
+                del landed[gone]
+
+        def enter_landed(key: str, name: str, shown: str,
+                         rows: set[tuple[str, str]], sent: bool,
+                         turn: int) -> None:
+            """
+            Enter a call that ran as a landed write, when it is one.
+
+            Only a call that staged rows, and no journal row and no message,
+            is a landed write. A file write stages no row, and a later write
+            can change the file, so its copy keeps frame 93's path. Law 14
+            rules that a journal holds each saying. The main loop and the
+            stood-by path both call this, so one rule decides.
+            """
+            if (name in read_fns or not rows or sent
+                    or any(NATURAL_KEYS.get(t, ("",))[0] == "journal"
+                           for t, _ in rows)):
+                return
+            already_run.add(key)
+            landed[key] = (turn, shown, rows)
+
         # These six move together. `already_run` says a call ran, `answered`
         # says what it gave, `answered_at` says when, `repeated` counts the
         # askings answered by a line, `served` counts the renders, and
@@ -5285,13 +5333,27 @@ def run_session(
                 # clean, and the work silently never happened.
                 refused = []
                 for hc in held_calls:
+                    # A held call can write the rows of a landed call, and
+                    # the copy of that call must then go to its door. A held
+                    # call that lands is a landed call too: the retry turn
+                    # below gets the s117 shape, a re-sent batch (the W8
+                    # review, finding 7).
+                    staged_before = list(sb.ctx.writes or [])
+                    sent_before = len(getattr(sb.ctx, "outbound", None) or [])
                     try:
-                        sb.call(hc.name, *hc.pos, **hc.args)
+                        held_result = sb.call(hc.name, *hc.pos, **hc.args)
                         told_to_end = False
                     except Exception as exc:           # noqa: BLE001
                         outcome.errors.append(f"{hc.name} (held): {exc}")
                         refused.append(f"ERROR {hc.name}: {exc}")
                         told_to_end = isinstance(exc, api.EndRefusal)
+                        drop_landed(staged_rows(staged_before, sent_before)[0])
+                    else:
+                        rows, sent = staged_rows(staged_before, sent_before)
+                        drop_landed(rows)
+                        enter_landed(sb.call_key(hc.name, hc.pos, hc.args),
+                                     hc.name, _render(held_result, RESULT_CHARS),
+                                     rows, sent, iteration)
                 if refused and not stoodby_retried:
                     # Walk twenty-one: seven encodes held behind seven
                     # triage reads, the model declared them done, the
@@ -5359,6 +5421,11 @@ def run_session(
             # one reply is the s71 storm, and the eviction test cannot see it:
             # an answer made this turn is not in this turn's prompt.
             served_keys: set[str] = set()
+            # The copies of landed calls in this reply. The first copy of a
+            # key gets the line, as the repeat refusal does. A reply of
+            # copies alone ends the session below.
+            copied_keys: set[str] = set()
+            copies = 0
             # One test for the line and for the loop below, so the line and
             # the skipped error never disagree on which call the cut broke.
             cut_inside = (bool(cut_note) and not native_calls
@@ -5490,6 +5557,26 @@ def run_session(
                               and call.name not in pushed
                               and call.name not in CLAIMS)
 
+                # A copy of a write that landed in this session. The door
+                # refused such a copy as a twin, and seats read the refusal
+                # as a loss of the landed row: s117 of night 171 logged five
+                # faults on it (night 170's W8). The copy changes nothing, so
+                # it is answered and not run. A copy of a refused call is no
+                # copy here, and it goes to its door. The answer is an OK
+                # line, so it holds nothing back and is never held.
+                copy = (landed.get(key) if call.name not in read_fns
+                        and key in already_run else None)
+                if copy is not None:
+                    copies += 1
+                    told_to_end = False
+                    if key not in copied_keys:
+                        copied_keys.add(key)
+                        feedback.append(
+                            f"OK {call.name} -> done at turn {copy[0]} of this "
+                            f"session: {copy[1]}. It stands, and "
+                            f"{api.LANDED_STANDS}.")
+                    continue
+
                 # The terminal act is never held. Attesting closes the subject
                 # and ends the session, and its evidence check already refuses
                 # a citation of anything the session did not open -- so a read
@@ -5505,9 +5592,15 @@ def run_session(
                     break
                 seen_read = seen_read or fresh_read
 
+                staged_before = list(sb.ctx.writes or [])
+                sent_before = len(getattr(sb.ctx, "outbound", None) or [])
                 try:
                     repeat = key in already_run
-                    result = sb.call(call.name, *call.pos, **call.args)
+                    try:
+                        result = sb.call(call.name, *call.pos, **call.args)
+                    finally:
+                        rows, sent = staged_rows(staged_before, sent_before)
+                        drop_landed(rows)
                     # A call that ran is the newest answer, so the door's
                     # end no longer stands. The review of d77bdec, C2: a
                     # write landed after the step, and without this the
@@ -5603,6 +5696,8 @@ def run_session(
                         already_run.add(key)
                         answered[key] = shown
                         answered_at[key] = iteration
+                        enter_landed(key, call.name, shown, rows, sent,
+                                     iteration)
                         # A write is never indexed by the path it writes, so no
                         # invalidation reaches it. A commit changes what a read
                         # of that path returns; it does not change what the
@@ -5915,6 +6010,16 @@ def run_session(
                     "complete — emit no further tool calls."
                 )
             _append(transcript, kinds, _RESULTS, "\n".join(feedback))
+
+            # A reply of copies alone is the verbatim stop one turn early. The
+            # seat says again what landed, and a next turn buys nothing (night
+            # 170's W8). A repeated read beside a copy is a call, so the stop
+            # does not fire: s222 of night 171 paired c_1 with
+            # `glossary.lookup` at turns 4 to 6, and its session runs until
+            # the seat sends no call (the W8 review, finding 3).
+            if copies and copies == len(calls):
+                outcome.errors.append(COPIES_END)
+                break
 
             # Liaison's intake mode is documented as one answer per message --
             # chat, an inquiry, or work, never two -- so once it has actually

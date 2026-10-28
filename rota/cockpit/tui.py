@@ -57,7 +57,8 @@ if __package__ in (None, ""):                              # pragma: no cover
 
 from .. import cli, paths
 from ..core import config, loop as loop_mod
-from ..core.db import connect, init_db, mark_opened, open_for_viewing
+from ..core.db import (connect, init_db, mark_answered, mark_opened,
+                       open_for_viewing)
 from ..core.predicates import outstanding
 from ..llm import llm
 from ..onboarding import boot
@@ -528,9 +529,8 @@ class RotaApp(App):
         self.principal.forget_closed({a.message_id for a in pending_asks(self.conn)})
         for ask in pending_replies(self.conn):
             self.say(ask.rendered or "", "liaison", "magenta")
-            self.conn.execute(
-                "UPDATE messages SET status = 'answered' WHERE id = ?",
-                (ask.message_id,))
+            # The line he saw is its landed fact (fact F16).
+            mark_answered(self.conn, ask.message_id)
 
     def refresh_run_state(self) -> None:
         """

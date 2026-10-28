@@ -23,6 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from ..core.db import mark_answered
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -1823,6 +1824,9 @@ def _review_only(ticks: list[tuple[str, int]]) -> bool:
 
 TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
               "were silent. They are not your request.")
+# The heading of an account read from the code (ruled: Roman, 2026-10-17
+# 04:33, frame 264: the summary stays, presented as the project today).
+ACCOUNT_TODAY = "What the project does today. This is not your request:"
 
 
 def _park_page(conn: sqlite3.Connection, batch: str,
@@ -2323,6 +2327,21 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             shown = f'"{text}"' if quote else text
             out.append(f"  {len(order)}. {shown}")
 
+    def account_lines(plan: str | None = None) -> None:
+        """The one print of the account rows. An account read from the code
+        is the project today, not his request, on every page that shows it.
+        Night 150: he contested it six times as the work. Ruled: Roman,
+        2026-10-17 04:33, frame 264. An account from his statement on a new
+        program is the plan, and `plan` is its heading where a page has one."""
+        if not account:
+            return
+        today = any((resolved.get(ref) or {}).get("provenance") == "observed"
+                    for ref, _ in account)
+        heading = ACCOUNT_TODAY if today else plan
+        if heading:
+            out.append(heading)
+        numbered(account)
+
     if verb == "confirm":
         n = len(said) or len(other) or len(refs)
         out.append("Did I hear you right? I have taken this as "
@@ -2352,7 +2371,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("The team stopped work on this change.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
-        numbered(does + account)
+        numbered(does)
+        account_lines()
         out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
         out.append("The team expects to touch:")
         numbered(touches)
@@ -2363,7 +2383,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("Before I build this, here is what I expect to touch.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
-        numbered(does + account)
+        numbered(does)
+        account_lines()
         out.append("The team expects to touch:")
         numbered(touches)
         if zero:
@@ -2389,9 +2410,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         asked = request_block(conn, refs, order, out, said=said,
                               code=code_stamp(conn, ask_id), stalled=keys)
         guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
-        if account:
-            out.append("What we are building:")
-            numbered(account)
+        account_lines(plan="What we are building:")
         if described:
             out.append("How it is described:")
             numbered(described)
@@ -2656,9 +2675,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     if not (answer.text or "").strip() and not answer.per_item:
         return None
 
-    closed = conn.execute(
-        "UPDATE messages SET status = 'answered' "
-        "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
+    closed = mark_answered(conn, ask.message_id, only_open=True)
     if not closed:
         return None
     # A landed answer to a stopped page lifts the quarantined Developer start
@@ -3131,8 +3148,7 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
             if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= {item}:
                 continue
-            conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                         (r["id"],))
+            mark_answered(conn, r["id"])
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                          (f"closed:{r['id']}", msg_id))
         # The ledger branch of `land`, with the principal's words, and no
