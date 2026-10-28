@@ -85,7 +85,7 @@ def _constants(path):
     for fn in ast.walk(tree):
         if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for n in ast.walk(fn):
-                if isinstance(n, ast.Constant) and n.value in ("CliRunner", "click"):
+                if isinstance(n, ast.Constant) and isinstance(n.value, str) and (n.value in ("CliRunner", "click", "typer") or n.value.endswith("Runner")):
                     out.setdefault(fn.name, 0)
     return set(out)
 
@@ -259,3 +259,121 @@ def test_the_plugin_wraps_a_typer_runner(tmp_path):
                          cwd=tmp_path, capture_output=True, text=True,
                          timeout=120, env=env)
     assert "CliRunner caught an exception" in out.stdout, out.stdout
+
+
+# Pass 1e: the review of 25d82d33.
+
+def test_command_libraries_reads_the_library_of_a_called_callable():
+    """Finding 1: s187's body (frame 304) imports confirm from click.termui
+    and calls it, with no runner, command or group."""
+    from rota.roles.api import command_libraries
+    from tests.rota.test_frame304_arrange_raises import S187_TST02
+
+    assert command_libraries(ast.parse(S187_TST02)) == {"click"}
+    assert command_libraries(ast.parse("import pytest\nimport re\n\n"
+                                       "def test_x():\n    pytest.raises(re.error)\n")) == set()
+
+
+def test_command_libraries_reads_the_indexed_project_package_under_src():
+    from rota.roles.api import command_libraries
+
+    body = "from src.acme.termui import ask\n\ndef test_x():\n    ask()\n"
+    assert command_libraries(ast.parse(body), {"acme"}) == {"acme"}
+
+
+PROJ3 = {
+    "mylib/__init__.py": "",
+    "mylib/testing.py": (
+        "class Harness:\n    @staticmethod\n    def invoke(x):\n        return x * 2\n\n"
+        "class Factory:\n    @classmethod\n    def invoke(cls, x):\n"
+        "        return cls.__name__ + str(x)\n"),
+    "tests/test_p3.py": (
+        "from mylib.testing import Harness, Factory\n\n"
+        "def test_static_on_instance():\n    assert Harness().invoke(2) == 4\n\n"
+        "def test_classmethod():\n    assert Factory.invoke(1) == 'Factory1'\n"),
+}
+
+
+def test_the_plugin_leaves_a_staticmethod_and_a_classmethod_invoke_alone(tmp_path):
+    """Finding 2, the reviewer's proj3: the wrap turned a staticmethod into a
+    plain function, and `Harness().invoke(2)` raised a TypeError."""
+    import os
+    import subprocess
+    import sys
+
+    from rota.core import harness
+
+    files = {"pytest.ini": "[pytest]\n", **PROJ3}
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("PYTEST_ADDOPTS", "PYTHONPATH")}
+    env["PYTHONPATH"] = str(harness.PLUGIN_DIR)
+    out = subprocess.run([sys.executable, "-m", "pytest", "tests/test_p3.py", "-q",
+                          "-p", "no:cacheprovider", "-p", harness.PLUGIN],
+                         cwd=tmp_path, capture_output=True, text=True,
+                         timeout=120, env=env)
+    assert out.returncode == 0, out.stdout
+
+
+ACME = textwrap.dedent('''
+    import acme
+    from acme.testing import Harness
+
+    @acme.command()
+    def ask():
+        acme.confirm("ok?")
+
+    def test_x():
+        Harness().invoke(ask, input="y")
+''')
+
+
+def test_the_pin_reads_a_library_with_no_known_name():
+    """Finding 4: the pin is behaviour. A library and a runner that no
+    literal names, as `acme` and `Harness`, reach every moved reader. A
+    reader by `endswith("Runner")` or by the name "typer" goes red here."""
+    from rota.roles import api
+
+    tree = ast.parse(ACME)
+    assert len(api.runner_invokes(tree)) == 1
+    assert [f.name for f in api._invoked_commands(tree)] == ["ask"]
+    assert api.command_libraries(tree) == {"acme"}
+    route = api._invoke_route(tree, api.command_libraries(tree))
+    assert "command of acme" in route and "Harness().invoke(cmd" in route, route
+    assert "click" not in route and "CliRunner" not in route, route
+
+
+def test_the_route_texts_name_the_body_library_and_runner():
+    """Finding 5: the texts named click's decorator and runner for any body."""
+    from rota.roles import api
+
+    tree = ast.parse("from typer.testing import CliRunner as R\nimport typer\n")
+    text = api._empty_stdin_route(tree, {"typer"})
+    assert "command of typer" in text and "R().invoke(cmd, input='')" in text, text
+
+
+from tests.rota.test_frame304_arrange_door import db  # noqa: E402,F401
+
+
+def test_the_spec_mock_site_gives_s187_the_route_of_its_library(db, tmp_path):
+    """Finding 1, probe 4a: s187's body lost the route at 25d82d33."""
+    from tests.rota.test_frame304_arrange_raises import S187_TST02, _refusal
+
+    text = _refusal(db, S187_TST02)
+    assert "For an empty stdin, call the surface inside a command of click" in text, text
+
+
+def test_the_arrange_site_gives_s185_the_route_of_its_library(db, tmp_path, monkeypatch):
+    """Finding 1, probe 4b: s185's body lost the route at 25d82d33."""
+    from rota.core.sandbox import build
+    from rota.roles import api
+    from tests.rota.test_frame304_arrange_door import S185_CR4, S185_CR4_RUN, _git_batch, _ran
+
+    _git_batch(db, tmp_path)
+    _ran(monkeypatch, S185_CR4_RUN)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    text = api._arrange_run_refusal(sb.ctx, "b1", "c1",
+                                    "tests/test_utils/test_confirm_plain.py", S185_CR4)
+    assert text is not None and "command of click" in text, text

@@ -20,6 +20,7 @@ import functools
 import os
 import sys
 import traceback
+import types
 import warnings
 
 import pytest
@@ -126,17 +127,40 @@ def _is_testing(name):
     return isinstance(name, str) and "." in name and name.split(".")[-1] == "testing"
 
 
-def _patch(mod):
-    # Each class that the module defines and that has its own `invoke` is a
-    # runner. The library names its runner, so the plugin reads no name.
+def _imported_packages(path):
+    # The top packages that the test file imports, in the body too. F12's
+    # review finding 2: the plugin touches only a library the test uses.
+    import ast
+
     try:
+        with open(path, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+    except Exception:
+        return set()
+    out = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            out |= {a.name.split(".")[0] for a in n.names}
+        elif isinstance(n, ast.ImportFrom) and not n.level and n.module:
+            out.add(n.module.split(".")[0])
+    return out
+
+
+def _patch(mod):
+    # Each class that the module defines and that has its own plain `invoke`
+    # is a runner. The library names its runner, so the plugin reads no name.
+    # A staticmethod or a classmethod is no runner method: a plain function
+    # in its place changes the call (F12's review finding 2, probe 3).
+    try:
+        if mod.__name__.split(".")[0] not in _state.get("packages", ()):
+            return
         for runner in list(vars(mod).values()):
             if not isinstance(runner, type):
                 continue
             if getattr(runner, "__module__", None) != mod.__name__:
                 continue
             orig = runner.__dict__.get("invoke")
-            if orig is None or not callable(orig) or getattr(orig, _MARK, False):
+            if type(orig) is not types.FunctionType or getattr(orig, _MARK, False):
                 continue
             setattr(runner, "invoke", _wrapped(orig))
     except Exception:
@@ -277,6 +301,8 @@ def pytest_runtest_call(item):
             config = item.config
             root = getattr(config, "rootpath", None) or getattr(config, "rootdir", None)
             _state["root"] = str(root) if root is not None else ""
+        _state["packages"] = _imported_packages(
+            str(getattr(item, "path", None) or getattr(item, "fspath", "")))
         _wrap()
     except Exception:
         pass

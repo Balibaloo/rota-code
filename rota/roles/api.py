@@ -8482,11 +8482,9 @@ def _invoked_commands(tree) -> list:
 
 
 # The route the principal gave for a prompt under test (frame 254): a
-# command run by CliRunner with its own input stream.
-_INVOKE_ROUTE = (
-    "Or call it inside a @click.command() and run that command with "
-    "CliRunner().invoke(cmd, input='y'): the runner gives the command its "
-    "own input stream")
+# command run by the library's runner with its own input stream.
+# `_invoke_route` names the body's library and runner.
+_INVOKE_ROUTE_TAIL = "the runner gives the command its own input stream"
 
 
 def _outside_commands_step(tree, free_calls, called: str, run_cmds) -> str:
@@ -8803,7 +8801,7 @@ def _import_bound(nodes) -> set[str]:
     return bound
 
 
-def command_libraries(tree) -> set[str]:
+def command_libraries(tree, packages: frozenset[str] | set[str] = frozenset()) -> set[str]:
     """The top packages whose `testing` module gives a test body its runner.
 
     F12's pass 1b (ruled): the command library is what the body imports, and
@@ -8813,25 +8811,86 @@ def command_libraries(tree) -> set[str]:
     F12's pass 1d: a library that the body takes `command` or `group` from
     is a command library too, by name or by `<module>.command`. A bare
     import that the body never uses gives no library. Frame 301's literal
-    "click" departed from the rule against over fitting (Roman, 2026-10-15)."""
-    import ast as _ast
+    "click" departed from the rule against over fitting (Roman, 2026-10-15).
 
-    verbs = ("command", "group")
-    libs = {module.split(".")[0] for module, level, orig in _imported_names(tree).values()
-            if not level and module
-            and (module.split(".")[-1] == "testing" or orig == "testing"
-                 or orig in verbs)}
-    modules = {}
+    F12's pass 1e (review finding 1): a library whose callable the body
+    calls or decorates with is a command library too, as `from click.termui
+    import confirm` then `confirm()`. 140 recorded bodies had that shape.
+    `packages` holds the project's own import names from the index, so
+    `src.<package>` reads as `<package>`. The standard library and pytest,
+    the harness's own runner, give no library."""
+    import ast as _ast
+    import sys as _sys
+
+    def top(module: str) -> str | None:
+        parts = module.split(".")
+        if parts[0] == "src" and len(parts) > 1 and parts[1] in packages:
+            return parts[1]
+        if parts[0] in _sys.stdlib_module_names or parts[0] in _HARNESS_RUNNER:
+            return None
+        return parts[0]
+
+    libs: set[str] = set()
+    bound: dict[str, str] = {}
     for n in _ast.walk(tree):
-        if isinstance(n, _ast.Import):
+        if isinstance(n, _ast.ImportFrom) and not n.level and n.module:
+            lib = top(n.module)
             for a in n.names:
-                if a.name.split(".")[-1] == "testing" and "." in a.name:
-                    libs.add(a.name.split(".")[0])
-                modules[a.asname or a.name.split(".")[0]] = a.name.split(".")[0]
-    libs |= {modules[n.value.id] for n in _ast.walk(tree)
-             if isinstance(n, _ast.Attribute) and n.attr in verbs
-             and isinstance(n.value, _ast.Name) and n.value.id in modules}
+                if lib and (n.module.split(".")[-1] == "testing" or a.name == "testing"):
+                    libs.add(lib)
+                if lib and a.name != "*":
+                    bound[a.asname or a.name] = lib
+        elif isinstance(n, _ast.Import):
+            for a in n.names:
+                lib = top(a.name)
+                if lib and a.name.split(".")[-1] == "testing" and "." in a.name:
+                    libs.add(lib)
+                if lib:
+                    bound[a.asname or a.name.split(".")[0]] = lib
+    used = [n.func if isinstance(n, _ast.Call) else n for n in _ast.walk(tree)
+            if isinstance(n, _ast.Call)]
+    used += [d for n in _ast.walk(tree)
+             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))
+             for d in n.decorator_list]
+    for f in used:
+        while isinstance(f, (_ast.Attribute, _ast.Call)):
+            f = f.value if isinstance(f, _ast.Attribute) else f.func
+        if isinstance(f, _ast.Name) and f.id in bound:
+            libs.add(bound[f.id])
     return libs
+
+
+# The harness runs each test under pytest, so pytest's callables are the
+# test's own tools and never a command library (F12 pass 1e).
+_HARNESS_RUNNER = frozenset({"pytest", "_pytest"})
+
+
+def _route_parts(tree, libs: set[str], sample: str) -> tuple[str, str]:
+    """The library and the runner call that the stdin route names.
+
+    Review finding 5 of F12: the text named click's decorator and runner for
+    every library. A runner that the body imports keeps its own name."""
+    imported = _imported_names(tree)
+    makers = sorted(k for k, (module, level, _) in imported.items()
+                    if not level and module.split(".")[-1] == "testing"
+                    and module.split(".")[0] in libs)
+    lib = imported[makers[0]][0].split(".")[0] if makers else sorted(libs)[0]
+    run = (f"{makers[0]}().invoke(cmd, input={sample!r})" if makers
+           else f"the runner of {lib}.testing, runner.invoke(cmd, input={sample!r})")
+    return lib, run
+
+
+def _invoke_route(tree, libs: set[str]) -> str:
+    """The route of frame 254 for a prompt under test."""
+    lib, run = _route_parts(tree, libs, "y")
+    return (f"Or call it inside a command of {lib} and run that command with "
+            f"{run}: {_INVOKE_ROUTE_TAIL}")
+
+
+def _empty_stdin_route(tree, libs: set[str]) -> str:
+    """The route of frame 254 for a body that stubs an empty stdin."""
+    lib, run = _route_parts(tree, libs, "")
+    return f"For an empty stdin, call the surface inside a command of {lib} and run {run}."
 
 
 def _returns_factory(node, src: str | None = None) -> bool:
@@ -9864,16 +9923,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     free_calls = [n for n in calls if n not in invoked]
     names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
     shields = _stdin_shields(tree)
-    # F12's pass 1d: the route fits a body that uses a command library.
-    uses_lib = bool(command_libraries(tree))
+    # F12's pass 1d and 1e: the route fits a body that uses a command
+    # library. The project's own package counts when the index holds it.
+    packages = _program_modules(ctx.conn)
+    libs = command_libraries(tree, packages)
     # Frame 301: a body that runs a command with input= has the route. Night
     # 157's s258 had it and was offered it again, so it gets the call's place.
     run_cmds = _invoked_commands(tree)
 
-    def _stdin_step(called: str, click_route: bool) -> str:
+    def _stdin_step(called: str, route_libs: set) -> str:
         if run_cmds:
             return ". " + _outside_commands_step(tree, free_calls, called, run_cmds)
-        return ". " + _INVOKE_ROUTE if click_route else ""
+        return ". " + _invoke_route(tree, route_libs) if route_libs else ""
 
     if "input" in names and not _shields_input(shields):
         raise Wall(
@@ -9881,7 +9942,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "raises OSError before any assertion runs, against any code. "
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
-            "name as an argument" + _stdin_step("input", uses_lib))
+            "name as an argument" + _stdin_step("input", libs))
     # Closing the process's stdin is the same trap from the other side.
     # Click night 50, walk 2 (2026-09-14): two EOF tests did
     # `sys.stdin.close()`, the pytest process lost its stdin, both failed
@@ -9976,7 +10037,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     # project of that library only (frame 254, F12 pass 1d).
                     route = _stdin_step(
                         node.name,
-                        uses_lib or module.split(".")[0] in command_libraries(tree))
+                        libs or ({module.split(".")[0]} & packages))
                     if aliases:
                         raise Wall(
                             f"{node.name}() reads input() through {aliases[0]}, a name "
@@ -19182,11 +19243,9 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
     except SyntaxError:
         tree = _ast.Module(body=[], type_ignores=[])
     stubs_stdin = "sys.stdin" in body
-    uses_lib = bool(command_libraries(tree))
-    if stubs_stdin and uses_lib:
-        route = ("For an empty stdin, call the surface inside a "
-                 "@click.command() and run CliRunner().invoke(cmd, "
-                 "input='').")
+    libs = command_libraries(tree, _program_modules(ctx.conn) if ctx is not None else set())
+    if stubs_stdin and libs:
+        route = _empty_stdin_route(tree, libs)
     else:
         route = ("If the criterion needs a name that no stub can hold, "
                  "send msg.question_terminologist with the criterion.")
@@ -19239,7 +19298,9 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
     stdin_route = any(
         isinstance(n, _ast.Call) and _callee(n) == "patch" and n.args
         and isinstance(n.args[0], _ast.Constant) and n.args[0].value == "sys.stdin"
-        for n in _ast.walk(tree)) and bool(command_libraries(tree))
+        for n in _ast.walk(tree))
+    libs = command_libraries(tree, _program_modules(ctx.conn) if ctx is not None else set())
+    stdin_route = stdin_route and bool(libs)
 
     def _allowed(source, ctor):
         # The mock module answers, so the rule is the module's own.
@@ -19274,9 +19335,7 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
             step += (f" Use mock_open(read_data=...) and read through "
                      f"`{var}.return_value`, or patch with a plain MagicMock.")
         if stdin_route:
-            route = ("For an empty stdin, call the surface inside a "
-                     "@click.command() and run CliRunner().invoke(cmd, "
-                     "input='').")
+            route = _empty_stdin_route(tree, libs)
         else:
             route = ("If the criterion needs a name that no stub can hold, "
                      "send msg.question_terminologist with the criterion.")
