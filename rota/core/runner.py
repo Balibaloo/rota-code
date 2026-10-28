@@ -2798,9 +2798,9 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                     run = conn.execute(
                         # The test's own batch only: an inherited test keeps
                         # its id across batches (frame 210).
-                        "SELECT result, output FROM test_runs WHERE test_id = ? "
-                        "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
-                        "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
+                        "SELECT result, output FROM latest_runs WHERE test_id = ? "
+                        "AND batch_id = (SELECT batch_id FROM tests WHERE id = latest_runs.test_id)",
+                        (ref,)).fetchone()
                     if run:
                         out = run["output"] or ""
                         # A Tester challenge gets the whole stored output,
@@ -3654,8 +3654,11 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
         call = (f"tests.triage(criterion_id={args['criterion_id']!r}, "
                 f"verdict='encodable') and then {call}")
     if same is not None:
-        run = conn.execute("SELECT result FROM test_runs WHERE test_id = ? "
-                           "ORDER BY rowid DESC LIMIT 1",
+        # The test's own batch only: an inherited test keeps its id across
+        # batches (frame 210, fact F4).
+        run = conn.execute("SELECT result FROM latest_runs WHERE test_id = ? "
+                           "AND batch_id = (SELECT batch_id FROM tests "
+                           "WHERE id = latest_runs.test_id)",
                            (stored["id"],)).fetchone()
         failed = ", which failed" if run and run["result"] != "pass" else ""
         # The answer channel is the asker's own, so a challenge wake holds

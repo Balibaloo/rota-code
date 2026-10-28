@@ -465,7 +465,7 @@ def render_state(conn: sqlite3.Connection) -> str:
         # 'tr9' sorts after 'tr11', so a run that had gone green still read as
         # "1 test failing" (tipsH, 2026-09-09).
         failing = count(
-            "SELECT COUNT(DISTINCT t.test_id) FROM test_runs t "
+            "SELECT COUNT(DISTINCT t.test_id) FROM latest_runs t "
             "JOIN batches b ON b.id = t.batch_id "
             "WHERE b.status = 'running' AND t.result != 'pass' "
             "AND t.commit_sha = b.head_commit")
@@ -559,9 +559,9 @@ def check_line(conn: sqlite3.Connection, test_id: str) -> str:
         parts.append(f"expects {assertion}")
     # The test's own batch only: an inherited test keeps its id across
     # batches (frame 210).
-    run = conn.execute("SELECT result, output FROM test_runs WHERE test_id = ? "
-                       "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
-                       "ORDER BY rowid DESC LIMIT 1", (test_id,)).fetchone()
+    run = conn.execute("SELECT result, output FROM latest_runs WHERE test_id = ? "
+                       "AND batch_id = (SELECT batch_id FROM tests WHERE id = latest_runs.test_id)",
+                       (test_id,)).fetchone()
     if run is None:
         tail = "Not run yet."
     elif run["result"] in ("fail", "error"):
@@ -1895,9 +1895,8 @@ def _built_words(conn: sqlite3.Connection, batch: sqlite3.Row) -> str:
     if not batch["head_commit"]:
         return f" The change {batch['id']} is not built yet."
     runs = conn.execute(
-        "SELECT result FROM test_runs WHERE batch_id = ? AND rowid IN "
-        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)",
-        (batch["id"], batch["id"])).fetchall()
+        "SELECT result FROM latest_runs WHERE batch_id = ?",
+        (batch["id"],)).fetchall()
     if not runs:
         return f" The change {batch['id']} is built, and no test has run yet."
     failing = sum(1 for r in runs if r["result"] in ("fail", "error"))

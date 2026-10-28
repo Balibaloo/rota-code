@@ -561,9 +561,8 @@ def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     """The attempt a deferred batch left, and its tests that still fail."""
     # A test's latest run is its result, as `tests_failing` reads it.
     rows = conn.execute(
-        "SELECT test_id, result, attempt FROM test_runs WHERE batch_id = ? "
-        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id) ORDER BY test_id", (batch_id, batch_id)).fetchall()
+        "SELECT test_id, result, attempt FROM latest_runs WHERE batch_id = ? "
+        "ORDER BY test_id", (batch_id,)).fetchall()
     attempt = max((r["attempt"] or 1 for r in rows), default=0)
     failing = sorted((r["test_id"] for r in rows if r["result"] in ("fail", "error")),
                      key=_by_number)
@@ -1696,11 +1695,9 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     # They skip a test of a retired criterion, so this count skips it too
     # (frame 306, pass 2b).
     row = conn.execute(
-        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM test_runs "
-        "WHERE batch_id = ? AND result IN ('fail','error') "
-        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)" + live_tests(conn, "test_id"),
-        (batch_id, batch_id)).fetchone()
+        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM latest_runs "
+        "WHERE batch_id = ? AND result IN ('fail','error')"
+        + live_tests(conn, "test_id"), (batch_id,)).fetchone()
     return int(row["att"] or 0)
 
 
@@ -1839,12 +1836,11 @@ def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list
     # test with a criterion: night 121's own test of cr_1 is an inherited
     # id, so the id's prefix does not decide (frame 142's design, 2.A).
     rows = conn.execute(
-        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM test_runs r "
+        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM latest_runs r "
         "LEFT JOIN tests t ON t.id = r.test_id "
-        "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
-        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)" + live_tests(conn, "r.test_id") +
-        " ORDER BY r.test_id", (batch_id, batch_id)).fetchall()
+        "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
+        + live_tests(conn, "r.test_id") +
+        " ORDER BY r.test_id", (batch_id,)).fetchall()
     own =[dict(r) for r in rows if r["criterion_id"] is not None]
     project = [dict(r) for r in rows if r["criterion_id"] is None]
     return own, project
@@ -2354,11 +2350,10 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # Without this exit the park is for ever (observed: frame 86's pass 2
     # review, 2026-09-25). The ladder is not asked again for the new commit.
     return bool(conn.execute(
-        "SELECT 1 FROM test_runs r JOIN batches b ON b.id = r.batch_id "
+        "SELECT 1 FROM latest_runs r JOIN batches b ON b.id = r.batch_id "
         "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
-        "AND (b.head_commit IS NULL OR r.commit_sha = b.head_commit) "
-        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)", (batch_id, batch_id)).fetchone())
+        "AND (b.head_commit IS NULL OR r.commit_sha = b.head_commit)",
+        (batch_id,)).fetchone())
 
 
 def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:

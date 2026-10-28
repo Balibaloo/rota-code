@@ -428,6 +428,8 @@ def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
 
 
 def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
+    # Fact F4 leaves this read on `test_runs`: the counter counts every run
+    # of the batch, not the newest run of each test.
     row = conn.execute(
         "SELECT COALESCE(MAX(attempt), 0) + 1 AS n FROM test_runs WHERE batch_id = ?",
         (batch_id,)).fetchone()
@@ -855,7 +857,7 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     from .scheduler import live_tests
 
     failing = conn.execute(
-        "SELECT COUNT(*) AS n FROM test_runs "
+        "SELECT COUNT(*) AS n FROM latest_runs "
         "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'"
         + live_tests(conn, "test_id"),
         (batch_id, head)).fetchone()["n"]

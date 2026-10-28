@@ -1058,9 +1058,12 @@ def _quote_reads(quote: str, source: str, table: str = "",
 def _run_view(ctx: api.Ctx, test_id: str) -> str:
     """The lines that the latest run of the test names: its `>` lines and
     its `E` lines, without the mark. Empty when the test has no run."""
+    # The test's own batch only: an inherited test keeps its id across
+    # batches (frame 210, fact F4).
     run = ctx.conn.execute(
-        "SELECT output FROM test_runs WHERE test_id = ? "
-        "ORDER BY rowid DESC LIMIT 1", (test_id,)).fetchone()
+        "SELECT output FROM latest_runs WHERE test_id = ? "
+        "AND batch_id = (SELECT batch_id FROM tests WHERE id = latest_runs.test_id)",
+        (test_id,)).fetchone()
     lines = ((run["output"] or "") if run else "").splitlines()
     return chr(10).join(ln[1:].strip() for ln in lines
                         if ln.startswith(">") or re.match(r"E\s", ln))
@@ -1379,9 +1382,11 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str,
         if not isinstance(ref, str):
             continue
         test = ctx.conn.execute("SELECT body FROM tests WHERE id = ?", (ref,)).fetchone()
+        # The test's own batch only (frame 210, fact F4).
         run = ctx.conn.execute(
-            "SELECT result, output FROM test_runs WHERE test_id = ? "
-            "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone() if test else None
+            "SELECT result, output FROM latest_runs WHERE test_id = ? "
+            "AND batch_id = (SELECT batch_id FROM tests WHERE id = latest_runs.test_id)",
+            (ref,)).fetchone() if test else None
         if not run or run["result"] not in ("fail", "error"):
             continue
         out = (run["output"] or "").splitlines()
@@ -1608,22 +1613,20 @@ def _green_at_head_refusal(ctx: api.Ctx, refs) -> str | None:
     if test_id is None:
         return None
     run = ctx.conn.execute(
-        "SELECT tr.result, tr.output, b.head_commit FROM test_runs tr "
+        "SELECT tr.result, tr.output, b.head_commit FROM latest_runs tr "
         "JOIN batches b ON b.id = tr.batch_id "
         "WHERE tr.test_id = ? AND tr.batch_id = ? "
-        "AND tr.commit_sha = b.head_commit "
-        "ORDER BY tr.rowid DESC LIMIT 1", (test_id, ctx.batch_id)).fetchone()
+        "AND tr.commit_sha = b.head_commit", (test_id, ctx.batch_id)).fetchone()
     if not run or run["result"] != "pass":
         return None
     last = next((ln.strip() for ln in reversed((run["output"] or "").splitlines())
                  if ln.strip()), "pass")
     red = [f"{r['test_id']} ({r['criterion_id']})" for r in ctx.conn.execute(
-        "SELECT DISTINCT tr.test_id, t.criterion_id FROM test_runs tr "
+        "SELECT DISTINCT tr.test_id, t.criterion_id FROM latest_runs tr "
         "JOIN tests t ON t.id = tr.test_id "
         "WHERE t.batch_id = ? AND tr.batch_id = t.batch_id "
-        "AND tr.result IN ('fail', 'error') AND t.criterion_id IS NOT NULL "
-        "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs "
-        "GROUP BY batch_id, test_id)", (ctx.batch_id,))]
+        "AND tr.result IN ('fail', 'error') AND t.criterion_id IS NOT NULL",
+        (ctx.batch_id,))]
     then = (" The failing tests of this batch: " + ", ".join(red[:3]) + "."
             if red else " No test of this batch with a criterion fails.")
     return (f"{test_id} passes on the batch's head {run['head_commit'][:8]}: "
@@ -1716,11 +1719,10 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                 # and was refused with no way forward. The failing tests
                 # of the batch are a fact the wake already carries.
                 failing = ctx.conn.execute(
-                    "SELECT DISTINCT tr.test_id, t.criterion_id FROM test_runs tr "
+                    "SELECT DISTINCT tr.test_id, t.criterion_id FROM latest_runs tr "
                     "JOIN tests t ON t.id = tr.test_id "
                     "WHERE t.batch_id = ? AND tr.batch_id = t.batch_id "
-                    "AND tr.result IN ('fail', 'error') "
-                    "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY batch_id, test_id)",
+                    "AND tr.result IN ('fail', 'error')",
                     (ctx.batch_id,)).fetchall()
                 # A test with no criterion is the project's own, broken by
                 # the diff. click night 47 (2026-09-14): the hint said
@@ -2205,8 +2207,9 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
                        offer: bool = True) -> str | None:
     """
     What the batch's base run says about the project's red tests `ids`, or
-    None when the base run passed every one. On None the caller says its
-    own "passed before this batch" sentence.
+    None when the base run passed every one and no newest run in this
+    batch passed. On None the caller says its own "passed before this
+    batch" sentence.
 
     Frame 207, night 140: the doors said "passed before this batch" from a
     constant, and `inh_f3b0c3db` was red at bg_2's base. Now the sentence
@@ -2219,14 +2222,28 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
     base = harness.base_run(ctx.conn, ctx.batch_id) if ctx.batch_id else None
     rows = base or {}
     ids = list(dict.fromkeys(ids))
+    # Fact F4, night 170: this text told s201 to restore inh_fe7f4bfc, and
+    # that test passed 7 of 7 runs of b_3. A test green on its newest run
+    # in this batch is broken by no change, so the text says so. The run
+    # must be at the batch's head. A head that no harness ran is not known
+    # to be green (the F4 review, low 2).
+    green = [i for i in ids if ctx.batch_id and ctx.conn.execute(
+        "SELECT 1 FROM latest_runs r JOIN batches b ON b.id = r.batch_id "
+        "WHERE r.batch_id = ? AND r.test_id = ? AND r.result = 'pass' "
+        "AND r.commit_sha = b.head_commit", (ctx.batch_id, i)).fetchone()]
+    ids = [i for i in ids if i not in green]
     red = [i for i in ids if isinstance(rows.get(i), dict)
            and rows[i].get("result") in ("fail", "error")]
     passed = [i for i in ids if isinstance(rows.get(i), dict)
               and rows[i].get("result") == "pass"]
     unknown = [i for i in ids if i not in red and i not in passed]
-    if not red and not unknown:
+    if not red and not unknown and not green:
         return None
     parts = []
+    if green:
+        parts.append(f"{', '.join(green)} passed on {'its' if len(green) == 1 else 'their'} "
+                     f"newest run in this batch, so your change broke nothing "
+                     f"there. A challenge has no side on the project's own test")
     if red:
         quote = _base_quote(rows[red[0]].get("output", ""))
         parts.append(
@@ -2379,11 +2396,10 @@ def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
     """True when a test of `refs` has its newest run at fail or error."""
     for ref in refs or []:
         row = conn.execute(
-            "SELECT tr.result FROM test_runs tr JOIN tests t ON t.id = tr.test_id "
+            "SELECT tr.result FROM latest_runs tr JOIN tests t ON t.id = tr.test_id "
             # The test's own batch only: an inherited test keeps its id
             # across batches (frame 210).
-            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id "
-            "ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
+            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id", (ref,)).fetchone()
         if row is not None and row["result"] in ("fail", "error"):
             return True
     return False
@@ -3018,18 +3034,18 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
 
 def _other_test_red(conn: sqlite3.Connection, tests) -> bool:
     """
-    True when the newest harness attempt of the batch of `tests` holds a red
-    run of a test outside `tests`.
+    True when a test outside `tests` has its newest run in the batch of
+    `tests` at fail or error.
     """
+    # Fact F4: the newest run per test, not the newest attempt. A test that
+    # the newest attempt did not run keeps the red of its own newest run.
     ids = [t for t in tests or [] if isinstance(t, str)]
     if not ids:
         return False
     marks = ",".join("?" * len(ids))
     return conn.execute(
-        f"SELECT 1 FROM test_runs r WHERE r.batch_id IN ("
+        f"SELECT 1 FROM latest_runs r WHERE r.batch_id IN ("
         f"  SELECT batch_id FROM tests WHERE id IN ({marks})) "
-        f"AND r.attempt = (SELECT MAX(x.attempt) FROM test_runs x "
-        f"  WHERE x.batch_id = r.batch_id) "
         f"AND r.result IN ('fail', 'error') "
         f"AND r.test_id NOT IN ({marks}) LIMIT 1",
         (*ids, *ids)).fetchone() is not None
@@ -3804,9 +3820,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if verb == "answer" and ctx.role == "tester":
             for r in (refs or []):
                 run = ctx.conn.execute(
-                    "SELECT output FROM test_runs WHERE test_id = ? "
-                    "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
-                    "ORDER BY rowid DESC LIMIT 1", (r,)).fetchone()
+                    "SELECT output FROM latest_runs WHERE test_id = ? "
+                    "AND batch_id = (SELECT batch_id FROM tests WHERE id = latest_runs.test_id)",
+                    (r,)).fetchone()
                 if run and "reading from stdin while output is captured" in (run["output"] or ""):
                     raise ValueError(
                         f"{r}'s last run reached input() through the code it "
@@ -5616,13 +5632,18 @@ def _challenge_admitted(ctx: api.Ctx, refs: list, quotes: list) -> bool:
 def _stored_runs(ctx: api.Ctx, sha: str) -> dict:
     """The latest stored result of each test of the batch at `sha`. The
     fact checks read the rows here, and not through the door's reader."""
+    # Fact F4 leaves this read on `test_runs`. It reads the runs of a past
+    # commit, HEAD~1 too, and a later run can supersede those runs. The
+    # order is the view's own, `rowid`, scoped to the commit (the F4
+    # review, low 4). The query is its own, so the check stays apart from
+    # the door's reader (frame 149).
     latest: dict = {}
     for r in ctx.conn.execute(
-            "SELECT test_id, result, attempt, rowid AS k FROM test_runs "
-            "WHERE batch_id = ? AND commit_sha = ?", (ctx.batch_id, sha)):
-        if r["test_id"] not in latest or (r["attempt"], r["k"]) > latest[r["test_id"]][0]:
-            latest[r["test_id"]] = ((r["attempt"], r["k"]), r["result"])
-    return {t: v[1] for t, v in latest.items()}
+            "SELECT test_id, result FROM test_runs "
+            "WHERE batch_id = ? AND commit_sha = ? ORDER BY rowid",
+            (ctx.batch_id, sha)):
+        latest[r["test_id"]] = r["result"]
+    return latest
 
 
 def _runs_hold(ctx: api.Ctx, runs: dict, where: dict) -> tuple[bool, str]:

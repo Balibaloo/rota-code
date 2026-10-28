@@ -104,6 +104,10 @@ def open_ro(path: str | Path) -> sqlite3.Connection:
         raise FileNotFoundError(f"no run database at {p}")
     conn = sqlite3.connect(f"file:{p.resolve().as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
+    # A night from before fact F4 has no `latest_runs` view. A read script
+    # that opens a night here and calls a rota reader then still reads.
+    from ..core.db import latest_runs_view
+    latest_runs_view(conn)
     return conn
 
 

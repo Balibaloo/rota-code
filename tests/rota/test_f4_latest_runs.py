@@ -1,0 +1,226 @@
+"""Fact F4, the root-cause audit of 2026-10-27: the newest run of a test in
+its batch. Night 170, W3 and W16: a door told the Developer s201 to restore
+inh_fe7f4bfc, and that test passed 7 of 7 runs of b_3. Thirty-four readers
+of `test_runs` kept three order rules: `rowid`, `attempt` then `rowid`, and
+the newest attempt of the batch. The view `latest_runs` is the one reader
+now, by `rowid`, per test and batch."""
+import ast
+import re
+from pathlib import Path
+
+import pytest
+
+from rota.core import predicates, sandbox
+from rota.core.db import connect_readonly, init_db
+from rota.roles import api
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def db(tmp_path):
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','a change','in_scope','approved',1,1)")
+    for bid in ("b1", "b2"):
+        conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                     "VALUES (?, 'i1', 'running', 'abc')", (bid,))
+    conn.commit()
+    return conn
+
+
+def _test(db, tid, batch, criterion=None):
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES (?, ?, ?, ?, 'def test_x():\n    assert True')",
+               (tid, batch, criterion, f"tests/test_{tid}.py"))
+
+
+def _run(db, rid, batch, test, result, attempt=1, output=""):
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, output, attempt) VALUES (?, ?, ?, 'abc', ?, ?, ?)",
+               (rid, batch, test, result, output, attempt))
+
+
+def test_the_view_orders_by_insert_and_not_by_attempt(db):
+    _test(db, "t1", "b1")
+    _run(db, "tr1", "b1", "t1", "fail", attempt=3)
+    _run(db, "tr2", "b1", "t1", "pass", attempt=1)
+    _run(db, "tr3", "b2", "t1", "fail", attempt=1)
+    rows = {(r["batch_id"], r["test_id"]): r["result"]
+            for r in db.execute("SELECT * FROM latest_runs")}
+    assert rows == {("b1", "t1"): "pass", ("b2", "t1"): "fail"}
+
+
+def test_tests_failing_reads_the_newest_run_in_each_batch(db):
+    # The old rule took the newest run per test across batches. A pass of
+    # the inherited id in b2 hid its red in b1.
+    _test(db, "inh_1", "b1")
+    _run(db, "tr1", "b1", "inh_1", "fail")
+    _run(db, "tr2", "b2", "inh_1", "pass")
+    db.commit()
+    assert "b1" in {w.refs[0] for w in predicates.tests_failing(db)}
+
+
+def test_other_test_red_reads_the_newest_run_of_each_test(db):
+    # The old rule read the newest attempt of the batch only. A test that
+    # the newest attempt did not run kept its red, and the rule missed it.
+    _test(db, "t1", "b1")
+    _test(db, "t2", "b1")
+    _run(db, "tr1", "b1", "t2", "fail", attempt=1)
+    _run(db, "tr2", "b1", "t1", "pass", attempt=2)
+    db.commit()
+    assert sandbox._other_test_red(db, ["t1"]) is True
+
+
+def _ctx(db, batch="b1"):
+    return sandbox.build("developer", db, batch_id=batch, mode="tests_failing").ctx
+
+
+def test_run_view_reads_the_tests_own_batch(db):
+    # The old rule read the newest run of the id in any batch.
+    _test(db, "inh_1", "b1")
+    _run(db, "tr1", "b1", "inh_1", "fail", output="E   assert 1 == 2")
+    _run(db, "tr2", "b2", "inh_1", "pass", output="1 passed")
+    db.commit()
+    assert sandbox._run_view(_ctx(db), "inh_1") == "assert 1 == 2"
+
+
+def test_tests_load_reads_the_insert_order(db):
+    # The old rule put `attempt` first. A run with a lower attempt and a
+    # later insert is the newest run.
+    _test(db, "t1", "b1")
+    _run(db, "tr1", "b1", "t1", "fail", attempt=3, output="E   boom")
+    _run(db, "tr2", "b1", "t1", "pass", attempt=1)
+    db.commit()
+    rows = api.tests_load(_ctx(db), "b1")
+    assert [r["last_result"] for r in rows if r["id"] == "t1"] == ["pass"]
+
+
+def test_night_170_a_green_project_test_is_broken_by_no_change(db):
+    # s201's challenge on inh_fe7f4bfc met "restore what your change broke",
+    # and its runs in b_3 passed 7 of 7.
+    _test(db, "inh_fe7f4bfc", "b1")
+    for n in range(7):
+        _run(db, f"tr{n}", "b1", "inh_fe7f4bfc", "pass", attempt=n + 1)
+    db.commit()
+    said = sandbox.project_tests_fact(_ctx(db), ["inh_fe7f4bfc"])
+    assert said is not None
+    assert "inh_fe7f4bfc passed on its newest run in this batch" in said
+    assert "restore" not in said and "broke nothing" in said
+
+
+def test_a_read_only_file_without_the_view_gets_a_temp_view(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    conn = init_db(path)
+    conn.execute("DROP VIEW latest_runs")
+    conn.commit()
+    conn.close()
+    ro = connect_readonly(path)
+    assert ro.execute("SELECT COUNT(*) FROM latest_runs").fetchone()[0] == 0
+    with pytest.raises(sqlite3.OperationalError):
+        ro.execute("CREATE TEMP TABLE x (a)")
+
+
+def test_a_green_run_at_an_old_commit_says_nothing_of_the_head(db):
+    # The F4 review, low 2: the newest pass is at c1, and no harness ran
+    # the head abc. The door does not call the head green.
+    _test(db, "inh_1", "b1")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, output, attempt) VALUES ('tr1','b1','inh_1','c1',"
+               "'pass','',1)")
+    db.commit()
+    said = sandbox.project_tests_fact(_ctx(db), ["inh_1"]) or ""
+    assert "broke nothing" not in said
+
+
+def test_the_runs_of_one_commit_follow_the_insert_order(db):
+    # The F4 review, low 4: `_runs_at` and `_stored_runs` sorted by attempt
+    # first. The newest insert at the commit is the run they read now.
+    _test(db, "t1", "b1")
+    _run(db, "tr1", "b1", "t1", "fail", attempt=3)
+    _run(db, "tr2", "b1", "t1", "pass", attempt=1)
+    db.commit()
+    ctx = _ctx(db)
+    assert api._runs_at(ctx, "abc") == {"t1": "pass"}
+    assert sandbox._stored_runs(ctx, "abc") == {"t1": "pass"}
+
+
+def test_a_night_tool_reads_a_file_from_before_the_view(tmp_path):
+    # The F4 review, low 5: a plain opener of a night met "no such table".
+    from rota.tools import invariants, nightreport
+    path = tmp_path / "old.db"
+    conn = init_db(path)
+    conn.execute("DROP VIEW latest_runs")
+    conn.commit()
+    conn.close()
+    for opener in (nightreport.open_ro, invariants.open_readonly):
+        ro = opener(path)
+        assert predicates.tests_failing(ro) == []
+        ro.close()
+
+
+def test_init_db_never_drops_the_view_outside_a_transaction():
+    # The F4 review, high 1: a drop outside a transaction failed 18,589
+    # reads of a second connection in 11 calls of `init_db`.
+    schema = (ROOT / "rota/core/schema.sql").read_text(encoding="utf-8")
+    code = "\n".join(ln.split("--")[0] for ln in schema.splitlines())
+    for m in re.finditer(r"DROP VIEW IF EXISTS latest_runs", code):
+        before = code[:m.start()]
+        assert before.rfind("BEGIN") > before.rfind("COMMIT"), (
+            "drop latest_runs only inside BEGIN and COMMIT")
+
+
+# The reads of `test_runs` that the view does not serve, with the count of
+# read sites in each. Each function carries a comment that names its
+# reason. A new read, in a new function or in one of these, goes red here.
+ALLOWED = {
+    ("rota/core/db.py", "red_before"): 2,          # the newest run that ran code
+    ("rota/core/harness.py", "run"): 1,            # any run at the head
+    ("rota/core/lifecycle.py", "next_attempt"): 1,  # the attempt counter
+    ("rota/core/sandbox.py", "_stored_runs"): 1,   # a past commit, HEAD~1
+    ("rota/roles/api.py", "_runs_at"): 1,          # a past commit, HEAD~1
+    ("rota/tools/invariants.py", "i4"): 1,         # every run, counted
+    ("rota/testkit/scenes.py", "ran"): 1,          # the test kit
+}
+READ = re.compile(r"(?<!DELETE )\b(?:FROM|JOIN)\s+[\"'`\[]?test_runs\b", re.I)
+
+
+def _sites(root: Path = ROOT) -> dict:
+    from collections import Counter
+    found: Counter = Counter()
+    for path in sorted((root / "rota").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        src = path.read_text(encoding="utf-8")
+        if not READ.search(src):
+            continue
+        tree = ast.parse(src)
+        funcs = [n for n in ast.walk(tree)
+                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and READ.search(node.value)):
+                continue
+            owner = min((f for f in funcs
+                         if f.lineno <= node.lineno <= f.end_lineno),
+                        key=lambda f: f.end_lineno - f.lineno, default=None)
+            found[(rel, owner.name if owner else "<module>")] += len(
+                READ.findall(node.value))
+    return dict(found)
+
+
+def test_the_pin_counts_a_second_read_in_an_allowed_function(tmp_path):
+    # The F4 review, low 3: a second read inside `red_before` kept the old
+    # pin green. The quoted table name escaped the scan too.
+    root = tmp_path / "rota"
+    root.mkdir()
+    (root / "m.py").write_text(
+        "def red_before(c):\n"
+        "    c.execute('SELECT 1 FROM test_runs')\n"
+        "    c.execute('SELECT 1 FROM \"test_runs\" ORDER BY attempt DESC')\n",
+        encoding="utf-8")
+    assert _sites(tmp_path) == {("rota/m.py", "red_before"): 2}
+
+
+def test_latest_runs_is_the_one_reader_of_the_newest_run():
+    assert _sites() == ALLOWED
