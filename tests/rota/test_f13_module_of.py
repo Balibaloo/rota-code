@@ -217,22 +217,75 @@ def test_the_indexer_writes_an_assignment_and_an_all_entry():
     assert {("VERSION", "variable"), ("run", "export")} <= kinds
 
 
+def _tree_walks_for_a_definer(rel: str, text: str) -> list[str]:
+    """The functions in `text` that walk a tree's `.py` files and read a def
+    or a class, by a regex or by an ast parse. Pass 1d, review finding 3:
+    the regex scan alone passed an ast walk."""
+    import ast
+
+    out = []
+    for fn in ast.walk(ast.parse(text)):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        src = ast.get_source_segment(text, fn) or ""
+        walks = 'glob("*.py")' in src or "os.walk(" in src
+        by_regex = "(?:def|class)" in src or "(def|class)" in src
+        by_ast = (".parse(" in src
+                  and ("FunctionDef" in src or "ClassDef" in src))
+        if walks and (by_regex or by_ast):
+            out.append(f"{rel}:{fn.lineno} {fn.name}")
+    return out
+
+
+_PLANTED_WALK = '''
+import ast
+def defined_somewhere(root, name):
+    for py in root.rglob("*.py"):
+        tree = ast.parse(py.read_text())
+        if any(isinstance(n, ast.FunctionDef) and n.name == name
+               for n in tree.body):
+            return True
+    return False
+'''
+
+
+def test_a_bare_import_hint_names_the_module_that_defines_the_name(tmp_path):
+    """Night 162: `import echo_json` met "no module of that name" 20 times.
+    The bare surface `echo_json` is defined in a module, and the hint names
+    that module (pass 1d, review finding 2)."""
+    files = {"src/shop/__init__.py": "",
+             "src/shop/utils.py": "def echo_json(obj):\n    return obj\n"}
+    conn = _db(tmp_path, files, ["src/shop/utils.py::echo_json"], '["echo_json"]')
+    said = _encode(conn, "import echo_json\n"
+                         "def test_x():\n    assert echo_json.echo_json(1) == 1\n")
+    assert "no module of that name exists" in said, said
+    assert "`from shop.utils import echo_json`" in said, said
+
+
+def test_the_walk_pin_finds_a_planted_ast_walk():
+    assert _tree_walks_for_a_definer("plant.py", _PLANTED_WALK) == [
+        "plant.py:3 defined_somewhere"]
+
+
+# The ast walks over a tree that answer another fact. Each reads the
+# bodies of the functions, not which file defines a name.
+_OTHER_WALKS = {
+    "rota/core/predicates.py _parameterised_writes",  # the writes a test makes
+    "rota/roles/api.py tests_encode",       # which program function reads stdin
+    "rota/roles/api.py _conftest_fixtures",  # the fixtures of each conftest.py
+    "rota/roles/api.py _code_write",        # the files that import the target
+}
+
+
 def test_no_door_walks_the_tree_for_a_definer():
     """A function that globs the tree's `.py` files and reads a definition
     is a second reader of the definer. The staged writes replace it."""
-    import ast
-
     offenders = []
     for py in sorted(_ROOT.rglob("*.py")):
         rel = py.relative_to(_ROOT.parent).as_posix()
-        text = py.read_text(encoding="utf-8")
-        for fn in ast.walk(ast.parse(text)):
-            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            src = ast.get_source_segment(text, fn) or ""
-            walks = 'glob("*.py")' in src
-            if walks and ("(?:def|class)" in src or "(def|class)" in src):
-                offenders.append(f"{rel}:{fn.lineno} {fn.name}")
+        offenders += [o for o in _tree_walks_for_a_definer(
+                          rel, py.read_text(encoding="utf-8"))
+                      if f"{rel} {o.split(' ', 1)[1]}" not in _OTHER_WALKS]
     assert not offenders, offenders
 
 

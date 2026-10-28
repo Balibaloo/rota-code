@@ -18387,7 +18387,10 @@ def definers_of(conn, name: str, staged=(), defs_only: bool = False,
 
 def _lenient_definers(conn, name: str, mine: dict, root) -> set[str]:
     # The files are the index's paths and the staged writes, so no door
-    # walks the disk for a definer (F13 pass 1b).
+    # walks the disk for a definer (F13 pass 1b). The two sets are the
+    # whole tree a session can define a name in. Law 4: an uncommitted
+    # change never existed, so a file that an earlier session wrote and
+    # did not commit is not in the worktree at the next session.
     from pathlib import Path
 
     pat = re.compile(_LENIENT_DEFINER.format(re.escape(name)), re.M)
