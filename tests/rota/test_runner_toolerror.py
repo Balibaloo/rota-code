@@ -119,6 +119,28 @@ def test_s130_a_later_call_keeps_the_parse_error(db):
     assert "no function name after TOOL:" in out.errors
 
 
+INVENTED = "\n".join([
+    "TOOL: tests.consult()",
+    "OK tests.consult -> nothing to consult",
+    "TOOL: msg.answer_developer(refs=['c_4', 'tst_c4'], quotes=['the path'])",
+    "Call one per line. `TOOL:` is a literal marker.",
+])
+
+
+def test_a_dropped_list_after_an_invented_result_holds_real_calls_only(db):
+    """The W11 review, p2-2: the calls after an invented result are dropped
+    and named. A parse error among them is answered, never named to resend."""
+    out, prompts = _tester(db, [INVENTED, NO_CALL, NO_CALL, NO_CALL])
+    assert "wrote its own tool results" in out.errors, out.errors
+    assert "no function name after TOOL:" in out.errors
+    turn_2 = prompts[1].rsplit("is a literal marker.", 1)[-1]
+    assert ": no function name after TOOL:" in turn_2
+    note = next(ln for ln in turn_2.splitlines()
+                if ln.startswith("NOT RUN, because you wrote a tool result"))
+    assert "msg.answer_developer" in note
+    assert "TOOL:`" not in note
+
+
 def test_s130_the_night_print_counts_the_ending(db):
     """The W11 review, finding 1: the night print showed only the wake line.
     The failures section counts the session and names the reason."""
@@ -131,6 +153,7 @@ def test_s130_the_night_print_counts_the_ending(db):
     counted = [ln for ln in section if ln.startswith(
         "committed sessions that ended with refusals in the runner's account: 1,")]
     assert counted, section
+    assert counted[0].endswith("parse errors 1 lines in 1 sessions"), counted
 
 
 def test_s130_the_account_turn_records_the_refusal(db):

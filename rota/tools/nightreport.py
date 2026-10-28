@@ -931,8 +931,11 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     # A committed session that ended on refusals is not a failure, but the
     # runner's account turn is its only record. Night 173's s130 shape
     # left no line here once it stopped failing (the W11 review, finding 1).
-    reasons: Counter = Counter()
-    ended = 0
+    # Night 173 has 155 such sessions, so the parse kind of the triage
+    # rules gets its own count (the W11 review, p2-1).
+    from .triage import mechanism
+
+    ended = lines = parse_lines = parse_sessions = 0
     for s in sessions:
         if s["committed"] != 1:
             continue
@@ -941,11 +944,14 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
                 for ln in str(t["completion"]).splitlines() if ln.startswith("- ")]
         if said:
             ended += 1
-            reasons.update(said)
+            lines += len(said)
+            parsed = sum(1 for ln in said if mechanism(ln)[0] == "parse")
+            parse_lines += parsed
+            parse_sessions += 1 if parsed else 0
     if ended:
-        top, k = sorted(reasons.items(), key=lambda x: (-x[1], x[0]))[0]
         w(f"committed sessions that ended with refusals in the runner's account: "
-          f"{ended}, {sum(reasons.values())} lines, the most common {k}x: {cut(top, 100)}")
+          f"{ended}, {lines} lines, parse errors {parse_lines} lines in "
+          f"{parse_sessions} sessions")
 
     # 11. Open faults, per refused call (frame 204's design, section 7). A
     # seat's fault report reaches the build session here after a night.
