@@ -89,6 +89,32 @@ def test_earlier_reading_reads_a_bare_reference_after_a_full_stop():
     assert fine == {2}
 
 
+# Fact F3, pass 1b. The reading carries what his words permit or ask of a
+# named target. Each door reads it from the reading, not by its own list.
+
+
+def test_reading_says_when_the_words_name_the_request():
+    reading = api._line_reading("The version comes from the interpreter.")
+    assert reading.names_request(("Take the version from the interpreter",))
+    assert not reading.names_request(("Add a json flag",))
+
+
+def test_reading_says_when_the_words_touch_files():
+    assert api._line_reading("Line 2 names the wrong tests").touches_files
+    assert not api._line_reading("Line 2 is wrong").touches_files
+    # `_faulted_approve` reads the clause of each cue through the reading.
+    cues = {2: ("wrong", "names the wrong tests"), 3: ("wrong", "is wrong")}
+    got = api._faulted_approve(frozenset({2, 3}), cues, 5, False,
+                               frozenset({5}))
+    assert got and "line 3" in got and "line 2" not in got
+
+
+def test_reading_says_what_the_words_ask_of_a_note():
+    reading = api._line_reading("Note 7 is wrong, drop it.")
+    assert reading.note_act(7, "") == api._note_words(
+        "Note 7 is wrong, drop it.", 7, "")
+
+
 # The pin. The names below are the parser's line rule and cue lists. Only
 # the parser's own functions in api.py read them. A second reader goes red.
 PARSER_NAMES = {
@@ -97,12 +123,16 @@ PARSER_NAMES = {
     "_line_refs", "_line_cues", "_live_cues",
     # The deleted cue lists stay deleted.
     "_PAGE_CUE", "_LINE_CHECK", "_CUE_BARE_FAULT",
+    # Fact F3: the phrase lists of what his words permit or ask of a target.
+    "_TOUCH_WORDS", "_BUILD_VERB", "_BATCH_TALK", "_NOTE_DROP",
+    "_NOTE_SAYS", "_NOTE_NO_CHANGE", "_NOTE_CHANGE", "_names_request",
+    "_note_words",
 }
 DELETED = {"_PAGE_CUE", "_LINE_CHECK", "_CUE_BARE_FAULT"}
 PARSER_SITES = {
     "<module>", "_ref_lines", "_line_refs", "_line_reading", "LineReading",
     "_line_cues", "_live_cues", "_agreement", "_instruction_cue",
-    "_contrast_cue",
+    "_contrast_cue", "_names_request", "_note_words",
 }
 # A line-reference regex in a string literal: "lines?\s", "lines? \d" or
 # "(?:lines?|notes?)".

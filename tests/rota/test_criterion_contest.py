@@ -130,9 +130,25 @@ def test_a_name_the_principal_asked_for_is_admitted(db):
                    "(major.minor.micro) when the `show_python` parameter is "
                    "True.")
     _ruling(db, "r_c4bf70291d", "m374", "contest", WORDS_374, V14)
+    # Fact F3: the Liaison's row records the name as the act's target.
+    seed_acts(db, "r_c4bf70291d", {CID: {
+        "act": "rewrite", "target_kind": "identifier",
+        "target": "version_option", "words": WORDS_374}})
     assert _respecify(db, V15)["respecified"]
     with pytest.raises(ValueError, match="--show-python"):
         _respecify(db, V16)
+
+
+def test_his_words_alone_never_let_a_contested_name_back(db):
+    """Fact F3: the door reads the grant on the row, not a phrase of his
+    words. WORDS_374 names `version_option`, and no row grants an act on
+    it, so V15 is refused. The old token match admitted it."""
+    _criterion(db, "The decorator appends the running Python version "
+                   "(major.minor.micro) when the `show_python` parameter is "
+                   "True.")
+    _ruling(db, "r_c4bf70291d", "m374", "contest", WORDS_374, V14)
+    with pytest.raises(ValueError, match="version_option"):
+        _respecify(db, V15)
 
 
 def test_the_name_must_sit_in_the_contest_rows_own_words(db):

@@ -6966,22 +6966,19 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # `--show-python`, which he had contested, and the batch never merged
     # (frame 226).
     if contested and cur:
-        # A name that the principal's own words use is one he asked for. The
-        # review of 33cd99b2, finding 1: `version_option` was refused, and
-        # his words ask for a parameter of `version_option`.
-        # A name matches his words on word bounds. A substring test let a
-        # contested `--show` back when he named `--show-python` (the review
-        # of frame 226, finding 1).
-        # The words of the contest row on this criterion, the span that
-        # rules it, and not the whole reply (the seam design, 3.3, P9).
-        span = ctx.conn.execute(
-            "SELECT words FROM ruled_refs WHERE ruling_id = ? AND ref = ?",
-            (contested["id"], id)).fetchone()
-        his = ((span["words"] if span else "") or contested["words"]).lower()
+        # A name comes back only when his ruling grants an act on that name
+        # as its target (fact F3). The review of 33cd99b2, finding 1: his
+        # words asked for a parameter of `version_option`. The Liaison's row
+        # records that target, and the door reads the row, never a phrase of
+        # his words (the seam design, pass 4). A target matches exactly, so
+        # a grant on `--show-python` never lets `--show` back (frame 226).
+        from .principal import grant
+
         back = sorted(t for t in (_named_tokens(contested["text"])
                                   - _named_tokens(cur["text"]))
                       & _named_tokens(text)
-                      if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", his))
+                      if not any(grant(ctx.conn, id, act, t)
+                                 for act in ("add", "keep", "rewrite")))
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
@@ -11907,6 +11904,26 @@ class LineReading:
         number."""
         return bool(_LINE_WORD.search(self.words))
 
+    # What his words permit or ask of a named target (fact F3). The phrase
+    # lists sit in the parser's helpers below, and no door reads them.
+
+    @property
+    def touches_files(self) -> bool:
+        """True when the words name files or tests, the words of a batch's
+        prediction."""
+        return bool(_TOUCH_WORDS.search(self.words))
+
+    def names_request(self, request_texts: tuple[str, ...],
+                      faulted_texts: tuple[str, ...] = ()) -> bool:
+        """True when the words, with no line number, name the request."""
+        return _names_request(self.words, request_texts, faulted_texts)
+
+    def note_act(self, n: int, page_text: str,
+                 within: str | None = None) -> str | None:
+        """What the words ask of note line `n`: "drop", "change", "own"
+        or None."""
+        return _note_words(self.words, n, page_text, within=within)
+
     def _pair(self) -> tuple[set[int], set[int]]:
         return self.faulted, self.matched
 
@@ -12551,7 +12568,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # to 5, and the contest of batch_1 on line 6, which no sentence names,
     # cost an Architect relay. m52 and m58 did the same to batch_2 (frame
     # 258).
-    spared = batch_lines if _TOUCH_WORDS.search(words or "") else frozenset()
+    spared = (batch_lines if _line_reading(words).touches_files
+              else frozenset())
     unnamed = _unnamed_contest(sentences, contested - spared,
                                faulted | matched, size, item_lines,
                                request_lines, earlier_lines)
@@ -12595,7 +12613,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
             s.strip() and not _line_reading(s).refs
             and not _BARE_AGREEMENT.fullmatch(s)
             and not (batch_faulted and _FILES_TALK.search(s))
-            and _names_request(s, request_texts, faulted_texts)
+            and _line_reading(s).names_request(request_texts, faulted_texts)
             for s in sentences):
         return approve
     # The shape of the batch door's refusal, which names the line first.
@@ -12820,7 +12838,7 @@ def _faulted_approve(approved: frozenset[int],
         n for n in approved if n in cues and 1 <= n <= size
         and n not in closed_lines and not (request_first and n == 1)
         and not (n not in batch_lines and batch_lines
-                 and _TOUCH_WORDS.search(cues[n][1])))
+                 and _line_reading(cues[n][1]).touches_files))
     if not wrong:
         return None
     one = len(wrong) == 1
@@ -13549,8 +13567,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT body_text FROM messages WHERE id = ?",
                 (_words_from(ctx, span or ""),)).fetchone()
             within, span = span or None, (held["body_text"] if held else "") or ""
-        said = (_note_words(span, order.index(ref) + 1, page_text,
-                            within=within)
+        said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
+                                             within=within)
                 if order and ref in order else None)
         if act == "drop":
             said = "drop"
