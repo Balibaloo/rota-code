@@ -2,12 +2,13 @@
 # OpenAI-compatible endpoint through litellm. Every model name carries the
 # `openai/` prefix litellm expects for that API, and litellm wants an
 # OPENAI_API_KEY in the environment; any word does for Ollama. A llama.cpp
-# server is the same file with its own port.
+# server is the same file with its own port. The loader fills
+# `{model_host}` from `llm.OLLAMA_HOST`, the one reader of the host (F29).
 name = "local-openai"
 
 [provider]
 kind = "litellm"
-endpoint = "http://localhost:11434/v1"
+endpoint = "{model_host}/v1"
 timeout = 300
 
 # The 3080 sets this number: qwen3:8b needs 6.89 to 7.40 GB at 16384
