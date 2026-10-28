@@ -5532,11 +5532,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         # the criterion was refused for never calling it.
         bare = ref.split("::")[-1].rsplit(".", 1)[-1]
         given = set(_named_new_callables(ctx, ticket_id)) if ticket_id else set()
-        in_tree = False
-        try:
-            in_tree = bool(_defined_in_tree(ctx, bare, ""))
-        except Exception:                                  # noqa: BLE001
-            in_tree = False
+        in_tree = bool(definers_of(ctx.conn, bare))
         # At the repair only: a first criterion may name the entry point a
         # new feature will have (test_a_name_with_no_neighbour_is_a_design
         # _not_a_typo); a repair exists because a test could not be written,
@@ -7424,8 +7420,11 @@ def _test_dirs(indexed: set[str], conn=None) -> set[str]:
 
 def _program_modules(conn: sqlite3.Connection) -> set[str]:
     """The top-level import names of the indexed `.py` files that the frame
-    marks program: the top package of a file, or the file's stem when its
-    folder holds no `__init__.py`."""
+    marks program: the top package of a file. A file outside a package
+    takes the first part of its module by `module_of`."""
+    # F13 (rule C76): the stem of `src/pkg/helper.py` is `helper`, and
+    # `helper` does not import. The package walk stays, because
+    # `_dotted_module` knows `src/` and `lib/` only, and not `python/`.
     from ..onboarding.areas import kind_of
 
     paths = {r["grain"].replace("\\", "/") for r in conn.execute(
@@ -7438,7 +7437,8 @@ def _program_modules(conn: sqlite3.Connection) -> set[str]:
         top = len(parts) - 1
         while top > 0 and "/".join(parts[:top] + ["__init__.py"]) in paths:
             top -= 1
-        name = parts[top] if top < len(parts) - 1 else parts[-1][:-3]
+        name = (parts[top] if top < len(parts) - 1
+                else (module_of(conn, p + "::") or ("", ""))[0].split(".")[0])
         if name.isidentifier():
             out.add(name)
     return out
@@ -9683,8 +9683,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _installed = project_installable(_worktree_of(ctx))
         except Exception:  # noqa: BLE001 -- no worktree yet: import from the root
             _installed = False
-        module = (_dotted_module(_grain_path(named[0].split("::", 1)[0]),
-                                 keep_root=not _installed) if named else "")
+        module = ((module_of(ctx.conn, _grain_path(named[0]) + "::",
+                             keep_root=not _installed) or ("", ""))[0]
+                  if named else "")
         if module:
             # Frame 222: the surface import binds the surface's symbol and
             # its module only. Another name is a helper the test owes when
@@ -9701,11 +9702,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if _dropped:
                 _called = set()
             elif unbound[0] not in _fixtures:
-                try:
-                    _found = _project_module_of(_worktree_of(ctx), unbound[0],
-                                                keep_root=not _installed)
-                except Exception:  # noqa: BLE001 -- no worktree yet: no shape 4
-                    _found = None
+                _found = module_of(ctx.conn, unbound[0], keep_root=not _installed)
                 if _found and not _module_load_error(ctx, *_found):
                     _defined_in = _found[0]
             # Frame 222's review 1, finding 1: a stand-in that a runner's
@@ -10297,7 +10294,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         import re as _re2
         surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
                         for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
-        _dotted = _dotted_module
+
+        def _dotted(path: str) -> str:
+            return (module_of(ctx.conn, path + "::") or ("", ""))[0]
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
         # Every module the test imports must exist where the harness will
@@ -10341,21 +10340,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # A bare surface names no file; the tree does. Night 25: the
             # hint listed .devcontainer, .github and .venv as "the modules
             # there" and never said `from click.echo_json import echo_json`.
+            _bare_found: dict[str, str] = {}
             if not dotted_surfaces and _root is not None:
                 for s in surface:
                     if "::" in s or not _re2.fullmatch(r"[A-Za-z_]\w*", s):
                         continue
-                    pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(s)}(?!\w)", _re2.M)
-                    for py in _root.rglob("*.py"):
-                        rel = py.relative_to(_root).parts
-                        if any(part.startswith(".") for part in rel) or "tests" in rel:
-                            continue
-                        try:
-                            if pat.search(py.read_text(encoding="utf-8", errors="replace")):
-                                dotted_surfaces.append(_dotted("/".join(rel)))
-                                break
-                        except OSError:
-                            continue
+                    _where = module_of(ctx.conn, s)
+                    if _where:
+                        dotted_surfaces.append(_where[0])
+                        _bare_found.setdefault(_where[0], _where[1])
             plain = sorted(m for m in _known - set(getattr(_sys2, "stdlib_module_names", ()))
                            if not m.startswith(".") and m not in ("tests", "docs", "pytest"))
             want = ", ".join(dotted_surfaces or plain[:6])
@@ -10367,11 +10360,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     (s.split("::", 1)[0] for s in surface if "::" in s
                      and _dotted(s.split("::", 1)[0]) == hinted), None)
                 if hinted_path is None:
-                    hinted_path = next(
-                        (p.relative_to(_root).as_posix() for p in _root.rglob("*.py")
-                         if not any(part.startswith(".")
-                                    for part in p.relative_to(_root).parts)
-                         and _dotted(p.relative_to(_root).as_posix()) == hinted), "")
+                    hinted_path = _bare_found.get(hinted, "")
                 broken = _module_load_error(ctx, hinted, hinted_path) if hinted_path else None
                 if broken:
                     raise Wall(_unloadable_surface(
@@ -10477,20 +10466,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"imports a name the module does not have, and the "
                         f"harness dies at collection. Import only what the module "
                         f"defines, or the surface the criterion names")
-                where = None
-                where_path = ""
-                pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(misplaced[0])}(?!\w)", _re2.M)
-                for py in _root.rglob("*.py"):
-                    rel = py.relative_to(_root).parts
-                    if any(part.startswith(".") for part in rel) or "tests" in rel:
-                        continue
-                    try:
-                        if pat.search(py.read_text(encoding="utf-8", errors="replace")):
-                            where = _dotted("/".join(rel))
-                            where_path = "/".join(rel)
-                            break
-                    except OSError:
-                        continue
+                where, where_path = module_of(ctx.conn, misplaced[0]) or (None, "")
                 # Frame 215's review 1, finding 2: the line offered here must
                 # load in the sandbox.
                 broken = _module_load_error(ctx, where, where_path) if where else None
@@ -18255,6 +18231,48 @@ def _dotted_module(path: str, keep_root: bool = False) -> str:
     return dotted.removesuffix(".__init__")
 
 
+def definers_of(conn, name: str) -> list[str]:
+    """
+    The program files that define `name` at top level, sorted.
+
+    The code index holds a symbol row `path::name` for each top-level
+    `def` and `class`. The frame's kind keeps the program files only, so a
+    test, an example or an ignored file defines no name a test reaches.
+    """
+    # F13 (rootfix audit 2026-10-27-a, rule C76): the index is the one place
+    # that holds every symbol's file. A door that walks the tree with its own
+    # rule disagrees with the frame (frame 324, ruled: Roman, 2026-10-26 20:37).
+    from ..onboarding.areas import kind_of
+
+    if conn is None or not name:
+        return []
+    tail = "::" + name
+    rows = conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+        "AND substr(grain, -?) = ?", (len(tail), tail)).fetchall()
+    return sorted({p for p in (r["grain"][:-len(tail)].replace("\\", "/") for r in rows)
+                   if kind_of(conn, p) == "program"})
+
+
+def module_of(conn, name: str, keep_root: bool = False) -> tuple[str, str] | None:
+    """
+    The module that defines `name`, and the module's path, or None.
+
+    A grain `path::name` or a `.py` path names its own file. A bare name
+    reads `definers_of`. When two modules define the name, the shortest
+    dotted name wins. With `keep_root`, `src/` and `lib/` stay in the
+    dotted name, as `_dotted_module` says.
+    """
+    text = (name or "").replace("\\", "/")
+    path, sep, _ = text.partition("::")
+    if sep or path.endswith(".py"):
+        dotted = _dotted_module(_grain_path(path), keep_root=keep_root)
+        return (dotted, path) if dotted else None
+    found = [(d, p) for p in definers_of(conn, text)
+             if (d := _dotted_module(p, keep_root=keep_root))]
+    return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
+
+
 # The probe prints one marked line, so a module that prints on import cannot
 # pass for the error. It catches BaseException, because a module that calls
 # `sys.exit` at import also fails a test at collection. The fields go through
@@ -19369,74 +19387,6 @@ def _conftest_fixtures(root) -> set[str]:
     return names
 
 
-def _project_module_of(root, name: str, keep_root: bool = False) -> tuple[str, str] | None:
-    """
-    The module of the project that defines `name` at module level, and its
-    path, or None.
-
-    A definition is a `class` or `def` at column 0, an assignment to the
-    name at column 0, or the name in a module's `__all__`. When two modules
-    define it, the shortest dotted path wins. The walk skips the tests and
-    the hidden and build directories, as `_conftest_fixtures` does.
-    """
-    import os as _os
-
-    found: list[tuple[str, str]] = []
-    try:
-        for here, dirs, files in _os.walk(root):
-            # A package directory holds `__init__.py`. Only the root's `src`
-            # and `lib` are entered without one. The replay of pass 1c found
-            # `cli` in clickI's `examples/repo/repo.py`, which no test imports.
-            top = _os.path.normpath(here) == _os.path.normpath(str(root))
-            dirs[:] = [d for d in dirs
-                       if not d.startswith(".") and d not in _FIXTURE_SKIP_DIRS
-                       and d not in ("tests", "test")
-                       and ((top and d in ("src", "lib"))
-                            or _os.path.isfile(_os.path.join(here, d, "__init__.py")))]
-            for fname in files:
-                if not fname.endswith(".py") or fname == "conftest.py":
-                    continue
-                full = _os.path.join(here, fname)
-                try:
-                    with open(full, encoding="utf-8") as fh:
-                        text = fh.read()
-                except (OSError, ValueError):
-                    continue
-                if name not in text:
-                    continue
-                try:
-                    tree = _ast.parse(text)
-                except (SyntaxError, ValueError):
-                    continue
-                if not any(_binds_at_module_level(node, name) for node in tree.body):
-                    continue
-                rel = _os.path.relpath(full, root).replace("\\", "/")
-                dotted = _dotted_module(rel, keep_root=keep_root)
-                if dotted:
-                    found.append((dotted, rel))
-    except OSError:
-        return None
-    return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
-
-
-def _binds_at_module_level(node, name: str) -> bool:
-    """True when one statement at column 0 defines `name` or lists it in `__all__`."""
-    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
-        return node.name == name
-    targets = (node.targets if isinstance(node, _ast.Assign)
-               else [node.target] if isinstance(node, (_ast.AnnAssign, _ast.AugAssign))
-               else [])
-    for t in targets:
-        if isinstance(t, _ast.Name) and t.id == name:
-            return True
-        if (isinstance(t, _ast.Name) and t.id == "__all__"
-                and isinstance(getattr(node, "value", None), (_ast.List, _ast.Tuple))):
-            if any(isinstance(e, _ast.Constant) and e.value == name
-                   for e in node.value.elts):
-                return True
-    return False
-
-
 def _unbound_name_hint(name: str, surface: str, module: str,
                        fixtures: set[str], owner: str = "test_x",
                        called: frozenset[str] | set[str] = frozenset(),
@@ -19459,7 +19409,7 @@ def _unbound_name_hint(name: str, surface: str, module: str,
     first, and the stand-in there is a click command the test owes. When
     `imported` holds the surface's symbol, 3a names no line for it.
     Shape 4, read before shape 3: `defined_in` is the module of the
-    project's package that defines the name, from `_project_module_of`, and
+    project's package that defines the name, from `module_of`, and
     the hint names its line. The caller checks that the module loads.
 
     Frame 222 counted the door's refusals on clickI nights 143 to 149, from
@@ -23919,6 +23869,8 @@ def _package_definers(root, init_rel: str, path: str, name: str) -> list[str]:
     Command by `from .core import Command`, and only core.py defines it
     (frame 229). A file that does not parse defines nothing.
     """
+    # F13 residue (rule C76): this write door reads the files on disk for
+    # the reason `_defined_in_tree` gives.
     import ast as _ast
     from pathlib import Path as _Path
     pkg_dir = root / _Path(init_rel).parent
@@ -25189,6 +25141,9 @@ def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
     """The program modules of the batch's worktree that define `name` at
     top level, other than `path`. A regex over the files, not a parse: the
     question is one name, and the tree is small enough to read."""
+    # F13 residue (rule C76): the write door reads the files on disk, and
+    # not `definers_of`. The runner refreshes the index after a session
+    # commits, so the index lacks a file that this session wrote.
     import re as _re
     root = _batch_worktree(ctx)
     if root is None or not root.is_dir():
