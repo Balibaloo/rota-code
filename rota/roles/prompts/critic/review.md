@@ -8,8 +8,9 @@ Work through it in this order:
 
 1. **Does the diff satisfy each criterion?** For each criterion, find the
    added line of the diff that meets it, a line that starts with `+`, and copy
-   it without the `+`. A docstring or comment line is evidence only for a
-   criterion that asks for documentation. A criterion with no added line that
+   it without the `+`. When several added lines meet it together, copy them
+   as a list, each without the `+`. A docstring or comment line is evidence
+   only for a criterion that asks for documentation. A criterion with no added line that
    meets it looks like it fails. For each one that looks like it fails, the
    branch is not yours to skip:
    `verdicts.claim_encodes` first — does this criterion's own test actually

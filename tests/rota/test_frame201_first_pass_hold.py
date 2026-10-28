@@ -104,12 +104,18 @@ def _held(sb, **kwargs) -> str:
     return str(exc.value)
 
 
+# F37: the one-line hold names the list form, because s238 of night 172 read
+# the hold as "one line per criterion" and failed a right pass.
+_MORE = ("If the criterion needs more than that line, send the pass again "
+         "with the added lines that meet it together, as a list.")
+
+
 def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
-            f"the criterion says, or the opposite? Say which in your own "
-            f"words, and in the same reply send the same pass again or your "
-            f"own fail on the criterion.")
+            f"the criterion says, or the opposite? {_MORE} Say which in "
+            f"your own words, and in the same reply send the same pass again "
+            f"or your own fail on the criterion.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -232,9 +238,48 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         f"then '{L_ACCOUNT}'. Do those lines do what the criterion says, or "
         "the opposite? "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
-        "that line do what the criterion says, or the opposite? Say which in "
-        "your own words, and in the same reply send the same pass again or "
-        "your own fail on the criterion.")
+        f"that line do what the criterion says, or the opposite? {_MORE} Say "
+        "which in your own words, and in the same reply send the same pass "
+        "again or your own fail on the criterion.")
+
+
+def test_the_one_line_hold_names_the_list_form(case):
+    """F37, night 172, s238: the seat read the hold on one line as "copy one
+    line per criterion" and sent a fail. The hold names the list form."""
+    said = _held(_critic(case), lines={C1: L_INVOICES})
+    assert _MORE in said
+
+
+def test_the_hold_on_many_lines_keeps_its_question(case):
+    """The list form is named on the one-line hold only."""
+    said = _held(_critic(case), lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert "Do those lines do what the criterion says, or the opposite?" in said
+    assert _MORE not in said
+
+
+@pytest.mark.parametrize("piece", ["review.md", "answer.md"])
+def test_each_critic_prompt_names_the_list_form(piece):
+    """F37: the interview of s238 found no prompt words on two lines that
+    meet one criterion together. Each piece is read from its file."""
+    from pathlib import Path
+
+    import rota.roles
+    path = Path(rota.roles.__file__).parent / "prompts" / "critic" / piece
+    text = " ".join(path.read_text(encoding="utf-8").split())
+    assert ("When several added lines meet it together, copy them as a list, "
+            "each without the `+`.") in text
+
+
+def test_a_two_line_list_sent_again_lands(case):
+    """F37: a pass that names two lines for one criterion, as a list, is
+    held once. The same pass sent again lands on the many-form path."""
+    sb = _critic(case)
+    said = _held(sb, lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert f"Your lines hold '{L_INVOICES}', then '{L_ACCOUNT}'." in said
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={C1: [L_INVOICES, L_ACCOUNT]})
+    assert out["result"] == "pass"
+    assert len(_verdicts(sb)) == 1
 
 
 def test_a_second_hold_quotes_only_the_moved_criterion(case):

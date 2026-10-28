@@ -15989,6 +15989,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
 _HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
 _HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
                        "opposite?")
+# Night 172, s238: the seat read the hold on one line as "copy one line per
+# criterion" and failed a right pass. The door reads a list (frame 170), so
+# the one-line hold names that form (F37).
+_HOLD_MORE = ("If the criterion needs more than that line, send the pass "
+              "again with the added lines that meet it together, as a list.")
 # One instruction ends the hold, and it names no call for the fail route.
 # The fail names its criterion, because the claim check reads
 # `failed_criterion` only (frame 201, review 5, finding 1).
@@ -16047,7 +16052,8 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
 
     def holds(parts: list[str]) -> str:
         if len(parts) == 1:
-            return f"Your line holds '{parts[0]}'. {_HOLD_QUESTION}"
+            return (f"Your line holds '{parts[0]}'. {_HOLD_QUESTION} "
+                    f"{_HOLD_MORE}")
         shown = ", then ".join(f"'{p}'" for p in parts)
         return f"Your lines hold {shown}. {_HOLD_QUESTION_MANY}"
 
