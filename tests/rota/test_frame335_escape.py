@@ -160,20 +160,20 @@ def test_an_import_error_keeps_the_advice_of_pytest():
      + 'Users' + BS + 'x' + BS + 'AppData' + BS + 'Roaming"`.'),
     ("C:" + BS + "Roaming" + BS + "new",
      'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Roaming" + '
-     'chr(92) + "new"`. That form keeps a real backslash on both parse '
-     'paths. When the path is given to a file function, not compared, '
+     'chr(92) + "new"`. That form keeps each backslash. When '
+     'the path is given to a file function, not compared, '
      '`"C:/Roaming/new"` also works.'),
     ("C:" + BS + "Roaming" + BS + "temp",
      'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Roaming" + '
-     'chr(92) + "temp"`. That form keeps a real backslash on both parse '
-     'paths. When the path is given to a file function, not compared, '
+     'chr(92) + "temp"`. That form keeps each backslash. When '
+     'the path is given to a file function, not compared, '
      '`"C:/Roaming/temp"` also works.'),
     # Pass 2b, review 2, point 3: `\U` fails the strict path and `\n` the
     # fallback, so no raw form of `C:\Users\new` comes through.
     ("C:" + BS + "Users" + BS + "new",
      'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Users" + '
-     'chr(92) + "new"`. That form keeps a real backslash on both parse '
-     'paths. When the path is given to a file function, not compared, '
+     'chr(92) + "new"`. That form keeps each backslash. When '
+     'the path is given to a file function, not compared, '
      '`"C:/Users/new"` also works.'),
 ], ids=["users", "roaming_new", "roaming_temp", "users_new"])
 def test_the_advice_gives_a_form_that_the_call_keeps(
@@ -199,7 +199,7 @@ def test_an_invalid_octal_escape_meets_the_escape_refusal(db, monkeypatch):  # n
     # value that the raw form gives, so the advice names it and no slash.
     assert said.endswith(
         "Write each backslash as `chr(92)`: `chr(92) + \"777\"`. That form "
-        "keeps a real backslash on both parse paths.")
+        "keeps each backslash.")
     assert seen == []
 
 
@@ -225,8 +225,8 @@ def test_a_value_with_no_kept_raw_form_gets_a_value_keeping_form():
                            BS + "U")
     first = said.split(". ")[0]
     assert "chr(92)" in first and "/" not in first
-    value = eval(said.split("`")[3])  # noqa: S307 -- a literal of the test
-    assert value == "C:" + BS + "Users" + BS + "new"
+    assert api._form_value(said.split("`")[3]) == ("C:" + BS + "Users" + BS
+                                                   + "new")
     assert said.endswith("When the path is given to a file function, not "
                          "compared, `\"C:/Users/new\"` also works.")
 
@@ -236,6 +236,69 @@ def test_a_line_with_no_literal_names_no_slash_form_first():
     said = api._raw_advice("", BS + "R")
     assert said.startswith("Write each backslash as `chr(92)`")
     assert "forward slashes also work" in said.split(". ")[-1]
+
+
+def _first_form(said: str) -> str:
+    """The form that the advice names first, after the `chr` names."""
+    return next(f for f in said.split("`")[1::2]
+                if f not in ("chr(92)", "chr(39)", "chr(34)"))
+
+
+def test_an_escaped_mark_gets_a_form_that_is_python():
+    """W3 review, finding 1: the join split `\\"` at its backslash and gave
+    a form that is not Python. The join now comes from the parsed value."""
+    line = ('assert "say ' + BS + '"hi' + BS + '" ' + BS + 'd" in result')
+    said = api._raw_advice(line, BS + "d")
+    form = _first_form(said)
+    assert form == ('"say " + chr(34) + "hi" + chr(34) + " " + chr(92) '
+                    '+ "d"')
+    assert api._form_value(form) == 'say "hi" ' + BS + "d"
+    assert api._call_keeps(form)
+
+
+def test_a_form_that_is_not_python_is_never_offered():
+    """W3 review, finding 1: a form must compile to the meant value."""
+    assert api._form_value('"say " + chr(92) + ""hi"') is None
+    assert api._form_value('__import__("os")') is None
+    assert api._form_value('"C:" + chr(92) + "new"') == "C:" + BS + "new"
+    # The call carries the broken form unchanged, so the compile decides.
+    assert not api._call_keeps('"say " + chr(92) + ""hi"')
+    assert api._call_keeps('"C:" + chr(92) + "new"')
+
+
+def test_a_line_that_compares_gets_no_slash_form():
+    """W3 review, finding 2: on an assert, the slash form is the short form
+    that a seat takes, and it changes the compared value."""
+    for line in ('assert "C:' + BS + 'Users' + BS + 'new" in result',
+                 'assert result == "C:' + BS + 'Users' + BS + 'new"',
+                 'ok = result == "C:' + BS + 'Users' + BS + 'new"',
+                 'ok = "C:' + BS + 'Users' + BS + 'new" in seen'):
+        said = api._raw_advice(line, BS + "U")
+        assert "/" not in said and "file function" not in said, line
+    said = api._raw_advice('path = "C:' + BS + 'Users' + BS + 'new"',
+                           BS + "U")
+    assert said.endswith("`\"C:/Users/new\"` also works.")
+
+
+def test_the_form_sentence_names_no_parse_path():
+    """W3 review, finding 3: a seat cannot act on "both parse paths"."""
+    said = api._raw_advice('path = "C:' + BS + 'Users' + BS + 'new"',
+                           BS + "U")
+    assert "That form keeps each backslash." in said
+    assert "parse path" not in said
+
+
+def test_a_string_with_both_marks_gets_a_chr_form():
+    """W3 review, finding 4: `"it's \\d"` got "Write the value with no
+    backslash", which changes the value."""
+    line = 'assert "it' + "'" + 's ' + BS + 'd" in result'
+    said = api._raw_advice(line, BS + "d")
+    form = _first_form(said)
+    assert form == '"it" + chr(39) + "s " + chr(92) + "d"'
+    assert said.startswith("Write each backslash as `chr(92)` and each quote "
+                           "mark as `chr(39)` or `chr(34)`")
+    assert api._form_value(form) == "it's " + BS + "d"
+    assert api._call_keeps(form)
 
 
 # The test row of night 168 as s146 stored it, one backslash. s147 quoted
