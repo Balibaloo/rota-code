@@ -5531,7 +5531,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         # a library function the program does not have, and every test of
         # the criterion was refused for never calling it.
         bare = ref.split("::")[-1].rsplit(".", 1)[-1]
-        given = set(_named_new_callables(ctx, ticket_id)) if ticket_id else set()
+        given = set(item_callables(ctx, ticket_id).new)
         in_tree = False
         try:
             in_tree = bool(_defined_in_tree(ctx, bare, ""))
@@ -5575,25 +5575,15 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     # An abandoned batch's prediction is no longer the work's (frame 215's
     # review 1, finding 6): its files neither admit nor name a surface.
     batches = ctx.conn.execute(
-        "SELECT b.id AS id, b.item_id AS item_id, i.text AS item_text "
-        "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
-        "LEFT JOIN items i ON i.id = b.item_id WHERE bt.ticket_id = ? "
-        "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,)).fetchall()
+        "SELECT b.id AS id FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "WHERE bt.ticket_id = ? AND b.status != 'abandoned' ORDER BY b.id",
+        (ticket_id,)).fetchall()
     touch: list = []
-    ticket = ctx.conn.execute(
-        "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-    words_from = [ticket["text"] if ticket else ""]
     for b in batches:
         # The same query as `batches_expect`, so the door and the read agree.
         touch += [dict(r) for r in ctx.conn.execute(
             "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
             "ORDER BY confidence, grain_kind, grain", (b["id"],))]
-        words_from.append(b["item_text"] or "")
-        words_from += [r["text"] for r in ctx.conn.execute(
-            "SELECT s.text AS text FROM refs x "
-            "JOIN statements s ON s.id = x.target "
-            "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
-            "AND s.status != 'superseded' ORDER BY s.id", (b["item_id"] or "",))]
     paths = [_grain_path(t["grain"]) for t in touch if t["grain_kind"] == "path"]
     if not paths:
         return                    # no file predicted: no file to hold it to
@@ -5601,7 +5591,10 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     expected = list(dict.fromkeys(
         _grain_path(t["grain"]) for t in touch
         if t["grain_kind"] == "path" and t["confidence"] == "expected"))
-    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", " ".join(w or "" for w in words_from)))
+    # F10: a name the request gives is one in a callable's form, as at the
+    # specify door. An English word such as "message" names no callable.
+    given = item_callables(ctx, ticket_id)
+    names = set(given.known) | set(given.new)
     for ref in surface:
         if "::" not in ref:
             continue              # a bare name names no file to judge
@@ -5609,10 +5602,10 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
         name = ref.split("::", 1)[1]
         if any(path == p or path.startswith(p.rstrip("/") + "/") for p in paths):
             continue
-        if set(name.split(".")) & (words | symbols):
+        if set(name.split(".")) & (names | symbols):
             continue
         # A file the request names by its stem is a file the request names.
-        if path.rsplit("/", 1)[-1][:-3] in words and path.endswith(".py"):
+        if path.rsplit("/", 1)[-1][:-3] in given.words and path.endswith(".py"):
             continue
         raise Wall(
             f"{ref!r} lives in {path}, and the batch expects to touch "
@@ -5701,28 +5694,64 @@ def _holds_tester_route(ctx: Ctx) -> bool:
     return "msg.answer_tester" in _wake_mode_tools(ctx)
 
 
-def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
+def _item_words(ctx: Ctx, ticket_id: str | None) -> str:
     """
-    Callable names the item or its ticket give in words that the index does
-    not hold: snake_case identifiers, and a name after "function named" or
-    "function called". A4 (2026-09-10): "the share lives in a new function
-    named split_bill" beside an index holding calculate_tip, and llama3.1:8b
-    and qwen3.5:9b both named calculate_tip as the surface, 0/5 each.
-    """
-    import re as _re
+    The words of the request behind a ticket: the ticket, its item, the
+    items of its live batches, and their live statements.
 
-    row = ctx.conn.execute(
-        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
-        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
-    if not row:
-        return []
-    text = f"{row['item'] or ''} {row['ticket'] or ''}"
+    Frame 215's review 1, finding 1: the criterion's text is the seat's own,
+    so it is never a source. Finding 6: an abandoned batch is no longer the
+    work's, so its item is not read.
+    """
+    if not ticket_id:
+        return ""
+    ticket = ctx.conn.execute(
+        "SELECT text, item_id FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    if not ticket:
+        return ""
+    items = [ticket["item_id"]] + [r["item_id"] for r in ctx.conn.execute(
+        "SELECT b.item_id AS item_id FROM batch_tickets bt "
+        "JOIN batches b ON b.id = bt.batch_id WHERE bt.ticket_id = ? "
+        "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,))]
+    words = [ticket["text"] or ""]
+    for item_id in dict.fromkeys(i for i in items if i):
+        row = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
+                               (item_id,)).fetchone()
+        words.append(row["text"] or "" if row else "")
+        words += [r["text"] or "" for r in ctx.conn.execute(
+            "SELECT s.text AS text FROM refs x "
+            "JOIN statements s ON s.id = x.target "
+            "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
+            "AND s.status != 'superseded' ORDER BY s.id", (item_id,))]
+    return " ".join(words)
+
+
+@dataclass(frozen=True)
+class ItemCallables:
+    """The callables a request gives: the names the index holds, the new
+    names, and every identifier of its words."""
+    known: list[str]
+    new: list[str]
+    words: set[str]
+
+
+def item_callables(ctx: Ctx, ticket_id: str | None) -> ItemCallables:
+    """
+    The one reader of the callables the item behind a ticket gives (F10 of
+    the root-fix audit of 2026-10-27). Both criteria doors read it.
+
+    A name is given in a callable's form. A4 (2026-09-10): "the share lives
+    in a new function named split_bill" beside an index holding
+    calculate_tip, and llama3.1:8b and qwen3.5:9b both named calculate_tip
+    as the surface, 0/5 each.
+    """
+    text = _item_words(ctx, ticket_id)
+    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text))
     # law 11: a row rests on what it cites
     # Only names the words call a callable: "a function named X", "X()".
-    # A bare snake_case word is not enough. clickI night 8 (2026-09-11):
-    # "give version_option a show_python flag" made `show_python`, a flag,
-    # a callable the criteria had to name, and the Terminologist named
-    # the item's own id instead.
+    # A bare snake_case word is not enough for a new name. clickI night 8
+    # (2026-09-11): "give version_option a show_python flag" made
+    # `show_python`, a flag, a callable the criteria had to name.
     # The word after "function" is a name only in a callable's form. Night
     # 116 (2026-10-04): "The confirm() function already takes" made
     # `already` a callable, and the criteria door refused three
@@ -5733,57 +5762,38 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     kind = r"(?:function|callable|method|helper|decorator)\s+"
     ident = r"[A-Za-z_][A-Za-z0-9_]*"
     # "named" or "called" says the next word is a name, whatever its form.
-    names = set(_re.findall(kind + r"(?:named|called)\s+`?(" + ident + r")`?", text))
-    names |= set(_re.findall(kind + r"`(" + ident + r")`", text))
+    given = set(re.findall(kind + r"(?:named|called)\s+`?(" + ident + r")`?", text))
+    given |= set(re.findall(kind + r"`(" + ident + r")`", text))
     # A snake_case or camelCase word is an identifier, and English has none.
     # A leading underscore counts, so `_private` and `__init__` stay names.
-    names |= set(_re.findall(
-        kind + r"(_+[A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*"
-        r"|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b",
-        text))
+    shaped = (r"(_+[A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*"
+              r"|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b")
+    given |= set(re.findall(kind + shaped, text))
     # A dotted path names its last part, the callable a surface ends in.
-    names |= set(_re.findall(kind + r"`?(?:" + ident + r"\.)+(" + ident + r")\b", text))
-    names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
+    given |= set(re.findall(kind + r"`?(?:" + ident + r"\.)+(" + ident + r")\b", text))
+    given |= set(re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
     # "function(s)" matches the call form, and a kind word is never a name.
-    names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to",
+    given -= {"a", "the", "named", "called", "new", "that", "which", "in", "to",
               "function", "callable", "method", "helper", "decorator"}
-    out = []
-    for name in sorted(names):
-        known = ctx.conn.execute(
-            "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
-            (name, f"%::{name}")).fetchone()
-        if not known:
-            out.append(name)
-    return out
-
-
-def _named_existing_callables(ctx: Ctx, ticket_id: str) -> list[str]:
-    """Callable names the item or its ticket give in words that the index
-    holds: a snake_case word that is a definition. Night 70 (2026-09-15),
-    click sentence three: "give version_option a show_python flag" names
-    version_option, a definition; show_python is not one and drops out.
-
-    law 11: a row rests on what it cites
-    """
-    import re as _re
-
-    row = ctx.conn.execute(
-        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
-        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
-    if not row:
-        return []
-    text = f"{row['item'] or ''} {row['ticket'] or ''}"
-    words = set(_re.findall(r"[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+", text))
-    return sorted(w for w in words if ctx.conn.execute(
-        "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
-        (w, f"%::{w}")).fetchone())
+    # A name the index holds needs no kind word. Night 70 (2026-09-15),
+    # click sentence three: "give version_option a show_python flag" names
+    # version_option, a definition. show_python is not one and drops out.
+    shaped_words = set(re.findall(r"(?<![\w.])" + shaped, text))
+    # A method's grain is `path::Class.name`, so the last part of the
+    # symbol is the name the index holds.
+    held = {r["grain"].split("::", 1)[-1].rsplit(".", 1)[-1]
+            for r in ctx.conn.execute("SELECT grain FROM code_index "
+                                      "WHERE grain_kind = 'symbol'")}
+    return ItemCallables(known=sorted((given | shaped_words) & held),
+                         new=sorted(given - held), words=words)
 
 
 def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -> None:
     """A fact about three texts: the item names a callable the index does not
     hold, and the surface names only callables it does. Or the item names a
     callable the index holds, and the surface names another one."""
-    new = _named_new_callables(ctx, ticket_id)
+    given = item_callables(ctx, ticket_id)
+    new = given.new
     if not new:
         # law 11: a row rests on what it cites
         # Night 70 (2026-09-15), click sentence three: the item said "give
@@ -5792,9 +5802,10 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
         # docstring offers itself for the Python version. The Developer
         # changed version_option and the duplicate-name door refused it:
         # no criterion named it. Three sessions, stuck.
-        named = _named_existing_callables(ctx, ticket_id)
+        named = given.known
         refs = [str(r) for r in (surface_refs or [])]
-        tails = {r.split("::")[-1] for r in refs}
+        # A method's ref ends in `Class.name`, and the item names `name`.
+        tails = {r.split("::")[-1].rsplit(".", 1)[-1] for r in refs}
         if named and refs and not (tails & set(named)):
             raise ValueError(
                 f"the item names {', '.join(named)}, a callable the index holds, "

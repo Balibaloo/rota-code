@@ -341,13 +341,13 @@ def test_an_english_word_after_function_is_not_a_name(db):
 
 
 def _named(db, text):
-    from rota.roles.api import _named_new_callables
+    from rota.roles.api import item_callables
     _index(db, "src/click/termui.py::confirm", "src/click/utils.py::echo")
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i7', ?, 'in_scope', 'approved', 1, 1)", (text,))
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk7','i7','')")
     db.commit()
-    return _named_new_callables(build("terminologist", db, mode="criteria").ctx, "tk7")
+    return item_callables(build("terminologist", db, mode="criteria").ctx, "tk7").new
 
 
 @pytest.mark.parametrize("text", [
