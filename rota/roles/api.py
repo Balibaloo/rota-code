@@ -11928,46 +11928,93 @@ def _words_outside(words: str, his: str, field: str = "words",
     return None
 
 
-def _row_words(conn, ref: str) -> str:
-    """The text columns of the row `ref`, joined, for the name rule."""
-    table = table_of(conn, ref)
-    row = conn.execute(f"SELECT * FROM {table} WHERE id = ?",
-                       (ref,)).fetchone() if table else None
-    return " ".join(str(row[k]) for k in row.keys() if k != "id"
-                    and isinstance(row[k], str)) if row else ""
+def _shown_text(conn, ref: str, line: int | None, page_text: str) -> str:
+    """The text that the page showed him for the row `ref`: its numbered
+    line of `page_text`, else its line of `render_refs`. A column that the
+    page does not show is not his to name (review p7 p1, finding 2)."""
+    from .principal import render_refs
+
+    if line is not None and _line_body(page_text, line):
+        return _line_body(page_text, line)
+    shown = render_refs(conn, [ref]).strip()
+    return shown[len(ref) + 1:].strip() if shown.startswith(f"{ref}:") else ""
 
 
-def _unbacked_approve(conn, his: str, per_item: dict, key_of: dict,
-                      shape_of: dict, order: list) -> str | None:
-    """The refusal of an approve that rests on his reply alone, or None.
+# The words that tell no option from another.
+_PLAIN_WORDS = frozenset(
+    "the a an one this that these those it is are was be of to in on for "
+    "and or but not no yes with as by at from use mean means meant want "
+    "what which who how when why do does i you we they".split())
+
+
+def _names_shown(said: str, shown: str) -> bool:
+    """True when `said` holds a content word of `shown`, the text the page
+    showed him for a row. "the options one" names the sense "group: a set
+    of related options". A stated choice names the option it states
+    (night 172's m33, m55 and m86, review p7 p1, finding 1)."""
+    def words_of(text: str) -> set[str]:
+        return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
+                if w not in _PLAIN_WORDS}
+
+    return bool(words_of(said) & words_of(shown))
+
+
+def _backed(conn, ref: str, verdict: str, said: str, order: list,
+            page_text: str) -> bool:
+    """True when the words `said`, which the span rule has proven his, back
+    the verdict on `ref`: they name the row, or they approve it, or they
+    fault its line for a contest or a revise."""
+    if not (said or "").strip():
+        return False
+    reading = _line_reading(said, len(order) if order else None)
+    line = order.index(ref) + 1 if ref in (order or []) else None
+    if verdict == "approve" and (
+            _APPROVES.search(said) or _AGREES.match(said)
+            or _AGREEMENT_ALONE.fullmatch(said) or line in reading.matched
+            or (reading.matched and not reading.faulted)):
+        return True
+    # A contest or a revise is backed by words that fault, by the parser's
+    # fault words: "Criteria 2 and 6 are wrong." on night 164's m94.
+    if verdict != "approve" and (reading.faults or line in reading.faulted):
+        return True
+    ident = re.search(r"[\d_#]", str(ref)) and re.search(
+        rf"(?<![\w#]){re.escape(str(ref))}(?![\w#])", said, re.I)
+    shown = _shown_text(conn, ref, line, page_text)
+    return bool(line in reading.named or ident
+                or reading.names & _line_reading(shown).names
+                or _names_shown(said, shown))
+
+
+def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
+                      shape_of: dict, order: list,
+                      page_text: str) -> str | None:
+    """The refusal of a call that no words of his back, or None.
 
     law 6: silence is not consent, and a question is not consent. The
     review of 6895000 landed two approves for the reply "what time is the
-    meeting". An approve stands when his reply approves, by `_APPROVES`, or
-    names the row by number, by id or by the name rule of F2 pass 2d. A
-    call with a contest keeps its checks, because the lines a contest
-    leaves out are approved. The approval cues are the parser's own:
-    `_APPROVES`, and the agreement readers of frame 258."""
-    if any(v != "approve" for v in per_item.values()):
+    meeting". The words of a row are its own words, else the call's
+    `words`, which the span rule has proven his, else his reply. A verdict
+    is backed when its words name its row, approve it, or fault its line
+    (`_backed`). An approve of a row the words do not name lands only beside
+    a backed verdict, because the principal never rules on a test, and the
+    test row's approve is the seat's reading beside his ruling. On a
+    numbered page a contest or an agreement backs the other lines. A call
+    with no backed verdict is refused whole, on its first row (review p7
+    p1, finding 1)."""
+    rows = list(per_item.items())
+    if not rows or any(
+            _backed(conn, ref, verdict,
+                    (shape_of.get(ref) or {}).get("words") or words or "",
+                    order, page_text)
+            for ref, verdict in rows):
         return None
-    if (_APPROVES.search(his) or _AGREES.match(his)
-            or _AGREEMENT_ALONE.fullmatch(his)):
-        return None
-    reading = _line_reading(his, len(order) if order else None)
-    names = reading.names | {w.casefold() for w in re.findall(r"\w+", his)}
-    for ref, verdict in per_item.items():
-        if (shape_of.get(ref) or {}).get("words"):
-            continue
-        line = order.index(ref) + 1 if ref in (order or []) else None
-        if line in reading.named or str(ref).casefold() in names or (
-                reading.names & _line_reading(_row_words(conn, ref)).names):
-            continue
-        key = key_of.get(ref, ref)
-        row = f"line {key}" if str(key).isdigit() else str(key)
-        first = (_sentences(his) or [""])[0]
-        return (f"His reply neither approves nor names {row}, so {row} "
-                f"takes no approve: his reply starts {first!r}.")
-    return None
+    ref, _verdict = rows[0]
+    said = (shape_of.get(ref) or {}).get("words") or words or ""
+    key = key_of.get(ref, ref)
+    row = f"line {key}" if str(key).isdigit() else str(key)
+    first = (_sentences(said) or [""])[0]
+    return (f"His words neither approve nor name {row}, so {row} takes "
+            f"no approve: the words start {first!r}.")
 
 
 def _words_from(ctx: Ctx, span: str) -> str | None:
@@ -11975,13 +12022,17 @@ def _words_from(ctx: Ctx, span: str) -> str | None:
     earlier messages of the thread, newest first. None when no message holds
     it. The writer records the fact and refuses nothing here, because the
     span check is pass 3 of the seam design. His words come from `said`,
-    because a clarify's answer keeps them in the transcript only (W7)."""
+    because a clarify's answer keeps them in the transcript only (W7).
+
+    A span is a run of whole clauses of one message, by `_holds_clauses`,
+    the rule of the words fields. On m129 the act span "giving up" cut his
+    clause and landed as his words (review p7 p1, finding 3)."""
     reply = ctx.conn.execute(
         "SELECT thread_id FROM messages WHERE id = ?",
         (ctx.trigger,)).fetchone() if ctx.trigger else None
     if reply is None:
         return None
-    if not span.split() or _holds_span(_his_reply(ctx), span):
+    if not span.split() or _holds_clauses(_his_reply(ctx), span):
         return ctx.trigger
     from .principal import said as his_words
 
@@ -11989,7 +12040,7 @@ def _words_from(ctx: Ctx, span: str) -> str | None:
             "SELECT id FROM messages WHERE thread_id = ? AND "
             "from_role = 'principal' AND id != ? ORDER BY seq DESC",
             (reply["thread_id"], ctx.trigger)):
-        if _holds_span(his_words(ctx.conn, m["id"]), span):
+        if _holds_clauses(his_words(ctx.conn, m["id"]), span):
             return m["id"]
     return None
 
@@ -13185,7 +13236,7 @@ _BACK_REF = re.compile(r"\W*(?:they|it|its|these|those|both|each|their)\b", re.I
 # matches what I asked for." (frame 258).
 _AGREES = re.compile(
     r"\W*(?:ok(?:ay)?|yes|that's right|"
-    r"(?:this|that|it)(?: all)? (?:matches|is right|looks (?:right|good|fine))|"
+    r"(?:this|that|it)(?: all)? (?:matches|is (?:right|fine|good)|looks (?:right|good|fine))|"
     r"looks (?:right|good|fine))\b", re.I)
 # A reply that is agreement alone: night 151's m23 "ok", night 147's m182
 # "Ok, go ahead." and night 121's m119 "yes that all looks right, go ahead"
@@ -14255,8 +14306,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
              for n in item_lines - request_lines})
         if refusal:
             raise ValueError(refusal)
-    unbacked = (_unbacked_approve(ctx.conn, his, per_item, key_of, shape_of,
-                                  order) if rests_on_reply else None)
+    unbacked = _unbacked_approve(ctx.conn, words, per_item, key_of, shape_of,
+                                 order, page_text)
     if unbacked:
         raise ValueError(unbacked)
     if is_clarify and not (words or "").strip():

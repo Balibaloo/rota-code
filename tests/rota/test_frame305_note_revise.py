@@ -230,8 +230,10 @@ def test_an_act_span_that_names_no_line_is_read_in_its_clause(db):
 
 
 @pytest.mark.parametrize("words, span", [
-    ("I don't understand line 11.", "I don't understand"),          # m11
-    ("Line 11 and its check now say what I want.", "now say what I want"),
+    # A span is a run of whole clauses of his reply (review p7 p1, finding 3).
+    ("I don't understand line 11.", "I don't understand line 11"),   # m11
+    ("Line 11 and its check now say what I want.",
+     "its check now say what I want"),
 ])
 def test_a_span_with_no_line_in_a_clause_that_asks_no_change_is_refused(
         db, words, span):
@@ -256,7 +258,8 @@ SO = ("On line 11, the separate package is wrong, so use click directly in "
 @pytest.mark.parametrize("words, span, more", [
     (S357, "use click directly in the test instead of installing a separate "
            "package. The rest is fine", {"10": "contest"}),          # J1
-    (SO, "package is wrong, so use click directly", {}),             # J3
+    (SO, "the separate package is wrong, so use click directly in the "
+         "test instead", {}),                                          # J3
 ], ids=["J1", "J3"])
 def test_a_span_across_a_clause_edge_reads_every_clause_it_meets(
         db, words, span, more):

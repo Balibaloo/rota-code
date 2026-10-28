@@ -77,6 +77,14 @@ def test_night_172s_m33_line_10_quotes_m31(tmp_path):
         "the team read it: 6 lines approved. Say ok, or say what we misread.")
 
 
+def test_that_is_fine_is_an_approval():
+    """Pass 1c: "That is fine." approves, by the agreement reader."""
+    from rota.roles.api import _AGREES
+
+    assert _AGREES.match("That is fine.")
+    assert not _AGREES.match("what time is the meeting")
+
+
 def test_said_falls_back_to_the_body_of_a_message_with_no_entry(db):
     assert said(db, "m30") == "Which folder?"
     assert said(db, "m99") == ""
