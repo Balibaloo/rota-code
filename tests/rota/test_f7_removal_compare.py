@@ -238,3 +238,204 @@ def test_a_rewritten_return_and_a_widened_branch_are_no_removal():
     gone = "def f(x):\n    if x is None or x == '':\n        return 2\n"
     e = api._removal_entry(base, gone)
     assert [x[1] for x in e["lines"]] == ["return x"]
+
+
+# Pass 2 answers review 1 (`plans/f7-review-p1.md`). Each shape is a probe
+# of `f7rev/shapes.py` or `f7rev/pipeline.py`, by its number there.
+LOST_SHAPES = {
+    # Finding 1, probe 13: a new return with the same first line hid the
+    # removed XDG-like return.
+    "13 return gone, a new one has its first line": (
+        'def d(roaming):\n'
+        '    if sys.platform == "darwin":\n'
+        '        return os.path.join(\n'
+        '            "a", "b")\n'
+        '    return os.path.join(\n'
+        '        "xdg", "c")\n',
+        'def d(roaming):\n'
+        '    if sys.platform == "darwin":\n'
+        '        return os.path.join(\n'
+        '            "a", "b")\n'
+        '    if roaming:\n'
+        '        return os.path.join(\n'
+        '            "win", "c")\n'
+        '    raise RuntimeError()\n',
+        ["`return os.path.join(` at line 4"]),
+    # Finding 1, probe 12: the `else` arm became an unconditional value.
+    "12 else arm gone": (
+        "def f(c):\n    if c:\n        v = 1\n    else:\n        v = 2\n    return v\n",
+        "def f(c):\n    if c:\n        v = 1\n    v = 2\n    return v\n",
+        ["`v = 2` at line 4"]),
+    # Finding 2, probe 7: a branch on another condition is no partner.
+    "7 branch on another condition": (
+        'def f(roaming):\n    if sys.platform == "darwin":\n        return mac()\n'
+        '    return xdg()\n',
+        "def f(roaming):\n    if roaming:\n        return win()\n    return xdg()\n",
+        ['`if sys.platform == "darwin":` at line 1']),
+    # Finding 4, probe 9: an `import` and an `assert` are behaviour.
+    "9 import and assert gone": (
+        "import plugins\ndef f(x):\n    assert x > 0\n    go(x)\n",
+        "def f(x):\n    go(x)\n",
+        ["`import plugins` at line 0", "`assert x > 0` at line 2"]),
+    # Finding 4, probe 10: a rebind after a read keeps no initial value.
+    "10 init gone, a later rebind": (
+        "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n"
+        "    total = round(total)\n    return total\n",
+        "def f(xs):\n    for x in xs:\n        total += x\n"
+        "    total = round(total)\n    return total\n",
+        ["`total = 0` at line 1"]),
+    # Finding 5, probe 11: the exact match comes first, so `if a:` is lost
+    # and its body `one()` is not named.
+    "11 if gone, a wider if stays": (
+        "def f(a, b):\n    if a:\n        one()\n    if a and b:\n        two()\n",
+        "def f(a, b):\n    if a and b:\n        two()\n",
+        ["`if a:` at line 1"]),
+    # Probe 14: a guard gone, so the call runs on every path.
+    "14 guard gone": (
+        "def f(c):\n    if c:\n        go()\n    stop()\n",
+        "def f(c):\n    go()\n    stop()\n",
+        ["`if c:` at line 1"]),
+}
+
+
+@pytest.mark.parametrize("name", sorted(LOST_SHAPES))
+def test_a_removed_statement_gets_named_after_the_line_filter(name):
+    base, now, shown = LOST_SHAPES[name]
+    e = api._removal_entry(base, now)
+    assert e, name
+    assert [g["shown"] for g in api._gone_statements(now, e)] == shown
+
+
+KEPT_SHAPES = {
+    # Finding 3, probe 3: a renamed local keeps its value.
+    "3 renamed local": ("def f():\n    tmp = compute()\n    return tmp\n",
+                        "def f():\n    result = compute()\n    return result\n"),
+    # Finding 3, probe 4: two arms with one body merged into one branch.
+    "4 merged elif": ("def f(a, b):\n    if a:\n        run()\n    elif b:\n        run()\n",
+                      "def f(a, b):\n    if a or b:\n        run()\n"),
+    # Finding 3, probe 5: a branch that never runs.
+    "5 dead branch": ("def f():\n    if False:\n        run()\n    go()\n",
+                      "def f():\n    go()\n"),
+    "6 docstring": ('def f():\n    """Old words."""\n    go()\n',
+                    'def f():\n    """New words."""\n    go()\n'),
+    "8 return in a new with": ("def f():\n    x = load()\n    return x\n",
+                               "def f():\n    with lock:\n        x = load()\n        return x\n"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(KEPT_SHAPES))
+def test_a_rewrite_that_keeps_the_behaviour_is_no_removal(name):
+    base, now = KEPT_SHAPES[name]
+    assert api._removal_entry(base, now) is None
+
+
+def test_s164s_widened_branch_is_kept_and_its_two_removals_are_named():
+    """Night 171's case at the compare: `if folder is None:` widened, and
+    the darwin branch and the XDG return gone. Each one is named."""
+    base = BASE.decode("utf-8")
+    for text in HEADS.values():
+        e = api._removal_entry(base, text.decode("utf-8"))
+        assert [g["shown"] for g in api._gone_statements(text.decode("utf-8"), e)] == [
+            DARWIN, XDG]
+
+
+def test_a_mistake_does_not_cover_a_removal_its_note_lacks(db):
+    """Finding 8: the darwin and XDG lines are back, and another call is
+    gone. The grain opens again with the new note, so his page names the
+    new removal and not lines that are back."""
+    from types import SimpleNamespace
+    _open_row(db, "mistake", f"{NOTE} his request names Windows only")
+    new = "`_posixify(app_name)` at line 530"
+    gone = {PATH: [{"shown": new, "line": "_posixify(app_name)",
+                    "owner": "get_app_dir", "no": "530", "def": False}]}
+    ctx = SimpleNamespace(conn=db, batch_id="bg_1")
+    unjudged, mistaken, foreseen = api._removal_strays(ctx, None, gone)
+    assert (unjudged, mistaken, foreseen) == ({GRAIN: f"removal: {new}"}, {}, {})
+    darwin = {PATH: [{"shown": DARWIN, "line": 'if sys.platform == "darwin":',
+                      "owner": "get_app_dir", "no": "522", "def": False}]}
+    assert api._removal_strays(ctx, None, darwin)[1] == {
+        GRAIN: f"{NOTE} his request names Windows only"}
+
+
+def test_each_offered_call_lands_with_two_removal_rows_and_a_file_row(db):
+    """Finding 7: each call that the refusal offers names every open row,
+    so the door admits it as sent (frame 135)."""
+    import ast as _ast
+    import re as _re
+    _open_row(db)
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+               "VALUES ('bg_1','h1',?,'open','removal: `return x` at line 40')",
+               (f"{PATH}::_posixify",))
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) "
+               "VALUES ('bg_1','h1','CHANGES.rst','open')")
+    db.commit()
+
+    def arch():
+        return build("architect", db, mode="touch_strayed",
+                     allow=prompts.mode_tools("architect", "touch_strayed"))
+    with pytest.raises(ValueError) as err:
+        arch().call("batches.judge_touch", batch_id="bg_1",
+                    foreseen=[PATH, "CHANGES.rst"], reason="r")
+    calls = _re.findall(r"batches\.judge_touch\(batch_id='bg_1', foreseen=(\[.*?\]), "
+                        r"mistakes=(\[.*?\])\)", str(err.value))
+    assert len(calls) == 2, str(err.value)
+    for fs, ms in calls:
+        out = arch().call("batches.judge_touch", batch_id="bg_1",
+                          foreseen=_ast.literal_eval(fs),
+                          mistakes=_ast.literal_eval(ms), reason="r")
+        assert set(out["foreseen"]) | set(out["mistakes"]) >= {
+            GRAIN, f"{PATH}::_posixify", "CHANGES.rst"}, out
+
+
+def test_the_compare_reads_every_base_text_with_one_git_spawn(db, tmp_path, monkeypatch):
+    """Finding 10: four spawns for each changed path took about 0.45 s.
+    The spawns of the compare do not grow with the count of paths."""
+    def spawns(n: int) -> tuple[int, int]:
+        root = tmp_path / f"wt{n}"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        for i in range(n):
+            (root / f"m{i}.py").write_text("def f():\n    a()\n    b()\n", newline="")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "base")
+        _git(root, "commit", "-q", "--allow-empty", "-m", "head")
+        for i in range(n):
+            (root / f"m{i}.py").write_text("def f():\n    a()\n", newline="")
+        db.execute("UPDATE batches SET worktree = ? WHERE id = 'bg_1'", (str(root),))
+        db.commit()
+        sb = build("developer", db, batch_id="bg_1", mode="batch_start",
+                   allow=prompts.mode_tools("developer", "batch_start"))
+        count = []
+        real = subprocess.run
+        monkeypatch.setattr(subprocess, "run",
+                            lambda *a, **k: count.append(1) or real(*a, **k))
+        found, _told = api._base_removals(sb.ctx, root)
+        monkeypatch.setattr(subprocess, "run", real)
+        return len(found), len(count)
+    one, ten = spawns(1), spawns(10)
+    assert (one[0], ten[0]) == (1, 10)
+    assert ten[1] == one[1], (one, ten)
+
+
+def test_one_compare_gives_the_removal_rows():
+    """The one-reader property of F7: the commit takes the removal fact
+    from one compare of the base with the tree. A second caller of the
+    compare outside these sites is a second reader, and this test goes
+    red."""
+    import ast as _ast
+    allowed = {"_removal_entry": {"_base_removals"},
+               "_base_removals": {"_unruled_removals"},
+               "_unruled_removals": {"code_commit", "_removal_strays"},
+               "_removal_strays": {"code_commit"}}
+    found: dict[str, set] = {k: set() for k in allowed}
+    pkg = Path(api.__file__).resolve().parents[1]
+    for path in pkg.rglob("*.py"):
+        tree = _ast.parse(path.read_text(encoding="utf-8"))
+        for fn in _ast.walk(tree):
+            if not isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                continue
+            for node in _ast.walk(fn):
+                if (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                        and node.func.id in allowed):
+                    found[node.func.id].add(fn.name)
+    assert found == allowed

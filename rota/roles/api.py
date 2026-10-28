@@ -20883,12 +20883,13 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
     tree = _batch_worktree(ctx)
-    # F7: one compare of the base with the tree gives the removal fact to
-    # both doors. A write's note no longer decides it.
-    gone = _unruled_removals(ctx, tree)
-    noted = _unread_drop_refusal(ctx, tree, gone)
+    # F7 review 1, finding 6: this door reads the note's own lines, as
+    # before 11d04b18. The ruling of 2026-10-17 forbids a new refusal of a
+    # commit, so the compare below records and never refuses.
+    noted = _unread_drop_refusal(ctx, tree)
     if noted:
         raise ValueError(noted)
+    gone = _unruled_removals(ctx, tree)
     # Frame 339: a removal that no criterion, request or ruling asks for
     # lands, and the Architect judges it as a stray (law 12; ruled: Roman,
     # 2026-10-17, an unexpected change goes to the Architect for sign-off).
@@ -21116,7 +21117,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     return out
 
 
-def _unread_drop_refusal(ctx: Ctx, tree, gone: dict | None = None) -> str | None:
+def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     """
     The refusal of a commit in the reply whose write returned a `dropped`
     note, or None.
@@ -21139,9 +21140,6 @@ def _unread_drop_refusal(ctx: Ctx, tree, gone: dict | None = None) -> str | None
     held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
     later = [(p, e["note"]) for p, e in opened.items()
              if p not in notes and _grain_path(p) in dirty]
-    if gone is None:
-        gone = _unruled_removals(ctx, tree)
-    removed = {_grain_path(p) for p in gone}
     # Frame 339: the note of an earlier reply was read, so its removal lands.
     # `_removal_strays` records the removal for the Architect, unless a
     # criterion, the request or a ruling asks for it (law 12; ruled: Roman,
@@ -21152,13 +21150,14 @@ def _unread_drop_refusal(ctx: Ctx, tree, gone: dict | None = None) -> str | None
     # Frame 283's W1 a, pass 3: a removal that a ruling asks for passes the
     # note of this reply, so the commit beside a ruled removal lands
     # (review 2, finding 4).
-    # F7: the compare of the base with the tree decides whether the path
-    # lost a statement. The note of this reply is the seat's text only.
+    texts = None
     for p, _n in list(held):
         e = opened.get(p)
         if e is None or not (e["lines"] or e["defs"]):
             continue
-        if _grain_path(p) not in removed:
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        if not _unruled_gone(ctx, p, _tree_text(tree, p), e, texts):
             held.remove((p, _n))
     if not held and not later:
         return None
@@ -21187,16 +21186,15 @@ def _unread_drop_refusal(ctx: Ctx, tree, gone: dict | None = None) -> str | None
 def _removal_strays(ctx: Ctx, tree, gone: dict | None = None
                     ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """The removals of base statements that the tree holds at the commit and
-    that no criterion, request or ruling asks for: grain `path::owner` ->
-    the note, `removal: ` and the lines. The first dict holds the unjudged
-    removals. The second holds the removals that the Architect judged a
-    mistake, and the third the removals that he judged foreseen, each with
-    the note of that judgement. `gone` is the result of `_unruled_removals`."""
+    that no criterion, request or ruling asks for: row key -> the note,
+    `removal: ` and the lines. The first dict holds the unjudged removals.
+    The second holds the rows that the Architect judged a mistake, and the
+    third the rows that he judged foreseen, each with its own note.
+    `gone` is the result of `_unruled_removals`."""
     # Frame 339. Frame 283's W1 a refused these commits, and night 169's
     # Developer was refused on a rewrite that every criterion's definition
     # held. Law 12: nothing rejects a diff for straying. The ruling of
-    # 2026-10-17 sends an unexpected change to the Architect. Night 158's
-    # `ctx.exit()` lands as an open stray, and the merge waits on it.
+    # 2026-10-17 sends an unexpected change to the Architect.
     # F7: the removals come from the compare of the base with the tree, not
     # from a `drop_notes` row. Night 171's s164 left the XDG return out of
     # its note, and the row named the darwin branch only.
@@ -21204,51 +21202,73 @@ def _removal_strays(ctx: Ctx, tree, gone: dict | None = None
         gone = _unruled_removals(ctx, tree)
     if not gone:
         return {}, {}, {}
-    # The last judgement of a grain decides. A mistake grain is raised again
-    # as a mistake while the line stays gone, so the merge holds and the
-    # Developer wakes (frame 339, review 1, finding 1).
     judged: dict[str, tuple[str, str | None]] = {}
     for r in ctx.conn.execute(
             "SELECT path, status, note FROM touch_strays WHERE batch_id = ? "
             "AND status != 'open' ORDER BY rowid", (ctx.batch_id,)):
         judged[r["path"]] = (r["status"], r["note"])
-    out: dict[str, list[str]] = {}
+    found: dict[str, list[str]] = {}
     for p, gs in gone.items():
         for g in gs:
             owner = g["line"] if g["def"] else g["owner"]
             grain = f"{_grain_path(p)}::{owner}" if owner else _grain_path(p)
-            out.setdefault(grain, []).append(g["shown"])
+            found.setdefault(grain, []).append(g["shown"])
     unjudged: dict[str, str] = {}
     mistaken: dict[str, str] = {}
     foreseen: dict[str, str] = {}
-    for grain, shown in out.items():
+    for grain, shown in found.items():
         note = f"removal: {', '.join(shown)}"
         status, said = judged.get(grain, (None, None))
-        if status == "mistake":
-            mistaken[grain] = said or note
-        # A foreseen judgement covers the removals that its note names. A
-        # later removal in the same definition is raised again (night 171's
-        # read, section 5, the judged grain path). The judged row moves to
-        # the new head, so his page still shows the removal.
-        elif status == "foreseen" and all(s in (said or "") for s in shown):
-            foreseen[grain] = said or note
+        # The last judgement of a grain covers the removals that its note
+        # names, and no later one. A mistake that the note covers stays a
+        # mistake at the new head, so the merge holds and the Developer
+        # wakes (frame 339, review 1, finding 1). A removal that the note
+        # lacks opens the grain again with the new note, for a mistake as
+        # for a foreseen judgement (F7 review 1, finding 8).
+        named = _note_shown(said)
+        if status in ("mistake", "foreseen") and all(s in named for s in shown):
+            (mistaken if status == "mistake" else foreseen)[grain] = said
         else:
             unjudged[grain] = note
     return unjudged, mistaken, foreseen
 
 
+_NOTE_PIECE = re.compile(r"(`+) ?(.+?) ?\1(?: at line \d+)?")
+
+
+def _note_shown(note: str | None) -> list[str]:
+    """The pieces of a `removal: ` note as `_gone_statements` shows them.
+    The Architect's reason after the list is not a piece."""
+    out: list[str] = []
+    pos = (note or "").find("removal: ")
+    if pos < 0:
+        return out
+    pos += len("removal: ")
+    while True:
+        m = _NOTE_PIECE.match(note, pos)
+        if m is None:
+            return out
+        out.append(m.group(0))
+        pos = m.end()
+        if not note.startswith(", ", pos):
+            return out
+        pos += 2
+
+
 def _unruled_removals(ctx: Ctx, tree) -> dict[str, list[dict]]:
     """path -> the base statements that the tree lacks and that no criterion,
     request text or grant of his asks to remove, as `_gone_statements`
-    gives them. The one source of the removal fact at the commit (F7)."""
+    gives them. The one source of the removal rows at the commit (F7)."""
     if tree is None or not getattr(ctx, "batch_id", None):
         return {}
-    found = _base_removals(ctx, tree)
+    notes = {p: e for p, e in {**_closed_notes(ctx), **_open_notes(ctx)}.items()
+             if e["lines"] or e["defs"]}
+    found, told = _base_removals(ctx, tree, list(notes))
     # A path whose base git cannot name, or whose text does not parse,
     # keeps the note's own lines, because the compare cannot tell (frame
     # 283's review 3, findings 3 and 4).
-    for p, e in {**_closed_notes(ctx), **_open_notes(ctx)}.items():
-        if p in found or not (e["lines"] or e["defs"]) or _compare_tells(ctx, tree, p):
+    for p, e in notes.items():
+        if p in found or p in told:
             continue
         if not _restored(_tree_text(tree, p), e):
             found[p] = e
@@ -21263,26 +21283,12 @@ def _unruled_removals(ctx: Ctx, tree) -> dict[str, list[dict]]:
     return out
 
 
-def _compare_tells(ctx: Ctx, tree, path: str) -> bool:
-    """True when the base of `path` is known and both texts parse, so the
-    compare of `_base_removals` gives the removal fact for the path."""
-    import ast as _ast
-    base = _base_text(ctx, tree, path)
-    if base is None:
-        return False
-    try:
-        _ast.parse(base)
-        _ast.parse(_tree_text(tree, path))
-    except (SyntaxError, ValueError):
-        return False
-    return True
-
-
-def _base_removals(ctx: Ctx, tree) -> dict[str, dict]:
-    """path -> a `dropped` entry for each Python path that the batch changed
-    since its base, with the base statements that the tree no longer holds.
-    A path that git cannot name, or a text that does not parse, gives
-    nothing, because the compare records and never refuses."""
+def _base_removals(ctx: Ctx, tree, more: list[str] = ()) -> tuple[dict[str, dict], set]:
+    """(path -> a `dropped` entry, the paths the compare tells) for each
+    Python path that the batch changed since its base, and each path of
+    `more`. An entry holds the base statements that the tree no longer
+    holds. A path that git cannot name, or a text that does not parse, is
+    not told, because the compare records and never refuses."""
     import subprocess as _sp
     from ..core import worktrees as _wt
     try:
@@ -21291,35 +21297,89 @@ def _base_removals(ctx: Ctx, tree) -> dict[str, dict]:
                        "--", ".", ":(exclude).venv", ":(exclude).rota"],
                       capture_output=True)
     except (OSError, sqlite3.Error, _wt.WorktreeError):
+        return {}, set()
+    if got.returncode != 0:
+        return {}, set()
+    paths = [p for p in got.stdout.decode("utf-8", "replace").split("\0")
+             if p.endswith(".py")]
+    paths += [p for p in more if p not in paths]
+    bases = _base_texts(tree, fork, paths)
+    out: dict[str, dict] = {}
+    told: set = set()
+    for p in paths:
+        base = bases.get(p)
+        if base is None:
+            continue
+        e = _removal_entry(base, _tree_text(tree, p)) if base else None
+        if e is False:
+            continue
+        told.add(p)
+        if e:
+            out[p] = e
+    return out, told
+
+
+def _base_texts(tree, fork: str, paths: list[str]) -> dict[str, str | None]:
+    """path -> its text at `fork`, "" when the base lacks it, None when git
+    cannot tell. One `git cat-file --batch` reads every path (F7 review 1,
+    finding 10: four spawns for each path took about 0.45 s)."""
+    import os as _os
+    import subprocess as _sp
+    from pathlib import Path as _P
+    from ..core import worktrees as _wt
+    rels: dict[str, str] = {}
+    for p in paths:
+        rel = str(p).replace("\\", "/")
+        if _P(rel).is_absolute():
+            try:
+                rel = _P(rel).resolve().relative_to(_P(tree).resolve()).as_posix()
+            except (ValueError, OSError):
+                continue
+        rel = _os.path.normpath(rel).replace("\\", "/")
+        if not (rel.startswith("../") or rel == ".."):
+            rels[p] = rel
+    specs = [f"{fork}^{{commit}}"] + [f"{fork}:{r}" for r in rels.values()]
+    try:
+        got = _sp.run([*_wt.GIT, "-C", str(tree), "cat-file", "--batch"],
+                      input=("\n".join(specs) + "\n").encode("utf-8"),
+                      capture_output=True)
+    except OSError:
         return {}
     if got.returncode != 0:
         return {}
-    out: dict[str, dict] = {}
-    for p in got.stdout.decode("utf-8", "replace").split("\0"):
-        if not p.endswith(".py"):
+    data, pos, texts = got.stdout, 0, []
+    for _spec in specs:
+        end = data.find(b"\n", pos)
+        if end < 0:
+            return {}
+        head = data[pos:end].split()
+        pos = end + 1
+        if len(head) != 3 or not head[2].isdigit():
+            texts.append(None)
             continue
-        base = _base_text(ctx, tree, p)
-        if not base:
-            continue
-        e = _removal_entry(base, _tree_text(tree, p))
-        if e is not None:
-            out[p] = e
-    return out
+        size = int(head[2])
+        texts.append(data[pos:pos + size].decode("utf-8", "replace").replace("\r\n", "\n"))
+        pos += size + 1
+    if texts[0] is None:
+        return {}
+    return {p: ("" if t is None else t) for p, t in zip(rels, texts[1:])}
 
 
-def _removal_entry(base: str, now: str) -> dict | None:
-    """The `dropped` entry of the base statements that `now` lacks, or None
-    when nothing is lost or a text does not parse. Each line is numbered in
-    code.source numbering of the base."""
+def _removal_entry(base: str, now: str) -> dict | None | bool:
+    """The `dropped` entry of the base statements that `now` lacks, None
+    when nothing is lost, or False when a text does not parse. Each line is
+    numbered in code.source numbering of the base. The entry is marked
+    `compared`, so `_gone_statements` names each line it holds."""
     import ast as _ast
     try:
         old, new = _ast.parse(base), _ast.parse(now)
     except (SyntaxError, ValueError):
-        return None
+        return False
     ol, nl = base.splitlines(), now.splitlines()
     lost: list[tuple[str, int]] = []
     defs: list[str] = []
-    _lost_in_block(old.body, new.body, ol, nl, "", _qual_defs(new), lost, defs)
+    newdefs = _qual_defs(new)
+    _lost_in_block(old.body, new.body, ol, nl, "", newdefs, lost, defs)
     if not lost and not defs:
         return None
     spans = _def_spans(base)
@@ -21332,19 +21392,20 @@ def _removal_entry(base: str, now: str) -> dict | None:
             lines.append(item)
             named.append(f"{_quote(line[:60])} at line {i}")
     return {"note": ", ".join(named), "lines": lines, "defs": defs, "whole": [],
-            "noted": ""}
+            "noted": "", "compared": True}
 
 
 def _qual_defs(tree) -> dict:
     """Each definition of `tree` by its qualified name, as `_def_spans`
-    names it: the enclosing definitions only, never a compound statement."""
+    names it: the enclosing definitions only, never a compound statement.
+    A name holds a list, because `@overload` defines one name many times."""
     import ast as _ast
     out: dict = {}
 
     def walk(node, prefix):
         for ch in _ast.iter_child_nodes(node):
             if isinstance(ch, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
-                out.setdefault(prefix + ch.name, ch)
+                out.setdefault(prefix + ch.name, []).append(ch)
                 walk(ch, prefix + ch.name + ".")
             else:
                 walk(ch, prefix)
@@ -21361,139 +21422,294 @@ def _stmt_head(n) -> int:
     return (n.pattern.lineno if not hasattr(n, "lineno") else n.lineno) - 1
 
 
+def _stmt_key(n):
+    """The key of an exact match of the statement `n` across the two texts,
+    with no line number, or None for a statement with no behaviour: `pass`,
+    a docstring, another bare constant, or a bare annotation.
+
+    A branch, a loop or another compound statement keys on its header
+    expressions. Each other statement keys on its whole syntax tree."""
+    import ast as _ast
+    d = _ast.dump
+    if isinstance(n, _ast.Pass) or (isinstance(n, _ast.Expr)
+                                    and isinstance(n.value, _ast.Constant)):
+        return None
+    if isinstance(n, _ast.AnnAssign) and n.value is None:
+        return None
+    if isinstance(n, (_ast.If, _ast.While)):
+        return (d(n.test),)
+    if isinstance(n, (_ast.For, _ast.AsyncFor)):
+        return (d(n.target), d(n.iter))
+    if isinstance(n, (_ast.With, _ast.AsyncWith)):
+        return tuple(d(i) for i in n.items)
+    if isinstance(n, _ast.Match):
+        return (d(n.subject),)
+    if isinstance(n, _ast.ExceptHandler):
+        return (d(n.type) if n.type else "", n.name or "")
+    if isinstance(n, _ast.match_case):
+        return (d(n.pattern), d(n.guard) if n.guard else "")
+    if _is_compound(n):
+        return ()
+    return (d(n),)
+
+
+def _is_compound(n) -> bool:
+    """True for a statement that holds a block, other than a definition."""
+    import ast as _ast
+    return ((hasattr(n, "body") or hasattr(n, "cases"))
+            and not isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                   _ast.ClassDef)))
+
+
+def _operands(test, ops: tuple) -> set:
+    """The AST dumps of `test` and of each operand of a boolean operator
+    of `ops` in it, at any depth of such operators. `if a:` widened to
+    `if a or b:` keeps `a` as an operand. `if not a:` does not."""
+    import ast as _ast
+    out = {_ast.dump(test)}
+    if isinstance(test, _ast.BoolOp) and isinstance(test.op, ops):
+        for v in test.values:
+            out |= _operands(v, ops)
+    return out
+
+
+def _callee(n) -> str | None:
+    """The AST dump of the function that the expression statement `n`
+    calls, or the kind of a bare `yield`, else None."""
+    import ast as _ast
+    v = getattr(n, "value", None)
+    if isinstance(v, _ast.Await):
+        v = v.value
+    if isinstance(v, _ast.Call):
+        return _ast.dump(v.func)
+    if isinstance(v, (_ast.Yield, _ast.YieldFrom)):
+        return type(v).__name__
+    return None
+
+
+def _kin(o, n) -> bool:
+    """True when the new statement `n`, of the type of the old statement
+    `o`, keeps the behaviour of `o` with other words: a rewrite, not a
+    removal. An assignment is not read here.
+
+    - A branch keeps its condition as an operand of `and` or `or`. So
+      `if x is None:` to `if x is None or x == "":` is kept.
+    - A loop keeps its target, and its iterable shows in the new one.
+    - A `with` keeps each context expression. A `try` has no header.
+    - A `return`, `raise`, `break` or `continue` is kept by an exit of the
+      same kind in the same block, whatever it returns or raises.
+    - A call is kept by a call of the same function.
+    - An `assert`, `import`, `del` or `global` is kept only by an equal
+      statement (F7 review 1, finding 4)."""
+    import ast as _ast
+    d = _ast.dump
+    if isinstance(o, (_ast.If, _ast.While)):
+        return d(o.test) in _operands(n.test, (_ast.And, _ast.Or))
+    if isinstance(o, (_ast.For, _ast.AsyncFor)):
+        return d(o.target) == d(n.target) and d(o.iter) in {d(x) for x in _ast.walk(n.iter)}
+    if isinstance(o, (_ast.With, _ast.AsyncWith)):
+        new = {d(x) for i in n.items for x in _ast.walk(i.context_expr)}
+        return all(d(i.context_expr) in new for i in o.items)
+    if isinstance(o, _ast.Match):
+        return d(o.subject) in {d(x) for x in _ast.walk(n.subject)}
+    if isinstance(o, _ast.ExceptHandler):
+        if o.type is None or n.type is None:
+            return o.type is None and n.type is None
+        return d(o.type) in {d(x) for x in _ast.walk(n.type)}
+    if isinstance(o, _ast.match_case):
+        return False
+    if _is_compound(o) or isinstance(o, (_ast.Return, _ast.Raise, _ast.Break,
+                                         _ast.Continue)):
+        return True
+    if isinstance(o, _ast.AugAssign):
+        return d(o.target) == d(n.target) and d(o.op) == d(n.op)
+    if isinstance(o, _ast.Expr):
+        return _callee(o) is not None and _callee(o) == _callee(n)
+    return False
+
+
 def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
                    owner: str, newdefs: dict, lost: list, defs: list) -> None:
     """Append to `lost` each statement of the old block `olds` that the new
     block `news` does not keep, as (owner, first line), and to `defs` each
-    definition that the new text lacks. A lost statement is named by its
-    first line, and its own statements are not named again.
+    definition that the new text lacks. A lost compound statement is named
+    by its first line, and its own statements are not named again.
 
-    F7, the rule that tells a rewrite from a removal, reads the behaviour
-    of each kind of statement:
+    F7 tells a rewrite from a removal by the syntax trees, with no order
+    and no line text (F7 review 1, findings 1, 2 and 5). Each old
+    statement takes one new statement of its block in three passes:
 
-    - An assignment is kept when every path through the new block still
-      binds its targets. Night 170's s128 gave `folder` a new value in
-      place, and night 169's s122 bound it in both arms of a new `if`.
-    - A `return`, `raise`, `break` or `continue` is kept by an exit of the
-      same kind in the same block. An exit elsewhere does not end this path.
-      Night 171's s164 left `return os.path.normpath(...)` in another block,
-      and the XDG return at the end of `get_app_dir` was gone.
-    - A branch, a loop or another compound statement is kept by one of the
-      same kind whose first line holds every word of the old first line,
-      or, when the block keeps as many of that kind, by the next one in
-      order. Night 171's darwin branch had no such partner.
-    - A call is kept by a call whose first line holds every word of it.
+    1. An equal statement, so a removed copy of a repeated statement is
+       lost. A compound statement is equal when its header is equal.
+    2. A rewrite of the same kind, as `_kin` reads it. An assignment is
+       kept when every path through the new block binds its targets before
+       it reads them, or when a new assignment has the same value. Night
+       170's s128 gave `folder` a new value in place, and a renamed local
+       keeps its value (review 1, findings 3 and 4).
+    3. An equal statement or a rewrite in the body of a new `with` or
+       `try`, because such a body runs on every path. A statement that
+       moves under a new branch or loop runs on fewer paths, so it is lost.
 
-    A compound or a call can move into a new wrapper of the block, such as
-    a new `try`. An exit or an assignment cannot."""
+    Night 171's s164 removed the darwin branch and the XDG return of
+    `get_app_dir`. The new block held no branch on the platform and no
+    return at that level, so both are lost. A pairing by order is gone,
+    because it paired the darwin branch with any new branch (review 1,
+    finding 2). Recall comes before precision here: a row that the
+    Architect judges foreseen costs one judgement, and a missed removal is
+    work that stays invisible."""
     import ast as _ast
     defkinds = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
-    exits = (_ast.Return, _ast.Raise, _ast.Break, _ast.Continue)
-    binds = (_ast.Assign, _ast.AugAssign, _ast.AnnAssign)
-
-    def compound(n) -> bool:
-        # A `match` holds its block under `cases`, not `body`.
-        return (hasattr(n, "body") or hasattr(n, "cases")) and not isinstance(n, defkinds)
-
-    def call(n) -> bool:
-        return isinstance(n, _ast.Expr) and isinstance(
-            n.value, (_ast.Call, _ast.Await, _ast.Yield, _ast.YieldFrom))
-
-    def words(lines, n) -> set:
-        return set(re.findall(r"\w+", lines[_stmt_head(n)]))
-
+    wrappers = (_ast.With, _ast.AsyncWith, _ast.Try, getattr(_ast, "TryStar", _ast.Try))
     used: set[int] = set()
 
-    def partner(o, cands, by_order: bool):
-        same = [n for n in cands if id(n) not in used and type(n) is type(o)]
-        key = _line_key(ol[_stmt_head(o)])
-        for n in same:
-            if _line_key(nl[_stmt_head(n)]) == key:
+    def find(o, cands: list, kin: bool):
+        for n in cands:
+            if id(n) in used or type(n) is not type(o):
+                continue
+            if (_kin(o, n) if kin else _stmt_key(n) == _stmt_key(o)):
                 return n
-        mine = words(ol, o)
-        for n in same:
-            if mine and mine <= words(nl, n):
-                return n
-        return same[0] if by_order and same else None
+        return None
 
-    def inner(block) -> list:
-        # The statements of the block's compounds that pair with nothing:
-        # a new wrapper's body, at any depth.
-        out: list = []
-        for n in block:
-            if compound(n) and id(n) not in used:
-                for f in _BLOCK_FIELDS:
-                    kids = getattr(n, f, None) or []
-                    out += kids + inner(kids)
-        return out
+    def sub(a: list, b: list) -> None:
+        _lost_in_block(a, b, ol, nl, owner, newdefs, lost, defs)
 
     def pair(o, n) -> None:
         used.add(id(n))
+        if not _is_compound(o):
+            return
+        alt = getattr(o, "orelse", None) or []
+        if (isinstance(o, _ast.If) and len(alt) == 1 and isinstance(alt[0], _ast.If)
+                and _ast.dump(alt[0].test) != _ast.dump(o.test)
+                and _ast.dump(alt[0].test) in _operands(n.test, (_ast.Or,))):
+            # Review 1's probe 4: `if a:` and `elif b:` with one body
+            # merged into `if a or b:`.
+            sub(o.body, n.body)
+            sub(alt[0].body, n.body)
+            sub(alt[0].orelse, n.orelse)
+            return
         for f in _BLOCK_FIELDS:
-            _lost_in_block(getattr(o, f, None) or [], getattr(n, f, None) or [],
-                           ol, nl, owner, newdefs, lost, defs)
+            sub(getattr(o, f, None) or [], getattr(n, f, None) or [])
 
-    held = {}
-    for n in news:
-        held[type(n)] = held.get(type(n), 0) + 1
-    count = {}
-    for o in olds:
-        count[type(o)] = count.get(type(o), 0) + 1
-    later: list = []
+    def wrapped(block: list) -> list:
+        out: list = []
+        for n in block:
+            if isinstance(n, wrappers) and id(n) not in used:
+                out += n.body + wrapped(n.body)
+        return out
+
+    def binds(o) -> bool:
+        ts = o.targets if isinstance(o, _ast.Assign) else [o.target]
+        return all(_binds_first(news, _ast.dump(t), getattr(t, "id", None)) == "bind"
+                   for t in ts)
+
+    todo: list = []
     for o in olds:
         if isinstance(o, defkinds):
             name = f"{owner}.{o.name}" if owner else o.name
-            n = newdefs.get(name)
+            # The k-th old definition of a name pairs with the k-th new one.
+            n = newdefs[name].pop(0) if newdefs.get(name) else None
+            if n is None and name in newdefs:
+                continue
             if n is None:
                 defs.append(name)
                 continue
             _lost_signature_parts(o, n, name, ol, nl, lost)
             _lost_in_block(o.body, n.body, ol, nl, name, newdefs, lost, defs)
-        elif isinstance(o, binds):
-            ts = [_ast.dump(t) for t in (o.targets if isinstance(o, _ast.Assign)
-                                         else [o.target])]
-            if not all(_binds_on_every_path(news, t) for t in ts):
-                lost.append((owner, _stmt_head(o)))
-        elif isinstance(o, exits):
-            n = partner(o, news, True)
+            continue
+        if _stmt_key(o) is None:
+            continue
+        # A branch on a false constant with no `else` never runs (review 1,
+        # finding 3, probe 5).
+        if (isinstance(o, _ast.If) and isinstance(o.test, _ast.Constant)
+                and not o.test.value and not o.orelse):
+            continue
+        n = find(o, news, False)
+        if n is None:
+            todo.append(o)
+        else:
+            pair(o, n)
+    later: list = []
+    for o in todo:
+        if isinstance(o, (_ast.Assign, _ast.AnnAssign)):
+            if binds(o):
+                continue
+            n = next((n for n in news if id(n) not in used
+                      and isinstance(n, (_ast.Assign, _ast.AnnAssign))
+                      and _ast.dump(n.value) == _ast.dump(o.value)), None)
             if n is None:
                 lost.append((owner, _stmt_head(o)))
             else:
                 used.add(id(n))
-        elif compound(o) or call(o):
-            n = partner(o, news, compound(o) and held.get(type(o), 0) >= count[type(o)])
-            if n is None:
-                later.append(o)
-            else:
-                pair(o, n)
+            continue
+        n = find(o, news, True)
+        if n is None:
+            later.append(o)
+        else:
+            pair(o, n)
     for o in later:
-        n = partner(o, inner(news), False)
+        inner = wrapped(news)
+        n = find(o, inner, False) or find(o, inner, True)
         if n is None:
             lost.append((owner, _stmt_head(o)))
         else:
             pair(o, n)
 
 
-def _binds_on_every_path(block: list, target: str) -> bool:
-    """True when each path through `block` binds the name whose AST dump is
-    `target`: a statement of the block, both arms of an `if`, the body of a
-    `with`, or the body and every handler of a `try`. A loop can run zero
-    times, so it binds nothing."""
+def _reads(node, name: str | None) -> bool:
+    """True when `node` reads the plain name `name`. An augmented
+    assignment to the name reads it first."""
+    import ast as _ast
+    return bool(name) and any(
+        (isinstance(x, _ast.Name) and x.id == name and isinstance(x.ctx, _ast.Load))
+        or (isinstance(x, _ast.AugAssign) and getattr(x.target, "id", None) == name)
+        for x in _ast.walk(node))
+
+
+def _binds_first(block: list, target: str, name: str | None) -> str | None:
+    """"bind" when each path through `block` binds the target whose AST
+    dump is `target` before it reads the plain name `name`, "read" when a
+    path reads it first, else None. Both arms of an `if`, a `with` body,
+    and a `try` body with every handler count. A loop can run zero times,
+    so it binds nothing (F7 review 1, finding 4: `total = round(total)`
+    after the loop kept a removed `total = 0`)."""
     import ast as _ast
     for s in block:
-        if isinstance(s, _ast.Assign) and target in {_ast.dump(t) for t in s.targets}:
-            return True
-        if isinstance(s, (_ast.AugAssign, _ast.AnnAssign)) and _ast.dump(s.target) == target:
-            return True
-        if isinstance(s, _ast.If) and _binds_on_every_path(s.body, target) \
-                and _binds_on_every_path(s.orelse, target):
-            return True
-        if isinstance(s, (_ast.With, _ast.AsyncWith)) and _binds_on_every_path(s.body, target):
-            return True
-        if isinstance(s, _ast.Try) and _binds_on_every_path(s.body, target) \
-                and all(_binds_on_every_path(h.body, target) for h in s.handlers):
-            return True
-    return False
+        if isinstance(s, _ast.If):
+            if _reads(s.test, name):
+                return "read"
+            a, b = _binds_first(s.body, target, name), _binds_first(s.orelse, target, name)
+            if "read" in (a, b):
+                return "read"
+            if a == b == "bind":
+                return "bind"
+            continue
+        if isinstance(s, (_ast.With, _ast.AsyncWith)):
+            if any(_reads(i, name) for i in s.items):
+                return "read"
+            got = _binds_first(s.body, target, name)
+            if got:
+                return got
+            continue
+        if isinstance(s, _ast.Try):
+            got = _binds_first(s.body, target, name)
+            hs = [_binds_first(h.body, target, name) for h in s.handlers]
+            if got == "read" or "read" in hs:
+                return "read"
+            if got == "bind" and all(h == "bind" for h in hs):
+                return "bind"
+            continue
+        if isinstance(s, (_ast.Assign, _ast.AnnAssign)):
+            # `x = f(x)` binds `x` on this path, so its own read is no
+            # read before the bind.
+            ts = s.targets if isinstance(s, _ast.Assign) else [s.target]
+            if target in {_ast.dump(t) for t in ts}:
+                return "bind"
+            if s.value is not None and _reads(s.value, name):
+                return "read"
+            continue
+        if _reads(s, name):
+            return "read"
+    return None
 
 
 def _lost_signature_parts(old, new, name: str, ol: list[str], nl: list[str],
@@ -21575,7 +21791,11 @@ def _gone_statements(text: str, e: dict) -> list[dict]:
     out: list = []
     for owner, line, n in e["lines"]:
         here = _def_lines(text, spans, owner) if spans is not None else None
-        if here is not None and here.count(line) >= n:
+        # F7 review 1, finding 1: a compare entry names each statement that
+        # the syntax trees lost. A same first line elsewhere in the
+        # definition hid a lost XDG-like return, so the line count reads
+        # the note's entries only.
+        if not e.get("compared") and here is not None and here.count(line) >= n:
             continue
         m = re.search(re.escape(_quote(line[:60])) + r" at line (\d+)", e["note"])
         out.append({"shown": f"{_quote(line)} at line {m.group(1)}" if m else _quote(line),
@@ -22365,22 +22585,24 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     left = [p for p in open_rows if p not in foreseen and p not in mistakes]
     unnamed = [p for p in left if p in removed]
     if unnamed:
-        # The refusal names each open removal row and the call that judges
-        # it (frame 135: name a call the door admits).
+        # The refusal names each open removal row and two calls that judge
+        # every open row, so each lands as sent (frame 135: name a call the
+        # door admits; F7 review 1, finding 7).
         one = len(unnamed) == 1
         rest = [p for p in left if p not in removed]
-        calls = " ".join(
-            f"{p} ({removed[p]}): batches.judge_touch(batch_id={batch_id!r}, "
-            f"foreseen={foreseen + [p]!r}, mistakes={mistakes!r}) if the work "
-            f"needed the removal, or batches.judge_touch(batch_id={batch_id!r}, "
-            f"foreseen={foreseen!r}, mistakes={mistakes + [p]!r}) if it did not."
-            for p in unnamed)
+        said = " ".join(f"{p} ({removed[p]})." for p in unnamed)
+        keep = (f"batches.judge_touch(batch_id={batch_id!r}, "
+                f"foreseen={foreseen + left!r}, mistakes={mistakes!r})")
+        drop = (f"batches.judge_touch(batch_id={batch_id!r}, "
+                f"foreseen={foreseen + rest!r}, mistakes={mistakes + unnamed!r})")
         raise ValueError(
             f"{'this removal is' if one else 'these removals are'} still "
             f"unjudged, because a file path does not judge a removal. Name "
-            f"{'it' if one else 'each one'} by its full name. {calls}"
-            + (f" {', '.join(rest)} {'is' if len(rest) == 1 else 'are'} "
-               f"unjudged too." if rest else ""))
+            f"{'it' if one else 'each one'} by its full name. {said} Send "
+            f"{keep} if the work needed {'it' if one else 'them'}, or {drop} "
+            f"if it did not."
+            + ("" if one else " Move a name to the other list when its "
+                              "answer differs."))
     if left:
         # The refusal is the only text the seat reads, so it says which
         # names it dropped. Night 145's three refusals said nothing of them.

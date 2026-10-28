@@ -31,9 +31,9 @@ approved criterion asks for that behaviour to go. If one does, the removal
 is foreseen. If none does, the removal is a mistake. Name the row by its
 full name, `path::name`. A file path alone does not judge a removal.
 
-Example: the request says "on Windows, use the AppData folder when APPDATA
-is not set". The note quotes `if sys.platform == "darwin":`. The request
-names Windows only, and no criterion names macOS. So the removal is a
-mistake: `mistakes=["src/click/utils.py::get_app_dir"]`.
+Example: the request says "round the invoice total to two decimals". The
+note quotes `if customer.is_exempt:`. The request names rounding only, and
+no criterion names the tax exemption. So the removal is a mistake:
+`mistakes=["shop/billing.py::invoice_total"]`.
 
 The prediction never blocked the commit. Only your silence holds the merge.
