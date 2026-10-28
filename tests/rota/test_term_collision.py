@@ -300,14 +300,18 @@ def test_a_reply_that_names_no_row_lands_no_approve(db):
     reply "what time is the meeting".
 
     The door cannot read the words, so it holds the two facts it can check.
-    An empty map on a clarify is silence, not consent. A reading with no
-    words on file has nothing behind it.
+    An empty map on a clarify is silence, not consent. A reply that is a
+    question approves no row and names no row, so its approves have
+    nothing behind them.
     """
     _two_senses(db)
     sb, _ = _answering(db, "what time is the meeting")
     with pytest.raises(ValueError, match="rulings is a map"):
         sb.call("rulings.rule", rulings={}, words="what time is the meeting")
-    with pytest.raises(ValueError, match="words is empty"):
+    # His reply is a question, and law 6 reads no consent in it (wall W7).
+    with pytest.raises(ValueError, match="His reply neither approves nor "
+                       "names g1, so g1 takes no approve: his reply starts "
+                       "'what time is the meeting'"):
         sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"})
     assert not [w for w in sb.ctx.writes if w[0] == "rulings"], (
         "no approve is on file for a reply that ruled nothing")

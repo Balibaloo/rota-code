@@ -11752,17 +11752,15 @@ def _shift_agrees(found: list[str], lines: dict) -> bool:
 
 def _his_reply(ctx) -> str:
     """The words of the message that woke the session."""
-    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                           (ctx.trigger,)).fetchone() if ctx.trigger else None
-    return (row["body_text"] if row else "") or ""
+    from .principal import said as his_words
+
+    return his_words(ctx.conn, ctx.trigger)
 
 
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
     reader of the faulted-approve door (`_line_reading`)."""
-    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                           (ctx.trigger,)).fetchone() if ctx.trigger else None
-    his = (row["body_text"] if row else "") or ""
+    his = _his_reply(ctx)
     out: set[int] = set()
     for text in (his, said):
         if text:
@@ -11882,24 +11880,68 @@ def _words_outside(words: str, his: str) -> str | None:
     return None
 
 
+def _row_words(conn, ref: str) -> str:
+    """The text columns of the row `ref`, joined, for the name rule."""
+    table = table_of(conn, ref)
+    row = conn.execute(f"SELECT * FROM {table} WHERE id = ?",
+                       (ref,)).fetchone() if table else None
+    return " ".join(str(row[k]) for k in row.keys() if k != "id"
+                    and isinstance(row[k], str)) if row else ""
+
+
+def _unbacked_approve(conn, his: str, per_item: dict, key_of: dict,
+                      shape_of: dict, order: list) -> str | None:
+    """The refusal of an approve that rests on his reply alone, or None.
+
+    law 6: silence is not consent, and a question is not consent. The
+    review of 6895000 landed two approves for the reply "what time is the
+    meeting". An approve stands when his reply approves, by `_APPROVES`, or
+    names the row by number, by id or by the name rule of F2 pass 2d. A
+    call with a contest keeps its checks, because the lines a contest
+    leaves out are approved. The approval cues are the parser's own:
+    `_APPROVES`, and the agreement readers of frame 258."""
+    if any(v != "approve" for v in per_item.values()):
+        return None
+    if (_APPROVES.search(his) or _AGREES.match(his)
+            or _AGREEMENT_ALONE.fullmatch(his)):
+        return None
+    reading = _line_reading(his, len(order) if order else None)
+    names = reading.names | {w.casefold() for w in re.findall(r"\w+", his)}
+    for ref, verdict in per_item.items():
+        if (shape_of.get(ref) or {}).get("words"):
+            continue
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        if line in reading.named or str(ref).casefold() in names or (
+                reading.names & _line_reading(_row_words(conn, ref)).names):
+            continue
+        key = key_of.get(ref, ref)
+        row = f"line {key}" if str(key).isdigit() else str(key)
+        first = (_sentences(his) or [""])[0]
+        return (f"His reply neither approves nor names {row}, so {row} "
+                f"takes no approve: his reply starts {first!r}.")
+    return None
+
+
 def _words_from(ctx: Ctx, span: str) -> str | None:
     """The message that holds `span`: the reply first, then the principal's
     earlier messages of the thread, newest first. None when no message holds
     it. The writer records the fact and refuses nothing here, because the
-    span check is pass 3 of the seam design."""
+    span check is pass 3 of the seam design. His words come from `said`,
+    because a clarify's answer keeps them in the transcript only (W7)."""
     reply = ctx.conn.execute(
-        "SELECT body_text, thread_id FROM messages WHERE id = ?",
+        "SELECT thread_id FROM messages WHERE id = ?",
         (ctx.trigger,)).fetchone() if ctx.trigger else None
     if reply is None:
         return None
-    folded = " ".join(span.split()).casefold()
-    if not folded or folded in " ".join((reply["body_text"] or "").split()).casefold():
+    if not span.split() or _holds_span(_his_reply(ctx), span):
         return ctx.trigger
+    from .principal import said as his_words
+
     for m in ctx.conn.execute(
-            "SELECT id, body_text FROM messages WHERE thread_id = ? AND "
+            "SELECT id FROM messages WHERE thread_id = ? AND "
             "from_role = 'principal' AND id != ? ORDER BY seq DESC",
             (reply["thread_id"], ctx.trigger)):
-        if folded in " ".join((m["body_text"] or "").split()).casefold():
+        if _holds_span(his_words(ctx.conn, m["id"]), span):
             return m["id"]
     return None
 
@@ -13209,10 +13251,7 @@ def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
     `earlier_exchange` in `runner.py`, so the door reads the answers that
     the seat's prompt shows. None says that the reply is his only answer.
     """
-    texts = [r[0] for r in conn.execute(
-        "SELECT body_text FROM messages WHERE cause_id = ? AND verb = 'converse' "
-        "AND id != ? AND from_role = 'principal' AND body_text IS NOT NULL "
-        "ORDER BY seq", (ask_id, reply_id))]
+    texts = [t for t, _ in _earlier_answers(conn, ask_id, reply_id)]
     if not texts:
         return None, frozenset()
     # The latest answer about a line wins. An earlier "Line 5 is fine" let a
@@ -13241,14 +13280,32 @@ def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
     (frame 337; the seam design, 1.1, `words_from`).
     """
     out: dict[int, tuple[str, str]] = {}
-    for m in conn.execute(
-            "SELECT id, body_text FROM messages WHERE cause_id = ? AND "
-            "verb = 'converse' AND id != ? AND from_role = 'principal' AND "
-            "body_text IS NOT NULL ORDER BY seq", (ask_id, reply_id)):
-        for sentence in _RULING_SENTENCE.split(m["body_text"]):
+    for text, message_id in _earlier_answers(conn, ask_id, reply_id):
+        for sentence in _RULING_SENTENCE.split(text):
             for n in sorted(_line_reading(sentence, size).named):
                 if 1 <= n <= size:
-                    out[n] = (m["id"], sentence.strip())
+                    out[n] = (message_id, sentence.strip())
+    return out
+
+
+def _earlier_answers(conn, ask_id: str, reply_id: str
+                     ) -> list[tuple[str, str]]:
+    """His words and the message id of each earlier answer to the page
+    `ask_id`, in order, without the reply `reply_id`.
+
+    A clarify answer lands on the verdict path of `land`, which writes no
+    `body_text`. So the words come from `said`, and an answer is kept when
+    its words are not empty (night 172, wall W7)."""
+    from .principal import said as his_words
+
+    out = []
+    for m in conn.execute(
+            "SELECT id FROM messages WHERE cause_id = ? AND verb = 'converse' "
+            "AND id != ? AND from_role = 'principal' ORDER BY seq",
+            (ask_id, reply_id)):
+        text = his_words(conn, m["id"])
+        if text:
+            out.append((text, m["id"]))
     return out
 
 
@@ -13591,24 +13648,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
-    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                            (ctx.trigger,)).fetchone()
-    his = (said["body_text"] if said else "") or ""
+    his = _his_reply(ctx)
     # A call with no `words` rests on his reply, whole, from the record. The
     # landing brief's own examples carry `words` inside a line's object, and
     # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
     # there (F2 pass 2, `plans/f2-night172-read.md`, W6). A row keeps the
     # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
-    if not (words or "").strip():
+    rests_on_reply = not (words or "").strip()
+    if rests_on_reply:
         words = his
     # law 6: the tool never rules for the Principal. The landed row carries
     # `words` to the row's owner, so `words` must be a part of his reply.
     # A seat that added "Line 4 is wrong too." to m121 sent words he never
-    # said (the F2 review of pass 2, finding 8). `land` puts the words of a
-    # clarify's answer in the transcript only, so the check reads it there.
-    from .principal import entry_for
-
-    outside = _words_outside(words, his or entry_for(ctx.conn, ctx.trigger))
+    # said (the F2 review of pass 2, finding 8). `his` comes from `said`,
+    # which reads the transcript of a clarify's answer (wall W7).
+    outside = _words_outside(words, his)
     if outside:
         raise ValueError(outside)
     if (isinstance(rulings, dict) and not rulings and not is_clarify
@@ -13841,10 +13895,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             # that holds it. s357's "use click directly in the test" names
             # no line, and its clause starts "On line 11" (the review of pass
             # 4b, P4b-3). The span check above found the message.
-            held = ctx.conn.execute(
-                "SELECT body_text FROM messages WHERE id = ?",
-                (_words_from(ctx, span or ""),)).fetchone()
-            within, span = span or None, (held["body_text"] if held else "") or ""
+            from .principal import said as his_words
+
+            within, span = span or None, his_words(ctx.conn,
+                                                   _words_from(ctx, span or ""))
         said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
                                              within=within)
                 if order and ref in order else None)
@@ -14120,6 +14174,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
              for n in item_lines - request_lines})
         if refusal:
             raise ValueError(refusal)
+    unbacked = (_unbacked_approve(ctx.conn, his, per_item, key_of, shape_of,
+                                  order) if rests_on_reply else None)
+    if unbacked:
+        raise ValueError(unbacked)
     if is_clarify and not (words or "").strip():
         # A reading rests on the principal's words. The door cannot read them,
         # so it holds the one fact it can check: a ruling with no words on
