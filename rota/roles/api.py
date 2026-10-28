@@ -1732,8 +1732,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # finding 2). The contested brief says "One call, on the item's own id".
     wake_refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
                  if isinstance(r, str)]
-    if wake == "tick:contested" and wake_refs and id not in wake_refs:
-        return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
+    contested = _contested_rows(ctx)
+    if contested and id not in contested:
+        return _contested_elsewhere(ctx, id, cur is not None, contested)
     reply = _reply_sentence_fault(ctx, id, text, row, wake_refs)
     if reply:
         return reply
@@ -1941,6 +1942,42 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"{_amend_step(ctx, id, cur['text'], ' '.join(words))}")
 
 
+def _contested_rows(ctx: Ctx) -> list[str]:
+    """The rows a `tick:contested` wake contests, or an empty list on any
+    other wake. The one reader of which row a contest may amend."""
+    if (getattr(ctx, "wake_kind", "") or "") != "tick:contested":
+        return []
+    return [r for r in (getattr(ctx, "wake_refs", ()) or ())
+            if isinstance(r, str)]
+
+
+# The deliver brief's route for a request, `deliver.md` lines 37 and 38.
+DESCRIPTION_ROUTE = ("Assert it as its own item, with an id that names the "
+                     "behaviour, one `problem.assert` per distinct thing. Do "
+                     "not put the statement into the account.")
+
+
+def _description_kept(ctx: Ctx, id: str) -> str:
+    """
+    The refusal for a text on an observed description row.
+
+    The route goes only to a seat whose mode brief holds it. A seat on
+    another mode does not read the deliver brief, and a new item does not
+    end its wake, so the refusal names no call there (the review of hiwroot
+    pass 1, finding 2).
+    """
+    from . import prompts as _prompts
+
+    fact = (f"{id} is a description read from the code, and only an "
+            f"onboarding wake changes its words. The row keeps its words")
+    brief = " ".join(_prompts.piece(ctx.role, _wake_mode(ctx) or "").split())
+    if (DESCRIPTION_ROUTE in brief
+            and "problem.assert" in _wake_mode_tools(ctx)):
+        return (f"{fact}. What the principal asked for is its own item. Your "
+                f"brief says: \"{DESCRIPTION_ROUTE}\"")
+    return f"{fact}."
+
+
 def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
                          wake_refs: list[str]) -> str:
     """
@@ -2042,16 +2079,14 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         # An observed description says what the code does today. Only a
         # wake that reads the code changes its words. Night 171: s152, woken
         # by a deliver that named a ledger row, rewrote the approved account,
-        # and the word doors below let it pass. The route is the deliver
-        # brief's own (plans/night171-how-it-works-read.md, section 6).
+        # and the word doors below let it pass. A contest carries his words,
+        # and "an observed item stays observed until their words change it",
+        # so a contested wake amends the row it contests and no other (the
+        # review of hiwroot pass 1, finding 1).
         from ..core.runner import _is_description
-        if observed and _is_description(ctx.conn, id):
-            raise ValueError(
-                f"{id} is a description read from the code, and only an "
-                f"onboarding wake changes its words. Leave it as it is. What "
-                f"the principal asked for is its own item. The deliver brief "
-                f"says: \"Assert it as its own item, with an id that names "
-                f"the behaviour, one `problem.assert` per distinct thing.\"")
+        if (observed and _is_description(ctx.conn, id)
+                and id not in _contested_rows(ctx)):
+            raise ValueError(_description_kept(ctx, id))
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
             new_words = set(_prose_words(text))
@@ -6243,15 +6278,21 @@ def _wake_mode_tools(ctx: Ctx) -> list[str]:
     nights 145 and 146. So the door keys the mode by the wake, as
     `session_sandbox` does (the review of 3de76eaf, finding 1).
     """
+    from . import prompts as _prompts
+
+    return _prompts.mode_tools(ctx.role, _wake_mode(ctx)) or []
+
+
+def _wake_mode(ctx: Ctx) -> str:
+    """The prompt mode of the wake, as the runner keys it."""
     from ..core.runner import _mode_key
     from ..core.scheduler import Wake
-    from . import prompts as _prompts
 
     kind = getattr(ctx, "wake_kind", "") or ""
     trigger = getattr(ctx, "trigger", None)
     if not kind:
         # A sandbox built with no wake has only its own mode to go on.
-        return _prompts.mode_tools(ctx.role, ctx.mode) or []
+        return ctx.mode
     verb = ""
     if kind == "message" and trigger:
         row = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
@@ -6260,7 +6301,7 @@ def _wake_mode_tools(ctx: Ctx) -> list[str]:
     wake = Wake(role=ctx.role, kind=kind,
                 message_id=trigger if kind == "message" else None,
                 refs=tuple(getattr(ctx, "wake_refs", ()) or ()), detail=verb)
-    return _prompts.mode_tools(ctx.role, _mode_key(wake, ctx.conn)) or []
+    return _mode_key(wake, ctx.conn)
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
