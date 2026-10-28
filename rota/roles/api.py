@@ -4067,7 +4067,7 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
             "SELECT constraint_id, grain, grain_kind, resolves FROM constraint_bindings"):
         grain = (r["grain"] or "").replace(chr(92), "/")
         if (r["grain_kind"] not in ("path", "symbol") or not r["resolves"]
-                or grain.split("::", 1)[0] in grains):
+                or _grain_path(grain) in grains):
             hits.add(r["constraint_id"])
     return hits
 
@@ -4231,7 +4231,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # A grain is a path, a path::symbol, or a bare symbol; only a path
     # can be checked against the diff (L1-AR-find-against-a-constraint
     # names bare symbols and passed before this door).
-    grain_file = grain.split("::", 1)[0]
+    grain_file = _grain_path(grain)
     path_shaped = "/" in grain_file or grain_file.endswith(".py")
     # One finding per constraint and grain in a session. `findings.load`
     # does not show staged writes, so the seat cannot see its own row.
@@ -5409,7 +5409,7 @@ def _program_rank(conn, name: str, grains: list[str],
 
     if len(grains) == 1:
         return grains[0], ""
-    own = [g for g in grains if g.partition("::")[0] in set(prefer)]
+    own = [g for g in grains if _grain_path(g) in set(prefer)]
     if len(own) == 1:
         return own[0], ""
     program = sorted(g for g in grains if kind_of(conn, g) == "program")
@@ -7507,7 +7507,7 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
     named = {p.replace("\\", "/") for p in new_files or [] if "::" not in p}
 
     def file_half(p: str) -> str:
-        p = p.replace("\\", "/").split("::", 1)[0]
+        p = _grain_path(p)
         # Night 154's s169 typed path:symbol with one colon. The call landed,
         # and the shape is path::symbol mistyped (frame 302, pass 1c).
         left, colon, right = p.partition(":")
@@ -7610,7 +7610,7 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     # A symbol's path meets the same check as a path (frame 298, review 1,
     # finding 5).
     _refuse_stray_dirs(ctx.conn, list(paths) + [
-        s.split("::", 1)[0] for s in symbols or [] if "::" in s])
+        _grain_path(s) for s in symbols or [] if "::" in s])
     # A symbol's file half meets the file door as a path (frame 302,
     # review 1, finding 4).
     item = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
@@ -9683,7 +9683,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _installed = project_installable(_worktree_of(ctx))
         except Exception:  # noqa: BLE001 -- no worktree yet: import from the root
             _installed = False
-        module = (_dotted_module(_grain_path(named[0].split("::", 1)[0]),
+        module = (_dotted_module(_grain_path(named[0]),
                                  keep_root=not _installed) if named else "")
         if module:
             # Frame 222: the surface import binds the surface's symbol and
@@ -9725,7 +9725,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # Night 142 (frame 215): this door added an import line the
             # sandbox cannot load, four times. The line is offered only
             # when the module loads.
-            broken = _module_load_error(ctx, module, named[0].split("::", 1)[0])
+            broken = _module_load_error(ctx, module, _grain_path(named[0]))
             if broken:
                 raise Wall(_unloadable_surface(ctx, criterion_id, named[0],
                                                module, broken))
@@ -10295,8 +10295,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # sessions, quarantine. The path half of a surface ref says where
         # the name lives.
         import re as _re2
-        surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
-                        for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        surface_mods = {_grain_path(s).rsplit("/", 1)[-1][:-3]
+                        for s in surface if "::" in s and _grain_path(s).endswith(".py")}
         _dotted = _dotted_module
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
@@ -10336,8 +10336,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         _missing_mods = sorted(m.split(".")[0] for m in imported_from
                                if m.split(".")[0] not in _known)
         if _missing_mods:
-            dotted_surfaces = sorted({_dotted(s.split("::", 1)[0]) for s in surface
-                                      if "::" in s and s.split("::", 1)[0].endswith(".py")})
+            dotted_surfaces = sorted({_dotted(_grain_path(s)) for s in surface
+                                      if "::" in s and _grain_path(s).endswith(".py")})
             # A bare surface names no file; the tree does. Night 25: the
             # hint listed .devcontainer, .github and .venv as "the modules
             # there" and never said `from click.echo_json import echo_json`.
@@ -10364,8 +10364,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if dotted_surfaces and _root is not None:
                 hinted = dotted_surfaces[0]
                 hinted_path = next(
-                    (s.split("::", 1)[0] for s in surface if "::" in s
-                     and _dotted(s.split("::", 1)[0]) == hinted), None)
+                    (_grain_path(s) for s in surface if "::" in s
+                     and _dotted(_grain_path(s)) == hinted), None)
                 if hinted_path is None:
                     hinted_path = next(
                         (p.relative_to(_root).as_posix() for p in _root.rglob("*.py")
@@ -10510,8 +10510,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # `core` with the first segment of `click.core`, refused a correct
         # import twelve turns running, and told the Tester `from core
         # import`, which cannot import.
-        surface_dotted = {_dotted(s.split("::", 1)[0])
-                          for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        surface_dotted = {_dotted(_grain_path(s))
+                          for s in surface if "::" in s and _grain_path(s).endswith(".py")}
         # A root module imports by its stem; a package module by its dotted
         # name, and the bare stem of a package module does not import.
         imports_ok = any(m == d or ("." not in d and m.rsplit(".", 1)[-1] == d)
@@ -10520,8 +10520,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             want = sorted(surface_dotted)[0]
             # Night 142 (frame 215): this door made the Tester put back an
             # import the sandbox cannot load, 13 times.
-            want_path = next(s.split("::", 1)[0] for s in surface
-                             if "::" in s and _dotted(s.split("::", 1)[0]) == want)
+            want_path = next(_grain_path(s) for s in surface
+                             if "::" in s and _dotted(_grain_path(s)) == want)
             broken = _module_load_error(ctx, want, want_path)
             if broken:
                 raise Wall(_unloadable_surface(
@@ -15858,7 +15858,7 @@ def _frame_ranked(conn, rows: list[dict]) -> list[dict]:
     seen: dict[str, str] = {}
     out = []
     for r in rows:
-        path = str(r.get("grain", "")).partition("::")[0]
+        path = _grain_path(str(r.get("grain", "")))
         if path not in seen:
             seen[path] = kind_of(conn, path)
         out.append({"grain": r["grain"], "kind": seen[path],
@@ -16637,7 +16637,7 @@ def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
     area = area or ctx.area
     if not area:
         return []
-    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+    paths = sorted({_grain_path(r["grain"]) for r in ctx.conn.execute(
         "SELECT grain FROM code_index WHERE area = ?", (area,))})
     if not paths:
         return []
@@ -16766,12 +16766,12 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
             return set(need) <= {_sing(w) for w in _parts(line)}
         return bool(want & set(_words_in(line)))
 
-    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+    paths = sorted({_grain_path(r["grain"]) for r in ctx.conn.execute(
         "SELECT grain FROM code_index")})
     if not paths:
         return {"term": term, "files": 0, "areas": 0,
                 "where": "nothing onboarded: there is no index to read."}
-    area_of = {r["grain"].split("::")[0]: r["area"] for r in ctx.conn.execute(
+    area_of = {_grain_path(r["grain"]): r["area"] for r in ctx.conn.execute(
         "SELECT grain, area FROM code_index")}
     fan_in = {r["grain"]: r["fan_in"] for r in ctx.conn.execute(
         "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path'")}
@@ -20461,7 +20461,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         return not project_installable(root)
     if (_sp.suffix == ".py" and len(_sp.parts) == 1 and _pkgs
             and not _sp.stem.startswith("test") and not _root_importable(_root)):
-        named_roots = {r.split("::")[0] for c in ctx.conn.execute(
+        named_roots = {_grain_path(r) for c in ctx.conn.execute(
             "SELECT c.surface_refs FROM criteria c JOIN batch_tickets bt "
             "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (ctx.batch_id,))
             for r in json.loads(c["surface_refs"] or "[]") if "::" in r}
@@ -20708,15 +20708,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if node.name.startswith("_") or node.name.startswith("test") or node.name in had_before:
                     continue
                 elsewhere = {
-                    r["grain"].split("::", 1)[0] for r in ctx.conn.execute(
+                    _grain_path(r["grain"]) for r in ctx.conn.execute(
                         "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
                         "AND grain LIKE ?", (f"%::{node.name}",))
                     if r["grain"].endswith(f"::{node.name}")
                     # The index holds every language, and a Python caller
                     # cannot reach `web/format.js::truncate` (frame 326).
-                    and _splitext(r["grain"].split("::", 1)[0])[1] == _splitext(path)[1]
-                    and r["grain"].split("::", 1)[0].replace("\\", "/") != path.replace("\\", "/")
-                    and not _is_test_path(r["grain"].split("::", 1)[0])}
+                    and _splitext(_grain_path(r["grain"]))[1] == _splitext(path)[1]
+                    and _grain_path(r["grain"]) != path.replace("\\", "/")
+                    and not _is_test_path(_grain_path(r["grain"]))}
                 # The index is the tree at onboarding; the batch's own commits
                 # are not in it. clickI night 42 (2026-09-13): `echo_json`
                 # landed in utils.py, then a second `echo_json` in a new
@@ -21027,7 +21027,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 except (json.JSONDecodeError, TypeError):
                     continue
                 imported |= {r.rsplit("::", 1)[-1] for r in refs
-                             if "::" in r and _Path(r.split("::", 1)[0]).stem == stem}
+                             if "::" in r and _Path(_grain_path(r)).stem == stem}
             for other in root.rglob("*.py"):
                 # The worktree lives under `.rota/`, so the exclusion reads
                 # the relative parts; on the full path it skipped every
@@ -21649,9 +21649,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                            and "tests" not in py.relative_to(tree).parts):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
-            if not ref.split("::", 1)[0].endswith(".py"):
+            if not _grain_path(ref).endswith(".py"):
                 continue
-            rel, name = ref.split("::", 1)
+            rel, name = _grain_path(ref), ref.split("::", 1)[1]
             f = tree / rel
             if not f.is_file():
                 continue

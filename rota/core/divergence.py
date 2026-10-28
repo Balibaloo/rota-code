@@ -121,7 +121,9 @@ def stray_paths(touched: list[str], predicted: list[str]) -> list[str]:
     predicts its file. The caller drops bare symbols before this: a name
     alone is not ground, and only the caller knows a grain's kind.
     """
-    areas = [a for a in (_norm(g.split("::", 1)[0]) for g in predicted if g) if a]
+    from ..roles.api import _grain_path
+
+    areas = [a for a in (_norm(_grain_path(g)) for g in predicted if g) if a]
     if not areas:
         return []
     return [p for p in touched if not any(under(p, a) for a in areas)]

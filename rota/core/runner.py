@@ -3434,7 +3434,9 @@ def _criterion_surface_pushes(sb: sandbox_mod.Sandbox, wake: Wake,
         for ref in refs if isinstance(refs, list) else []:
             if not isinstance(ref, str) or "::" not in ref:
                 continue
-            path, name = ref.replace("\\", "/").split("::", 1)
+            from ..roles.api import _grain_path
+
+            path, name = _grain_path(ref), ref.split("::", 1)[1]
             key = f"surface {path}::{name}"
             if key in out:
                 continue
@@ -4311,13 +4313,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
             # s157 never got `confirm`'s source.
-            from ..roles.api import RAISE_LINES_SHOWN, _named_callables
+            from ..roles.api import (RAISE_LINES_SHOWN, _grain_path,
+                                     _named_callables)
 
             spans: dict[str, list[tuple[int, int]]] = {}
             for grain in _named_callables(sb.ctx, hint)[:RAISE_LINES_SHOWN]:
                 row = conn.execute("SELECT line_start, line_end FROM code_index "
                                    "WHERE grain = ?", (grain,)).fetchone()
-                spans.setdefault(grain.split("::", 1)[0], []).append(
+                spans.setdefault(_grain_path(grain), []).append(
                     (row["line_start"], row["line_end"]) if row else (0, 0))
             if spans and "code.source" in have:
                 pushed["code.source"] = {}

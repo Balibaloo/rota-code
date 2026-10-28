@@ -216,8 +216,10 @@ def numbers_not_in_source(conn: sqlite3.Connection, root: Path) -> list[Finding]
         # is right there in the directory name -- a false positive on the one
         # check that most needs to be trusted, since it accuses.
         corpus = " ".join(bound)
+        from ..roles.api import _grain_path
+
         for grain in bound:
-            f = root / grain.split("::", 1)[0]
+            f = root / _grain_path(grain)
             if f.is_file():
                 corpus += f.read_text(encoding="utf-8", errors="replace")
         # A maximal run of digits, not a word boundary. `\b6749\b` does not match
