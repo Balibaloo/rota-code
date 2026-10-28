@@ -130,6 +130,17 @@ def test_s179s_call_on_m62_is_refused_on_line_5s_act(night):
     assert len(str(e.value).replace(repr(S62), "").split()) < 25
 
 
+def test_s179s_call_with_no_target_kind_is_refused(night):
+    """The review's p2-2: the target's shape decides, never the kind."""
+    ctx = night(173, "m62", merged=False)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={
+            "1": A, "2": A, "3": A, "4": A, "6": A,
+            "5": {"verdict": "contest", "act": "remove",
+                  "target": "src/click/termui.py:clear", "words": S62}})
+    assert str(e.value) == _no_removal(5, S62, "src/click/termui.py:clear")
+
+
 def test_s179s_call_without_the_act_lands_the_contest(night):
     ctx = night(173, "m62", merged=False)
     api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": A, "4": A, "5": "contest",
@@ -244,8 +255,26 @@ def test_s120s_call_3_revise_of_c_3_is_refused(night):
                                        "4": "revise", "5": A, "6": A,
                                        "7": "contest", "8": "drop"}, words=W35)
     assert str(e.value) == (
-        "line 4: a revise rewrites the line, and his words do not fault line "
-        "4. Approve line 4, or rule it as his words say")
+        "line 4: a revise rewrites the line, and his words neither fault line "
+        "4 nor ask to change it. Rule line 4 as his words say")
+
+
+def test_a_change_request_backs_the_revise(night, monkeypatch):
+    """The review's p2-1: "Replace Roaming in line 4 with Local." faults no
+    line, and it asks to change line 4, so the revise lands."""
+    from rota.roles import principal
+
+    said = W35.replace(
+        "because I approved two lines, lines 1 and 4, not one.",
+        "because it misses a line. Replace Roaming in line 4 with Local.")
+    orig = principal.said
+    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
+        said if mid == "m35" else orig(conn, mid, *a, **k)))
+    ctx = night(173, "m35")
+    api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
+                                   "4": "revise", "5": A, "6": A,
+                                   "7": "contest", "8": "drop"}, words=said)
+    assert _rows(ctx)["c_3"]["verdict"] == "revise"
 
 
 def test_a_fault_after_the_report_clause_stays_on_this_page(night,

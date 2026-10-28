@@ -14098,15 +14098,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # nothing read the verb. s179 put `remove` on the clear function
         # where m62 asked to name it, and `granted` read the row as his
         # permission. A removal of code rests on his removal request, read
-        # by the removal door's own reader (law 6, law 12).
+        # by the removal door's own reader (law 6, law 12). The target's shape
+        # decides, never `target_kind`: `grant` matches a row by its target
+        # alone, and s179's call with no kind landed the same grant (the seam
+        # review, p2-2).
         if (shape["act"] in ("remove", "drop")
-                and shape.get("target_kind") in _CODE_TARGETS
+                and _code_target(ctx.conn, shape.get("target") or "")
                 and not _asks_removal_of(span, shape.get("target") or "")):
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
             raise ValueError(
                 f"{line}: his words {span!r} ask no removal of "
-                f"{shape.get('target') or shape['target_kind']}, so leave the "
+                f"{shape['target']}, so leave the "
                 f"act out or copy his words that ask for it")
     # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
@@ -14269,14 +14272,19 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # m35, s120 revised c_3, line 4, and his words fault no part of it (the
     # seam review of pass 1, finding 7). A reply that numbers no line can
     # still ask a rewrite by a quote, so the check reads numbered replies.
+    # A change request backs a revise too, read by the parser's change verbs:
+    # "Replace Roaming in line 4 with Local." faults no line (the seam
+    # review, p2-1). The refusal offers no approve, so it cannot turn his
+    # change request into a kept line.
     if order and words_reading.refs:
         for ref, ruling in per_item.items():
             n = order.index(ref) + 1 if ref in order else None
-            if ruling == "revise" and n and n not in read_faulted:
+            if (ruling == "revise" and n and n not in read_faulted
+                    and words_reading.note_act(n, page_text) != "change"):
                 raise ValueError(
-                    f"line {n}: a revise rewrites the line, and his words do "
-                    f"not fault line {n}. Approve line {n}, or rule it as his "
-                    f"words say")
+                    f"line {n}: a revise rewrites the line, and his words "
+                    f"neither fault line {n} nor ask to change it. Rule line "
+                    f"{n} as his words say")
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -23754,9 +23762,27 @@ def _asks_removal(text: str, g: dict) -> bool:
     return False
 
 
-# The target kinds of an act that name code. A `row` or a `check` removal
-# drops a page line and grants no code (the seam read of night 173, W16).
-_CODE_TARGETS = frozenset({"source_line", "path", "identifier", "sentence"})
+# A code target by its shape: a path, `path::name`, `owner:line` or a code
+# name. A page line, "line 5" or "9", and a row of a register table drop a
+# page line and grant no code (the seam read of night 173, W16).
+_PAGE_LINE_TARGET = re.compile(r"(?:line\s+)?\d+", re.I)
+_CODE_SHAPE = re.compile(
+    r"(?:[\w.-]+/)*[\w.-]+\.py(?:::?[\w.]+)?"
+    r"|[A-Za-z_][\w.]*(?:::?\w+)?(?:\(\))?")
+
+
+def _code_target(conn, target: str) -> bool:
+    """True when the act target `target` names code by its shape, and no
+    register table holds it as a ref."""
+    from .principal import ruled_ref_home
+
+    target = (target or "").strip().strip("`")
+    if not target or _PAGE_LINE_TARGET.fullmatch(target):
+        return False
+    if ruled_ref_home(conn, target) is not None:
+        return False
+    return all(_CODE_SHAPE.fullmatch(p.strip()) for p in target.split(",")
+               if p.strip())
 
 
 def _asks_removal_of(span: str, target: str) -> bool:
