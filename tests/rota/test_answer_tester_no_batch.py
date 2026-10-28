@@ -123,7 +123,7 @@ def test_a_ticket_in_two_batches_gives_both_doors_one_answer(db):
     """Night 147's s315 shape: one batch merged, one batch running."""
     _batch(db, "4ad48df8", "bg_1", "merged")
     _batch(db, "9f00aa11", "bg_9", "running")
-    assert api.built_batch(db, CR)["id"] == "bg_9"
+    assert api.built_batch(db, CR, need_commit=True)["id"] == "bg_9"
     ctx = type("C", (), {"conn": db})()
     assert api._batch_of_criterion(ctx, CR) == "bg_9"
     sb = _s112(db)
@@ -135,15 +135,15 @@ def test_a_merged_batch_is_built_and_an_abandoned_one_is_not(db):
     """Night 147's s315: bg_2 abandoned, bg_3 merged. Built means a commit,
     a merged batch included (the coordinator's ruling on pass 1b)."""
     _batch(db, "4ad48df8", "bg_2", "abandoned")
-    assert api.built_batch(db, CR) is None
+    assert api.built_batch(db, CR, need_commit=True) is None
     _batch(db, "9f00aa11", "bg_3", "merged")
-    assert api.built_batch(db, CR)["id"] == "bg_3"
+    assert api.built_batch(db, CR, need_commit=True)["id"] == "bg_3"
 
 
 def test_two_abandoned_batches_refuse(db):
     _batch(db, "4ad48df8", "bg_2", "abandoned")
     _batch(db, "9f00aa11", "bg_4", "abandoned")
-    assert api.built_batch(db, CR) is None
+    assert api.built_batch(db, CR, need_commit=True) is None
     sb = _s112(db)
     with pytest.raises(ValueError):
         sb.call("msg.answer_tester", refs=[CR], round_no=0)
@@ -158,6 +158,12 @@ def test_one_reader_holds_the_criterion_to_batch_query():
         calls = {getattr(n.func, "attr", getattr(n.func, "id", None))
                  for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Call)}
         assert "built_batch" in calls, fn
+        # Each door names its fact: encode asks for a batch, the send door
+        # for its commit (pass 1e, the gate at dfcffd40).
+        facts = {k.value.value for n in ast.walk(ast.parse(src.strip()))
+                 if isinstance(n, ast.Call) and "built_batch" in ast.dump(n.func)
+                 for k in n.keywords if k.arg == "need_commit"}
+        assert facts == {fn is not api._batch_of_criterion}, (fn, facts)
     assert "_unbuilt_refusal(ctx, recipient, verb" in inspect.getsource(sandbox._bind_send)
 
 
@@ -170,3 +176,16 @@ def test_a_refusal_over_many_refs_stays_under_25_words(db):
         sb.call("msg.answer_tester", refs=[CR, "c_2", "c_3", "c_4", "c_5"], round_no=0)
     said = str(refused.value)
     assert "and 2 more" in said and len(said.split()) < 25, said
+
+
+def test_a_tester_encodes_the_first_test_of_a_running_batch_before_a_commit(db):
+    """L1-TS-apply-a-term-and-write-the-test at dfcffd40: the Tester's first
+    test of a running batch has no commit yet, and the encode must land."""
+    _batch(db, None)
+    sb = build("tester", db, mode="answer", session_id="s113",
+               allow=prompts.mode_tools("tester", "answer"))
+    sb.call("tests.encode", id="t_c1", criterion_id=CR,
+            path="tests/test_app_dir.py",
+            body="from click.utils import get_app_dir\n"
+                 "def test_it():\n    assert get_app_dir('x', roaming=True)")
+    assert any(w[0] == "tests" for w in sb.ctx.writes), sb.ctx.writes
