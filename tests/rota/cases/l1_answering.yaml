@@ -36,6 +36,10 @@
   expect:
     messages:
       - {to: terminologist, verb: relay, count: 1, refs_include: [<c1>]}
+    writes:
+      # His words add to the criterion, so the verdict is revise. An approve
+      # relays nothing (the relay read of 2026-10-29, finding 4).
+      ruled_refs: {text_includes: ['"ref": "<c1>"', '"verdict": "revise"']}
   forbidden:
     # The criterion is the Terminologist's. Confirming or segmenting the reply
     # is the failure this mode exists to end.

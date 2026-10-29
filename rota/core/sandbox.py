@@ -4427,6 +4427,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # was choosing among them -- relaying one of two, five runs of five,
         # so half the ruling never reached its owner. Which rows a relay
         # carries is a fact about the wake, not the session's to trim.
+        wake_refs: set[str] = set()
         if verb == "relay" and ctx.trigger:
             row = ctx.conn.execute(
                 "SELECT body_refs FROM messages WHERE id = ?",
@@ -4437,6 +4438,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     given = _json.loads(row["body_refs"] or "[]")
                 except (TypeError, ValueError):
                     given = []
+                wake_refs = {r for r in given if isinstance(r, str)}
                 refs += [r for r in given
                          if isinstance(r, str) and r and r not in refs]
             # A clarify ruling can rule a row the reply does not carry, one
@@ -4751,7 +4753,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 given = list(refs)
                 refs = [r for r in refs if r in ruled or not ctx.conn.execute(
                     "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
-                if given and not refs:
+                # The trigger's own refs join the relay above, so they always
+                # survive the filter. The guard counts only a ruled row or a
+                # ref the session chose (the relay read of 2026-10-29,
+                # finding 3).
+                chosen = [r for r in refs if r in ruled or r not in wake_refs]
+                if len(refs) < len(given) and not chosen:
                     raise ValueError(
                         "the principal approved these criteria as they stand, so "
                         "no owner has anything to change. Your work here is done")
