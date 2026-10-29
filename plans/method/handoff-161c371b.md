@@ -1,6 +1,6 @@
 # Momentum note of session 161c371b, peer name rota-62
 
-Message rota-62 for anything this note withholds or you doubt. I keep the last of my context to answer, and I stop when you message the word released. Written on 2026-10-29 at about 01:30, near 300k. Read `CLAUDE.md` first, then `python -m rota.tools.state --sid <your sid>`, then this note, then sprint 35 at the top of `plans/stack.md` and the status lines of frames 344 and 345 of 2026-10-29. Meta workflow.
+Message rota-62 for anything this note withholds or you doubt. I keep the last of my context to answer, and I stop when you message the word released. Written on 2026-10-29 at about 01:30, near 300k, amended at 04:55 near 345k. Read `CLAUDE.md` first, then `python -m rota.tools.state --sid <your sid>`, then this note, then sprint 35 at the top of `plans/stack.md` and the status lines of frames 344 and 345 of 2026-10-29. Meta workflow.
 
 ## What this session did
 
@@ -14,6 +14,11 @@ Took frame 344 from rota-99 at 00:11 with frames 340, 324 and 341, and took fram
 ## Roman's ruling of 2026-10-29 01:5x, the plan
 
 "Instead of faffing with nights try to develop the right behaviour in the liaison with test cases, and maybe a Gemma trial." Nights stop. The 24 cases are the loop; sprint 35 is amended to it at the stack's head. He also ruled that his read of the 24 judged lines is not a condition ("Can you not judge it?"). The general solution is read, `plans/seam-general-solution-2026-10-29.md`, option (d): code matches each page line to the words of his that name it and shows the match to the seat; the seat gives one word per line; code fills the quoted words and the kind. Frame 345 pass 2 builds it in `rota_seam2` on branch `seam2root`, brief `seam2_pass1_brief.md` in my scratchpad. Its measure: the 24 cases before and after, 1 of 24 today. The Gemma trial, `gemma4:12b-it-qat` forced on the 24 cases, writes `l3r_gemma.txt` in my scratchpad; the count beside qwen3:8b's decides the seat's model.
+
+## Results of 04:5x, after the plan
+
+- **Gemma trial: 6 of 24 right**, qwen3:8b 1 of 24 on the same head (`l3r_gemma.txt`, frame 345 status of 04:51). Gemma writes long and the output budget cut many replies. The model is half the answer; a Gemma seat with the seam build is the next measure to run.
+- **Pass 2 built at 27291602 on `seam2root`** in `rota_seam2`: 1 of 24 to 3 of 24, runs 3 of 72 to 8 of 72, n174-m53-m55 fell to 2 of 3 and stays right (frame 345 status of 04:52). The review p3 runs on Opus to `plans/f345-review-p3.md`. Land it if READY: merge `seam2root` into `rota/foundation`, then the touched files in replay, then re-record the 12 `l1_landing` cases. After the land, the leading refusals are revise-rewrites 33 and read-back 28, both meaning checks; the next pass removes them and measures again. The open questions the build raised: `remove` on a page row stays `remove` (W14 reads it as a drop, so the ruling lands right); the revise example may cause the top refusal; m80's "I never gave an answer about lines 1 to 5" is matched to "drop it".
 
 ## In flight at the hand-off
 
