@@ -14,6 +14,30 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 35, amended 2026-10-29 01:58 on Roman's ruling
+
+Roman, 2026-10-29 01:5x: "instead of faffing with nights try to develop
+the right behaviour in the liaison with test cases, and maybe a Gemma
+trial" (ruled: frame 345's status line). Nights stop. The 24 L3R cases
+of frame 345 are the loop, and every row below is measured by them. The
+order of 00:50 stands below for the record; night 176 and the night
+counts of W14 are out.
+
+1. The general solution for the rulings seam, read from what exists and
+   measured by the 24 cases: `plans/seam-general-solution-2026-10-29.md`,
+   running since 01:58 on Opus, cap 80k. Then its build, priced by the
+   read, with the cases run before and after each pass.
+2. The Gemma trial: the 24 cases live with the Liaison on
+   `gemma4:12b-it-qat`, running since 01:56 to `l3r_gemma.txt` in session
+   161c371b's scratchpad. Its count beside qwen3:8b's 1 of 24 decides
+   whether the Liaison seat changes model.
+3. W14's count moves to the cases: the three deletes of a criterion
+   (n175-m102-m103, m116-m118, m136-m138) land a retire.
+4. The rows of 00:50 that stay: the account page with no request (old row
+   3), the Critic's review loop (old 4), `criteria.json` in clickI (old 5),
+   W5 and frame 324's second half (old 6). No night runs for them; each is
+   read against its records when the seam work frees a cycle.
+
 ## Sprint 35, recommended on night 175's read, 2026-10-29 00:50
 
 Night 175 merged 2 of 3 on 21d145df, the first stop in three nights
@@ -1530,6 +1554,7 @@ a different question and the night is then opened once.
 - Status 2026-10-29 01:50 (rota-62): **ruled. Roman, 2026-10-29 01:50, in the terminal: "Can you not judge it? [to the state reply that his read of the 24 judged lines was owed before frame 345's part 1 holds]"** (ruled: Roman, in his words). Meta workflow.
 - Status 2026-10-29 01:50 (rota-62): Reading of his words of 01:50: the Fable seat judges the cases, and his read is not a condition. The Ends-when's 'and read by Roman' came from session 2ebac251's reading of his go of 2026-10-28 14:45, 'you can make the cases with your judgement', which names no read by him. Part 1 holds on the judge alone; the 24 lines stay in plans/l3-rulings-cases-2026-10-29.md for him to correct at any time, and a corrected row is re-judged. Nothing waits on him. Meta workflow.
 - Status 2026-10-29 01:53 (rota-62): **ruled. Roman, 2026-10-29 01:53, in the terminal: "Ok so instead of faffing with nights try to develop the right behaviour in the liaison with test cases, and maybe a Gemma trial [after the state reply that the same three issues recur and the root cause, doors used for meaning, is named and not fixed]"** (ruled: Roman, in his words). Meta workflow.
+- Status 2026-10-29 01:55 (rota-62): On his ruling of 01:5x: sprint 35 amended at the stack's head, nights out, the 24 cases the loop. Two things run since about 01:57: the Gemma trial, the 24 cases live with the Liaison forced to gemma4:12b-it-qat at window 12288, to l3r_gemma.txt in this session's scratchpad, beside qwen3:8b's 1 of 24; and the general-solution read of the rulings seam on Opus, cap 80k, from seam_solution_brief.md, to plans/seam-general-solution-2026-10-29.md, weighing an extraction-only seat with code deriving the verdicts through said, a prompt with the rows' kinds and one example per act, and a stronger Liaison model, each by the cases it makes right by construction. No new door. Meta workflow.
 
 ### 344. Closed frames fixed one door of N, so a root cause that the records can name may still stand unfixed at head (2026-10-27) (Roman) (c66eae69) (6d9cf7e1) (b3bc8a66) (2911045b) (2568e043) (77c8dc39) (2ebac251) (161c371b)
 
