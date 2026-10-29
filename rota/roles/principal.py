@@ -1118,6 +1118,15 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             "ref_version": version, "source": source}
         rows += _identifier_grants(table, own)
         rows.append(own)
+        # A page can show one row on two lines: night 174's m47 showed the
+        # glossary term `parameter` on lines 8 and 47. Each line keeps its
+        # own row, keyed by its line number, so no line reads as unruled
+        # (frame 345, pass 5). The first line keeps the id of the ref.
+        for line in [n for n, r in enumerate(order, 1) if r == ref][1:]:
+            again = {**own, "id": ruled_ref_id(ruling_id, f"{ref}|line {line}"),
+                     "line": line}
+            rows += _identifier_grants(table, again)
+            rows.append(again)
     return rows
 
 
