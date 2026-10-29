@@ -2412,6 +2412,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
+                # Each line with the words of his that name it, verbatim, or
+                # "no words". Code binds the words to the line, and the seat
+                # reads what they rule. The fix belongs where the seat gets
+                # its information (ruled: Roman, 2026-10-26; frame 345, pass
+                # 2). `rulings.rule` copies the same words into an act.
+                from ..roles.principal import said as his_reply
+
+                matched = api.line_words(his_reply(conn, row["id"]) or "",
+                                         len(order))
+                if matched:
+                    landing["his_words"] = {
+                        str(n): w or "no words" for n, w in matched.items()}
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a
