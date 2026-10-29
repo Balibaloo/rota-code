@@ -150,6 +150,48 @@ def test_a_claim_about_a_description_is_off_a_request_page(night):
     assert claim not in order and "format_filename_example" in order
 
 
+def test_an_account_note_with_no_line_shows_once_on_the_next_request_page(night):
+    """The second half of the review's probe p6, kept alone (review p5,
+    finding 3). The door no longer refuses with `ACCOUNT_NO_LINE`. An older
+    note still holds the refusal, so his next request page still says so."""
+    from rota.roles.api import ACCOUNT_NO_LINE
+    from rota.roles.principal import (ACCOUNT_UNNAMED, land, parse_reply,
+                                      pending_asks, render_page)
+
+    night.execute("DELETE FROM items WHERE id = 'how_it_works'")
+    night.execute("UPDATE messages SET status = 'answered' "
+                  "WHERE to_role = 'principal' AND status = 'open'")
+    refs = _wake_refs(night, "s272")
+    sb = build("liaison", night, mode="normal", session_id="s272_p6",
+               allow=prompts.mode_tools("liaison", "normal"),
+               wake=Wake("liaison", "tick:agenda", refs=tuple(refs)))
+    sb.call("msg.present_principal", refs=refs, round_no=0)
+    seq = night.execute("SELECT MAX(seq) FROM messages").fetchone()[0] + 1
+    night.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                  "verb, body_refs, seq, status) VALUES ('m900', 'm900', "
+                  "'liaison', 'principal', 'present', ?, ?, 'open')",
+                  (json.dumps(sb.ctx.outbound[-1]["body_refs"]), seq))
+    night.commit()
+    ask = next(a for a in pending_asks(night) if a.message_id == "m900")
+    words = ("The format_filename example is wrong: it must show a/b/c.txt "
+             "becoming c.txt with shorten=True.")
+    reply = land(night, ask, parse_reply(ask, words))
+    night.execute("UPDATE messages SET unresolved_note = ? WHERE id = 'm900'",
+                  (f"{reply}: rulings.rule: {ACCOUNT_NO_LINE}",))
+    page = ["format_filename_example", "c_1_format_filename_example"]
+    for mid, n in (("m_req1", 2), ("m_req2", 3)):
+        night.execute("INSERT INTO messages (id, thread_id, from_role, "
+                      "to_role, verb, body_refs, seq, status) VALUES (?, ?, "
+                      "'liaison', 'principal', 'present', ?, ?, 'open')",
+                      (mid, mid, json.dumps(page), seq + n))
+    night.commit()
+    first = render_page(night, "present", page, ask_id="m_req1")[0]
+    assert first.splitlines()[0] == ACCOUNT_UNNAMED
+    assert len(ACCOUNT_UNNAMED.split()) < 25
+    assert ACCOUNT_UNNAMED not in render_page(night, "present", page,
+                                              ask_id="m_req2")[0]
+
+
 @pytest.mark.parametrize("session, kind, n", [
     ("s179", "tick:observed_entries", 19),
     ("s272", "tick:agenda", 7),

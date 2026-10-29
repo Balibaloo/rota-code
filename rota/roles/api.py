@@ -11626,10 +11626,16 @@ def _word_shape(conn, ref: str, shape: dict, matched: str | None,
         return out
     if matched and not out.get("words"):
         out["words"] = matched
+    # The landing prompt says that `remove` on a page line that is no code
+    # line drops that line (review p5, finding 2). The row decides, never
+    # his words, so a remove there lands as a drop of the row.
+    if act == "remove" and not (guess_item(ref) or table_of(
+            conn, ref, among=("batches",)) is not None):
+        act = out["act"] = "drop"
+        out["target_kind"] = "row"
     if not out.get("target_kind") and act in _WORD_KINDS:
         kind = _WORD_KINDS[act]
-        if act == "remove" and (guess_item(ref) or table_of(
-                conn, ref, among=("batches",)) is not None):
+        if act == "remove":
             kind = "source_line"
         out["target_kind"] = kind
     if act == "exclude" and not out.get("target") and out.get("words"):
@@ -13452,6 +13458,18 @@ def _subject_lines(clause: str, size: int) -> set[int]:
     """The page lines that `clause` is about: the numbers, the ranges and
     the ordinals that stand as its subject. `clause` holds his quoted spans
     as blanks already, so a number in a quote names nothing."""
+    return set().union(*(lines for _, _, lines in _subject_parts(clause, size)))
+
+
+def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
+    """The parts of `clause` with the page lines each part is about, as
+    offsets into `clause`.
+
+    A bare number list after a comma starts its own part, which runs to the
+    next such list (review p5, finding 4). So "1 is fine, 2 and 3 are wrong"
+    binds line 1 to "1 is fine" and lines 2 and 3 to "2 and 3 are wrong".
+    The cut is the comma that `_bare_subject` reads, and no word decides it.
+    """
     found = [(r.start, r.end, set(r.lines))
              for r in _line_reading(clause, size).refs]
     for m in _ORDINAL_LINE.finditer(clause):
@@ -13469,10 +13487,24 @@ def _subject_lines(clause: str, size: int) -> set[int]:
         if lead or joined:
             named |= lines
             last_end = end
+    starts: list[tuple[int, set[int]]] = []
     for m in _BARE_LIST.finditer(clause):
         if not any(s < m.end() and m.start() < e for s, e, _ in found):
-            named |= _bare_subject(clause, m)
-    return {n for n in named if 1 <= n <= size}
+            lines = _bare_subject(clause, m)
+            if lines and clause[:m.start()].strip():
+                starts.append((m.start(), lines))
+            else:
+                named |= lines
+    parts = []
+    begin, own = 0, named
+    for at, lines in starts:
+        # The part before the list ends at its comma.
+        stop = len(clause[:at].rstrip()) - 1
+        parts.append((begin, stop, own))
+        begin, own = at, lines
+    parts.append((begin, len(clause), own))
+    parts = [(a, b, {n for n in ls if 1 <= n <= size}) for a, b, ls in parts]
+    return [p for p in parts if p[2]]
 
 
 def line_words(his: str, size: int) -> dict[int, str | None]:
@@ -13512,9 +13544,12 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
     for start, end, _sent in _clause_spans(text):
         cl = blank[start:end]
         sentence = sum(1 for c in cuts if c <= start)
-        named = _subject_lines(cl, size)
+        parts = [(start + a, start + b, ls)
+                 for a, b, ls in _subject_parts(cl, size)]
+        named = set().union(*(ls for _, _, ls in parts))
         if _ALL_LINES.search(cl) and not _REST_LINES.search(cl):
             named = set(range(1, size + 1))
+            parts = []
         is_rest = bool(_REST_LINES.search(cl))
         # A clause with no line reference takes the lines of the clause
         # before it in the same sentence, never across a sentence end (frame
@@ -13525,11 +13560,18 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
                 and not _line_reading(cl, size).refs
                 and not _ORDINAL_LINE.search(cl)):
             named, is_rest = set(prev[1]), prev[2]
-        prev = (sentence, named, is_rest)
+            parts = []
+        # A clause of two parts hands on the lines of its last part.
+        prev = (sentence, parts[-1][2] if len(parts) > 1 else named, is_rest)
         # "line 1 and the rest of the word notes are fine" names line 1 and
         # the rest at once (night 170's m7).
         if is_rest:
             rest.append((start, end))
+        if len(parts) > 1:
+            for a, b, ls in parts:
+                for n in ls:
+                    spans.setdefault(n, []).append((a, b))
+            continue
         for n in named:
             spans.setdefault(n, []).append((start, end))
     if rest:

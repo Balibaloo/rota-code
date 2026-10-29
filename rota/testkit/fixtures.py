@@ -543,6 +543,19 @@ def capture(conn: sqlite3.Connection, session_id: str,
         (session_id,),
     ):
         writes.setdefault(r["table_name"], []).append(r["row_id"])
+    # `session_commit` writes no receipt for a ruled_refs row, because
+    # ruled_refs is not an artefact table (review p5, finding 1). The rows
+    # of a reading hang off the session's rulings receipts, so count them
+    # through those receipts. A case that expects ruled_refs writes then
+    # measures the rows that landed.
+    refs = [r[0] for r in conn.execute(
+        "SELECT id FROM ruled_refs WHERE source = 'reading' AND ruling_id IN "
+        "(SELECT row_id FROM receipts WHERE session_id = ? AND table_name = 'rulings') "
+        "ORDER BY id",
+        (session_id,),
+    )]
+    if refs:
+        writes["ruled_refs"] = refs
 
     # Everything this role sent *in this session*, and nothing else.
     #
