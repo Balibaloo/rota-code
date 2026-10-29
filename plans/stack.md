@@ -32,10 +32,11 @@ counts of W14 are out.
    161c371b's scratchpad. Its count beside qwen3:8b's 1 of 24 decides
    whether the Liaison seat changes model.
 3. W14's count moves to the cases: the three deletes of a criterion
-   (n175-m102-m103, m116-m118, m136-m138) land a retire.
+   (n175-m102-m103, m116-m118, m136-m138) land a retire. Landed at
+   346b266c, 2026-10-29 05:19: the runner checks the retire on each run.
 4. The rows of 00:50 that stay: the account page with no request (old row
    3), the Critic's review loop (old 4), `criteria.json` in clickI (old 5),
-   W5 and frame 324's second half (old 6). No night runs for them; each is
+   W5 (old 6); frame 324 closed 2026-10-29 05:22 under its residue rule. No night runs for them; each is
    read against its records when the seam work frees a cycle.
 
 ## Sprint 35, recommended on night 175's read, 2026-10-29 00:50
