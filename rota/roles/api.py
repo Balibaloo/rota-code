@@ -6574,21 +6574,21 @@ def _dropped_line(conn: sqlite3.Connection, id: str) -> int | None:
     """The page line that the act `drop` of his newest landed ruling on `id`
     drops, or None (the seam design, pass 4).
 
-    A `remove` with the kind `row` on the row itself is a drop too. His delete
-    words came as "remove", and the seat copied the verb: 6 of 15 deletes on
-    nights 170 to 175 (W14, question 1). The reading sits here and not in
-    `grant`, because `grant` answers for every act and its other callers read
-    `remove` as a delete of code. A `remove` that names the criterion's own
-    id, or any other kind, is not a drop. Night 175's r_m118 carried such a
-    `remove` on c_1 against his words."""
-    from .principal import _target_key, grant
+    A `remove` with the kind `row` is a drop too. The kind decides, and the
+    target does not, as for `drop`. His delete words came as "remove", and the
+    seat copied the verb: 6 of 15 deletes on nights 170 to 175 (W14, question
+    1). Night 175's r_m103_2 and r_m148 stored c_2 and c_3 as `remove`, kind
+    `row`, with the criterion's own id as the target. The reading sits here
+    and not in `grant`, because `grant` answers for every act and its other
+    callers read `remove` as a delete of code. A `remove` of any other kind is
+    not a drop. Night 175's r_m118 put kind `source_line` on c_1, and r_m138
+    put no kind, against his words, and c_1 stays live."""
+    from .principal import grant
 
     row = grant(conn, id, "drop")
     if row is None:
         row = grant(conn, id, "remove")
-        if row is None or row["target_kind"] != "row" or (
-                row["target"] is not None
-                and _target_key(row["target"]) == _target_key(id)):
+        if row is None or row["target_kind"] != "row":
             return None
     return row["line"] or _ruling_line(conn, {"id": row["ruling_id"]}, id)
 

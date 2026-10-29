@@ -374,7 +374,7 @@
       - {id: <c1>, ticket_id: <tk1>,
          text: "The docstring for format_filename must include an example showing that when shorten=True, the path a/b/c.txt is displayed as c.txt."}
       - {id: <c2>, ticket_id: <tk1>,
-         text: "The docstring for format_filename must include exactly one example showing that when shorten=True, the path a/b/c.txt is displayed as c.txt."}
+         text: "The docstring for format_filename must include an example showing that when shorten=False, the path a/b/c.txt is displayed as a/b/c.txt."}
       - {id: <c3>, ticket_id: <tk1>,
          text: "The docstring for format_filename must include an example showing that when shorten=True, a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt."}
     batches:
@@ -382,13 +382,13 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: <t1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
+      - {id: <tst2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
+      - {id: <tst3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
+      - {id: <tst4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
          body: "def test_example():\n    pass\n"}
     messages:
       - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
@@ -397,7 +397,8 @@
     writes:
       rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"',
                                           '"<i1>": "approve"', '"<c1>": "approve"']}
-      ruled_refs: {text_includes: ['"act": "drop"', '"target_kind": "row"'],
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 7, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 8, "verdict": "contest", "act": "drop", "target_kind": "row"'],
                    text_excludes: ['"act": "remove"']}
   forbidden:
     writes: [statements, items, decisions, ledger]
@@ -432,7 +433,8 @@
   expect:
     writes:
       rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"']}
-      ruled_refs: {text_includes: ['"act": "drop"', '"target_kind": "row"'],
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 1, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 2, "verdict": "contest", "act": "drop", "target_kind": "row"'],
                    text_excludes: ['"act": "remove"']}
   forbidden:
     writes: [statements, items, decisions, ledger]
@@ -468,13 +470,13 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: <t1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
+      - {id: <tst2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
+      - {id: <tst3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
          body: "def test_example():\n    pass\n"}
-      - {id: <t4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
+      - {id: <tst4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
          body: "def test_example():\n    pass\n"}
     messages:
       - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
@@ -483,7 +485,8 @@
     writes:
       rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"',
                                           '"<i1>": "approve"', '"<c1>": "approve"']}
-      ruled_refs: {text_includes: ['"act": "drop"', '"target_kind": "row"'],
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 7, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 8, "verdict": "contest", "act": "drop", "target_kind": "row"'],
                    text_excludes: ['"act": "remove"']}
   forbidden:
     writes: [statements, items, decisions, ledger]

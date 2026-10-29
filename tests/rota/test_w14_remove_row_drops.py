@@ -42,8 +42,9 @@ def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
                  (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
 
 
-def _page(tmp_path, act: dict):
-    """Night 175's page, his contest of line 3 and the seat's `act` on it."""
+def _page(tmp_path, act: dict, ref: str = C2):
+    """Night 175's page, his contest of the line of `ref` and the seat's
+    `act` on it."""
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version) VALUES (?, 'Give format_filename one example in "
@@ -56,27 +57,27 @@ def _page(tmp_path, act: dict):
     _message(conn, "m116", None, "liaison", "principal", "present", PAGE, 116)
     _message(conn, "m118", "m116", "principal", "liaison", "converse", PAGE,
              118, WORDS)
-    _message(conn, "m119", "m116", "principal", "liaison", "verdict", [C2],
+    _message(conn, "m119", "m116", "principal", "liaison", "verdict", [ref],
              119)
-    _message(conn, "m120", "m119", "liaison", "terminologist", "relay", [C2],
+    _message(conn, "m120", "m119", "liaison", "terminologist", "relay", [ref],
              120)
-    seed_verdict(conn, "m119", json.dumps({C2: "contest"}))
+    seed_verdict(conn, "m119", json.dumps({ref: "contest"}))
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m118', ?)",
                  (json.dumps(PAGE),))
-    per_item = {r: ("contest" if r == C2 else "approve") for r in PAGE}
+    per_item = {r: ("contest" if r == ref else "approve") for r in PAGE}
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id, texts) VALUES ('r_m118', 'm116', 'm118', "
                  "?, ?, 'landed', 'm119', ?)",
-                 (json.dumps(per_item), WORDS, json.dumps({C2: CRITERIA[C2]})))
+                 (json.dumps(per_item), WORDS, json.dumps({ref: CRITERIA[ref]})))
     backfill_ruled_refs(conn)
-    seed_acts(conn, "r_m118", {C2: {"words": WORDS, **act}})
+    seed_acts(conn, "r_m118", {ref: {"words": WORDS, **act}})
     return conn
 
 
-def _repair(conn, door: bool = False):
+def _repair(conn, ref: str = C2, door: bool = False):
     """The relay wake. `door` offers `criteria.retire` on every ruling, so a
     test reaches the door's own refusal."""
-    wake = Wake("terminologist", "message", message_id="m120", refs=(C2,),
+    wake = Wake("terminologist", "message", message_id="m120", refs=(ref,),
                 detail="relay")
     allow = _wake_allow(wake, conn)
     if door and "criteria.retire" not in allow:
@@ -90,7 +91,10 @@ def _repair(conn, door: bool = False):
 @pytest.mark.parametrize("act", [
     {"act": "remove", "target_kind": "row"},
     {"act": "drop", "target_kind": "row"},
-], ids=["remove-row", "drop-row"])
+    # Night 175's r_m103_2 and r_m148 stored c_2 and c_3 this way. The kind
+    # decides, so a target that names the criterion itself still drops it.
+    {"act": "remove", "target_kind": "row", "target": C2},
+], ids=["remove-row", "drop-row", "r_m103_2-remove-row-on-its-own-id"])
 def test_a_delete_of_the_row_retires_the_criterion(tmp_path, act):
     conn = _page(tmp_path, act)
     assert _dropped_line(conn, C2) == 3, "the line he saw"
@@ -101,17 +105,14 @@ def test_a_delete_of_the_row_retires_the_criterion(tmp_path, act):
 
 
 @pytest.mark.parametrize("act", [
-    # Night 175's r_m118 carried `remove` on c_1 against his words. A target
-    # that names the criterion itself is not a delete of its page line.
-    {"act": "remove", "target_kind": "row", "target": C2},
     # A source line is code. Its delete leaves the criterion on the page.
     {"act": "remove", "target_kind": "source_line", "target": C2},
     {"act": "remove", "target_kind": "source_line",
      "target": "format_filename:12"},
     # A remove with no kind names no row.
     {"act": "remove"},
-], ids=["remove-row-on-its-own-id", "remove-source-line-on-its-id",
-        "remove-source-line", "remove-no-kind"])
+], ids=["remove-source-line-on-its-id", "remove-source-line",
+        "remove-no-kind"])
 def test_a_remove_that_names_no_page_line_retires_nothing(tmp_path, act):
     conn = _page(tmp_path, act)
     assert _dropped_line(conn, C2) is None
@@ -119,6 +120,21 @@ def test_a_remove_that_names_no_page_line_retires_nothing(tmp_path, act):
     sb = _repair(conn, door=True)
     with pytest.raises(ValueError, match="no ruling of the principal drops"):
         sb.call("criteria.retire", id=C2)
+
+
+@pytest.mark.parametrize("act", [
+    {"act": "remove", "target_kind": "source_line", "target": C1},
+    {"act": "remove"},
+], ids=["r_m118-source-line", "r_m138-no-kind"])
+def test_the_wrong_removes_of_c_1_keep_it_live(tmp_path, act):
+    """He kept c_1. Night 175's r_m118 put `remove`, kind `source_line`, on
+    c_1, and r_m138 put `remove` with no kind. Neither retires it."""
+    conn = _page(tmp_path, act, ref=C1)
+    assert _dropped_line(conn, C1) is None
+    assert criteria_page_acts(conn, [C1])["retire"] == []
+    sb = _repair(conn, ref=C1, door=True)
+    with pytest.raises(ValueError, match="no ruling of the principal drops"):
+        sb.call("criteria.retire", id=C1)
 
 
 def test_a_row_with_no_act_stays_no_act(tmp_path):
