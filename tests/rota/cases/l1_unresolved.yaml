@@ -106,6 +106,7 @@
 - id: L1-LI-a-question-the-roles-could-not-answer
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 3
   tick: unresolved

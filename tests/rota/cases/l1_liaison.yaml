@@ -5,6 +5,7 @@
 - id: L1-LI-chat-is-not-work
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # The chat half of intake, which had no case at all.
@@ -42,6 +43,7 @@
 - id: L1-LI-a-request-lands-as-a-statement-and-draws-no-clarify
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # The other half of the case above. A door that refused a clarify on the
@@ -75,6 +77,7 @@
 - id: L1-LI-segment
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   fixture:
@@ -101,6 +104,7 @@
 - id: L1-LI-ratify
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   fixture:
@@ -122,6 +126,7 @@
 - id: L1-LI-present-for-signoff
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   fixture:
@@ -142,6 +147,7 @@
 - id: L1-LI-present-carries-the-uncovered-statement
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
@@ -175,6 +181,7 @@
 - id: L1-LI-no-report-no-question
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   fixture:

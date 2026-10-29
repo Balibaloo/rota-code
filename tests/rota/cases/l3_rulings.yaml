@@ -14,7 +14,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -370,7 +370,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -532,7 +532,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -663,7 +663,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -770,7 +770,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1096,7 +1096,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1203,7 +1203,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1383,7 +1383,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1512,7 +1512,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1610,7 +1610,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -1966,7 +1966,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -2322,7 +2322,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -2551,7 +2551,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -2897,7 +2897,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -3623,7 +3623,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -3823,7 +3823,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -3982,7 +3982,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -4093,7 +4093,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -4205,7 +4205,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -4518,7 +4518,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -4832,7 +4832,7 @@
   tier: l3_rulings
   role: liaison
   prompt: answering
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -4918,7 +4918,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -5185,7 +5185,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2
@@ -5445,7 +5445,7 @@
   tier: l3_rulings
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   profile: local
   runs: 3
   pass: 2

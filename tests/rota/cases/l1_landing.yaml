@@ -8,6 +8,7 @@
 - id: L1-LI-plain-agreement-approves-every-line
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -36,6 +37,7 @@
 - id: L1-LI-a-named-line-is-contested-and-the-rest-approved
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -66,6 +68,7 @@
 - id: L1-LI-a-dropped-line-is-a-contest
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -95,6 +98,7 @@
 - id: L1-LI-a-correction-in-a-sentence-contests-the-line-it-is-about
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 3
@@ -123,6 +127,7 @@
 - id: L1-LI-a-question-about-the-page-is-answered-not-ruled
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -151,6 +156,7 @@
 - id: L1-LI-a-question-then-a-statement-at-the-confirm-is-the-question
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 3
@@ -189,6 +195,7 @@
 - id: L1-LI-approve-one-line-only-approves-that-line-alone
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 3
@@ -224,6 +231,7 @@
 - id: L1-LI-a-long-page-is-ruled-without-the-rows
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -312,6 +320,7 @@
 - id: L1-LI-a-separate-request-is-later
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: landing
   runs: 5
   pass: 4
@@ -358,7 +367,7 @@
   tier: T1
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   inbound: {from: principal, to: liaison, verb: converse,
@@ -410,7 +419,7 @@
   tier: T1
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   inbound: {from: principal, to: liaison, verb: converse,
@@ -446,7 +455,7 @@
   tier: T1
   role: liaison
   prompt: landing
-  model: qwen3:8b
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   inbound: {from: principal, to: liaison, verb: converse,

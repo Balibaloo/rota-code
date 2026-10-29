@@ -17,6 +17,10 @@ num_ctx = 16384
 
 [models]
 default = "qwen3:8b"
+# Sprint 35 row 2: the count of the 24 L3R cases decides the Liaison
+# seat's model. On df4b89b9 gemma4:12b-it-qat read 7 of 24 and qwen3:8b
+# read 4 of 24 (frame 345, 2026-10-29).
+liaison = "gemma4:12b-it-qat"
 tester = "qwen3.5:9b"
 critic = "qwen3.5:9b"
 terminologist = "qwen3.5:9b"

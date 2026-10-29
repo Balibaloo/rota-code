@@ -9,6 +9,7 @@
 - id: L1-LI-a-reply-reaches-the-desk-that-asked
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   prompt: answering
   runs: 5
   pass: 3

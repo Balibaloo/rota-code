@@ -21,8 +21,9 @@ from rota.llm.llm import LiteLLMBackend, OllamaBackend
 def test_the_shipped_local_profile_loads_and_names_a_judge_per_desk():
     p = P.find("local")
     assert p.provider == "ollama" and p.default_model == "qwen3:8b"
-    assert p.model_for("tester") == "qwen3.5:9b" and p.model_for("liaison") == "qwen3:8b"
-    assert p.routing() == "critic=qwen3.5:9b,developer=qwen3.5:9b,terminologist=qwen3.5:9b,tester=qwen3.5:9b"
+    assert p.model_for("tester") == "qwen3.5:9b" and p.model_for("liaison") == "gemma4:12b-it-qat"
+    assert p.routing() == ("critic=qwen3.5:9b,developer=qwen3.5:9b,liaison=gemma4:12b-it-qat,"
+                           "terminologist=qwen3.5:9b,tester=qwen3.5:9b")
     assert isinstance(p.backend(), OllamaBackend)
     pins = p.pins_for("critic")
     assert (pins.model, pins.temperature, pins.num_ctx) == ("qwen3.5:9b", 0.0, 16384)
