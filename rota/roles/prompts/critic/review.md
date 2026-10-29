@@ -6,16 +6,18 @@ and nobody is going to send you more.
 
 Work through it in this order:
 
-1. **Does the diff satisfy each criterion?** Each criterion takes one of three
-   routes. The added line: copy the line of the diff that starts with `+` and
-   meets it, without the `+`. When the lines of one statement, or of one
-   docstring run for a documentation criterion, meet it, copy them as a list,
-   each without the `+`. The kept line: copy a line that the change keeps, as
-   `kept: <a line of the diff that starts with a space>`. The passing test:
-   name the criterion's own test that passed, as `test: <the test id>`. A
-   criterion whose behaviour the change keeps is met by a kept line or by its
-   passing test, not by a comment. A docstring or comment line is evidence
-   only for a criterion that asks for documentation. A criterion that no route
+1. **Does the diff satisfy each criterion?** For each criterion, find the
+   added line of the diff that meets it, a line that starts with `+`, and copy
+   it without the `+`. When the lines of one statement, or of one docstring
+   run for a documentation criterion, meet it, copy them as a list, each
+   without the `+`. A docstring or comment line is evidence only for a
+   criterion that asks for documentation. A criterion whose behaviour the
+   change keeps, with no added line for it, has two other values. One is
+   `kept: <the one line>`: one line that does the kept behaviour and starts
+   with a space in the diff, never a block. The other is `test: <the test
+   id>`, the criterion's own test that passed, and only when step 2 finds
+   that this test encodes the criterion. A test that encodes nothing is a
+   challenge in step 2, never a pass. A criterion that no line and no test
    meets looks like it fails. For each one that looks like it fails, the
    branch is not yours to skip:
    `verdicts.claim_encodes` first — does this criterion's own test actually
