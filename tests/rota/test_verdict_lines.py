@@ -165,6 +165,22 @@ def _refused(sb, **kwargs) -> str:
     return str(exc.value)
 
 
+def _routes(cid: str) -> str:
+    """The sentence of each refusal that names the kept route and the test
+    route (sprint 35 row 4)."""
+    return (f"If the change keeps what {cid} asks and adds no line for it, "
+            f"send `kept: <a line of the [diff] block that starts with a "
+            f"space>` or `test: <the id of a test of {cid} that passed>`. ")
+
+
+def _fail_tail(cid: str) -> str:
+    """The end of each refusal: the two other routes, then the fail route."""
+    return (f"{_routes(cid)}If no added line meets {cid} and the change does "
+            f"not keep it, that is a fail on it: "
+            f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for "
+            f"any fail")
+
+
 def _unnamed(missing, ids) -> str:
     verb = "has" if len(missing) == 1 else "have"
     return (
@@ -172,9 +188,7 @@ def _unnamed(missing, ids) -> str:
         f"meets it, and {', '.join(missing)} {verb} no line. Send verdicts.emit "
         f"again with lines={{'<criterion id>': '<the line>'}} for each of "
         f"{', '.join(ids)}, each line copied from a line of the [diff] block "
-        f"that starts with +. If no added line meets {missing[0]}, that is a "
-        f"fail on it: `verdicts.claim_encodes({missing[0]!r}, encodes=...)` "
-        f"first, as for any fail")
+        f"that starts with +. " + _fail_tail(missing[0]))
 
 
 def test_s279_pass_with_a_line_per_criterion_lands(s279):
@@ -196,10 +210,7 @@ def test_s279_pass_with_cr_3_unnamed_is_refused(s279):
         "each of cr_1_version_option_show_python_flag, "
         "cr_2_version_option_show_python_false, "
         "cr_3_version_option_show_python_true, each line copied from a line of "
-        "the [diff] block that starts with +. If no added line meets "
-        "cr_3_version_option_show_python_true, that is a fail on it: "
-        "`verdicts.claim_encodes('cr_3_version_option_show_python_true', "
-        "encodes=...)` first, as for any fail")
+        "the [diff] block that starts with +. " + _fail_tail(CR3))
 
 
 def test_s279_pass_with_a_line_the_diff_does_not_add_is_refused(s279):
@@ -211,10 +222,7 @@ def test_s279_pass_with_a_line_the_diff_does_not_add_is_refused(s279):
         "[diff] block that starts with +, without the +, and send the pass "
         "again. The added lines of code are "
         + ", ".join(repr(ln.strip()) for ln in (L_FLAG, L_VERSION, L_MESSAGE))
-        + ". If no added line meets cr_3_version_option_show_python_true, "
-        "that is a fail on it: "
-        "`verdicts.claim_encodes('cr_3_version_option_show_python_true', "
-        "encodes=...)` first, as for any fail")
+        + ". " + _fail_tail(CR3))
 
 
 def test_a_near_line_is_named(s279):
@@ -223,7 +231,7 @@ def test_a_near_line_is_named(s279):
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={**S279_LINES, CR1: "show_python: bool = True,"})
     assert ("The added line nearest to it: 'show_python: bool = False,'. "
-            "If no added line meets cr_1_version_option_show_python_flag") in said
+            + _fail_tail(CR1)) in said
 
 
 def test_s279_pass_with_an_unknown_key_is_refused(s279):
@@ -792,7 +800,7 @@ def test_a_line_not_in_the_diff_names_the_code_lines(s134):
     assert ("is not an added line of the diff of batch bg_1. Copy one line "
             "of the [diff] block that starts with +, without the +, and send "
             "the pass again. The added lines of code are "
-            + ", ".join(repr(c) for c in code) + ". If no added line") in said
+            + ", ".join(repr(c) for c in code) + ". If the change keeps") in said
 
 
 @pytest.mark.parametrize("after,value", [
@@ -923,7 +931,7 @@ def test_the_code_list_stops_at_eight(tmp_path):
     conn = _one_criterion(tmp_path, "work.py", "", body)
     said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": "zz"})
-    assert "'value_7 = compute(7)', and 1 more. If no added line" in said
+    assert "'value_7 = compute(7)', and 1 more. If the change keeps" in said
     assert "value_8" not in said
 
 

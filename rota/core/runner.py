@@ -453,6 +453,41 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:touch_strayed"}
 
 
+def _review_pending_line(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The line for a Developer on `tick:exhausted` when the batch's tests
+    pass at its head and no verdict is at its head, or "".
+
+    Night 175: the review loop gave no verdict. s129 and s131 read passing
+    tests and no verdict, judged the right code wrong, and wrote it again
+    (sprint 35 row 4, plans/critic-loop-read-2026-10-29.md section 2).
+    """
+    head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                        (batch_id,)).fetchone()
+    if not head or not head["head_commit"]:
+        return ""
+    sha = head["head_commit"]
+    # Every live test counts. A test whose last run is red at an older
+    # commit has no run at the head, and the line must not fire then
+    # (frame 344, review 1, finding 2). The harness's set is the live set.
+    from .harness import live_tests_for
+
+    tests = live_tests_for(conn, batch_id)
+    if not tests:
+        return ""
+    for t in tests:
+        run = conn.execute(
+            "SELECT result, commit_sha FROM latest_runs WHERE batch_id = ? "
+            "AND test_id = ?", (batch_id, t["id"])).fetchone()
+        if run is None or run["commit_sha"] != sha or run["result"] != "pass":
+            return ""
+    if conn.execute("SELECT 1 FROM verdicts WHERE batch_id = ? AND "
+                    "commit_sha = ?", (batch_id, sha)).fetchone():
+        return ""
+    return (f"The tests of batch {batch_id} pass at its head commit. The "
+            f"Critic's review of that commit is not done, and it gave no "
+            f"verdict. Do not change the code for the review.")
+
+
 def _mistake_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     """Each `mistake` row at the batch's head, as `path (note)`, the form
     `touch_strayed` shows the Architect."""
@@ -929,6 +964,10 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the tick's own name (a case wake's default detail) and not the
         # word already said above.
         body.append(wake.detail)
+    if role == "developer" and wake.kind == "tick:exhausted" and wake.refs:
+        pending = _review_pending_line(sb.ctx.conn, wake.refs[0])
+        if pending:
+            body.append(pending)
     if wake.kind == "tick:touch_mistaken" and wake.refs:
         # Each judged row with its note, read here and not put in the
         # detail. `cycles._key` holds the detail, and the Architect writes a

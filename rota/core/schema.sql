@@ -859,7 +859,8 @@ CREATE TABLE IF NOT EXISTS verdicts (
     failed_criterion  TEXT REFERENCES criteria(id),
     reason            TEXT,
     lines             TEXT,                  -- a pass's JSON: criterion id to added line (frame 170)
-    version           INTEGER NOT NULL DEFAULT 1
+    routes            TEXT,                  -- a pass's JSON: criterion id to 'added', 'kept' or 'test' (sprint 35 row 4)
+    version          INTEGER NOT NULL DEFAULT 1
 );
 
 -- The Critic's ruling on a finding filed after its pass. Ruled by Roman on

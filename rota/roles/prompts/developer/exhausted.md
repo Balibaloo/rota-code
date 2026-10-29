@@ -5,7 +5,8 @@ cause, for example "attempt 10 of 10", "the tests still fail after 3 attempts"
 or "the review gave no verdict after 3 attempts". Act on that cause. The
 budget existed to stop exactly this from continuing quietly, so treat the cap as
 information rather than as bad luck: **when a fix loop runs out, the block is
-usually not in the code.**
+usually not in the code.** When a line says that the tests pass and the review
+is not done, the code is not the block, so do not change it for the review.
 
 You are the first rung. Say what is actually unresolved, once, to the one role
 that owns it:
