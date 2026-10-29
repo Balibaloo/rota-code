@@ -447,3 +447,49 @@ def test_exclude_on_a_criterion_line_is_refused_with_its_kind(tmp_path):
             "1": "approve", "2": "exclude", "3": "approve", "4": "approve",
             "5": "approve", "6": "approve"})
     assert str(e.value).startswith("line 2 is a criterion, and it lists no files")
+
+
+def test_two_excludes_on_one_line_both_count_after_the_land(tmp_path):
+    """Pass 7b: the readers kept one row per ref, so after the land only
+    the last path counted as excluded. An exclude now keeps a row per path."""
+    from rota.core.runner import disputed_paths
+    from rota.roles.principal import apply_rulings, ruled
+
+    sb, page = _case_seat(tmp_path, M77)
+    with page:
+        sb.call("rulings.rule", rulings={
+            **M77_OTHERS, "5": "exclude tests/test_defaults.py, test_options.py"})
+    conn = sb.ctx.conn
+    _commit(conn, sb)
+    apply_rulings(conn)
+    conn.commit()
+    landed = conn.execute("SELECT act, target FROM ruled_refs WHERE ref = "
+                          "'bg_2' AND source = 'landed' ORDER BY rowid")
+    assert [tuple(r) for r in landed] == [
+        ("exclude", "tests/test_options.py"),
+        ("exclude", "tests/test_defaults.py")]
+    assert sorted(r["target"] for r in ruled(conn, ["bg_2"])) == [
+        "tests/test_defaults.py", "tests/test_options.py"]
+    assert sorted(r["target"] for r in ruled(conn, ["bg_2"], newest=True)) == [
+        "tests/test_defaults.py", "tests/test_options.py"]
+    assert disputed_paths(conn, "bg_2", ["tests/test_defaults.py",
+                                         "tests/test_options.py",
+                                         "tests/test_termui.py"]) == [
+        "tests/test_defaults.py", "tests/test_options.py"]
+
+
+def test_two_words_on_one_ref_of_another_act_keep_one_row(db):  # noqa: F811
+    """A drop on two lines of one row still reads as one row per ref."""
+    from rota.roles.principal import apply_rulings, ruled
+
+    ask = _page(db, refs=("calculate_tip", "s1", "l_1", "l_1"))
+    lines = [n for n, r in enumerate(ask.order, 1) if r == "l_1"]
+    sb, _ = _seat(db, ask, words="Drop the note, both times. The rest is fine.")
+    call = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
+    call.update({str(n): "drop" for n in lines})
+    sb.call("rulings.rule", rulings=call)
+    _commit(db, sb)
+    apply_rulings(db)
+    db.commit()
+    rows = ruled(db, ["l_1"])
+    assert [(r["verdict"], r["act"]) for r in rows] == [("contest", "drop")]

@@ -967,8 +967,10 @@ def ruled(conn: sqlite3.Connection, refs=None, *, reply: str | None = None,
     if not every:
         rows = one_row_per_ref(rows)
     if newest:
-        last = {r["ref"]: r for r in rows}
-        rows = [r for r in rows if last[r["ref"]] is r]
+        # The rows of the newest ruling per ref: an exclude keeps a row per
+        # path (frame 345, pass 7b).
+        last = {r["ref"]: r["ruling_id"] for r in rows}
+        rows = [r for r in rows if last[r["ref"]] == r["ruling_id"]]
     return rows
 
 
@@ -977,14 +979,28 @@ def one_row_per_ref(rows: list) -> list:
 
     `land` writes the keypress rows and the `landed` rows beside the
     reading's rows of the same ruling (fact F1). A reader of a ruling's
-    rows reads one row for each ref it rules, so it counts no ref twice."""
+    rows reads one row for each ref it rules, so it counts no ref twice.
+
+    An exclude lands one row per path. So when the newest row is an
+    exclude, the newest row of each other path of the same source and
+    verdict stays beside it (frame 345, pass 7b)."""
     last = {(r["ruling_id"], r["ref"]): r for r in rows}
     out, seen = [], set()
     for r in rows:
         key = (r["ruling_id"], r["ref"])
-        if key not in seen:
-            seen.add(key)
-            out.append(last[key])
+        if key in seen:
+            continue
+        seen.add(key)
+        top = last[key]
+        if top["act"] != "exclude":
+            out.append(top)
+            continue
+        paths = {p["target"]: p for p in rows
+                 if (p["ruling_id"], p["ref"]) == key and p["act"] == "exclude"
+                 and p["source"] == top["source"]
+                 and p["verdict"] == top["verdict"]
+                 and p["target"] != top["target"]}
+        out += [*paths.values(), top]
     return out
 
 
@@ -3565,6 +3581,8 @@ def _insert_landed_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
     rows = ruling_rows(conn, rid, getattr(ask, "order", None), verdict,
                        words=said, source="landed",
                        words_from=msg_id if said else None, unheld="keep")
+    extra: list[dict] = []
+    spread: set[str] = set()
     for row in rows:
         row["id"] = ruled_ref_id(rid, f"landed:{row['ref']}")
         origin = moved.get(row["ref"], row["ref"])
@@ -3581,7 +3599,21 @@ def _insert_landed_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
                         "line"):
                 if read[col] is not None and read[col] != "":
                     row[col] = read[col]
-    insert_ruling_rows(conn, rows)
+        # One exclude lands per path, so each further path of the reading
+        # lands its own row. Every other act keeps one row per ref (frame
+        # 345, pass 7b).
+        if (read is not None and read["act"] == "exclude"
+                and row["ref"] not in spread):
+            spread.add(row["ref"])
+            paths = [r for r in reversed(found) if r["source"] == read["source"]
+                     and r["verdict"] == read["verdict"]
+                     and r["act"] == "exclude" and r["target"]
+                     and r["target"] != read["target"]]
+            for path in {r["target"]: r for r in paths}.values():
+                extra.append({**row, "id": f"{row['id']}~{path['target']}",
+                              "target": path["target"],
+                              "derived_from": path["id"]})
+    insert_ruling_rows(conn, rows + extra)
 
 
 def unheld_text(rid: str, ref: str) -> str:
