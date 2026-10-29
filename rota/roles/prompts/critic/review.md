@@ -11,15 +11,15 @@ Work through it in this order:
    it without the `+`. When the lines of one statement, or of one docstring
    run for a documentation criterion, meet it, copy them as a list, each
    without the `+`. A docstring or comment line is evidence only for a
-   criterion that asks for documentation. A criterion whose behaviour the
-   change keeps, with no added line for it, has two other values. One is
-   `kept: <the one line>`: one line that does the kept behaviour and starts
-   with a space in the diff, never a block. The other is `test: <the test
-   id>`, the criterion's own test that passed, and only when step 2 finds
-   that this test encodes the criterion. A test that encodes nothing is a
-   challenge in step 2, never a pass. A criterion that no line and no test
-   meets looks like it fails. For each one that looks like it fails, the
-   branch is not yours to skip:
+   criterion that asks for documentation. An added line meets only the
+   criterion whose change it makes. A criterion whose words say a behaviour
+   or an output stays the same is met by `kept: <the one line>`, a line that
+   starts with a space and shows that behaviour, or by `test: <the test id>`,
+   its own passing test that step 2 finds encodes it. For example, when
+   `save()` now returns an id, `kept: write(record)` meets "save() still
+   writes the record", and the added `return` line does not. A test that
+   encodes nothing is a challenge in step 2, never a pass. A criterion that
+   no line and no test meets looks like it fails, a branch you may not skip:
    `verdicts.claim_encodes` first — does this criterion's own test actually
    encode it? `True` and the code is what's wrong; `False` and the test is. A
    fail you have not claimed for does not land — the tool refuses it.
