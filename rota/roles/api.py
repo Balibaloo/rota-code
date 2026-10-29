@@ -11640,24 +11640,46 @@ def _shown_paths(conn, ref: str, order: list, page_text: str) -> list[str]:
                               for p in _PATH_SHAPE.findall(shown)))
 
 
-def _excluded_paths(given: str, shown: list[str]) -> list[str] | None:
+# A prediction entry that names one function or test of a file:
+# `tests/test_formatting.py::test_global_show_default`.
+_ENTRY_SHAPE = re.compile(rf"(?:{_PATH_SHAPE.pattern})::[\w\[\].-]*\w")
+
+
+def _shown_entries(conn, ref: str, order: list, page_text: str) -> list[str]:
+    """The `path::name` entries of the prediction that the line of `ref`
+    shows, in order."""
+    shown = _shown_prediction(conn, ref, order, page_text)
+    return list(dict.fromkeys(_ENTRY_SHAPE.findall(shown)))
+
+
+def _excluded_paths(given: str, shown: list[str],
+                    entries: list[str] = ()) -> list[str] | None:
     """The prediction paths that the seat's paths name, or None when one
     seat path names no path of `shown`.
 
     A seat path names a shown path by exact match, or as the one shown path
-    that ends with it after a slash. These are facts about two strings."""
+    that ends with it after a slash. A seat `path::name` names the entry of
+    `entries` whose file part it names that way. These are facts about two
+    strings. The seat copied `path::name` entries in 12 of 34 refusals of
+    pass 7b, so both forms match (frame 345, pass 7c)."""
     out = []
     for raw in re.split(r"[,\s]+", given or ""):
         path = raw.strip("`'\".;:")
         if not path or path.lower() == "and":
             continue
+        path, sep, name = path.partition("::")
         ends = [p for p in shown if p.endswith("/" + path)]
         if path in shown:
-            out.append(path)
+            found = path
         elif len(ends) == 1:
-            out.append(ends[0])
+            found = ends[0]
         else:
             return None
+        if sep:
+            found = f"{found}::{name}"
+            if found not in entries:
+                return None
+        out.append(found)
     return list(dict.fromkeys(out))
 
 
@@ -11700,7 +11722,8 @@ def _word_shape(conn, ref: str, shape: dict, matched: str | None,
                 f"exclude takes a path off a line that lists the files the "
                 f"change touches. Give line {key} another word")
         shown = _shown_paths(conn, ref, order, page_text)
-        paths = _excluded_paths(given, shown)
+        paths = _excluded_paths(given, shown,
+                                _shown_entries(conn, ref, order, page_text))
         if not paths:
             listed = ", ".join(shown) or "(none)"
             said = (f"{given.strip()!r} is not a path of line {key}"

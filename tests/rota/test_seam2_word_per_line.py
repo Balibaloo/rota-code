@@ -493,3 +493,40 @@ def test_two_words_on_one_ref_of_another_act_keep_one_row(db):  # noqa: F811
     db.commit()
     rows = ruled(db, ["l_1"])
     assert [(r["verdict"], r["act"]) for r in rows] == [("contest", "drop")]
+
+
+def test_a_path_name_entry_matches_in_both_forms():
+    """Pass 7c: the seat copied `path::name` entries in 12 of 34 refusals.
+    `exclude path::name` names that entry, and `exclude path` names its
+    file."""
+    shown = ["src/click/utils.py", "tests/test_formatting.py"]
+    entries = ["src/click/utils.py::make_str",
+               "tests/test_formatting.py::test_global_show_default"]
+    assert api._excluded_paths("src/click/utils.py::make_str", shown,
+                               entries) == ["src/click/utils.py::make_str"]
+    assert api._excluded_paths("test_formatting.py::test_global_show_default",
+                               shown, entries) == [
+        "tests/test_formatting.py::test_global_show_default"]
+    assert api._excluded_paths("src/click/utils.py, src/click/utils.py::make_str",
+                               shown, entries) == [
+        "src/click/utils.py", "src/click/utils.py::make_str"]
+    # A name that the line does not show names no entry.
+    assert api._excluded_paths("src/click/utils.py::other", shown,
+                               entries) is None
+
+
+def test_both_forms_land_on_a_line_of_path_name_entries(tmp_path):
+    """L3R-n170-m74-m75: line 3 lists tests/test_formatting.py by its
+    test entries."""
+    for given, target in (
+            ("exclude tests/test_formatting.py::test_global_show_default",
+             "tests/test_formatting.py::test_global_show_default"),
+            ("exclude tests/test_formatting.py", "tests/test_formatting.py")):
+        sb, page = _case_seat(tmp_path / target.replace(":", "_").replace("/", "_"),
+                              "L3R-n170-m74-m75")
+        with page:
+            sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                             "3": given, "4": "approve"})
+        rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
+                and w[2]["ref"] == "b_3"]
+        assert [(r["act"], r["target"]) for r in rows] == [("exclude", target)]
