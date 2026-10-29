@@ -36,7 +36,9 @@ counts of W14 are out.
    346b266c, 2026-10-29 05:19: the runner checks the retire on each run.
 4. The rows of 00:50 that stay: the account page with no request (old row
    3), the Critic's review loop (old 4), `criteria.json` in clickI (old 5),
-   W5 (old 6); frame 324 closed 2026-10-29 05:22 under its residue rule. No night runs for them; each is
+   W5 closed by dfc16500, read 2026-10-29 05:3x, `plans/w5-read-2026-10-29.md`:
+   one reader `kind_of` serves both doors, 0 on nights 170 to 175 (old 6);
+   frame 324 closed 2026-10-29 05:22 under its residue rule. No night runs for them; each is
    read against its records when the seam work frees a cycle.
 
 ## Sprint 35, recommended on night 175's read, 2026-10-29 00:50
