@@ -26,11 +26,15 @@ counts of W14 are out.
 1. The general solution for the rulings seam, read from what exists and
    measured by the 24 cases: `plans/seam-general-solution-2026-10-29.md`,
    running since 01:58 on Opus, cap 80k. Then its build, priced by the
-   read, with the cases run before and after each pass.
+   read, with the cases run before and after each pass. Landed 2026-10-29:
+   passes 2 to 3b at df4b89b9 and ce02c29a, the 24 cases 1 to 7 of 24 on
+   qwen3:8b, refusals 199 to 30, the 12 landing L1 cases 4 to 7 passed.
 2. The Gemma trial: the 24 cases live with the Liaison on
    `gemma4:12b-it-qat`, running since 01:56 to `l3r_gemma.txt` in session
    161c371b's scratchpad. Its count beside qwen3:8b's 1 of 24 decides
-   whether the Liaison seat changes model.
+   whether the Liaison seat changes model. Gemma 6 against 1 before the seam
+   build, 7 against 4 at df4b89b9; pass 4 switches the seat and measures the
+   24 and the Liaison L1 cases on both, from 06:4x.
 3. W14's count moves to the cases: the three deletes of a criterion
    (n175-m102-m103, m116-m118, m136-m138) land a retire. Landed at
    346b266c, 2026-10-29 05:19: the runner checks the retire on each run.
@@ -1600,6 +1604,7 @@ a different question and the night is then opened once.
 - Status 2026-10-29 06:20 (rota-21): 06:20. **Review p5 of ac900593 on Opus, plans/f345-review-p5.md, NOT READY, about 100k against 45k. The zero-write is no loss: the ruled_refs rows land, but session_commit at rota/core/db.py 1705 writes no receipt for ruled_refs, which ARTEFACT_TABLES lacks, and fixtures.capture at rota/testkit/fixtures.py 541 counts writes from receipts alone, so the three landing drop cases read 0 writes at every head and never passed; review p4's _word_shape suspicion was wrong. High: landing.md says remove on a page line is a drop while the code lands act remove, which the three cases exclude. Low: a deleted test's second half pinned ACCOUNT_UNNAMED rendering, still live; a conjoined subject binds its lines to the whole sentence** (observed: the review, 06:2x). Pass 3b builds the four fixes on Opus in rota_seam3, cap 60k, then the 24 and the 12 landing cases live.
 - Status 2026-10-29 06:32 (rota-21): 06:32. **Pass 3b built at 3caf75e4 on seam3root, about 80k against 60k: fixtures.capture counts the ruled_refs rows of the session's rulings, remove on a non-code page line lands as drop kind row, the ACCOUNT_UNNAMED test is back, a conjoined subject binds its own clause. The 24 cases unchanged at 7 of 24 and 30 refusals, the prompt did not change so the register replayed; the 12 landing cases 5 failed from 7, the two drop cases green; removing-lines-is-right still fails because the seat drops lines 3 to 6 that his words approve and the door refuses it rightly** (observed: seam3b_report.md and the two logs in this session's scratchpad). Re-check p5b runs on Opus, cap 20k, appended to plans/f345-review-p5.md; land on READY, then re-record the 24 and the 12 live into the main register. Pass 4, the Liaison seat on Gemma measured against qwen on the 24 and the Liaison L1 cases at that head, is briefed in seam4_model_brief.md in this session's scratchpad and runs after the land.
 - Status 2026-10-29 06:34 (rota-21): 06:34. **Landed on rota/foundation at ce02c29a: re-check p5b on Opus READY, 0 high, 2 low (an older red in test_fixtures from l1_liaison2.yaml line 347, byte-equal at the parent; a bare number after a comma starts no subject part)** (observed: plans/f345-review-p5.md section p5b). The 24 cases on qwen3:8b went 1, 3, 2, 4, 7 of 24 across the day's passes, refusals 199 to 30. The live re-record of the 24 and the 12 landing cases into the main register runs since 06:34; pass 4, the model switch, launches when it ends so the two do not share Ollama. The worktree rota_seam3 and its branch are removed.
+- Status 2026-10-29 06:38 (rota-21): 06:38. **The main register holds head ce02c29a: the 24 cases 7 of 24, runs 20 of 72, 2 min 58 s; the 12 landing cases 7 passed, 5 failed** (observed: l3r_main_3.txt and l1_landing_main_3.txt in this session's scratchpad, 06:38). Pass 4 runs on Opus in rota_seam4, cap 80k: the Liaison row of the local profile and the Liaison case pins move to gemma4:12b-it-qat, measured on the 24 and the Liaison L1 cases against qwen's counts at this head.
 
 ### 344. Closed frames fixed one door of N, so a root cause that the records can name may still stand unfixed at head (2026-10-27) (Roman) (c66eae69) (6d9cf7e1) (b3bc8a66) (2911045b) (2568e043) (77c8dc39) (2ebac251) (161c371b) (0ce92518)
 
