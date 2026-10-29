@@ -13483,14 +13483,32 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
     blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), text)
     spans: dict[int, list[tuple[int, int]]] = {}
     rest: list[tuple[int, int]] = []
+    lead = len(text) - len(text.lstrip())
+    # The sentence cuts are those of `_clause_spans`, so a clause knows its
+    # sentence by the count of cuts before it.
+    cuts = [lead + m.end()
+            for m in re.finditer(r"(?<=[.!?])\s+", text.strip())]
+    prev: tuple[int, set[int], bool] | None = None
     for start, end, _sent in _clause_spans(text):
         cl = blank[start:end]
+        sentence = sum(1 for c in cuts if c <= start)
         named = _subject_lines(cl, size)
         if _ALL_LINES.search(cl) and not _REST_LINES.search(cl):
             named = set(range(1, size + 1))
+        is_rest = bool(_REST_LINES.search(cl))
+        # A clause with no line reference takes the lines of the clause
+        # before it in the same sentence, never across a sentence end (frame
+        # 345, review p3, finding 3). "Line 3 is wrong, so drop it" keeps
+        # its tail. In n170-m58-m59, "Please keep what clear() prints"
+        # opens a new sentence and takes no line.
+        if (not named and not is_rest and prev and prev[0] == sentence
+                and not _line_reading(cl, size).refs
+                and not _ORDINAL_LINE.search(cl)):
+            named, is_rest = set(prev[1]), prev[2]
+        prev = (sentence, named, is_rest)
         # "line 1 and the rest of the word notes are fine" names line 1 and
         # the rest at once (night 170's m7).
-        if _REST_LINES.search(cl):
+        if is_rest:
             rest.append((start, end))
         for n in named:
             spans.setdefault(n, []).append((start, end))
@@ -13520,6 +13538,13 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
             words = text[a:b].strip()
         out[n] = words or None
     return out
+
+
+def _no_words_refusal(n: int) -> str:
+    """The one refusal of a ruling on line `n` that no words of his name
+    (frame 345, pass 2c). It names the two rulings that need no words."""
+    return (f"line {n}: no words of his name line {n}. Rule the lines his "
+            f"words name, and approve or leave out line {n}")
 
 
 def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
@@ -14523,26 +14548,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"{key_of[ref]} is a row of his earlier answer, and this page "
                 f"does not number it. Rule it only when his words contest the "
                 f"read-back line {order.index(line) + 1}, and contest that line")
-    # The read-back line is his alone. An approve of it rests on his words:
-    # they name the line, or they approve the whole page and name no line.
-    # The Liaison approved it on words that skipped it (the review of pass
-    # 5, finding 2).
-    # The guard reads his message, never the `words` argument: one
-    # paraphrase confirmed a reading that his reply skipped (the review of
-    # pass 5b, finding 5).
-    his_reading = _line_reading(his, len(order or []))
-    named = set(his_reading.named)
-    his_matched = his_reading.matched
-    for i, r in enumerate(order or []):
-        if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
-            continue
-        whole = not named and all(v == "approve" for v in per_item.values())
-        if i + 1 not in his_matched and not whole:
-            raise ValueError(
-                f"line {i + 1} is his read-back line, and only his words "
-                f"confirm it. His reply does not say that line {i + 1} is right, "
-                f"and it does not approve the whole page. Leave line {i + 1} "
-                f"out of the ruling")
     # The flat form of the act, the fallback of the seam design's doubt 1.
     # It names the keys of `rulings`, so it writes the rows the object form
     # writes. Only a clarify's answer reaches here (frame 345, pass 2).
@@ -14808,26 +14813,34 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
-    # A revise rewrites a line, so it rests on his fault of that line. On
-    # m35, s120 revised c_3, line 4, and his words fault no part of it (the
-    # seam review of pass 1, finding 7). A reply that numbers no line can
-    # still ask a rewrite by a quote, so the check reads numbered replies.
-    # A change request backs a revise too, read by the parser's change verbs:
-    # "Replace Roaming in line 4 with Local." faults no line (the seam
-    # review, p2-1). The refusal offers no approve, so it cannot turn his
-    # change request into a kept line.
-    if order and words_reading.refs:
-        for ref, ruling in per_item.items():
-            lines = _lines_of(order, ref)
-            n = lines[0] if lines else None
-            if (ruling == "revise" and n
-                    and not any(k in read_faulted
-                                or words_reading.note_act(k, page_text)
-                                == "change" for k in lines)):
-                raise ValueError(
-                    f"line {n}: a revise rewrites the line, and his words "
-                    f"neither fault line {n} nor ask to change it. Rule line "
-                    f"{n} as his words say")
+    # A ruling on a line rests on the match: the words of his that name the
+    # line (frame 345, pass 2c). The doors read the match, never a cue, so
+    # no door reads meaning (ruled: Roman, 2026-10-28, "doors used for
+    # meaning are a symptom of poor prompting/context"). The read-back line
+    # is his alone, so any verdict on it needs his words. On another line,
+    # only a change needs them. The refusal fires once per line, because a
+    # refusal that the seat cannot act on is a loop.
+    match = his_lines or (line_words(his, len(order)) if order and not
+                          is_clarify else {})
+    for ref, ruling in per_item.items():
+        lines = _lines_of(order, ref)
+        if not lines or ruling == "absent":
+            continue
+        n = lines[0]
+        readback = str(ref).startswith(READING_REF)
+        if not readback and ruling not in ("contest", "revise"):
+            continue
+        # The match gives a line no words only when his reply names another
+        # line and does not approve the whole page (`line_words`).
+        if any(match.get(k) for k in lines) or not any(match.values()):
+            continue
+        refusal = _no_words_refusal(n)
+        if not any(fn == "rulings.rule" and why == refusal
+                   for fn, why, *_ in (getattr(ctx, "refusals", None) or [])):
+            raise ValueError(refusal)
+    # The check above replaces two cue reads of his reply: the fault or
+    # change verb of a revise and the confirm of a read-back line. They
+    # refused 53 and 32 rulings in the 24 cases of 1eb5c557.
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue

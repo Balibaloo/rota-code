@@ -30,12 +30,12 @@ def _verbatim(his: str, got: dict) -> None:
             assert api._holds_clauses(his, words)
 
 
-def test_a_numbered_clause_names_the_line_and_its_tail_names_none():
-    """Pass 2b, finding 3: a clause with no number takes no line from the
-    clause before it."""
+def test_a_tail_clause_in_the_same_sentence_takes_the_sentences_lines():
+    """Pass 2c, the review's narrower fix of finding 3: a clause with no
+    number takes the lines of the clause before it in the same sentence."""
     his = "Line 3 is wrong, so drop it. The rest is fine."
     got = api.line_words(his, 4)
-    assert got[3] == "Line 3 is wrong"
+    assert got[3] == "Line 3 is wrong, so drop it."
     assert got[1] == got[2] == got[4] == "The rest is fine."
     _verbatim(his, got)
 
@@ -71,7 +71,7 @@ def test_a_clause_can_name_a_line_and_the_rest():
     got = api.line_words(his, 5)
     assert got[1] == got[2] == got[5] == (
         "Line 1 and the rest of the word notes are fine with me.")
-    assert got[3] == "Lines 3 to 4 are wrong"
+    assert got[3] == "Lines 3 to 4 are wrong, so please drop them."
 
 
 def test_every_line_names_them_all():
@@ -248,16 +248,38 @@ def test_a_clause_with_no_number_takes_no_line_before_it():
     _verbatim(his, got)
 
 
+@pytest.mark.parametrize("case_id, line, tail", [
+    ("L3R-n175-m44-m45", 2,
+     "the change touches only clear in src/click/termui.py and its tests"),
+    ("L3R-n170-m74-m75", 3,
+     "so please remove the five formatting tests from what you expect"),
+])
+def test_a_tail_clause_gives_the_exclude_its_path_words(case_id, line, tail):
+    """Pass 2c: pass 2b cut the tail clause, and the exclude lost the words
+    that name its path. The tail stands in the same sentence as the line."""
+    his, size = _reply(case_id)
+    got = api.line_words(his, size)
+    assert tail in got[line]
+    _verbatim(his, got)
+
+
 def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
     """Finding 2: a one-word drop on a line that shows "no words" lands
     with his whole reply as its words. The span check refused it before,
     and the one word has no place for words. "on line 3" is no subject of
-    its clause, so the match names no words for line 3."""
+    its clause, so the match names no words for line 3. Pass 2c refuses the
+    drop once with the sentence of the match, and the repeat lands."""
     his = "Line 1 is right. Nobody needs the note on line 3, so drop it."
     ask = _page(db)
     sb, reply = _seat(db, ask, words=his)
     assert api.line_words(his, 3)[3] is None
-    sb.call("rulings.rule", rulings={"1": "approve", "2": "approve", "3": "drop"})
+    call = {"1": "approve", "2": "approve", "3": "drop"}
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings=dict(call))
+    assert str(e.value) == (
+        "line 3: no words of his name line 3. Rule the lines his words name, "
+        "and approve or leave out line 3")
+    sb.call("rulings.rule", rulings=dict(call))
     rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
     row = rows["l_1"]
     assert (row["verdict"], row["act"], row["target_kind"]) == (

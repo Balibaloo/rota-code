@@ -13,9 +13,9 @@ A long page carries `rows_not_shown` instead of `line_rows`, and then
 Give each line one word:
 - `approve`: the words agree with the line or approve the whole page. "Lines 1 to 4 are fine" approves lines 1 to 4.
 - `contest`: the words say the line is wrong and ask for no change below. "Line 6 misreads me" contests line 6.
-- `revise`: the line is right in substance and needs other words. "Line 2 is right, but say cleared" revises line 2.
+- `revise`: the line is right in substance and needs other words. "Line 7 is slightly off, because I approved two lines, lines 1 and 4, not one" revises line 7.
 - `drop`: the words take the line off the page. "Drop line 5", "remove line 5" and "removing line 5 is right" drop line 5.
-- `rewrite`: the line must say something else. "Replace line 6 with my real request" rewrites line 6.
+- `rewrite`: the line must say something else. "Change line 7 to say the work touches the clear function in the terminal UI file for certain" rewrites line 7.
 - `remove`: the words delete code that they name. "You can remove the line at 518 in get_app_dir" removes code. On any other page line, `remove` is a drop of that line.
 - `exclude`: the words take a file off a line that lists the files the change touches. "Drop the utils file" excludes it.
 - `keep`: the words keep the line and fault only its check. "Keep line 4, but fix its check" keeps line 4.
