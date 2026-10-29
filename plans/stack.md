@@ -41,7 +41,14 @@ counts of W14 are out.
    fail only, so a criterion met by a kept line or a passing test loops,
    and `_why_refused` refuses the comment that says so; the build is a
    route for that state plus an exhaust that tells the Developer the tests
-   pass, 2 cycles, after the seam pass lands), `criteria.json` in clickI (old 5),
+   pass, 2 cycles, after the seam pass lands), `criteria.json` in clickI (old 5,
+   read 2026-10-29 05:4x, `plans/criteria-json-write-read-2026-10-29.md`: s268
+   wrote rota's own record through `code.write`, whose one fence is the
+   worktree; no reader of "is this path rota's record" exists, 9 places compare
+   paths; the fix is one reader `_rota_record` in `_code_write`, 25 lines, but a
+   refusing door departs from law 12 and from frame 114's ruling of
+   2026-10-17 that doors record and do not refuse, so it is a question to
+   Roman, open below),
    W5 closed by dfc16500, read 2026-10-29 05:3x, `plans/w5-read-2026-10-29.md`:
    one reader `kind_of` serves both doors, 0 on nights 170 to 175 (old 6);
    frame 324 closed 2026-10-29 05:22 under its residue rule. No night runs for them; each is
