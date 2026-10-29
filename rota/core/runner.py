@@ -2433,7 +2433,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 if (api.MENU_PAGES and order
                         and not clarify["id"].startswith(SHIFT_ASK)):
                     landing["clauses"] = {
-                        str(k): c for k, c in enumerate(api.page_clauses(
+                        f"c{k}": c for k, c in enumerate(api.page_clauses(
                             his_reply(conn, row["id"]) or "", len(order)), 1)}
                     landing["menus"] = api.page_menus(conn, order, page)[0]
                 # The rows, while they fit. A present of 77 lines sent every
