@@ -284,6 +284,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: approve
       '3':
@@ -1187,6 +1188,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: contest
         act: exclude
@@ -1500,6 +1502,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: contest
         act: drop
@@ -1598,6 +1601,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: contest
         act: drop
@@ -3795,6 +3799,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: approve
       '3':
@@ -5148,6 +5153,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: approve
       '3':
@@ -5415,6 +5421,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: approve
       '3':
@@ -5674,6 +5681,7 @@
     lines:
       '1':
         verdict: approve
+        act: null
       '2':
         verdict: approve
       '3':

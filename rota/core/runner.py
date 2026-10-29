@@ -2470,10 +2470,13 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 from ..roles.principal import SHIFT_ASK
 
                 if order and not clarify["id"].startswith(SHIFT_ASK):
+                    # A clause with no lines carries its options (pass R3).
+                    menus, per_line = api.page_menus(conn, order, page)
                     landing["clauses"] = {
                         f"c{k}": c for k, c in enumerate(api.page_clauses(
-                            his_reply(conn, row["id"]) or "", len(order)), 1)}
-                    landing["menus"] = api.page_menus(conn, order, page)[0]
+                            his_reply(conn, row["id"]) or "", len(order),
+                            per_line), 1)}
+                    landing["menus"] = menus
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a
