@@ -6572,12 +6572,24 @@ def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
 
 def _dropped_line(conn: sqlite3.Connection, id: str) -> int | None:
     """The page line that the act `drop` of his newest landed ruling on `id`
-    drops, or None (the seam design, pass 4)."""
-    from .principal import grant
+    drops, or None (the seam design, pass 4).
+
+    A `remove` with the kind `row` on the row itself is a drop too. His delete
+    words came as "remove", and the seat copied the verb: 6 of 15 deletes on
+    nights 170 to 175 (W14, question 1). The reading sits here and not in
+    `grant`, because `grant` answers for every act and its other callers read
+    `remove` as a delete of code. A `remove` that names the criterion's own
+    id, or any other kind, is not a drop. Night 175's r_m118 carried such a
+    `remove` on c_1 against his words."""
+    from .principal import _target_key, grant
 
     row = grant(conn, id, "drop")
     if row is None:
-        return None
+        row = grant(conn, id, "remove")
+        if row is None or row["target_kind"] != "row" or (
+                row["target"] is not None
+                and _target_key(row["target"]) == _target_key(id)):
+            return None
     return row["line"] or _ruling_line(conn, {"id": row["ruling_id"]}, id)
 
 
