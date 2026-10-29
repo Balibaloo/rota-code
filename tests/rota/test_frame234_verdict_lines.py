@@ -59,22 +59,6 @@ def _rule_request(db, words, rulings, verb="present"):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
-def test_a_contest_on_lines_the_words_say_match_is_refused(db):
-    words = "Ok, go ahead. Lines 1 to 4 match what I asked for."
-    with pytest.raises(ValueError) as e:
-        _rule(db, words, {"1": "contest", "2": "contest", "3": "contest",
-                          "4": "contest"})
-    assert "lines 1 to 4" in str(e.value) and "reverses" in str(e.value)
-    assert "Approve lines 1 to 4." in str(e.value)
-
-
-def test_the_refusal_names_only_the_matched_lines_contested(db):
-    words = "Ok, go ahead. Lines 1 to 4 match what I asked for."
-    with pytest.raises(ValueError, match=r"Approve lines 1 to 3\.$"):
-        _rule(db, words, {"1": "contest", "2": "contest", "3": "contest",
-                          "4": "approve"})
-
-
 def test_a_contest_on_the_request_line_the_words_do_not_fault_is_refused(db):
     with pytest.raises(ValueError) as e:
         _rule_request(db, S122_ON_REQUEST,

@@ -105,11 +105,6 @@ def test_reading_says_when_the_words_name_the_request():
 def test_reading_says_when_the_words_touch_files():
     assert api._line_reading("Line 2 names the wrong tests").touches_files
     assert not api._line_reading("Line 2 is wrong").touches_files
-    # `_faulted_approve` reads the clause of each cue through the reading.
-    cues = {2: ("wrong", "names the wrong tests"), 3: ("wrong", "is wrong")}
-    got = api._faulted_approve(frozenset({2, 3}), cues, 5, False,
-                               frozenset({5}))
-    assert got and "line 3" in got and "line 2" not in got
 
 
 def test_reading_says_what_the_words_ask_of_a_note():

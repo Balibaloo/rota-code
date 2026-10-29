@@ -150,10 +150,13 @@ def test_a_claim_about_a_description_is_off_a_request_page(night):
     assert claim not in order and "format_filename_example" in order
 
 
-def test_words_that_name_no_line_land_on_nothing_on_the_account_page(night):
-    """The review's probe p6: his words about format_filename on s272's
-    account page, with no account row, landed 7 contests on 7 claims."""
-    from rota.roles.principal import land, parse_reply, pending_asks
+def test_an_account_note_with_no_line_shows_once_on_the_next_request_page(night):
+    """The second half of the review's probe p6, kept alone (review p5,
+    finding 3). The door no longer refuses with `ACCOUNT_NO_LINE`. An older
+    note still holds the refusal, so his next request page still says so."""
+    from rota.roles.api import ACCOUNT_NO_LINE
+    from rota.roles.principal import (ACCOUNT_UNNAMED, land, parse_reply,
+                                      pending_asks, render_page)
 
     night.execute("DELETE FROM items WHERE id = 'how_it_works'")
     night.execute("UPDATE messages SET status = 'answered' "
@@ -173,29 +176,6 @@ def test_words_that_name_no_line_land_on_nothing_on_the_account_page(night):
     words = ("The format_filename example is wrong: it must show a/b/c.txt "
              "becoming c.txt with shorten=True.")
     reply = land(night, ask, parse_reply(ask, words))
-    night.commit()
-    door = build("liaison", night, mode="normal", session_id="s_p6",
-                 allow=prompts.mode_tools("liaison", "landing"))
-    door.ctx.trigger = reply
-    with pytest.raises(ValueError) as refused:
-        door.call("rulings.rule", rulings={str(i): "contest" for i in range(1, 8)},
-                  words=words)
-    assert str(refused.value) == ("The words name no line of this page, so "
-                                  "they change no row on it.")
-    assert not [w for w in door.ctx.writes if w[0] == "ruled_refs"]
-    # Seven approves land on nothing either, with his words or with none
-    # (the review of P9, p3, finding 1).
-    for given in (words, ""):
-        with pytest.raises(ValueError, match="name no line of this page"):
-            door.call("rulings.rule",
-                      rulings={str(i): "approve" for i in range(1, 8)},
-                      words=given)
-    assert not [w for w in door.ctx.writes if w[0] == "ruled_refs"]
-
-    # His next request page says so, once, in one sentence.
-    from rota.roles.api import ACCOUNT_NO_LINE
-    from rota.roles.principal import ACCOUNT_UNNAMED, render_page
-
     night.execute("UPDATE messages SET unresolved_note = ? WHERE id = 'm900'",
                   (f"{reply}: rulings.rule: {ACCOUNT_NO_LINE}",))
     page = ["format_filename_example", "c_1_format_filename_example"]

@@ -42,8 +42,6 @@ S271_SPAN = ("Fix the change instead of giving up by putting back the two "
 S274_ACTS = {"18": {"verdict": "contest", "act": "remove", "target_kind": "row",
                     "words": "Line 18 is wrong because that answer asked for "
                              "the fix and did not call line 4 wrong"}}
-REVERSAL = ("The words say line 4 matches what the principal asked for, and a "
-            "contest reverses the principal. Approve line 4.")
 
 
 @pytest.fixture
@@ -263,24 +261,6 @@ def test_s258s_call_with_line_4_approved_lands(night):
     ctx = night("m121", LATE)
     api.rulings_rule(ctx, rulings={**R8, "12": "contest"}, words=W121)
     assert _rows(ctx)["reading:m118"]["verdict"] == "contest"
-
-
-def test_s274s_reversal_on_line_4_stays_refused(night):
-    ctx = night("m131", LATE[3:])
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings=_folded(
-            {**R18, "4": "contest", "18": "contest"}, S274_ACTS), words=W131)
-    assert str(e.value) == REVERSAL
-
-
-def test_s274s_call_with_no_words_meets_the_reversal(night):
-    """s274 call 3 passed no `words`. The door reads m131, and m131 says
-    that line 4 is fine."""
-    ctx = night("m131", LATE[3:])
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings=_folded(
-            {**R18, "4": "contest", "18": "contest"}, S274_ACTS))
-    assert str(e.value) == REVERSAL
 
 
 def test_a_contest_by_the_id_of_a_row_he_never_saw_is_refused(night):

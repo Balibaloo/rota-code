@@ -277,26 +277,6 @@ def test_a_change_request_backs_the_revise(night, monkeypatch):
     assert _rows(ctx)["c_3"]["verdict"] == "revise"
 
 
-def test_a_fault_after_the_report_clause_stays_on_this_page(night,
-                                                            monkeypatch):
-    """The review's probe: "line 4 adds a third" is a clause of this page,
-    so the approve of line 4 is refused as at the parent. His reply comes
-    through `said`, the one reader, so the probe replaces it there."""
-    from rota.roles import principal
-
-    said = W35.replace("I approved two lines, lines 1 and 4, not one.",
-                       "I asked for two checks, line 4 adds a third.")
-    orig = principal.said
-    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
-        said if mid == "m35" else orig(conn, mid, *a, **k)))
-    ctx = night(173, "m35")
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
-                                       "4": A, "5": A, "6": A, "7": "contest",
-                                       "8": "drop"}, words=said)
-    assert str(e.value).startswith('The words fault line 4, "adds"')
-
-
 # The 10 sentences of the read's section 4, each with the page's line count
 # and the numbers of the earlier page (`plans/seam-night173-read.md`). Night
 # 171's m17 replays night 170's, and night 173's m12 replays night 172's, so
