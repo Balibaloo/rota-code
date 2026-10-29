@@ -44,7 +44,10 @@ Put the principal's words whole in `words`. Send
 no `ask`: the principal has answered, and an `ask` here returns their own
 question to them.
 
-    rulings.rule(rulings={"c_1f2e": "approve"}, words="<their words, whole>")
+The verdict comes from what the words do to each row: "the first is right but
+must also cover an empty list, the second is fine" rules two rows so:
+
+    rulings.rule(rulings={"c_1f2e": "revise", "c_3a7b": "approve"}, words="<their words, whole>")
 
 Name the rows the words settle, and only those. A map that names one row of
 two is a complete reading when the answer spoke about one row. The door logs

@@ -197,3 +197,35 @@ def test_an_approved_test_row_on_a_converse_reply_adds_no_criterion(db):
     relays = _answer(db, ruling, ["tst_cr_2", "tst_cr_3"])
     assert [(to, refs) for _, to, refs in relays] == [("terminologist", ["cr_2"])]
     assert _terminologist_mode(db, relays[0][0]) == "criterion_repair"
+
+
+def _answer_on_entry(db, verdict: str, words: str):
+    """The L1 shape: his reply carries only its entry, and the relay names
+    one criterion. The trigger's entry joins the relay's refs."""
+    _night164(db)
+    db.execute("UPDATE messages SET body_refs = '[\"e_m94r\"]' WHERE id = 'm94r'")
+    db.execute("UPDATE entries SET text = ? WHERE id = 'e_m94r'", (words,))
+    db.commit()
+    (wake,) = [w for w in open_tips(db) if w.message_id == "m94r"]
+    calls = [f"TOOL: rulings.rule(rulings={{\"cr_2\": \"{verdict}\"}}, "
+             f"words='{words}')",
+             "TOOL: msg.relay_terminologist(refs=[\"cr_2\"])", "done"]
+    out = run_session(db, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    relays = [json.loads(r["body_refs"]) for r in db.execute(
+        "SELECT body_refs FROM messages WHERE cause_id = 'm94r' AND verb = 'relay'")]
+    return out, relays
+
+
+def test_an_approved_criterion_beside_the_entry_raises_the_guard(db):
+    """Finding 3 of the relay read: the entry kept the guard silent."""
+    out, relays = _answer_on_entry(db, "approve", "cr_2 is fine as it stands.")
+    assert relays == []
+    assert any("approved these criteria as they stand" in e for e in out.errors), \
+        out.errors
+
+
+def test_a_revised_criterion_beside_the_entry_passes_the_guard(db):
+    out, relays = _answer_on_entry(db, "revise", "Criteria 2 and 6 are wrong.")
+    assert out.committed, out.errors
+    assert relays == [["cr_2", "e_m94r"]]
