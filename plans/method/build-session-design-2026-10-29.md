@@ -177,3 +177,7 @@ on a watcher between wakes and holds no frame. Does "never idle" bind the
 seat that holds frames only, so the Liaison may wait? Recommended: yes.
 The ruling protected frames that waited unclaimed. Here the Steward holds
 every frame, and an idle Liaison costs nothing and keeps its context.
+
+## Ruled, 2026-10-29 about 11:0x, Roman in the terminal to rota-21
+
+On the first question, the idle rule: "Oh no that idle rule was to prevent meaningless waits". So the rule of 2026-09-30 binds a session that holds context and nothing to do; a Liaison that waits on a watcher at no cost is not idle in his sense. He then said "Interesting so the problem shifts", on the Steward: a resident Opus context fills as the Fable context did. The session's reading, not his: the Steward is not resident; a worker wakes cold on one frame from the reserve with the frame block, the design record and the choice line, lands, and ends, so nothing accumulates but records. Measure: Fable context per landed branch, worker context per frame.
