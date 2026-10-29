@@ -11593,6 +11593,70 @@ SHIFT_WORDS: dict[str, str | None] = {
 }
 
 
+# One word per page line (frame 345, pass 2, the seam read's option (d)). An
+# act word is a verdict and an act. The table is the act list of the landing
+# brief, and it reads the seat's word, never his words. Meaning stays with
+# the seat (ruled: Roman, 2026-10-28). The order words, later and now, keep
+# the shift page's own map.
+WORD_ACTS: dict[str, tuple[str, str]] = {
+    "drop": ("contest", "drop"), "remove": ("contest", "remove"),
+    "rewrite": ("contest", "rewrite"), "exclude": ("contest", "exclude"),
+    "keep": ("revise", "keep"), "add": ("approve", "add"),
+}
+# The target kind of an act word on a page line. An add names no target.
+_WORD_KINDS = {"drop": "row", "rewrite": "row", "remove": "row",
+               "exclude": "path", "keep": "check"}
+_PATH_SHAPE = re.compile(r"[\w.-]*/[\w./-]*\w|[\w.-]+\.py\b")
+
+
+def _word_shape(conn, ref: str, shape: dict, matched: str | None,
+                order: list, page_text: str) -> dict:
+    """The object of one page line's act word, with the parts that code
+    fills.
+
+    `words` is `matched`, the words of his that name the line. `target_kind`
+    comes from the row behind the line. A
+    remove on a code line takes `source_line`. An exclude takes the one path
+    of the line's prediction that his words name, by `_names_path`. These
+    are facts about the row and his words, never a reading of what they
+    rule. The act checks below still read every part."""
+    out = dict(shape)
+    act = out.get("act")
+    if not act:
+        return out
+    if matched and not out.get("words"):
+        out["words"] = matched
+    if not out.get("target_kind") and act in _WORD_KINDS:
+        kind = _WORD_KINDS[act]
+        if act == "remove" and (guess_item(ref) or table_of(
+                conn, ref, among=("batches",)) is not None):
+            kind = "source_line"
+        out["target_kind"] = kind
+    if act == "exclude" and not out.get("target") and out.get("words"):
+        shown = _shown_prediction(conn, ref, order, page_text)
+        paths = {p.strip("`.,") for p in _PATH_SHAPE.findall(shown)}
+        named = [p for p in paths if _names_path(out["words"], p)]
+        # "the utils file" names src/click/utils.py by its own stem, and
+        # tests/test_utils.py only by its stem less "test_". The closer name
+        # wins, and a tie names no target.
+        ranked = sorted(((_path_name_rank(out["words"], p), p) for p in named),
+                        reverse=True)
+        if ranked and (len(ranked) == 1 or ranked[0][0] > ranked[1][0]):
+            out["target"] = ranked[0][1]
+    return out
+
+
+def _path_name_rank(words: str, path: str) -> int:
+    """How closely `words` name `path`: 2 for the path or its file name, 1
+    for its own stem, 0 for a stem less a test prefix or suffix."""
+    text, t = (words or "").lower(), path.lower()
+    base = t.rsplit("/", 1)[-1]
+    if _says(text, t) or _says(text, base):
+        return 2
+    stem = base.rsplit(".", 1)[0]
+    return 1 if re.search(rf"(?<!\w){re.escape(stem)}(?!\w)", text) else 0
+
+
 def _word_key(raw, words: dict) -> str:
     """The key of `words` that a seat's word matches: the whole word, else
     its first word. Else the whole word, lowered."""
@@ -11754,54 +11818,6 @@ def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
     head = (f"rulings.rule: {names} are fields of line {key}'s object, not "
             f"lines of the page.{rest} Put them inside line {key}: {call}")
     return _offer(ctx, head, "rulings.rule", args)
-
-
-def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
-                         words: str) -> str | None:
-    """The refusal of an approve or a keep in `acts` on the shift page,
-    when his reply holds a shift word, or None.
-
-    Night 171's s200 kept `{"verdict": "approve", "act": "keep"}` in `acts`
-    beside `"1": "later"`. The door named only the shift rule, four times,
-    and no ruling landed (ruled: the coordinator, 2026-10-27, pass 1c). The
-    offer drops the entry and keeps the seat's verdict. Law 6: the door
-    offers a call only when that verdict is a word of the shift page."""
-    found = _his_shift_words(his)
-    if not found:
-        return None
-    bad = [k for k, v in acts.items() if isinstance(v, dict) and (
-        str(v.get("verdict", "")).strip().lower() == "approve"
-        or str(v.get("act", "")).strip().lower() == "keep")]
-    if not bad:
-        return None
-    rest = {k: v for k, v in acts.items() if k not in bad}
-    lines = {str(k).strip(): v for k, v in rulings.items()}
-    # Law 6: the door never picks a word of his to match the seat's. It
-    # names his first shift word (the review p2 of F25, (b)).
-    heard = found[0]
-    his_meanings = {SHIFT_WORDS[w.lower()] for w in found}
-    sent = [str(v).strip() for v in lines.values()]
-    entries = ", ".join(f"acts[{k!r}]" for k in bad)
-    one = len(bad) == 1
-    head = (f"{entries} {'gives' if one else 'give'} approve "
-            f"or keep, and his words say {heard!r}. This page takes later, now "
-            f"or drop, and no act. Leave {'that entry' if one else 'those entries'} "
-            f"out of acts")
-    seat_meanings = {SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS))
-                     if isinstance(v, str) else None for v in lines.values()}
-    if not lines or len(his_meanings) != 1 or seat_meanings != his_meanings:
-        # The seat chooses the verdict from his words, so no call is offered.
-        theirs = ", ".join(repr(s) for s in sent) or "no verdict"
-        return (f"{head}. You sent {theirs}, and his words say {heard!r}. "
-                f"Give each line the word his reply gives it.")
-    # A park carries his reply whole to the row's owner, so the offer
-    # passes his words when the seat gave none.
-    said = str(words or his or "").strip()
-    call, args = _rule_call(lines, said)
-    if rest:
-        call = call[:-1] + f", acts={json.dumps(rest, ensure_ascii=False)})"
-        args["acts"] = rest
-    return _offer(ctx, f"{head}: {call}", "rulings.rule", args)
 
 
 def _his_shift_words(his: str) -> list[str]:
@@ -13345,17 +13361,190 @@ _CUE_KEEP = re.compile(_KEEP_CHANGE.pattern + r"|\btry again\b|\bfix (?:the )?fa
 _CUE_CLAUSE = re.compile(r",\s+(?:and|but)\s+|\s+but\s+|:\s+|;\s+|,\s+so\s+")
 
 
+def _clause_spans(words: str) -> list[tuple[int, int, str]]:
+    """Each clause of `words` as its start, its end and its sentence. The
+    cuts are those of `_cue_clauses`, so the match of the landing block and
+    the cue doors cut his words at the same places (rule C76)."""
+    text = words or ""
+    lead = len(text) - len(text.lstrip())
+    body = text.strip()
+    out: list[tuple[int, int, str]] = []
+    start = 0
+    for cut in [*re.finditer(r"(?<=[.!?])\s+", body), None]:
+        end = cut.start() if cut else len(body)
+        sent = body[start:end]
+        at = 0
+        for sep in [*_CUE_CLAUSE.finditer(sent), None]:
+            stop = sep.start() if sep else len(sent)
+            out.append((lead + start + at, lead + start + stop, sent))
+            if sep:
+                at = sep.end()
+        if cut:
+            start = cut.end()
+    return out
+
+
 def _cue_clauses(words: str) -> list[tuple[str, set[int] | None, bool]]:
     """Each clause with the lines it is about. A clause with no line
     reference is about the lines of the clause before it."""
     out, last = [], None
-    for sent in re.split(r"(?<=[.!?])\s+", (words or "").strip()):
-        for cl in _CUE_CLAUSE.split(sent):
-            refs = set(_line_reading(cl, 60).named)
-            if refs:
-                last = refs
-            out.append((cl, set(last) if last else None, sent.rstrip().endswith("?")))
+    for start, end, sent in _clause_spans(words):
+        cl = (words or "")[start:end]
+        refs = set(_line_reading(cl, 60).named)
+        if refs:
+            last = refs
+        out.append((cl, set(last) if last else None, sent.rstrip().endswith("?")))
     return out
+
+
+# The words of his reply that name a page line with no number (frame 345,
+# pass 2). An ordinal names one line. A rest word names every line that no
+# other clause names.
+_ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth",
+             "seventh", "eighth", "ninth", "tenth")
+_ORDINAL_LINE = re.compile(
+    rf"\b(?:the\s+)?({'|'.join(_ORDINALS)}|last)\s+{_LINE_WORD.pattern}", re.I)
+# The line word is the parser's `_LINE_WORD`, so no second line regex
+# exists (fact F2, rule C76).
+_REST_LINES = re.compile(
+    rf"\b(?:the\s+rest|the\s+others|the\s+other\s+{_LINE_WORD.pattern}|"
+    rf"everything\s+else|all\s+(?:the\s+)?other\s+{_LINE_WORD.pattern}|"
+    r"every\s+other\s+line)\b", re.I)
+# An all word names every line: "every line matches what I asked for".
+_ALL_LINES = re.compile(
+    r"\b(?:every|each)\s+line\b|\ball\s+(?:the\s+|of\s+the\s+)?lines\b", re.I)
+# A line reference names its line only as the subject of its clause (frame
+# 345, pass 2b, finding 1). In n172-m80-m81, "I never gave an answer about
+# lines 1 to 5" bound line 1 to "drop it". The subject stands at the clause
+# start. Two words may come before it: a verb or a preposition, as in
+# "Change line 7", "Please keep line 5" and "For line 3".
+_SUBJECT_LEAD = 2
+# A quoted span holds other words than his ruling. In n174-m47-m48, the
+# quote "also remove lines 17, 18" bound lines 17 and 18 to line 68.
+_QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
+# A number after "at", "in", "see", a path or a code name with a colon names
+# a place in code or in a text, never a page line ("get_app_dir:518").
+_NOT_SUBJECT = re.compile(
+    rf"(?:\b(?:at|in|see)|{_PATH_SHAPE.pattern}|\w:)\s*$", re.I)
+# A second reference joined to a subject is a subject too: "Lines 1 to 10
+# and line 12 are fine", "line 3 or line 4".
+_REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
+
+
+def _subject_lines(clause: str, size: int) -> set[int]:
+    """The page lines that `clause` is about: the numbers, the ranges and
+    the ordinals that stand as its subject. `clause` holds his quoted spans
+    as blanks already, so a number in a quote names nothing."""
+    found = [(r.start, r.end, set(r.lines))
+             for r in _line_reading(clause, size).refs]
+    for m in _ORDINAL_LINE.finditer(clause):
+        word = m.group(1).lower()
+        found.append((m.start(), m.end(),
+                      {size if word == "last" else _ORDINALS.index(word) + 1}))
+    named: set[int] = set()
+    last_end = None
+    for start, end, lines in sorted(found, key=lambda f: f[0]):
+        before = clause[:start]
+        lead = (len(before.split()) <= _SUBJECT_LEAD
+                and not _NOT_SUBJECT.search(before))
+        joined = (last_end is not None
+                  and _REF_JOIN.fullmatch(clause[last_end:start]))
+        if lead or joined:
+            named |= lines
+            last_end = end
+    return {n for n in named if 1 <= n <= size}
+
+
+def line_words(his: str, size: int) -> dict[int, str | None]:
+    """The words of his reply that name each page line, verbatim, or None.
+
+    A clause names the lines that stand as its subject, by `_subject_lines`,
+    and "every line" names them all. A clause with no line reference names
+    no line (frame 345, pass 2b, finding 3). In n170-m58-m59, "keep what
+    clear() prints" took lines 5 and 6 from the clause before it. A rest
+    clause such as "the other lines are fine" names every line that no
+    clause names. A reply that approves the page names each line that is
+    still not named, with the whole reply. So does a reply that names no
+    line at all.
+
+    The match says which words name a line, never what they rule. Meaning
+    stays with the seat (ruled: Roman, 2026-10-28, "doors used for meaning
+    are a symptom of poor prompting/context"). The seat gets the match
+    before it chooses, which is where the fix belongs (ruled: 2026-10-26).
+
+    The words of a line run from its first naming clause to its last one,
+    so they are one run of whole clauses of his reply. The act span check,
+    `_words_from`, then proves them by construction.
+    """
+    text = his or ""
+    # The cuts come from his words as they are, so they stay the cuts of the
+    # cue doors (rule C76). The references come from the same places with
+    # each quote blanked, so the offsets agree.
+    blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), text)
+    spans: dict[int, list[tuple[int, int]]] = {}
+    rest: list[tuple[int, int]] = []
+    lead = len(text) - len(text.lstrip())
+    # The sentence cuts are those of `_clause_spans`, so a clause knows its
+    # sentence by the count of cuts before it.
+    cuts = [lead + m.end()
+            for m in re.finditer(r"(?<=[.!?])\s+", text.strip())]
+    prev: tuple[int, set[int], bool] | None = None
+    for start, end, _sent in _clause_spans(text):
+        cl = blank[start:end]
+        sentence = sum(1 for c in cuts if c <= start)
+        named = _subject_lines(cl, size)
+        if _ALL_LINES.search(cl) and not _REST_LINES.search(cl):
+            named = set(range(1, size + 1))
+        is_rest = bool(_REST_LINES.search(cl))
+        # A clause with no line reference takes the lines of the clause
+        # before it in the same sentence, never across a sentence end (frame
+        # 345, review p3, finding 3). "Line 3 is wrong, so drop it" keeps
+        # its tail. In n170-m58-m59, "Please keep what clear() prints"
+        # opens a new sentence and takes no line.
+        if (not named and not is_rest and prev and prev[0] == sentence
+                and not _line_reading(cl, size).refs
+                and not _ORDINAL_LINE.search(cl)):
+            named, is_rest = set(prev[1]), prev[2]
+        prev = (sentence, named, is_rest)
+        # "line 1 and the rest of the word notes are fine" names line 1 and
+        # the rest at once (night 170's m7).
+        if is_rest:
+            rest.append((start, end))
+        for n in named:
+            spans.setdefault(n, []).append((start, end))
+    if rest:
+        for n in range(1, size + 1):
+            if n not in spans:
+                spans[n] = list(rest)
+    out: dict[int, str | None] = {}
+    # A reply that names no line at all is about the whole page, as "Drop
+    # both of those examples" is (night 175's m103).
+    whole = text.strip() if (not spans or _APPROVES.search(text)
+                             or _BARE_AGREEMENT.fullmatch(text)) else None
+    for n in range(1, size + 1):
+        if n not in spans:
+            out[n] = whole
+            continue
+        a = min(s for s, _ in spans[n])
+        b = max(e for _, e in spans[n])
+        words = text[a:b].strip()
+        if not _holds_clauses(text, words):
+            # A cut that `_clause_tokens` does not hold widens the run to its
+            # whole sentences, so the span check still proves it.
+            sents = [(s.start(), s.end()) for s in
+                     re.finditer(r"[^.!?]+(?:[.!?]+|$)", text)]
+            a = max([s for s, _ in sents if s <= a] or [0])
+            b = min([e for _, e in sents if e >= b] or [len(text)])
+            words = text[a:b].strip()
+        out[n] = words or None
+    return out
+
+
+def _no_words_refusal(n: int) -> str:
+    """The one refusal of a ruling on line `n` that no words of his name
+    (frame 345, pass 2c). It names the two rulings that need no words."""
+    return (f"line {n}: no words of his name line {n}. Rule the lines his "
+            f"words name, and approve or leave out line {n}")
 
 
 def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
@@ -14064,10 +14253,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     ruling lands and an unnamed line would close unruled. One ruling per
     session: a second is a second reading of the same words.
 
-    A value of `rulings` is a verdict word, or an object with `verdict` and,
-    optionally, `act`, `target` and `words`. `acts` maps the same keys to
-    `act`, `target` and `words` beside a map of words. Both forms write the
-    same `ruled_refs` rows (the seam design, 2.1, and its doubt 1).
+    A value of `rulings` is one word of `WORD_ACTS` or `RULING_WORDS`, or an
+    object with `verdict` and, optionally, `act`, `target` and `words`. Code
+    turns a word into the object and copies his words from `line_words`
+    (frame 345, pass 2). A page refuses the flat `acts` map. A clarify's
+    answer keeps it, and both forms write the same `ruled_refs` rows.
     """
     from ..core.runner import new_id
     from .principal import render_page
@@ -14143,6 +14333,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
+    elif acts is not None:
+        # On a page, the one-word form carries the act, and code copies his
+        # words for it. The flat map was a second way to write the same act
+        # (frame 345, pass 2, the seam read's option (d)). A clarify numbers
+        # no line, so its answer keeps the flat map of `answering.md`.
+        raise ValueError(
+            "rulings.rule takes no acts: give each line one word in rulings, "
+            "such as {\"5\": \"drop\"}.")
     his = _his_reply(ctx)
     # A call with no `words` rests on his reply, whole, from the record. The
     # landing brief's own examples carry `words` inside a line's object, and
@@ -14246,9 +14444,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     per_item: dict[str, str] = {}
     key_of: dict[str, str] = {}
     # The act, the target and the span of each ref, from the object form or
-    # from `acts`. `per_item` keeps the verdict word, so every door below
+    # from one word. `per_item` keeps the verdict word, so every door below
     # reads the same map as before (the seam design, 1.4).
     shape_of: dict[str, dict] = {}
+    # Each page line with the words of his that name it. The landing block
+    # showed the seat the same match (frame 345, pass 2).
+    his_lines = (line_words(his, len(order)) if order and not shift
+                 and not is_clarify else {})
     stray = _stray_act_fields(ctx, rulings, words,
                               [] if is_clarify else order, shift)
     if stray:
@@ -14262,6 +14464,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if isinstance(ruling, dict):
             shape = _ruling_shape(key, ruling)
             ruling = shape.pop("verdict")
+        # One word per line: an act word is a verdict and an act, by the table
+        # of `WORD_ACTS`. The table reads the seat's word, never his words.
+        # The long form keeps the parts that the seat gave, and code fills
+        # only the parts of a word.
+        line_n = (int(key) if his_lines and key.isdigit()
+                  and 1 <= int(key) <= len(order) else None)
+        if (line_n and shape is None
+                and _word_key(ruling, WORD_ACTS) in WORD_ACTS):
+            ruling, act = WORD_ACTS[_word_key(ruling, WORD_ACTS)]
+            shape = {"act": act}
+        else:
+            line_n = None
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
@@ -14306,6 +14520,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key
+            # A line that no clause names rests on his whole reply. The one
+            # word has no place for words, so code fills them. The span
+            # check asked for words, the seat repeated its word, and the run
+            # ended (frame 345, pass 2b, finding 2).
+            if shape and line_n:
+                shape = _word_shape(ctx.conn, ref, shape,
+                                    his_lines.get(line_n) or (his or "").strip(),
+                                    order, page_text)
             if shape:
                 shape_of[ref] = shape
         elif is_clarify:
@@ -14326,39 +14548,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"{key_of[ref]} is a row of his earlier answer, and this page "
                 f"does not number it. Rule it only when his words contest the "
                 f"read-back line {order.index(line) + 1}, and contest that line")
-    # The read-back line is his alone. An approve of it rests on his words:
-    # they name the line, or they approve the whole page and name no line.
-    # The Liaison approved it on words that skipped it (the review of pass
-    # 5, finding 2).
-    # The guard reads his message, never the `words` argument: one
-    # paraphrase confirmed a reading that his reply skipped (the review of
-    # pass 5b, finding 5).
-    his_reading = _line_reading(his, len(order or []))
-    named = set(his_reading.named)
-    his_matched = his_reading.matched
-    for i, r in enumerate(order or []):
-        if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
-            continue
-        whole = not named and all(v == "approve" for v in per_item.values())
-        if i + 1 not in his_matched and not whole:
-            raise ValueError(
-                f"line {i + 1} is his read-back line, and only his words "
-                f"confirm it. His reply does not say that line {i + 1} is right, "
-                f"and it does not approve the whole page. Leave line {i + 1} "
-                f"out of the ruling")
     # The flat form of the act, the fallback of the seam design's doubt 1.
     # It names the keys of `rulings`, so it writes the rows the object form
-    # writes.
+    # writes. Only a clarify's answer reaches here (frame 345, pass 2).
     if acts is not None:
         if not isinstance(acts, dict):
             raise ValueError(
                 "acts is a map of the keys of rulings to an act, for example "
                 "{\"2\": {\"act\": \"remove\", \"target\": \"app.py:518\", "
                 "\"words\": \"remove the line at 518\"}}")
-        if shift:
-            kept = _shift_acts_conflict(ctx, his, rulings, acts, words)
-            if kept:
-                raise ValueError(kept)
         for key, given in acts.items():
             key = str(key).strip()
             ref = _ref_of_key(order, key_of, key)
@@ -14615,26 +14813,34 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
-    # A revise rewrites a line, so it rests on his fault of that line. On
-    # m35, s120 revised c_3, line 4, and his words fault no part of it (the
-    # seam review of pass 1, finding 7). A reply that numbers no line can
-    # still ask a rewrite by a quote, so the check reads numbered replies.
-    # A change request backs a revise too, read by the parser's change verbs:
-    # "Replace Roaming in line 4 with Local." faults no line (the seam
-    # review, p2-1). The refusal offers no approve, so it cannot turn his
-    # change request into a kept line.
-    if order and words_reading.refs:
-        for ref, ruling in per_item.items():
-            lines = _lines_of(order, ref)
-            n = lines[0] if lines else None
-            if (ruling == "revise" and n
-                    and not any(k in read_faulted
-                                or words_reading.note_act(k, page_text)
-                                == "change" for k in lines)):
-                raise ValueError(
-                    f"line {n}: a revise rewrites the line, and his words "
-                    f"neither fault line {n} nor ask to change it. Rule line "
-                    f"{n} as his words say")
+    # A ruling on a line rests on the match: the words of his that name the
+    # line (frame 345, pass 2c). The doors read the match, never a cue, so
+    # no door reads meaning (ruled: Roman, 2026-10-28, "doors used for
+    # meaning are a symptom of poor prompting/context"). The read-back line
+    # is his alone, so any verdict on it needs his words. On another line,
+    # only a change needs them. The refusal fires once per line, because a
+    # refusal that the seat cannot act on is a loop.
+    match = his_lines or (line_words(his, len(order)) if order and not
+                          is_clarify else {})
+    for ref, ruling in per_item.items():
+        lines = _lines_of(order, ref)
+        if not lines or ruling == "absent":
+            continue
+        n = lines[0]
+        readback = str(ref).startswith(READING_REF)
+        if not readback and ruling not in ("contest", "revise"):
+            continue
+        # The match gives a line no words only when his reply names another
+        # line and does not approve the whole page (`line_words`).
+        if any(match.get(k) for k in lines) or not any(match.values()):
+            continue
+        refusal = _no_words_refusal(n)
+        if not any(fn == "rulings.rule" and why == refusal
+                   for fn, why, *_ in (getattr(ctx, "refusals", None) or [])):
+            raise ValueError(refusal)
+    # The check above replaces two cue reads of his reply: the fault or
+    # change verb of a revise and the confirm of a read-back line. They
+    # refused 53 and 32 rulings in the 24 cases of 1eb5c557.
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue

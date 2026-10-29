@@ -80,18 +80,26 @@ def _rows(ctx):
     return {w[2]["ref"]: w[2] for w in ctx.writes if w[0] == "ruled_refs"}
 
 
-def test_s271s_acts_call_lands_on_his_reply(night):
-    """s271 call 1 on m127 with m129: the words sit in `acts` only."""
+def _folded(rulings: dict, acts: dict) -> dict:
+    """The object form of a night's call that kept its act in the flat
+    `acts` map. Frame 345's pass 2 refuses that map, and the object form
+    writes the same rows (the seam design, 2.1)."""
+    return {**rulings, **{k: {"verdict": rulings[k], **v}
+                          for k, v in acts.items()}}
+
+
+def test_s271s_call_lands_on_his_reply(night):
+    """s271 call 1 on m127 with m129: the words sit in the act only."""
     ctx = night("m129", LATE[2:])
-    api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": "contest"},
-                     acts={"11": {"verdict": "contest", "act": "remove",
-                                  "target_kind": "row", "words": S271_SPAN}})
+    api.rulings_rule(ctx, rulings=_folded(
+        {**R8, "9": A, "10": A, "11": "contest"},
+        {"11": {"act": "remove", "target_kind": "row", "words": S271_SPAN}}))
     row = _rows(ctx)["reading:m121"]
     assert (row["line"], row["verdict"], row["act"]) == (11, "contest", "remove")
     assert row["words"] == S271_SPAN
 
 
-def test_s275s_acts_call_lands_on_his_reply(night):
+def test_s275s_call_lands_on_his_reply(night):
     """s275 call 1 on m130 with m132: drops and a rewrite, no `words`."""
     ctx = night("m132", ["m132"])
     acts = {**{str(i): {"act": "drop", "target_kind": "row", "target": str(i),
@@ -100,7 +108,7 @@ def test_s275s_acts_call_lands_on_his_reply(night):
                    "words": "Correct line 18 to say that my answer asked to put "
                             "the removed code back and did not call line 4 "
                             "wrong"}}
-    api.rulings_rule(ctx, rulings={**R18, "18": "revise"}, acts=acts)
+    api.rulings_rule(ctx, rulings=_folded({**R18, "18": "revise"}, acts))
     rows = _rows(ctx)
     assert rows["reading:m121"]["act"] == "rewrite"
     assert rows["challenge_constraints_sentinel"]["act"] == "drop"
@@ -173,13 +181,13 @@ def test_the_probe_sentence_alone_is_refused(night):
 
 
 def test_s271s_call_with_its_nested_words_as_words_lands(night):
-    """s271's span sat in `acts` only. It is m129's first sentence, so the
+    """s271's span sat in the act only. It is m129's first sentence, so the
     same call with that span as `words` is a part of his reply and lands."""
     ctx = night("m129", LATE[2:])
-    api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": "contest"},
-                     words=S271_SPAN,
-                     acts={"11": {"verdict": "contest", "act": "remove",
-                                  "target_kind": "row", "words": S271_SPAN}})
+    api.rulings_rule(ctx, rulings=_folded(
+        {**R8, "9": A, "10": A, "11": "contest"},
+        {"11": {"act": "remove", "target_kind": "row", "words": S271_SPAN}}),
+        words=S271_SPAN)
     row = _rows(ctx)["reading:m121"]
     assert (row["line"], row["verdict"], row["act"]) == (11, "contest", "remove")
     assert row["words"] == S271_SPAN
@@ -197,16 +205,6 @@ def test_a_line_objects_words_outside_his_reply_are_refused(night):
         "line 11 words must be his own words, and his reply does not hold "
         "'Line 4 is wrong too.'")
     assert not [w for w in ctx.writes if w[0] == "rulings"]
-
-
-def test_an_acts_entrys_words_outside_his_reply_are_refused(night):
-    ctx = night("m129", LATE[2:])
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": "contest"},
-                         acts={"11": {"words": "Line 4 is wrong too."}})
-    assert str(e.value).startswith(
-        "acts['11'] words must be his own words, and his reply does not hold "
-        "'Line 4 is wrong too.'")
 
 
 def test_a_line_objects_words_from_his_reply_land_on_the_row(night):
@@ -270,8 +268,8 @@ def test_s258s_call_with_line_4_approved_lands(night):
 def test_s274s_reversal_on_line_4_stays_refused(night):
     ctx = night("m131", LATE[3:])
     with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R18, "4": "contest", "18": "contest"},
-                         words=W131, acts=S274_ACTS)
+        api.rulings_rule(ctx, rulings=_folded(
+            {**R18, "4": "contest", "18": "contest"}, S274_ACTS), words=W131)
     assert str(e.value) == REVERSAL
 
 
@@ -280,8 +278,8 @@ def test_s274s_call_with_no_words_meets_the_reversal(night):
     that line 4 is fine."""
     ctx = night("m131", LATE[3:])
     with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R18, "4": "contest", "18": "contest"},
-                         acts=S274_ACTS)
+        api.rulings_rule(ctx, rulings=_folded(
+            {**R18, "4": "contest", "18": "contest"}, S274_ACTS))
     assert str(e.value) == REVERSAL
 
 

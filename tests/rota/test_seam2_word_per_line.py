@@ -1,0 +1,287 @@
+"""Frame 345, pass 2: the seat gets the match and gives one word per line.
+
+The seam read of 2026-10-29 (`plans/seam-general-solution-2026-10-29.md`,
+option (d)) found that the seat left the act out on 241 line rulings and
+looped on the span door. Code now binds each page line to the words of his
+that name it, and the landing block shows that match beside each line. The
+seat gives each line one word. `WORD_ACTS` turns the word into the verdict
+and the act, and code copies the matched words into the act. The match says
+which words name a line, never what they rule.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+from rota.core.runner import resolve_inbound
+from rota.core.scheduler import Wake
+from rota.roles import api
+
+from .test_ruled_refs import _commit, _page, _seat, db  # noqa: F401
+
+
+def _verbatim(his: str, got: dict) -> None:
+    """Every matched run is a run of whole clauses of his reply."""
+    for words in got.values():
+        if words is not None:
+            assert words in his
+            assert api._holds_clauses(his, words)
+
+
+def test_a_tail_clause_in_the_same_sentence_takes_the_sentences_lines():
+    """Pass 2c, the review's narrower fix of finding 3: a clause with no
+    number takes the lines of the clause before it in the same sentence."""
+    his = "Line 3 is wrong, so drop it. The rest is fine."
+    got = api.line_words(his, 4)
+    assert got[3] == "Line 3 is wrong, so drop it."
+    assert got[1] == got[2] == got[4] == "The rest is fine."
+    _verbatim(his, got)
+
+
+def test_a_range_names_each_line_it_holds():
+    his = "Lines 2 to 4 are fine. Drop line 5."
+    got = api.line_words(his, 5)
+    assert got[2] == got[3] == got[4] == "Lines 2 to 4 are fine."
+    assert got[5] == "Drop line 5."
+    assert got[1] is None
+    _verbatim(his, got)
+
+
+def test_an_ordinal_names_its_line():
+    his = "The second line is wrong, please drop it."
+    got = api.line_words(his, 3)
+    assert got[2] == his
+    assert got[1] is None and got[3] is None
+
+
+def test_the_other_lines_name_every_line_no_clause_names():
+    his = "Removing lines 7 and 8 is right, and the other lines are approved."
+    got = api.line_words(his, 9)
+    assert got[7] == got[8] == "Removing lines 7 and 8 is right"
+    assert got[1] == got[9] == "the other lines are approved."
+    _verbatim(his, got)
+
+
+def test_a_clause_can_name_a_line_and_the_rest():
+    """Night 170's m7 names line 1 and the rest in one clause."""
+    his = ("Lines 3 to 4 are wrong, so please drop them. Line 1 and the rest "
+           "of the word notes are fine with me.")
+    got = api.line_words(his, 5)
+    assert got[1] == got[2] == got[5] == (
+        "Line 1 and the rest of the word notes are fine with me.")
+    assert got[3] == "Lines 3 to 4 are wrong, so please drop them."
+
+
+def test_every_line_names_them_all():
+    his = "Ok, every line matches what I asked for."
+    assert set(api.line_words(his, 3).values()) == {his}
+
+
+def test_a_reply_that_approves_the_page_names_each_line_with_the_whole_reply():
+    assert api.line_words("Ok, I approve.", 2) == {1: "Ok, I approve.",
+                                                   2: "Ok, I approve."}
+    assert api.line_words("yes", 1) == {1: "yes"}
+
+
+def test_a_reply_that_names_no_line_names_each_line_with_the_whole_reply():
+    his = "Drop both of those examples, because I asked for only one."
+    assert api.line_words(his, 2) == {1: his, 2: his}
+
+
+def test_a_line_that_no_words_name_gets_none():
+    got = api.line_words("Line 2 is wrong.", 3)
+    assert got == {1: None, 2: "Line 2 is wrong.", 3: None}
+
+
+def test_his_report_of_an_earlier_answer_names_no_line_of_this_page():
+    his = "Line 2 is wrong, because I approved lines 1 and 4, not one."
+    got = api.line_words(his, 4)
+    assert got[1] is None and got[4] is None
+    assert got[2] == his
+
+
+def test_the_cue_clauses_keep_their_cuts():
+    """`_cue_clauses` now reads the spans of `_clause_spans`. Its clauses
+    are the same strings as before."""
+    words = "Line 3 is wrong: drop it, but keep line 4. Fine, so go ahead."
+    assert [c for c, _, _ in api._cue_clauses(words)] == [
+        "Line 3 is wrong", "drop it", "keep line 4.", "Fine", "go ahead."]
+
+
+def test_the_word_table_gives_a_verdict_and_an_act():
+    assert api.WORD_ACTS["drop"] == ("contest", "drop")
+    assert api.WORD_ACTS["remove"] == ("contest", "remove")
+    assert api.WORD_ACTS["rewrite"] == ("contest", "rewrite")
+    assert api.WORD_ACTS["exclude"] == ("contest", "exclude")
+    assert api.WORD_ACTS["keep"] == ("revise", "keep")
+    assert api.WORD_ACTS["add"] == ("approve", "add")
+
+
+def test_the_word_shape_fills_words_and_the_target_kind(db):  # noqa: F811
+    page = "1. The change touches:\n   src/click/utils.py\n   tests/test_utils.py\n"
+    for act, kind in (("drop", "row"), ("rewrite", "row"), ("keep", "check"),
+                      ("remove", "row"), ("add", None)):
+        shape = api._word_shape(db, "c_1", {"act": act}, "Line 1 is wrong",
+                                ["c_1"], page)
+        assert shape.get("target_kind") == kind
+        assert shape["words"] == "Line 1 is wrong"
+    shape = api._word_shape(db, "c_1", {"act": "exclude"},
+                            "drop the utils file from line 1", ["c_1"], page)
+    assert shape == {"act": "exclude", "target_kind": "path",
+                     "words": "drop the utils file from line 1",
+                     "target": "src/click/utils.py"}
+    # A remove on a code line takes a source line.
+    shape = api._word_shape(db, "guess:calc", {"act": "remove"}, "x",
+                            ["guess:calc"], page)
+    assert shape["target_kind"] == "source_line"
+
+
+DROP = "Drop line 3, because nobody types the percentage. The rest is fine."
+
+
+def test_one_word_lands_the_act_with_his_words(db):  # noqa: F811
+    """`"3": "drop"` lands a contest with the act drop on the row, and its
+    words are his clause that names line 3."""
+    ask = _page(db)
+    sb, reply = _seat(db, ask, words=DROP)
+    sb.call("rulings.rule", rulings={"1": "approve", "2": "approve", "3": "drop"})
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    row = rows["l_1"]
+    assert (row["verdict"], row["act"], row["target_kind"]) == (
+        "contest", "drop", "row")
+    assert row["words"] == "Drop line 3, because nobody types the percentage."
+
+
+def test_the_landing_block_shows_his_words_beside_each_line(db):  # noqa: F811
+    ask = _page(db)
+    _sb, reply = _seat(db, ask, words=DROP)
+    wake = Wake(role="liaison", kind="message", message_id=reply,
+                detail="converse")
+    landing = resolve_inbound(db, wake)["landing"]
+    assert landing["his_words"] == {
+        "1": "The rest is fine.", "2": "The rest is fine.",
+        "3": "Drop line 3, because nobody types the percentage."}
+
+
+def test_the_flat_acts_map_is_refused_with_the_one_word_form(db):  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=DROP)
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                         "3": "contest"},
+                acts={"3": {"act": "drop", "words": "Drop line 3"}})
+    assert str(e.value).endswith(
+        "rulings.rule takes no acts: give each line one word in rulings, "
+        "such as {\"5\": \"drop\"}.")
+    assert not sb.ctx.writes
+
+
+# Pass 2b: the review p3 of 27291602 (`plans/f345-review-p3.md`).
+CASES = Path(__file__).parent / "cases" / "l3_rulings.yaml"
+
+
+def _reply(case_id: str) -> tuple[str, int]:
+    """His reply of one L3 case, verbatim, and the page's line count."""
+    for case in yaml.safe_load(CASES.read_text(encoding="utf-8")):
+        if case["id"] == case_id:
+            return (case["inbound"]["body_text"],
+                    len(case["inbound"]["body_refs"]))
+    raise KeyError(case_id)
+
+
+def test_a_number_inside_a_reason_names_no_line():
+    """Finding 1: "about lines 1 to 5" sits in his reason, so line 1 does
+    not take "drop it"."""
+    his, size = _reply("L3R-n172-m80-m81")
+    got = api.line_words(his, size)
+    assert "drop it" not in (got[1] or "")
+    assert got[2].startswith("The second line is wrong")
+    _verbatim(his, got)
+
+
+def test_a_number_inside_a_quote_names_no_line():
+    """Finding 1: the quote "also remove lines 17, 18" names no line, so
+    lines 17 and 18 do not take the line 68 complaint."""
+    his, size = _reply("L3R-n174-m47-m48")
+    got = api.line_words(his, size)
+    for n in (17, 18):
+        assert "Line 68" not in (got[n] or "")
+        assert got[n].startswith("Lines 8 to 67")
+    assert got[68].startswith("Line 68 misreads me")
+    _verbatim(his, got)
+
+
+def test_a_number_deep_in_a_clause_names_no_line():
+    """Finding 1: "added to line 3" is no subject, so line 3 keeps its own
+    clause and takes neither "Change line 7" nor "Change line 9"."""
+    his, size = _reply("L3R-n174-m53-m55")
+    got = api.line_words(his, size)
+    assert "Change line 7" not in got[3]
+    assert "Change line 9" not in got[3]
+    assert got[3] == "Keep lines 2 to 6 and line 8 as they are."
+    assert got[8] == got[3]
+    assert got[7].startswith("Change line 7")
+    assert got[9].startswith("Change line 9")
+    _verbatim(his, got)
+
+
+def test_a_place_in_code_names_no_line():
+    """Finding 1: a number after "at", "in", "see", a path or a code name
+    with a colon names no page line."""
+    for his in ("You can remove the line at 518 in get_app_dir.",
+                "See line 3 of the old page, it is fine.",
+                "The bug sits in line 4 of src/click/termui.py.",
+                "Look at get_app_dir:518 again."):
+        got = api.line_words(his, 9)
+        assert set(got.values()) == {his}, his
+
+
+def test_a_clause_with_no_number_takes_no_line_before_it():
+    """Finding 3: in n170-m58-m59, "keep what clear() prints" lands on no
+    line by the match alone."""
+    his, size = _reply("L3R-n170-m58-m59")
+    got = api.line_words(his, size)
+    assert not any("keep what clear() prints" in (w or "")
+                   for w in got.values())
+    _verbatim(his, got)
+
+
+@pytest.mark.parametrize("case_id, line, tail", [
+    ("L3R-n175-m44-m45", 2,
+     "the change touches only clear in src/click/termui.py and its tests"),
+    ("L3R-n170-m74-m75", 3,
+     "so please remove the five formatting tests from what you expect"),
+])
+def test_a_tail_clause_gives_the_exclude_its_path_words(case_id, line, tail):
+    """Pass 2c: pass 2b cut the tail clause, and the exclude lost the words
+    that name its path. The tail stands in the same sentence as the line."""
+    his, size = _reply(case_id)
+    got = api.line_words(his, size)
+    assert tail in got[line]
+    _verbatim(his, got)
+
+
+def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
+    """Finding 2: a one-word drop on a line that shows "no words" lands
+    with his whole reply as its words. The span check refused it before,
+    and the one word has no place for words. "on line 3" is no subject of
+    its clause, so the match names no words for line 3. Pass 2c refuses the
+    drop once with the sentence of the match, and the repeat lands."""
+    his = "Line 1 is right. Nobody needs the note on line 3, so drop it."
+    ask = _page(db)
+    sb, reply = _seat(db, ask, words=his)
+    assert api.line_words(his, 3)[3] is None
+    call = {"1": "approve", "2": "approve", "3": "drop"}
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings=dict(call))
+    assert str(e.value) == (
+        "line 3: no words of his name line 3. Rule the lines his words name, "
+        "and approve or leave out line 3")
+    sb.call("rulings.rule", rulings=dict(call))
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    row = rows["l_1"]
+    assert (row["verdict"], row["act"], row["target_kind"]) == (
+        "contest", "drop", "row")
+    assert row["words"] == his

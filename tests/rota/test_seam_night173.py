@@ -115,6 +115,14 @@ def _rows(ctx):
     return {w[2]["ref"]: w[2] for w in ctx.writes if w[0] == "ruled_refs"}
 
 
+def _folded(rulings: dict, acts: dict) -> dict:
+    """The object form of a night's call that kept its act in the flat
+    `acts` map. Frame 345's pass 2 refuses that map, and the object form
+    writes the same rows (the seam design, 2.1)."""
+    return {**rulings, **{k: {"verdict": rulings[k], **v}
+                          for k, v in acts.items()}}
+
+
 def _no_removal(line, span, target):
     return (f"line {line}: his words {span!r} ask no removal of {target}, so "
             f"leave the act out or copy his words that ask for it")
@@ -193,11 +201,10 @@ def test_s192s_call_on_m75_is_refused_on_line_3s_act(night):
     target = ("tests/test_formatting.py::"
               "test_formatting_with_options_metavar_empty")
     with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": "contest"},
-                         words=W75,
-                         acts={"3": {"verdict": "contest", "act": "remove",
-                                     "target_kind": "source_line",
-                                     "target": target, "words": span}})
+        api.rulings_rule(ctx, rulings=_folded(
+            {"1": A, "2": A, "3": "contest"},
+            {"3": {"act": "remove", "target_kind": "source_line",
+                   "target": target, "words": span}}), words=W75)
     assert str(e.value) == _no_removal(3, span, target)
 
 
@@ -207,12 +214,11 @@ def test_s222s_call_on_m97_is_refused_on_line_2s_act(night):
     ctx = night(170, "m97")
     span = "please drop all three formatting tests"
     with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={
+        api.rulings_rule(ctx, rulings=_folded({
             "1": A, "2": "contest", "3": "contest", "4": A, "5": "contest",
-            "6": A, "7": A, "9": "contest"}, words=W97,
-            acts={"2": {"verdict": "contest", "act": "drop",
-                        "target_kind": "path", "target": FORMATTING,
-                        "words": span}})
+            "6": A, "7": A, "9": "contest"},
+            {"2": {"act": "drop", "target_kind": "path", "target": FORMATTING,
+                   "words": span}}), words=W97)
     assert str(e.value) == _no_removal(2, span, FORMATTING)
 
 
@@ -251,19 +257,6 @@ def test_s120s_call_on_m35_lands_with_c_3_approved(night):
     rows = _rows(ctx)
     assert rows["c_3"]["verdict"] == "approve"
     assert all(r["verdict"] != "revise" for r in rows.values())
-
-
-def test_s120s_call_3_revise_of_c_3_is_refused(night):
-    """s120 call 3 revised c_3, line 4, and his words fault no part of it
-    (the seam review of pass 1, finding 7)."""
-    ctx = night(173, "m35")
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
-                                       "4": "revise", "5": A, "6": A,
-                                       "7": "contest", "8": "drop"}, words=W35)
-    assert str(e.value) == (
-        "line 4: a revise rewrites the line, and his words neither fault line "
-        "4 nor ask to change it. Rule line 4 as his words say")
 
 
 def test_a_change_request_backs_the_revise(night, monkeypatch):
@@ -449,24 +442,6 @@ def test_an_exclude_on_a_path_the_line_does_not_show_is_refused(night, path):
     assert str(e.value).startswith("line 5: an exclude takes a path off")
 
 
-def test_a_negated_change_verb_backs_no_revise(night, monkeypatch):
-    """"Do not change line 4." asks to keep line 4 (p3-5)."""
-    from rota.roles import principal
-
-    said = W35.replace(
-        "because I approved two lines, lines 1 and 4, not one.",
-        "because it misses a line. Do not change line 4.")
-    orig = principal.said
-    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
-        said if mid == "m35" else orig(conn, mid, *a, **k)))
-    ctx = night(173, "m35")
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
-                                       "4": "revise", "5": A, "6": A,
-                                       "7": "contest", "8": "drop"}, words=said)
-    assert str(e.value).startswith("line 4: a revise rewrites the line")
-
-
 # Seam pass 3d: night 174's walk 2, two fact checks of `rulings_rule`.
 
 def _recorded_call(n, sid, k):
@@ -487,11 +462,14 @@ def _recorded_call(n, sid, k):
     return trigger, calls[k - 1]
 
 
-def test_a_ref_on_two_lines_takes_either_key_in_acts(night):
+def test_a_ref_on_two_lines_takes_its_act_on_either_line(night):
     """m47 shows `parameter` on lines 8 and 47. s168 call 3 keys its act
-    "8", and the door refused it as a key rulings did not hold."""
+    "8", and the door refused it as a key rulings did not hold. The call's
+    flat `acts` map is folded into the object form (frame 345, pass 2)."""
     trigger, args = _recorded_call(174, "s168", 3)
     ctx = night(174, trigger)
+    acts = args.pop("acts")
+    args["rulings"] = _folded(args["rulings"], acts)
     with pytest.raises(ValueError) as e:
         api.rulings_rule(ctx, **args)
     assert "acts has the key" not in str(e.value)
@@ -545,12 +523,11 @@ def test_a_say_clause_follows_a_line_reference(night, monkeypatch, middle,
     monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
         said if mid == "m35" else orig(conn, mid, *a, **k)))
     ctx = night(173, "m35")
-    call = dict(rulings={"1": A, "2": "contest", "3": "contest",
-                         "4": "revise", "5": A, "6": A, "7": "contest",
-                         "8": "drop"}, words=said,
-                acts={"4": {"verdict": "revise", "act": "rewrite",
-                            "target_kind": "row",
-                            "words": "the local variable matters"}})
+    call = dict(rulings=_folded(
+        {"1": A, "2": "contest", "3": "contest", "4": "revise", "5": A,
+         "6": A, "7": "contest", "8": "drop"},
+        {"4": {"act": "rewrite", "target_kind": "row",
+               "words": "the local variable matters"}}), words=said)
     if lands:
         api.rulings_rule(ctx, **call)
         assert _rows(ctx)["c_3"]["act"] == "rewrite"
@@ -591,3 +568,57 @@ def test_the_span_refusal_names_the_nearest_clause():
     assert api._clause_start_near(
         "Line 7 should say the change is certain, not only that it might.",
         "the change is") == "the change is certain"
+
+
+# Frame 345, pass 2c: the revise door and the read-back door read the match,
+# the words of his that name each line, never a cue of his reply.
+
+M55_RULINGS = {"1": A, "2": A, "3": A, "4": A, "5": A, "6": A, "7": "revise",
+               "8": A, "9": "revise"}
+
+
+def test_a_revise_on_lines_his_words_name_passes(night):
+    """n174-m53-m55: "Change line 7" and "Change line 9" name lines 7 and 9,
+    so a revise of each passes the door."""
+    ctx = night(174, "m55", merged=False)
+    api.rulings_rule(ctx, rulings=dict(M55_RULINGS))
+    rows = _rows(ctx)
+    assert sorted(r["line"] for r in rows.values()
+                  if r["verdict"] == "revise") == [7, 9]
+
+
+def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
+    """No words of m55 name line 1, and his words name other lines. A revise
+    of line 1 is refused once, and the same call then lands."""
+    ctx = night(174, "m55", merged=False)
+    assert api.line_words(principal_said(ctx), 9)[1] is None
+    ctx.refusals = []
+    call = {**M55_RULINGS, "1": "revise"}
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings=dict(call))
+    assert str(e.value) == (
+        "line 1: no words of his name line 1. Rule the lines his words name, "
+        "and approve or leave out line 1")
+    ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))
+    api.rulings_rule(ctx, rulings=dict(call))
+    assert any(r["line"] == 1 and r["verdict"] == "revise"
+               for r in _rows(ctx).values())
+
+
+def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
+    """n173-m90-m91: "The other lines are fine" names line 23, the read-back
+    line. The door refused its approve 21 times at 1eb5c557."""
+    ctx = night(173, "m91")
+    words = api.line_words(principal_said(ctx), 24)
+    assert words[23] == "The other lines are fine, and the code stays the same."
+    rulings = {str(n): A for n in range(1, 24)}
+    rulings.update({str(n): "drop" for n in range(11, 23)})
+    rulings["24"] = "contest"
+    api.rulings_rule(ctx, rulings=rulings)
+    assert any(r["line"] == 23 and r["verdict"] == "approve"
+               for r in _rows(ctx).values())
+
+
+def principal_said(ctx):
+    from rota.roles.principal import said
+    return said(ctx.conn, ctx.trigger)

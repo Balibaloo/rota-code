@@ -207,15 +207,13 @@ def test_stray_fields_with_no_shift_word_in_his_reply_get_three_calls(db):
         {"1": "later"}, {"1": "now"}, {"1": "drop"}]
 
 
-def test_a_later_with_his_words_in_acts_gets_the_call_with_his_reply(tmp_path):
+def test_a_later_with_no_words_lands_on_his_reply(tmp_path):
     """The land gate of 2bbace14, runs 1, 2 and 4: the seat sent later with
     his words in acts and no words, and the bare words door moved it off
     later. Since F2 pass 2 the door reads his reply, whole, when the call
-    passes no words, so the first call lands as park with no offer."""
-    first = ('TOOL: rulings.rule(rulings={"1": "later"}, acts={"1": '
-             '{"verdict": "later", "target_kind": "request", "words": '
-             '"They\'re independent. The confirm change is a separate request '
-             'I\'ll take up on its own, so leave it out of this one."}})')
+    passes no words, so the first call lands as park with no offer. Frame
+    345's pass 2 refuses the flat `acts` map, so the call is one word."""
+    first = 'TOOL: rulings.rule(rulings={"1": "later"})'
     calls = []
 
     def pick(found):
@@ -277,11 +275,11 @@ NIGHT171 = ("Later for line 1: put the screen-clearing change aside until the "
             "it, so please do not drop it.")
 
 
-def test_a_keep_in_acts_on_the_shift_page_is_named_and_left_out(tmp_path):
+def test_acts_on_the_shift_page_is_refused_with_the_one_word_form(tmp_path):
     """Night 171's s200, after m88: the call kept approve and keep in
-    `acts`, and the door named only the shift rule. The refusal names the
-    entry and his word, and the offer leaves the entry out (ruled: the
-    coordinator, 2026-10-27, pass 1c)."""
+    `acts`. Frame 345's pass 2 removed the flat `acts` map, so the door now
+    refuses it with one sentence that names the one-word form, and it
+    offers no call (law 6). The shift door of pass 1c went with the map."""
     case = _case("L1-LI-a-separate-request-is-later")
     case["inbound"]["body_text"] = NIGHT171
     # The case's own expectations read its own words, not his.
@@ -294,47 +292,13 @@ def test_a_keep_in_acts_on_the_shift_page_is_named_and_left_out(tmp_path):
 
     def pick(found):
         calls.extend(found)
-        return found[0]
-
-    seat = _Follower(first, pick)
-    r = _run(case, seat, tmp_path)
-    error = _last_error(seat.users[1])
-    assert "acts['1'] gives approve or keep, and his words say 'Later'" in error, error
-    assert calls == ['rulings.rule(rulings={"1": "later"}, words='
-                     + json.dumps(NIGHT171) + ')'], calls
-    assert r.passed, r.problems
-    # The offered call lands, and the session ends with its ruling.
-    import sqlite3
-    conn = sqlite3.connect(tmp_path / "c.db")
-    rows = conn.execute("SELECT per_item FROM rulings").fetchall()
-    assert [r for r in rows if "park" in r[0]], rows
-
-
-@pytest.mark.parametrize("sent", ["now", "drop"])
-def test_a_seat_verdict_against_his_shift_word_gets_no_call(tmp_path, sent):
-    """Law 6: his reply says "Later for line 1", and the seat sent another
-    word. The refusal names both and offers no call, so no ruling comes from
-    the offer (the review p2 of F25, (b), probe p8)."""
-    case = _case("L1-LI-a-separate-request-is-later")
-    case["inbound"]["body_text"] = NIGHT171
-    case["expect"], case["forbidden"] = {}, {}
-    first = ('TOOL: rulings.rule(rulings={"1": "' + sent + '"}, acts={"1": '
-             '{"verdict": "approve", "act": "keep", "target_kind": "request"}})')
-    calls = []
-
-    def pick(found):
-        calls.extend(found)
         return found[0] if found else "Done."
 
     seat = _Follower(first, pick)
     _run(case, seat, tmp_path)
     error = _last_error(seat.users[1])
-    assert f"You sent '{sent}', and his words say 'Later'" in error, error
+    assert "rulings.rule takes no acts" in error, error
     assert calls == [], calls
-    import sqlite3
-    rows = sqlite3.connect(tmp_path / "c.db").execute(
-        "SELECT per_item FROM rulings").fetchall()
-    assert not [r for r in rows if sent in r[0]], rows
 
 
 def test_a_question_back_beside_stray_fields_keeps_its_own_call(db):

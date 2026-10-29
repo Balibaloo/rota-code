@@ -156,21 +156,23 @@ def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
                                          "words": WORDS, "text": None}
 
 
-def test_the_object_form_and_the_flat_form_write_the_same_rows(tmp_path):
-    written = []
-    for name, call in (("object", {"rulings": OBJECT}),
-                       ("flat", {"rulings": FLAT, "acts": ACTS})):
-        conn = init_db(tmp_path / f"{name}.db")
-        ask = _page(conn)
-        sb, _ = _seat(conn, ask)
-        sb.call("rulings.rule", words=WORDS, **call)
-        # The ruling id is new per database, and the row id hashes it.
-        written.append([{k: v for k, v in w[2].items()
-                         if k not in ("id", "ruling_id")}
-                        for w in sb.ctx.writes if w[0] == "ruled_refs"])
-        conn.close()
-    assert written[0] == written[1]
-    assert len(written[0]) == 3 and written[0][2]["act"] == "remove"
+def test_the_object_form_writes_the_rows_and_the_flat_form_is_refused(tmp_path):
+    """Frame 345, pass 2: the one-word form replaced the flat `acts` map,
+    and the object form stays."""
+    conn = init_db(tmp_path / "object.db")
+    ask = _page(conn)
+    sb, _ = _seat(conn, ask)
+    sb.call("rulings.rule", words=WORDS, rulings=OBJECT)
+    written = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"]
+    conn.close()
+    assert len(written) == 3 and written[2]["act"] == "remove"
+    conn = init_db(tmp_path / "flat.db")
+    ask = _page(conn)
+    sb, _ = _seat(conn, ask)
+    with pytest.raises(ValueError, match="takes no acts"):
+        sb.call("rulings.rule", words=WORDS, rulings=FLAT, acts=ACTS)
+    assert not sb.ctx.writes
+    conn.close()
 
 
 def test_the_call_forms_keep_and_add_refusals(db):
@@ -183,10 +185,7 @@ def test_the_call_forms_keep_and_add_refusals(db):
     with pytest.raises(ValueError, match="has no verdict"):
         sb.call("rulings.rule", words=WORDS, rulings={
             "1": "approve", "2": "approve", "3": {"act": "remove"}})
-    with pytest.raises(ValueError, match="rulings has no such key"):
-        sb.call("rulings.rule", words=WORDS, rulings=FLAT,
-                acts={"4": {"act": "remove"}})
-    with pytest.raises(ValueError, match="in rulings and in acts"):
+    with pytest.raises(ValueError, match="takes no acts"):
         sb.call("rulings.rule", words=WORDS, rulings=OBJECT, acts=ACTS)
     # Today's refusals stand on the object form: a line needs a ruling.
     with pytest.raises(ValueError, match="have no ruling"):
