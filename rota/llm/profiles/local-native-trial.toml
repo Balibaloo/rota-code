@@ -25,6 +25,7 @@ max_tokens = 2048
 
 [models]
 default = "qwen3:8b"
+liaison = "gemma4:12b-it-qat"
 tester = "qwen3.5:9b"
 critic = "qwen3.5:9b"
 terminologist = "qwen3.5:9b"

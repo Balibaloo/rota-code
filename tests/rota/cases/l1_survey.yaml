@@ -193,6 +193,7 @@
 - id: L1-LI-say-what-the-run-could-not-see
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   # No hole to salt, so five runs replay one reply (frame 66).
   runs: 1
   pass: 1

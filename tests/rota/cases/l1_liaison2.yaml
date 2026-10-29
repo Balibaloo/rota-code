@@ -8,6 +8,7 @@
 - id: L1-LI-put-a-contradiction-back-unresolved
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: contradiction
@@ -40,6 +41,7 @@
 - id: L1-LI-ask-for-the-confirmation-nobody-asked-for
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: awaiting_confirm
@@ -63,6 +65,7 @@
 - id: L1-LI-relay-a-ruling-without-interpreting-it
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   prompt: verdict_signoff
@@ -92,6 +95,7 @@
 - id: L1-LI-two-questions-at-most-from-three-reports
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 3
   # This case used to say `tick: report`, which is not a predicate at all —
@@ -174,6 +178,7 @@
 - id: L1-LI-surface-a-quarantined-message
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: quarantined
@@ -209,6 +214,7 @@
 - id: L1-LI-present-what-onboarding-only-observed
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: observed_entries
@@ -251,6 +257,7 @@
 - id: L1-LI-a-question-about-the-program-goes-to-its-owners
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 3
   # The first hop of the read-only route, which had no case at all.
@@ -307,6 +314,7 @@
 - id: L1-LI-a-ruling-splits-by-owner
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 3
   # The ruling on a mixed present. `verdict_signoff` relayed everything to
@@ -341,6 +349,7 @@
 - id: L1-LI-relay-a-guess-correction
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Frame 298's design, 3.4: the principal contested the code line of his
@@ -370,6 +379,7 @@
 - id: L1-LI-present-the-touch
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: touch_note
@@ -413,6 +423,7 @@
 - id: L1-LI-ask-which-request-goes-first
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: request_shift
@@ -459,6 +470,7 @@
 - id: L1-LI-a-parked-batch-is-put-to-the-principal-once
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: park_ask
@@ -544,6 +556,7 @@
 - id: L1-LI-a-parked-batch-with-only-project-reds-is-a-note
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: park_ask
@@ -606,6 +619,7 @@
 - id: L1-LI-a-park-verdict-sends-its-contested-criterion-to-the-terminologist
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Frame 142: the principal approved the item and contested a criterion row
@@ -645,6 +659,7 @@
 - id: L1-LI-words-about-another-function-get-their-own-statement
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Night 138's s270: the principal asked about confirm() while the request
@@ -693,6 +708,7 @@
 - id: L1-LI-a-new-request-on-another-function-takes-no-supersedes
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Night 138's s353: the principal asked about version_option while the
@@ -741,6 +757,7 @@
 - id: L1-LI-a-contested-statement-is-not-delivered
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   # Night 138's s273: the principal contested the echo_json statement on its

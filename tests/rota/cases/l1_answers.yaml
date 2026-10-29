@@ -386,6 +386,7 @@
 - id: L1-LI-put-the-open-assumptions-to-a-present-principal
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   tick: agenda
@@ -419,6 +420,7 @@
 - id: L1-LI-relay-an-answer-without-improving-it
   tier: T1
   role: liaison
+  model: gemma4:12b-it-qat
   runs: 5
   pass: 4
   inbound: {from: terminologist, to: liaison, verb: answer, body_refs: [<g1>, <g2>]}
