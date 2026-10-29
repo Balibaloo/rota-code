@@ -31,7 +31,7 @@ The acts:
 - `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
 - `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
 - `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
-- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too.
+- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too. Words that widen a row itself, such as "the tests should also check the total", are `revise` on that row and not `add`.
 - `exclude` takes a file out of what the change is expected to touch, and it deletes no code. The `path` kind below shows it.
 The target kinds:
 - `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
