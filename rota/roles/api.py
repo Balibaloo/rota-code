@@ -13796,8 +13796,8 @@ _MENU_NAMED = ("exclude", "add", "other")
 def menu_form_text(clauses: int) -> str:
     """The refusal that names the menu form of a page call."""
     return ("rulings.rule takes one option from landing.menus per page line "
-            "number, one option per clause key of landing.clauses with no "
-            f"lines, c1 to c{clauses}, and rest for the lines that no clause "
+            "number or per clause key of landing.clauses, c1 to "
+            f"c{clauses}, and rest for the lines that no clause "
             "names: rulings={\"5\": \"drop\", \"c2\": \"none\", "
             "\"rest\": \"approve\"}")
 
@@ -13889,6 +13889,16 @@ def page_menus(conn, order: list, page_text: str
     return menus, per_line
 
 
+def _mentioned_lines(clause: str, size: int) -> set[int]:
+    """The page lines that `clause` mentions anywhere, read as
+    `_subject_parts` reads them, with no test of the subject place."""
+    found = {n for r in _line_reading(clause, size).refs for n in r.lines}
+    for m in _ORDINAL_LINE.finditer(clause):
+        word = m.group(1).lower()
+        found.add(size if word == "last" else _ORDINALS.index(word) + 1)
+    return {n for n in found if 1 <= n <= size}
+
+
 def _add_lines(menu: dict[int, tuple[str, list[str]]]) -> list[int]:
     """The page lines whose menu holds `add <quote>`."""
     return [n for n, (_kind, options) in sorted(menu.items())
@@ -13942,11 +13952,18 @@ def page_clauses(his: str, size: int,
     found.sort(key=lambda f: (f[0], -len(f[1])))
     out = [{"words": w, "lines": ns} for _, w, ns in found]
     if menu is not None:
-        options = (["none", "add <quote>"] if len(_add_lines(menu)) == 1
-                   else ["none"])
+        one_add = len(_add_lines(menu)) == 1
         for c in out:
-            if not c["lines"]:
-                c["options"] = list(options)
+            if c["lines"]:
+                continue
+            # His words about a line on the page cannot ask for something
+            # the page leaves out. Two of three false adds of pass R3 named
+            # a line inside the clause (pass R3b). `held` lands nothing,
+            # for a constraint that the page already holds.
+            blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"])
+            c["options"] = (["none", "held", "add <quote>"]
+                            if one_add and not _mentioned_lines(blank, size)
+                            else ["none"])
     return out
 
 
@@ -13981,11 +13998,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 refused: frozenset = frozenset()) -> tuple[dict, dict]:
     """The verdict and the row shape of each ref that a menu call rules.
 
-    A key is a page line, as "7", a clause with no lines, as "c2", or
-    "rest". A line key rules that line alone (frame 345, pass R1b: 30 of
-    101 refusals of R1 keyed the call by line). A clause key takes the
-    clause's `options`: `none` lands nothing, and `add <quote>` lands on the
-    one line whose menu holds add (pass R3). Each option is checked against
+    A key is a page line, as "7", a clause, as "c2", or "rest". A line key
+    rules that line alone (frame 345, pass R1b: 30 of 101 refusals of R1
+    keyed the call by line). A clause key rules each line its clause names,
+    and a line key on the same line wins (pass R3b). A clause with no lines
+    takes its `options`: `none` and `held` land nothing, and `add <quote>`
+    lands on the one line whose menu holds add (pass R3). Each option is checked against
     the menu of each line it rules, and a refusal shows that line's menu.
     The span is the words of the clause that names the line. The verdict,
     the act and the target kind come from the option, and the target of an
@@ -14026,18 +14044,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             raise ValueError(menu_form_text(len(clauses)))
         clause = re.fullmatch(r"c\s*(\d+)", low)
         if clause and 1 <= int(clause.group(1)) <= len(clauses):
-            k = int(clause.group(1))
-            named = clauses[k - 1]["lines"]
-            # A line key rules a line, so a clause that names lines takes
-            # its line keys (pass R3). The clause key is the place of a
-            # clause that names no line.
-            if named:
-                raise ValueError(
-                    f"clause c{k} names lines {', '.join(map(str, named))}, "
-                    f"so key those lines by number: "
-                    + ", ".join(f"\"{n}\"" for n in named)
-                    + ". A clause key keys a clause with no lines only")
-            by_clause[k] = value
+            by_clause[int(clause.group(1))] = value
         elif key.isdigit() and 1 <= int(key) <= len(order):
             by_line[int(key)] = value
         else:
@@ -14048,17 +14055,37 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     choices: list[tuple[str, object, list[int], dict[int, str], list]] = []
     for k in sorted(by_clause):
         value, c = by_clause[k], clauses[k - 1]
-        if isinstance(value, dict) and "lines" in value:
-            # The seat's correction of a line that the binder missed.
-            lines = _menu_lines(value["lines"], k, len(order))
-            choices.append((f"clause c{k}", value.get("option"), lines,
-                            {n: c["words"] for n in lines},
-                            value.get("rows") or []))
+        if c["lines"] or (isinstance(value, dict) and "lines" in value):
+            # One option per clause (design R): the option rules each line
+            # the clause names, or the lines of the seat's correction of a
+            # binder miss. A line key that reaches the same line wins, and a
+            # different option there is refused once (pass R3b).
+            rows = (value.get("rows") or []) if isinstance(value, dict) else []
+            lines = (_menu_lines(value["lines"], k, len(order))
+                     if isinstance(value, dict) and "lines" in value
+                     else c["lines"])
+            option = value.get("option") if isinstance(value, dict) else value
+            mine = _menu_option(option)[0]
+            for n in [n for n in lines if n in by_line]:
+                theirs = by_line[n]
+                theirs = _menu_option(theirs.get("option") if isinstance(
+                    theirs, dict) else theirs)[0]
+                if _OPTION_SAME["line"].get(theirs, theirs) != (
+                        _OPTION_SAME["line"].get(mine, mine)):
+                    text = (f"clause c{k} gives {mine} to line {n}, and the "
+                            f"line key \"{n}\" gives {theirs}. Give line {n} "
+                            f"one option")
+                    if text not in refused:
+                        raise ValueError(text)
+            lines = [n for n in lines if n not in by_line]
+            if lines:
+                choices.append((f"clause c{k}", option, lines,
+                                {n: c["words"] for n in lines}, rows))
             continue
         if isinstance(value, dict):
             value = value.get("option")
         name, _given = _menu_option(value)
-        if name == "none":
+        if name in ("none", "held"):
             continue
         if name == "add" and "add <quote>" in c["options"]:
             # Code finds the line: the one line whose menu holds add. The

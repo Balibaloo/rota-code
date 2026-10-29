@@ -22,8 +22,9 @@ The menus:
 
 Call `rulings.rule` once. Key each option by its page line number. Give an
 option to every line that his words name. Key each clause with no lines by
-its clause key: `none`, or `add <quote>` when it asks for something that the
-page leaves out. `rest` rules the lines that no clause names and the lines of
+its clause key, with one of its `options`: `held` when the page already says
+it, `none` when the words rule nothing, `add <quote>` when they ask for
+something that the page leaves out. `rest` rules the lines that no clause names and the lines of
 his "the rest is fine": `approve`, or `none`.
 For the reply "Line 2 asks too much, drop it. Line 4 should say two decimals.
 Line 6 reads my answer right. Please also show the total. The rest is fine.":

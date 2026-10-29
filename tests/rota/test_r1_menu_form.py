@@ -66,17 +66,61 @@ def test_the_clauses_carry_his_words_and_their_lines():
                    {"words": "Please keep it short.", "lines": []}]
 
 
-def test_a_clause_key_on_a_clause_with_lines_is_refused_with_its_line_keys(
+def test_a_clause_key_on_a_clause_with_lines_rules_each_of_its_lines(
         db):  # noqa: F811
-    """Pass R3: a line key rules a line, and a clause key keys a clause with
-    no lines only."""
+    """Pass R3b: one option per clause (design R), checked against the menu
+    of each line that the clause names."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words=DROP)
-    for _ in (1, 2):
-        with pytest.raises(ValueError, match=r"clause c1 names lines 3, so key "
-                           r"those lines by number: \"3\""):
-            sb.call("rulings.rule", rulings={"c1": "drop", "3": "drop"})
-    assert not [w for w in sb.ctx.writes if w[0] == "ruled_refs"]
+    sb.call("rulings.rule", rulings={"c1": "drop", "rest": "approve"})
+    rows = _rows(sb)
+    assert (rows["l_1"]["verdict"], rows["l_1"]["act"]) == ("contest", "drop")
+    assert rows["l_1"]["words"] == "Drop line 3, because nobody types the " \
+                                   "percentage."
+    assert rows["s1"]["verdict"] == "approve"
+
+
+def test_a_clause_key_and_a_line_key_that_agree_land_once(db):  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=DROP)
+    sb.call("rulings.rule", rulings={"c1": "drop", "3": "drop",
+                                     "rest": "approve"})
+    assert _rows(sb)["l_1"]["act"] == "drop"
+
+
+def test_a_clause_key_and_a_line_key_that_differ_are_refused_once(
+        db):  # noqa: F811
+    """The line key wins after the one refusal."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=DROP)
+    call = {"c1": "drop", "3": "rewrite", "rest": "approve"}
+    with pytest.raises(ValueError, match=r"clause c1 gives drop to line 3, "
+                       r"and the line key \"3\" gives rewrite"):
+        sb.call("rulings.rule", rulings=call)
+    sb.call("rulings.rule", rulings=call)
+    assert _rows(sb)["l_1"]["act"] == "rewrite"
+
+
+def test_a_clause_that_names_a_page_line_offers_no_add(db):  # noqa: F811
+    """Pass R3b: his words about a line on the page cannot ask for something
+    the page leaves out, so the binder's miss offers none only."""
+    _page(db)
+    his = "Drop line 3. Please finish this change with line 2 instead."
+    menu = api.page_menus(db, ["s1", "calculate_tip", "l_1"], "")[1]
+    got = api.page_clauses(his, 3, menu)
+    assert got[1] == {"words": "Please finish this change with line 2 "
+                      "instead.", "lines": [], "options": ["none"]}
+
+
+def test_a_clause_key_held_lands_nothing(db):  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words="Drop line 3. Only the docstring changes.")
+    sb.call("rulings.rule", rulings={"3": "drop", "c2": "held",
+                                     "rest": "approve"})
+    rows = _rows(sb)
+    assert rows["calculate_tip"]["verdict"] == "approve"
+    assert rows["calculate_tip"].get("act") is None
+    assert rows["l_1"]["act"] == "drop"
 
 
 def test_a_line_key_lands_its_line_with_its_clauses_words(db):  # noqa: F811
@@ -199,7 +243,7 @@ def test_the_clauses_with_no_lines_carry_their_options(db):  # noqa: F811
     assert api.page_clauses(his, 3, one) == [
         {"words": "Drop line 3.", "lines": [3]},
         {"words": "The page leaves out the tax.", "lines": [],
-         "options": ["none", "add <quote>"]}]
+         "options": ["none", "held", "add <quote>"]}]
     # No line holds add, or two lines do: the clause takes none.
     db.execute("UPDATE items SET is_description = 1 WHERE id = 'how_it_works'")
     for order in (["s1", "l_1", "l_1"],
@@ -246,7 +290,7 @@ def test_a_clause_key_approve_is_refused_once_and_then_lands_nothing(
     sb, _ = _seat(db, ask, words="Drop line 3. Thanks.")
     call = {"3": "drop", "c2": "approve", "rest": "approve"}
     with pytest.raises(ValueError, match=r"clause c2 names no page line, so it "
-                       r"takes none or add <quote>, not 'approve'"):
+                       r"takes none or held or add <quote>, not 'approve'"):
         sb.call("rulings.rule", rulings=call)
     sb.call("rulings.rule", rulings=call)
     assert _rows(sb)["calculate_tip"].get("act") is None
@@ -300,7 +344,7 @@ def test_the_lines_correction_moves_the_option(db):  # noqa: F811
     sb, _ = _seat(db, ask, words="Line 3 is fine. Please drop the first one.")
     # Clause c2 names no line, so it takes its clause options alone.
     with pytest.raises(ValueError, match=r"clause c2 names no page line, so "
-                       r"it takes none or add <quote>, not 'drop'"):
+                       r"it takes none or held or add <quote>, not 'drop'"):
         sb.call("rulings.rule", rulings={"3": "approve", "c2": "drop"})
     sb, _ = _seat(db, ask, words="Line 3 is fine. Please drop the first one.")
     sb.call("rulings.rule", rulings={
