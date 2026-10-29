@@ -29,8 +29,11 @@ CRITERIA = {
     "c_2_format_filename_example": "The docstring for format_filename must "
         "include exactly one example showing that when shorten=True, the path "
         "a/b/c.txt is displayed as c.txt.",
+    "c_3_format_filename_example": "The docstring for format_filename must "
+        "include an example showing that when shorten=True, a long path like "
+        "/very/long/path/to/a/b/c.txt is displayed as c.txt.",
 }
-C1, C2 = CRITERIA
+C1, C2, C3 = CRITERIA
 PAGE = [ITEM, C1, C2, "bg_3"]
 WORDS = "Remove line 3, because I asked for only one example."
 
@@ -140,3 +143,70 @@ def test_the_wrong_removes_of_c_1_keep_it_live(tmp_path, act):
 def test_a_row_with_no_act_stays_no_act(tmp_path):
     conn = _page(tmp_path, {})
     assert criteria_page_acts(conn, [C2])["retire"] == []
+
+
+CLARIFY_WORDS = ("Drop both of those examples, because I asked for only one "
+                 "example in the docstring: with shorten set to True, the "
+                 "path a/b/c.txt shows as c.txt.")
+
+
+def _clarify(tmp_path, act_of):
+    """Night 175's clarify m102 on c_2 and c_3, and his reply m103. A clarify
+    page shows no line numbers, so the rows of r_m103_2 hold no line."""
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES (?, 'Give format_filename one example in "
+                 "its docstring.', 'in_scope', 'approved', 1, 1)", (ITEM,))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES (?, ?, "
+                 "'one docstring example')", (TICKET, ITEM))
+    for cid, text in CRITERIA.items():
+        conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                     "(?, ?, ?)", (cid, TICKET, text))
+    both = [C2, C3]
+    _message(conn, "m102", None, "liaison", "principal", "clarify", both, 102,
+             CRITERIA[C2] + " " + CRITERIA[C3])
+    _message(conn, "m103", "m102", "principal", "liaison", "converse", both,
+             103, CLARIFY_WORDS)
+    _message(conn, "m103v", "m102", "principal", "liaison", "verdict", both,
+             104)
+    _message(conn, "m104", "m103v", "liaison", "terminologist", "relay", both,
+             105)
+    seed_verdict(conn, "m103v", json.dumps({C2: "contest", C3: "contest"}))
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status, verdict_id, texts) VALUES ('r_m103_2', 'm102', "
+                 "'m103', ?, ?, 'landed', 'm103v', ?)",
+                 (json.dumps({C2: "contest", C3: "contest"}), CLARIFY_WORDS,
+                  json.dumps({C2: CRITERIA[C2], C3: CRITERIA[C3]})))
+    backfill_ruled_refs(conn)
+    seed_acts(conn, "r_m103_2", {c: {"words": CLARIFY_WORDS, **act_of(c)}
+                                 for c in both})
+    lines = {r["ref"]: r["line"] for r in conn.execute(
+        "SELECT ref, line FROM ruled_refs WHERE ruling_id = 'r_m103_2' "
+        "AND act IS NOT NULL")}
+    assert lines == {C2: None, C3: None}, "a clarify row holds no line"
+    return conn
+
+
+@pytest.mark.parametrize("act_of", [
+    # r_m103_2 as night 175 stored it: remove, kind row, the own id.
+    lambda c: {"act": "remove", "target_kind": "row", "target": c},
+    lambda c: {"act": "drop", "target_kind": "row"},
+], ids=["r_m103_2-remove-row-own-id", "drop-row"])
+def test_a_delete_on_a_clarify_page_retires_both_criteria(tmp_path, act_of):
+    conn = _clarify(tmp_path, act_of)
+    assert criteria_page_acts(conn, [C2, C3])["retire"] == [C2, C3]
+    wake = Wake("terminologist", "message", message_id="m104",
+                refs=(C2, C3), detail="relay")
+    sb = build("terminologist", conn, mode="criterion_repair",
+               session_id="s256", allow=_wake_allow(wake, conn))
+    sb.ctx.trigger = "m104"
+    sb.call("criteria.retire", id=C2)
+    sb.call("criteria.retire", id=C3)
+    assert [w[1] for w in sb.ctx.writes if w[0] == "criteria"] == [C2, C3]
+
+
+def test_a_source_line_remove_on_a_clarify_page_retires_nothing(tmp_path):
+    conn = _clarify(tmp_path, lambda c: {"act": "remove",
+                                         "target_kind": "source_line",
+                                         "target": c})
+    assert criteria_page_acts(conn, [C2, C3])["retire"] == []
