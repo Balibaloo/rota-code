@@ -44,15 +44,6 @@ S212 = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
         "9": "approve", "10": "approve", "11": "approve"}
 
 
-def test_s212s_approve_of_faulted_lines_is_refused(db):
-    with pytest.raises(ValueError) as e:
-        _rule11(db, M105, S212)
-    said = str(e.value)
-    assert said.startswith('The words fault line 6, "wrong", and line 7, '
-                           '"wrong".'), said
-    assert "Rule lines 6 and 7 contest or revise" in said
-
-
 def test_s212s_map_with_the_faulted_lines_contested_lands(db):
     rulings = dict(S212, **{"6": "contest", "7": "contest"})
     out = _rule11(db, M105, rulings)

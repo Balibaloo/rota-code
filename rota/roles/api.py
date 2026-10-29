@@ -13219,14 +13219,10 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   matched: set[int], size: int, request_first: bool,
                   quoted: bool, batch_lines: frozenset[int] = frozenset(),
                   item_lines: frozenset[int] = frozenset(),
-                  approved: frozenset[int] = frozenset(),
-                  cues: dict[int, tuple[str, str]] | None = None,
-                  closed_lines: frozenset[int] = frozenset(),
                   request_lines: frozenset[int] = frozenset(),
                   request_texts: tuple[str, ...] = (),
                   faulted_texts: tuple[str, ...] = (),
                   earlier_lines: frozenset[int] | None = None,
-                  earlier_matched: frozenset[int] = frozenset(),
                   item_texts: dict[int, str] | None = None
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
@@ -13236,26 +13232,22 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     1 is a request item. `quoted` says that the words quote line 1.
     `batch_lines` are the lines that show a batch's prediction.
     `item_lines` are the lines that show a request item or a criterion.
-    `approved` are the lines ruled approve. `cues` maps each line the words
-    fault, before the batch lift, to its fault cue and clause (`_line_cues`).
-    `closed_lines` are the batch lines of a merged or abandoned change.
     `request_lines` are the lines that show a request item.
     `request_texts` are the ids and the texts of those items.
     `faulted_texts` are the texts of the items and criteria on the lines in
     `faulted`. `earlier_lines` are the lines that his earlier answers to the
-    page name, or None when the reply is his only answer. `earlier_matched`
-    are the lines that his latest earlier answer about each says match.
+    page name, or None when the reply is his only answer.
     `item_texts` maps each criterion line to its text.
+
+    Two cue doors left this function in frame 345, pass 3. The agreement
+    door refused a contest of a line that his words "match", and
+    `_faulted_approve` refused an approve of a line that a cue faults. Both
+    read meaning through cue lists and refused words that the match
+    supports, as "removing line 5 is right" and "finish with line 2 alone".
+    The match and `_no_words_refusal` are the fact now (ruled: Roman,
+    2026-10-28, "doors used for meaning are a symptom of poor
+    prompting/context").
     """
-    # law 6: the latest answer about a line wins, and the reply is the latest
-    reversed_ = sorted(((matched - faulted)
-                        | (earlier_matched - faulted - matched)) & contested)
-    if reversed_:
-        one = len(reversed_) == 1
-        return (f"The words say line{'' if one else 's'} {_line_set(reversed_)} "
-                f"match{'es' if one else ''} what the principal asked for, and a "
-                f"contest reverses the principal. Approve line{'' if one else 's'} "
-                f"{_line_set(reversed_)}.")
     sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
     # law 6: nothing is ruled on the principal's behalf
     # A batch line is left to the batch door only when the words name files
@@ -13270,14 +13262,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                                request_lines, earlier_lines, item_texts)
     if unnamed:
         return unnamed
-    approve = _faulted_approve(approved, cues or {}, size, request_first,
-                               batch_lines, closed_lines)
-    # The request refusal below wins over the approve refusal. It names
-    # the line 1 contest and the faulted lines in one message. Night 133's
-    # s313 contested line 1 and approved bg_2's line, which the words
-    # fault (`test_park_page.py`, frame 250, pass 1b).
     if not request_first or 1 not in contested or quoted:
-        return approve
+        return None
     named = sorted(n for n in faulted if n <= size)
     # A reply that asks to keep the change and faults no line asks for no
     # line-1 contest. Night 151's m46 and m64: "Please don't drop this
@@ -13286,11 +13272,11 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
         return ("The words do not fault line 1, and they ask to keep the "
                 "change. Approve line 1.")
     if not named or 1 in faulted:
-        return approve
+        return None
     # Any reference to line 1 can carry a fault the cues miss. Night 144's
     # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
     if any(1 in _line_reading(s).named for s in sentences):
-        return approve
+        return None
     # A sentence with no line number can correct the request itself. Night
     # 143's m263: "Also, take the version from the running interpreter's
     # version info" (frame 234, review 1, finding 2). It must name the
@@ -13310,7 +13296,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
             and not (batch_faulted and _FILES_TALK.search(s))
             and _line_reading(s).names_request(request_texts, faulted_texts)
             for s in sentences):
-        return approve
+        return None
     # The shape of the batch door's refusal, which names the line first.
     # Night 161's s181 read "approve the rest" as no answer for line 1
     # (`plans/frame258-provenance.md`, 3).
@@ -13429,6 +13415,37 @@ _NOT_SUBJECT = re.compile(
 # A second reference joined to a subject is a subject too: "Lines 1 to 10
 # and line 12 are fine", "line 3 or line 4".
 _REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
+# A subject can list bare numbers with "and", a comma or "to" (frame 345,
+# pass 3). In L1 approve-one-line-only, "2 and 3 say the same sentence
+# twice each" named no line. The parser reads a bare number only at a
+# sentence start before "is" or "are", so the match reads the list here.
+_BARE_LIST = re.compile(
+    r"(?<![\w.,])\d+(?:\s*(?:,\s*(?:and\s+)?|and\s+|to\s+)\d+)*(?!\w|\.\d)",
+    re.I)
+_BARE_SEP = re.compile(r"\s*(,\s*(?:and\s+)?|and\s+|to\s+)", re.I)
+_BARE_VERB = re.compile(r"\s+(?:is|are)\b", re.I)
+
+
+def _bare_subject(clause: str, m: re.Match) -> set[int]:
+    """The lines of the bare number list `m` when it stands as the subject
+    of `clause`, or no lines.
+
+    The list opens the clause or follows a comma, as in "1 is fine, 2 and 3
+    are wrong". It holds two numbers or more, or one number before "is" or
+    "are". So "3 at most" and "I want 2 examples" name no line.
+    """
+    before = clause[:m.start()]
+    if before.strip() and not before.rstrip().endswith(","):
+        return set()
+    nums = [int(n) for n in re.findall(r"\d+", m.group(0))]
+    if len(nums) < 2 and not _BARE_VERB.match(clause, m.end()):
+        return set()
+    seps = [s.group(1).strip().lower() for s in
+            _BARE_SEP.finditer(m.group(0))]
+    lines = {nums[0]}
+    for (a, b), sep in zip(zip(nums, nums[1:]), seps):
+        lines |= set(range(a, b + 1)) if sep == "to" and a <= b else {b}
+    return lines
 
 
 def _subject_lines(clause: str, size: int) -> set[int]:
@@ -13452,6 +13469,9 @@ def _subject_lines(clause: str, size: int) -> set[int]:
         if lead or joined:
             named |= lines
             last_end = end
+    for m in _BARE_LIST.finditer(clause):
+        if not any(s < m.end() and m.start() < e for s, e, _ in found):
+            named |= _bare_subject(clause, m)
     return {n for n in named if 1 <= n <= size}
 
 
@@ -13657,57 +13677,6 @@ def _names_request(sentence: str, request_texts: tuple[str, ...],
     return bool(words(sentence) & asked)
 
 
-def _faulted_approve(approved: frozenset[int],
-                     cues: dict[int, tuple[str, str]], size: int,
-                     request_first: bool,
-                     batch_lines: frozenset[int],
-                     closed_lines: frozenset[int] = frozenset()) -> str | None:
-    """The refusal of an approve of a line the words fault, or None.
-
-    Night 149's s212 approved lines 6 and 7 against "Lines 2, 3, 5, 6 and 7
-    are also wrong", and cr_5 and cr_6 kept the declined words (frame 250).
-    The line of a merged or abandoned change stays with the batch door,
-    which tells a seat to approve it (frame 255). The line of an open
-    change is refused like any other line, because frame 255's door admits
-    its contest. Night 145's m245 approved line 6, bg_4 running, against
-    "Line 6 is also still wrong because the work should touch only the
-    version option code" (frame 250, review 1, finding 1). The guard on
-    files and tests below spares text lines only. On the batch line, those
-    words are the files correction itself. A request on line 1 stays too: a
-    contest of it cancels the work, and night 146's m164 faulted only the
-    code that line 1 names. On a page with a batch line, a clause that
-    names files or tests can number a text line of the prediction. Night
-    136's m85 said "Line 2 names the wrong tests" of bg_2 on line 5
-    (`test_request_page.py`).
-
-    Over the 177 landed present and confirm verdicts of nights 143 to 149
-    with words and an approve, the door fires on 7. Six approved a line
-    the words fault: night 143's m133, 145's m245, m255 and m260, 146's
-    m162 and 149's m105. The three of night 145 approved bg_4's line, a
-    running change. One was right: night 147's m86, where "Line 7 just
-    repeats line 2" reads as a fault of line 2. The guard on line 1 spares
-    m164 (observed: `f250/count_present_1b.py`, 2026-10-16, batch status
-    at the night's end).
-
-    law 6: nothing is ruled on the principal's behalf
-    """
-    wrong = sorted(
-        n for n in approved if n in cues and 1 <= n <= size
-        and n not in closed_lines and not (request_first and n == 1)
-        and not (n not in batch_lines and batch_lines
-                 and _line_reading(cues[n][1]).touches_files))
-    if not wrong:
-        return None
-    one = len(wrong) == 1
-    parts = [f'line {n}, "{cues[n][0]}"' for n in wrong]
-    said = (parts[0] if one
-            else f"{', '.join(parts[:-1])}, and {parts[-1]}")
-    return (f"The words fault {said}. An approve keeps the line as it is, "
-            f"and his words reach nobody. Rule {_lines(wrong)} contest or "
-            f"revise, as the words say, and pass the words. "
-            f"{'It takes' if one else 'They take'} no approve.")
-
-
 # A sentence that opens with one of these words goes on about the lines of
 # the sentence before it. Night 150's m316: "Lines 4 to 8 are wrong. They
 # repeat the confirm() flag five times, and they should state what the
@@ -13779,6 +13748,12 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     named = {n for n in read if 1 <= n <= size}
     for s in sentences:
         named |= {n for n in _line_reading(s, size).named if 1 <= n <= size}
+        # The lines the match names count too, so this door reads no
+        # stricter source than `line_words` (frame 345, pass 3). In L1
+        # approve-one-line-only, "2 and 3 say the same sentence" named
+        # lines 2 and 3 for the match and for no reference here.
+        named |= _subject_lines(
+            _QUOTED.sub(lambda m: " " * len(m.group(0)), s), size)
     if not named:
         return _agreed_contest(sentences, contested, size, request_lines)
     # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
@@ -13891,7 +13866,8 @@ def _earlier_answers(conn, ask_id: str, reply_id: str
 
 _PAGE_LINE = re.compile(r"^\s+(\d+)\. (.*)$", re.M)
 # The refusal of words that name no line of the account's page. His next
-# request page reads it from the page's note (`account_unnamed_line`).
+# request page reads it from the page's note (`account_unnamed_line`). No
+# door writes it since frame 345, pass 3, so old notes alone carry it.
 ACCOUNT_NO_LINE = ("The words name no line of this page, so they change no "
                    "row on it.")
 
@@ -13925,8 +13901,12 @@ def _account_page_refusal(words: str, ruled: set[int], page_text: str,
     if said:
         named |= {int(m.group(1)) for m in _PAGE_LINE.finditer(page_text or "")
                   if said & _line_reading(m.group(2)).names}
+    # Words that name no line by number or by name rule every line of the
+    # page, as `line_words` binds them (frame 345, pass 3). The door that
+    # refused them with `ACCOUNT_NO_LINE` read a stricter source than the
+    # match, and it refused "Drop both of those examples" on a page of two.
     if not named:
-        return ACCOUNT_NO_LINE
+        return None
     unnamed = sorted(n for n in contested if 1 <= n <= size and n not in named)
     if not unnamed:
         return None
@@ -14740,7 +14720,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # 19 times, wrote `contested`, and killed 5 live batches (frame 298's
     # design, 3.3; `plans/frame298-count.md`).
     stamp = {} if is_clarify else code_stamp(ctx.conn, ask["id"])
-    cue_lines: set[int] = set()
     for n, item in asked:
         guess_key = f"{GUESS_REF}{item}"
         code_lines = frozenset(
@@ -14749,7 +14728,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 (r, item)).fetchone())
         if not pointer_fault(words, n, code_lines):
             continue
-        cue_lines.add(n)
         if per_item.get(item) not in ("contest", "revise"):
             continue
         said = f"line {n} is the request, and the words fault only the code it touches."
@@ -14774,12 +14752,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The code line itself. A guess takes any contest or revise with words.
     # A batch target keeps the batch line's rules and frame 255's check
     # (frame 298's design, 3.1, points 2 and 3).
-    guess_ruled: set[int] = set()
     for ref, ruling in per_item.items():
         item = guess_item(ref)
         if item is None or ruling == "approve":
             continue
-        guess_ruled |= set(_lines_of(order, item)) & set(cue_lines)
         target = stamp.get(ref) or {}
         batch_id = target.get("batch") if isinstance(target, dict) else None
         if not batch_id:
@@ -14971,10 +14947,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         batch_lines = frozenset(
             i + 1 for i, r in enumerate(order)
             if guess_item(r) or "batches" in line_tables[i])
-        closed_lines = frozenset(
-            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
-                "SELECT 1 FROM batches WHERE id = ? AND status IN "
-                "('merged', 'abandoned')", (r,)).fetchone())
         # ruling: DECISIONS 1445, a contest lands only on a request line it names
         # The description row and the account rows are items too, but they
         # are no part of the request. Night 150's m140 and m316 contested
@@ -14982,17 +14954,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         request_lines = frozenset(n for n, _ in asked)
         item_lines = request_lines | frozenset(
             i + 1 for i in range(len(order)) if "criteria" in line_tables[i])
-        earlier_read, earlier_fine = _earlier_reading(
+        earlier_read, _ = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
             his, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(his, page_text, 1), batch_lines,
-            # A request line whose files fault the code line carries is no
-            # faulted approve (frame 298's design, 3.3).
-            item_lines, frozenset(i + 1 for i, r in enumerate(order)
-                                  if per_item.get(r) == "approve"
-                                  and i + 1 not in guess_ruled), read_cues,
-            closed_lines, request_lines, tuple(
+            item_lines, request_lines, tuple(
                 t for _, r in asked for t in (r, (ctx.conn.execute(
                     "SELECT text FROM items WHERE id = ?", (r,)).fetchone()
                     or [""])[0] or "")),
@@ -15002,7 +14969,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
                 for n in sorted(faulted) if 1 <= n <= len(order)),
             # None says that the reply is his only answer to the page.
-            None if earlier_read is None else from_earlier, earlier_fine,
+            None if earlier_read is None else from_earlier,
             {n: (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                                   (order[n - 1],)).fetchone() or [""])[0] or ""
              for n in item_lines - request_lines})

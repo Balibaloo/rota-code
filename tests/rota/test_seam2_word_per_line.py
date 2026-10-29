@@ -285,3 +285,53 @@ def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa:
     assert (row["verdict"], row["act"], row["target_kind"]) == (
         "contest", "drop", "row")
     assert row["words"] == his
+
+
+# Pass 3: a subject that lists bare numbers. L1 approve-one-line-only.
+ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
+            "each; I am not reading those. approve 1 only.")
+
+
+@pytest.mark.parametrize("his, named", [
+    (ONE_LINE, {1, 2, 3}),
+    ("1 is fine, 2 and 3 are wrong", {1, 2, 3}),
+    ("2, 3 and 4 are wrong.", {2, 3, 4}),
+    ("2 to 4 are wrong.", {2, 3, 4}),
+    ("Line 1 is right, 4 is wrong.", {1, 4}),
+])
+def test_a_subject_that_lists_numbers_names_each_line(his, named):
+    """A list with "and", a comma or "to" that opens a clause, or follows a
+    comma, names each line it holds."""
+    got = api.line_words(his, 5)
+    assert {n for n, w in got.items() if w} == named
+    _verbatim(his, got)
+
+
+def test_the_conjoined_subject_binds_its_own_clause():
+    got = api.line_words(ONE_LINE, 3)
+    assert got[1] == "1 is fine, go ahead with it."
+    assert got[2] == got[3] == ("2 and 3 say the same sentence twice each; I "
+                                "am not reading those.")
+
+
+@pytest.mark.parametrize("his", [
+    "I want 2 examples, 3 at most.",
+    "The values 1, 2 and 3 are printed.",
+    "You can remove the line at 518 in get_app_dir.",
+])
+def test_a_number_list_inside_a_clause_names_no_line(his):
+    """A list deep in a clause, or a single number with no "is" or "are",
+    is no subject. Such a reply names no line, so each line takes it whole."""
+    got = api.line_words(his, 5)
+    assert set(got.values()) == {his}
+
+
+def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
+    """L1 approve-one-line-only: the seat wrote 1 approve, 2 and 3 drop, and
+    the no-words refusal took all three runs, because the match gave lines
+    2 and 3 no words."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=ONE_LINE)
+    sb.call("rulings.rule", rulings={"1": "approve", "2": "drop", "3": "drop"})
+    rulings = [w for w in sb.ctx.writes if w[0] == "rulings"]
+    assert len(rulings) == 1
