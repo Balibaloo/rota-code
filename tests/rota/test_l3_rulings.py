@@ -96,6 +96,29 @@ def judge(case: dict, got: dict[str, dict] | None, asked: bool) -> list[str]:
     return problems
 
 
+def retire_problems(db_path: Path, case: dict) -> list[str]:
+    """One problem for each criterion of `expect_retired` that the landed
+    ruling does not retire. A case with no such field gets none.
+
+    The check reads `criteria_page_acts`, the reader the relay wake offers
+    `criteria.retire` by, so the case counts the retire the code would do
+    (sprint 35, row 3). The case runs no relay wake, so no row holds
+    `retired_by` yet."""
+    want = case.get("expect_retired") or []
+    if not want:
+        return []
+    from rota.roles.api import criteria_page_acts
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        retired = set(criteria_page_acts(conn, want)["retire"])
+    finally:
+        conn.close()
+    return [f"criterion {cid}: not retired, expected a retire"
+            for cid in want if cid not in retired]
+
+
 class _Turns:
     """The backend, counting its completions, so each call the sandbox
     runs knows the turn that produced it."""
@@ -186,10 +209,11 @@ def test_l3_rulings_case(case, tmp_path, backend_factory, dev_db):  # noqa: F811
     for r, log in zip(results, turns):
         problem = fixtures.for_run(case, r.run)
         reply_id = problem["inbound"]["id"]
-        got = landed_lines(tmp_path / f"{case['id']}_{r.run}.db", reply_id,
+        db_path = tmp_path / f"{case['id']}_{r.run}.db"
+        got = landed_lines(db_path, reply_id,
                            by_ref=bool(problem.get("expect_refs")))
         asked = any(m["to_role"] == "principal" for m in r.delta.messages)
-        wrong = judge(problem, got, asked)
+        wrong = judge(problem, got, asked) + retire_problems(db_path, problem)
         refused = refusals(log)
         errors = runner_errors(r, refused)
         r.problems = list(r.problems) + wrong
