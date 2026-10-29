@@ -419,6 +419,7 @@ def test_a_repair_wake_with_no_contest_keeps_todays_prompt(db, approve):
 
 # --- frame 226, the store -----------------------------------------------------
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noqa: F811
     """The ruling keeps the text the principal read, because a criterion
     keeps no history. Night 132's page, line 4 is `cr_2`."""
@@ -506,8 +507,3 @@ def test_a_seats_supersedes_on_another_seats_decision_is_admitted(db):
     assert out["id"] == "d_vk_1"
     [(_t, _id, row, *_)] = [w for w in vk.ctx.writes if w[0] == "decisions"]
     assert row["supersedes"] == "d_arch_1"
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

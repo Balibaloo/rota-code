@@ -314,13 +314,3 @@ def pytest_runtest_makereport(item, call):
     report = yield
     unhide(report, item.stash.get(_FINDINGS, []))
     return report
-
-
-@pytest.fixture
-def old_page_form(monkeypatch):
-    """The word form of a page call, for the tests that pin its doors. The
-    menu form replaced it on pages (frame 345, pass R1), and pass R2 retires
-    the doors with these tests."""
-    from rota.roles import api
-
-    monkeypatch.setattr(api, "MENU_PAGES", False)

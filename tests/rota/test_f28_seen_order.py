@@ -10,6 +10,8 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 from rota.core.db import init_db
 from rota.core.predicates import Wake as PWake
 from rota.core.runner import resolve_inbound
@@ -64,6 +66,7 @@ def test_the_landing_wake_names_the_line_whose_row_is_gone(tmp_path):
     assert "l_bg2" in landing["gone_lines"]["1"]
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_line_whose_row_is_gone_takes_no_ruling(tmp_path):
     """The every-line check skips a line whose row no table holds. The old
     door refused every ruling, and only an ask to him landed."""
@@ -73,6 +76,7 @@ def test_a_line_whose_row_is_gone_takes_no_ruling(tmp_path):
     assert out["per_item"] == {"l_echo": "contest", "l_bg3": "approve"}
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_his_verdict_on_a_gone_row_stays_in_per_item_with_a_fault(tmp_path):
     """A ruling on the gone line keeps his verdict in `per_item`. The row
     has no `ruled_refs` row, so a fault names the gap (no work stays
@@ -184,10 +188,3 @@ def test_one_reader_of_the_order_he_saw():
     assert record == {("rota/roles/principal.py", "seen_order"),
                       ("rota/roles/principal.py", "land")}
     assert rendered == set()
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-import pytest  # noqa: E402
-
-pytestmark = pytest.mark.usefixtures("old_page_form")

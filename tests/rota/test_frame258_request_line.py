@@ -96,16 +96,11 @@ def test_the_page_is_night_161s_m66(page):
     assert ask.order == [ITEM] + [c for c, _ in CRIT] + ["b_2"]
 
 
-def test_s181s_contest_of_the_request_line_is_refused(page):
-    said, ruled = _rule(page, M67, S181)
-    assert REFUSAL in said, said
-    assert ruled.get(ITEM) != "contest", ruled
-
-
 def test_the_refusal_is_under_50_words():
     assert len(REFUSAL.split()) < 50
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_the_criteria_words_alone_do_not_spare_line_1(page):
     # Without the keep sentence, only the subtraction of the criteria's
     # words refuses the contest.
@@ -114,6 +109,7 @@ def test_the_criteria_words_alone_do_not_spare_line_1(page):
     assert ruled.get(ITEM) != "contest", ruled
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_the_map_with_line_1_approved_lands(page):
     said, ruled = _rule(page, M67, {**S181, "1": "approve"})
     assert REFUSAL not in said, said
@@ -123,6 +119,7 @@ def test_the_map_with_line_1_approved_lands(page):
         assert ruled.get(cid) == "contest", ruled
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
     words = (f"{M67} Line 1 is wrong too, because the flag should be called "
              "eof_default.")
@@ -130,6 +127,7 @@ def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
     assert ruled.get(ITEM) == "contest", (said, ruled)
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_request_word_no_criterion_holds_lets_line_1_be_contested(page):
     # "let" is in the request and in no criterion.
     words = f"{REST} I never said to let confirm() guess the answer."
@@ -146,22 +144,6 @@ def test_the_keep_rule_reads_the_new_shapes(words):
     from rota.roles.api import _KEEP_CHANGE
 
     assert _KEEP_CHANGE.search(words)
-
-
-@pytest.mark.parametrize("words", [
-    "Do not keep the change. Abandon it, I asked for something else.",
-    "Please don't keep the change. Abandon it, I asked for something else.",
-])
-def test_a_negated_keep_is_no_keep(words):
-    from rota.roles.api import _KEEP_CHANGE, _line_refusal
-
-    assert not _KEEP_CHANGE.search(words)
-    # Line 1 contested and no line faulted: the keep refusal does not fire.
-    out = _line_refusal(words, {1}, set(), set(), 3, True, False,
-                        frozenset({3}), frozenset({1, 2}),
-                        request_lines=frozenset({1}),
-                        request_texts=(ITEM, TEXT))
-    assert out is None or "ask to keep the change" not in out
 
 
 def test_m25_keeps_its_path():

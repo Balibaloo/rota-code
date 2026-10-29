@@ -91,15 +91,6 @@ def test_said_falls_back_to_the_body_of_a_message_with_no_entry(db):
     assert said(db, None) == ""
 
 
-def test_his_earlier_clarify_answer_reaches_the_earlier_reading(db):
-    """Site 7: the earlier answers to a page filtered `body_text IS NOT
-    NULL`, so a clarify answer on the verdict path was skipped."""
-    from rota.roles.api import _earlier_answers
-
-    mid = _clarify_answer(db)
-    assert _earlier_answers(db, "m30", "m_later") == [(_WORDS, mid)]
-
-
 # Each of these reads the body of a seat's message, not his words.
 _SEAT_BODIES = {
     ("rota/core/sandbox.py", "_quoted_body_gone"): "the Tester's quoted body",

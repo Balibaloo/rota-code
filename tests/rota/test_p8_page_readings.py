@@ -176,8 +176,3 @@ def test_a_reading_of_a_delivered_request_shows_on_the_state_view(db):
     # of P9, finding 4).
     assert "Say ok, or say what we misread." not in state
     assert ref in readings_owed(db)
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

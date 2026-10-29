@@ -245,49 +245,6 @@ def test_no_page_renders_the_index_line(db):
 M192_LINE_1 = M192[M192.index("Line 1 also"):]
 
 
-def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
-    _state(db, guess=True)
-    mid = _send(db, [ITEM])
-    (ask,) = [a for a in pending_asks(db) if a.message_id == mid]
-    land(db, ask, parse_reply(ask, M192_LINE_1))
-    db.commit()
-    sb = build("liaison", db, mode="landing",
-               allow=prompts.mode_tools("liaison", "landing"))
-    sb.ctx.trigger = db.execute("SELECT id FROM messages WHERE cause_id = ? "
-                                "AND from_role = 'principal'", (mid,)).fetchone()["id"]
-    every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
-    with pytest.raises(ValueError, match=(
-            r"line 1 is the request, and the words fault only the code it touches\. "
-            r"That code is line 2, and the team rewrites it from the principal's "
-            r"words\. Rule line 2 contest with the words, and approve line 1\.")):
-        sb.call("rulings.rule", rulings=dict(every, **{"1": "contest"}), words=M192_LINE_1)
-    out = sb.call("rulings.rule", rulings=dict(every, **{"2": "contest"}), words=M192_LINE_1)
-    assert out["per_item"][KEY] == "contest"
-    assert out["per_item"][ITEM] == "approve"
-
-
-def test_a_guess_after_the_send_leaves_the_refusal_at_text_3(db):
-    """Review 3, finding 1: the page went out before the guess, and the
-    guess came before the reply. The page said "not guessed", so the
-    refusal says so too, and names the key."""
-    _state(db)
-    mid = _send(db, [ITEM])
-    _guess(db, GUESS)
-    (ask,) = [a for a in pending_asks(db) if a.message_id == mid]
-    land(db, ask, parse_reply(ask, M192_LINE_1))
-    db.commit()
-    sb = build("liaison", db, mode="landing",
-               allow=prompts.mode_tools("liaison", "landing"))
-    sb.ctx.trigger = db.execute("SELECT id FROM messages WHERE cause_id = ? "
-                                "AND from_role = 'principal'", (mid,)).fetchone()["id"]
-    every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
-    with pytest.raises(ValueError, match=(
-            r"line 1 is the request, and the words fault only the code it touches\. "
-            r"The team has not guessed that code yet\. Rule the key "
-            rf"{KEY} contest with the words, and approve line 1\.")):
-        sb.call("rulings.rule", rulings=dict(every, **{"1": "contest"}), words=M192_LINE_1)
-
-
 # ---------------------------------------------------------------------------
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
@@ -317,8 +274,3 @@ def test_the_annotate_wake_reads_the_rulings_words_with_the_guess(db):
     assert pushed["the item's guess"] == {
         "paths": ["src/click/decorators.py", "tests/test_basic.py"], "symbols": [],
         "the principal said": M192}
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

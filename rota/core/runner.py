@@ -2469,8 +2469,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # so a clause number names the same words in both places.
                 from ..roles.principal import SHIFT_ASK
 
-                if (api.MENU_PAGES and order
-                        and not clarify["id"].startswith(SHIFT_ASK)):
+                if order and not clarify["id"].startswith(SHIFT_ASK):
                     landing["clauses"] = {
                         f"c{k}": c for k, c in enumerate(api.page_clauses(
                             his_reply(conn, row["id"]) or "", len(order)), 1)}

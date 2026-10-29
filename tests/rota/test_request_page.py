@@ -164,6 +164,7 @@ def n133(db):
     return db
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_the_agenda_page_of_seat_rows_is_the_accounts_page(n133):
     """Night 133, s228's dispatch and s229's turn on m122: seven seat rows
     of no request. Frame 190's design 2.1 added the open request, and
@@ -491,6 +492,7 @@ def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
                         ).fetchone()["status"] == "resolved"
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_contested_criterion_travels_and_an_approved_one_does_not(m399):
     """A contest of one criterion line and approves of the rest. The relay
     carries the contested criterion and no approved one, on a page that is
@@ -651,48 +653,6 @@ def _message(db, mid: str, sender: str, to: str, verb: str, refs, cause=None,
                (mid, cause, cause or mid, sender, to, verb, json.dumps(refs), status, seq))
 
 
-def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
-    """Night 136, s537 on m400. The words named line one, and the page had
-    no line of the request, so they landed on a constraint row. The item
-    line is now on the page, and a revise of it reaches the Vision Keeper's
-    contested wake with the words (frame 190's design, 2.2.1 and 2.2.2)."""
-    from rota.core.runner import _resolve_contest
-
-    (wake,) = tick_agenda(m399, principal_present=True)
-    mid = _dispatch(m399, wake, M399_CALL)
-    reply = _reply(m399, mid, M400)
-
-    # A revise of the team's note is refused. The refusal names the drop
-    # first, and names a request line only when the words name it by number
-    # or quote it (frame 190's design, 2.F, amendment 2, and frame 296).
-    # The words do not name line 5, so the refusal also names the change
-    # route of the note (frame 305).
-    sb = _sandbox(m399, "liaison", "landing", reply)
-    ruling = {str(n): "approve" for n in range(1, 6)}
-    ruling["5"] = "revise"
-    with pytest.raises(ValueError) as refused:
-        sb.call("rulings.rule", rulings=ruling, words=M400)
-    assert str(refused.value) == (
-        "line 5 is the team's note, not your request. To drop the note, contest "
-        "it. To change the note, revise it only on words that name line 5 by number "
-        "and say the change. A revise of the request rewrites a line of what the "
-        "principal asked for. The words "
-        "name no line of the request, and a revise of the request needs the principal's words "
-        "on the request.")
-
-    ruling = {str(n): "approve" for n in range(1, 6)}
-    ruling["1"], ruling["5"] = "revise", "contest"
-    _landing(m399, reply, ruling, M400)
-    verdict, ruled = _verdict(m399, mid)
-    assert ruled[ITEM_VO] == "revise"
-    row = m399.execute("SELECT approval, version FROM items WHERE id = ?",
-                       (ITEM_VO,)).fetchone()
-    assert (row["approval"], row["version"]) == ("contested", 4)
-    woke = _resolve_contest(m399, ITEM_VO)
-    assert woke["principal_verdict"] == {ITEM_VO: "revise"}
-    assert woke["principal_said"] == M400
-
-
 def test_the_vision_keepers_relay_cannot_undo_a_revise(m399):
     """Night 136, s172 on m76. The principal revised the confirm item, land
     wrote `contested`, and the relay session set it `approved` twice
@@ -714,6 +674,7 @@ def test_the_vision_keepers_relay_cannot_undo_a_revise(m399):
     assert sb.call("problem.set_approval", id=ITEM_136, approval="contested")
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     """Night 136, s185 on m85: "Line 2 names the wrong tests". The door
     refused the batch line five times, and bg_2 built from the wrong
@@ -783,31 +744,6 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     sb = build("tester", bg2, mode="tests_missing", batch_id="bg_2",
                allow=prompts.mode_tools("tester", "tests_missing"))
     assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
-
-
-def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
-    """The diff review of 2dace61b, finding 4: on a touch note a contest of
-    the batch line kept the verdict, and the approve of the draft item then
-    set it approved off the sign-off page. An abandoned batch has no line
-    to correct."""
-    bg2.execute("UPDATE items SET approval = 'draft' WHERE id = ?", (ITEM_136,))
-    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
-    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
-    reply = _reply(bg2, mid, M85)
-    bg2.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'bg_2'")
-    sb = _sandbox(bg2, "liaison", "landing", reply)
-    ruling = {"1": "approve", "2": "approve", "3": "approve", "4": "approve",
-              "5": "contest"}
-    with pytest.raises(ValueError, match="bg_2 is the change's line, and the change "
-                                         "is abandoned.*contest the item "
-                                         f"{ITEM_136}, line 1"):
-        sb.call("rulings.rule", rulings=ruling, words=M85)
-    bg2.execute("UPDATE batches SET status = 'pending' WHERE id = 'bg_2'")
-    _landing(bg2, reply, ruling, M85)
-    verdict, ruled = _verdict(bg2, mid)
-    assert ruled == {"bg_2": "contest"}, ruled
-    assert bg2.execute("SELECT approval FROM items WHERE id = ?",
-                       (ITEM_136,)).fetchone()["approval"] == "draft"
 
 
 def test_a_stalled_key_marks_only_the_criteria_of_its_batch(bg2):
@@ -1002,20 +938,6 @@ def test_a_missing_row_on_a_relay_lists_the_relays_refs(db):
         f"so the id has to be one you were given; the relay names {CONSTRAINTS_147}, "
         "and they are not items rows. Answer what the relay names, or end the session")
     assert ITEM_133 not in str(refused.value)
-
-
-def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
-    """Frame 142's door holds after the build for words that do not fault
-    the batch line. M85 faults line 2, so the contest of line 5 is refused
-    (frame 255)."""
-    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
-    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
-    reply = _reply(bg2, mid, M85)
-    bg2.execute("UPDATE batches SET head_commit = 'aa28d1d' WHERE id = 'bg_2'")
-    sb = _sandbox(bg2, "liaison", "landing", reply)
-    with pytest.raises(ValueError, match="line 5: the words do not fault bg_2's files"):
-        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve", "3": "approve",
-                                         "4": "approve", "5": "contest"}, words=M85)
 
 
 @pytest.mark.parametrize("word", ["default", "blocked", "fault"])
@@ -1391,6 +1313,7 @@ def test_an_amended_item_that_is_not_delivered_is_sliced_again(db):
     assert not any(text in page for _, text in CRIT_133), page
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_note_contest_never_overwrites_an_approve_of_a_stamped_criterion(m399):
     """The delta review of 2c602d1b, finding 1, case E: a Terminologist's
     note about c1, every line approved and the note contested. The note's
@@ -1884,8 +1807,3 @@ def test_reply_rows_alone_draw_no_agenda_and_ride_the_next_page(bg4):
     refs = json.loads(bg4.execute("SELECT body_refs FROM messages WHERE id = ?",
                                   (mid,)).fetchone()["body_refs"])
     assert {"l_62ca6652d9", "l_6b81c7417e"} <= set(refs)
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

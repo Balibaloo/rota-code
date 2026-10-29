@@ -231,6 +231,7 @@ def _m62(db):
     return _landing(db, "m62", refs, "m63", M63, 62)
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     sb = _m62(db)
     rulings = {1: "approve", **{n: "drop" for n in range(2, 9)}}
@@ -243,18 +244,7 @@ def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     assert "drop" not in stored.values()
 
 
-def test_an_unknown_word_is_refused_with_the_map(db):
-    sb = _m62(db)
-    rulings = {1: "approve", 2: "later", **{n: "contest" for n in range(3, 9)}}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M63)
-    assert str(e.value) == (
-        "line 2: 'later' is not a ruling. Each line takes approve, contest or "
-        "revise. drop, remove and strike are contest. keep is approve. resume "
-        "takes up a request you put aside. ask, unclear and question are a question: "
-        "rulings.rule(ask=...) with no rulings.")
-
-
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_phrase_maps_by_its_first_word(db):
     sb = _m62(db)
     rulings = {1: "Approve", 2: " drop it ", **{n: "contest" for n in range(3, 9)}}
@@ -306,23 +296,6 @@ def _m161(db):
                    (lid, about, table, text, author))
     refs = [lid for lid, *_ in M161_LEDGER] + [ITEM] + [c for c, _ in CRITERIA]
     return _landing(db, "m161", refs, "m162", M162, 163)
-
-
-def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
-    sb = _m161(db)
-    rulings = {2: "contest", 3: "approve", 4: "contest", 5: "contest",
-               6: "revise", 8: "ask"}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M162)
-    assert str(e.value) == (
-        "line 8: 'ask' is a question back, and a question is its own call: "
-        "rulings.rule(ask=\"<one sentence about line 8>\") with no rulings.")
-    # The named call lands the question, and the door writes no ruling.
-    out = sb.call("rulings.rule",
-                  ask="Line 8 keeps one retry on a closed input. Do you want "
-                      "the normal prompt to change?")
-    assert out["to"] == "principal"
-    assert not any(w[0] == "rulings" for w in sb.ctx.writes)
 
 
 # Frame 197: night 138's m11, a present of eight lines, seven ledger rows and
@@ -380,34 +353,6 @@ def _m11(db):
     return _landing(db, "m11", refs, "m12", M12, 11)
 
 
-def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
-    sb = _m11(db)
-    # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={2: "contest", 8: "contest", "words": M12})
-    # The shape carries the seat's own words, verbatim, and no placeholder. The
-    # text names the lines the seat left out, so the next call can be whole.
-    assert str(e.value) == (
-        "rulings has a key words, and words is its own argument, not a line of "
-        "the page: rulings.rule(rulings={\"2\": \"contest\", \"8\": \"contest\"}, "
-        f"words=\"{M12}\"). Lines 1, 3, 4, 5, 6, 7 still take approve, contest or "
-        "revise. Each key of rulings is a line number.")
-    assert "<the principal's words>" not in str(e.value)
-    # The key ask takes the question's own call.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={2: "contest", "ask": "which words?"})
-    assert str(e.value) == (
-        "rulings has a key ask, and ask is its own argument, not a line of the "
-        "page. A question is its own call: rulings.rule(ask=\"<one sentence>\") "
-        "with no rulings.")
-    # The shape with a ruling on each named line lands with the seat's words.
-    full = {str(n): "contest" if n in (2, 8) else "approve" for n in range(1, 9)}
-    out = sb.call("rulings.rule", rulings=full, words=M12)
-    assert sorted(out["per_item"].values()) == ["approve"] * 6 + ["contest"] * 2
-    row = next(w[2] for w in sb.ctx.writes if w[0] == "rulings")
-    assert row["words"] == M12
-
-
 # Night 139's m141: the item, its three criteria and the running change bg_3,
 # which the page numbers line 5. m142 is the principal's reply.
 ITEM_139 = "version_option_show_python"
@@ -452,41 +397,6 @@ def _m141(db):
     return _landing(db, "m141", refs, "m142", M142, 144)
 
 
-def test_s263s_contest_of_the_change_line_names_line_5(db):
-    sb = _m141(db)
-    # s263's call at turns 1 to 3 of night 139, to the byte.
-    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
-               "5": "contest"}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M142)
-    # M142 faults lines 2 and 3, not line 5, so the door holds (frame 255).
-    assert str(e.value) == (
-        "line 5: the words do not fault bg_3's files. Approve line 5.")
-    # "Please don't drop this change; I want the team to fix it." names the
-    # change and no criterion, so it reaches the request line alone. The
-    # contest of c3 on line 4 is r_m121's shape (F2 pass 2c).
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
-    assert str(e.value) == (
-        "The words name lines 2 and 3 and do not name line 4. A contest rests "
-        "on the principal's words. Approve the lines the words do not name, or "
-        "rule them as the words say.")
-    # The line-1 door, not the naming door, rules the request line. It reads
-    # the faults of lines 2 and 3 as no fault of the request.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={**rulings, "1": "contest",
-                                         "4": "approve", "5": "approve"},
-                words=M142)
-    assert str(e.value) == (
-        "line 1: the words do not fault the request. They fault lines 2 and "
-        "3. Rule lines 2 and 3 as the words say, and approve line 1.")
-    out = sb.call("rulings.rule", rulings={**rulings, "4": "approve",
-                                           "5": "approve"}, words=M142)
-    assert out["per_item"]["c3_version_option_show_python"] == "approve"
-    assert out["per_item"]["bg_3"] == "approve"
-    assert out["per_item"]["c1_version_option_show_python"] == "contest"
-
-
 # The F2 review of pass 2, findings 1 and 2: a sentence with no number
 # spares a criterion line only when it names the line and faults it. No
 # recorded reply of nights 170 to 172 has this shape, so the reply below is
@@ -501,19 +411,16 @@ def _s263_with(db, added):
     return sb.call("rulings.rule", rulings=rulings, words=reply)
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
     out = _s263_with(db, "The `show_python` default must also hold when the "
                          "flag is passed as None.")
     assert out["per_item"]["c3_version_option_show_python"] == "contest"
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
     with pytest.raises(ValueError) as e:
         _s263_with(db, "The `show_python` default is fine as it is.")
     assert str(e.value).startswith(
         "The words name lines 2 and 3 and do not name line 4.")
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

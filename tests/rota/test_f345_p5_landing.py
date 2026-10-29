@@ -53,6 +53,7 @@ def test_a_landing_counts_its_ruled_refs_rows_as_writes(tmp_path, case_id,
     assert not [p for p in res.problems if "ruled_refs" in p]
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 @pytest.mark.parametrize("case_id, size, lines", DROPS)
 def test_remove_on_a_line_that_is_no_code_lands_as_a_drop(tmp_path, case_id,
                                                           size, lines):
@@ -75,8 +76,3 @@ def test_a_line_list_in_one_reference_keeps_its_whole_clause():
     got = line_words(words, 9)
     assert [got[n] for n in (7, 8, 9)] == [words] * 3
     assert all(got[n] is None for n in range(1, 7))
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

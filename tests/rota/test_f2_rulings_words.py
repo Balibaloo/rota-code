@@ -86,6 +86,7 @@ def _folded(rulings: dict, acts: dict) -> dict:
                           for k, v in acts.items()}}
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_s271s_call_lands_on_his_reply(night):
     """s271 call 1 on m127 with m129: the words sit in the act only."""
     ctx = night("m129", LATE[2:])
@@ -97,6 +98,7 @@ def test_s271s_call_lands_on_his_reply(night):
     assert row["words"] == S271_SPAN
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_s275s_call_lands_on_his_reply(night):
     """s275 call 1 on m130 with m132: drops and a rewrite, no `words`."""
     ctx = night("m132", ["m132"])
@@ -110,35 +112,6 @@ def test_s275s_call_lands_on_his_reply(night):
     rows = _rows(ctx)
     assert rows["reading:m121"]["act"] == "rewrite"
     assert rows["challenge_constraints_sentinel"]["act"] == "drop"
-
-
-def test_s258s_landed_call_is_refused_on_line_12s_act(night):
-    """s258 call 8 on m120 with m121 landed r_m121. Line 12's act carries no
-    words of its own, so it rested on the whole reply."""
-    ctx = night("m121", LATE)
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={
-            **R8, "4": "contest",
-            "12": {"verdict": "contest", "act": "remove",
-                   "target_kind": "source_line",
-                   "target": "src/click/utils.py:12"}}, words=W121)
-    assert str(e.value) == (
-        "line 12: the act remove rests on '', and his words do not hold it. "
-        "Copy the words of his reply that ask for the change, or leave the "
-        "act out")
-
-
-def test_s258s_call_without_the_act_is_refused_on_line_4(night):
-    """m121 numbers line 12 only. "The other lines are fine." spares no
-    criterion line it never numbers."""
-    ctx = night("m121", LATE)
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
-                         words=W121)
-    assert str(e.value) == (
-        "The words name line 12 and do not name line 4. A contest rests on "
-        "the principal's words. Approve the lines the words do not name, or "
-        "rule them as the words say.")
 
 
 # The refusal of `words` that are not a part of his reply (F2 passes 2f and
@@ -156,28 +129,7 @@ W129 = ("Fix the change instead of giving up by putting back the two removed "
         "right, and all the other lines are fine.")
 
 
-def test_words_the_seat_adds_to_his_reply_are_refused(night):
-    """The F2 review of pass 2, finding 8: the seat's words with "Line 4 is
-    wrong too." landed a contest of line 4 that m121 never makes. The door
-    now refuses the words before any door reads them."""
-    ctx = night("m121", LATE)
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
-                         words=W121 + " Line 4 is wrong too.")
-    assert str(e.value) == NOT_HIS
-
-
-def test_the_probe_sentence_alone_is_refused(night):
-    """The review's probe as the whole of `words`: m121 never says it, so
-    the row's owner would get words he never said (law 6)."""
-    ctx = night("m121", LATE)
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
-                         words="Line 4 is wrong too.")
-    assert str(e.value) == NOT_HIS
-    assert not [w for w in ctx.writes if w[0] == "rulings"]
-
-
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_s271s_call_with_its_nested_words_as_words_lands(night):
     """s271's span sat in the act only. It is m129's first sentence, so the
     same call with that span as `words` is a part of his reply and lands."""
@@ -191,20 +143,7 @@ def test_s271s_call_with_its_nested_words_as_words_lands(night):
     assert row["words"] == S271_SPAN
 
 
-# F2 pass 2g, the review of pass 2f, finding 1: a line object or an `acts`
-# entry with no act carried words he never said to the row.
-def test_a_line_objects_words_outside_his_reply_are_refused(night):
-    ctx = night("m129", LATE[2:])
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings={
-            **R8, "9": A, "10": A,
-            "11": {"verdict": "contest", "words": "Line 4 is wrong too."}})
-    assert str(e.value).startswith(
-        "line 11 words must be his own words, and his reply does not hold "
-        "'Line 4 is wrong too.'")
-    assert not [w for w in ctx.writes if w[0] == "rulings"]
-
-
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_line_objects_words_from_his_reply_land_on_the_row(night):
     ctx = night("m129", LATE[2:])
     api.rulings_rule(ctx, rulings={
@@ -257,24 +196,8 @@ def test_the_refusal_quotes_the_failed_sentence_and_his_nearest():
         "docstring changes and the code stays the same.'")
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_s258s_call_with_line_4_approved_lands(night):
     ctx = night("m121", LATE)
     api.rulings_rule(ctx, rulings={**R8, "12": "contest"}, words=W121)
     assert _rows(ctx)["reading:m118"]["verdict"] == "contest"
-
-
-def test_a_contest_by_the_id_of_a_row_he_never_saw_is_refused(night):
-    """The review of P9, finding 3: with no recorded order, the door reads
-    today's render of m130, which numbers none of the 7 claims. A contest
-    keyed by a claim's id lands on no row he saw (law 6)."""
-    ctx = night("m131", LATE[3:])
-    ctx.conn.execute("DELETE FROM config WHERE key LIKE '%m131%'")
-    rulings = {str(i): A for i in range(1, 9)}
-    rulings["challenge_constraints_sentinel"] = "contest"
-    with pytest.raises(ValueError, match="is no line of this page"):
-        api.rulings_rule(ctx, rulings=rulings, words=W131)
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

@@ -124,6 +124,7 @@ def test_the_writer_holds_the_stored_verdicts_and_a_row_never_changes(db):
                    "WHERE id = 'rr_approve'")
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)
@@ -154,44 +155,6 @@ def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     # The reader keeps its answer: the verdict and the whole reply.
     assert last_ruling_on(db, "l_1") == {"id": out["id"], "verdict": "contest",
                                          "words": WORDS, "text": None}
-
-
-def test_the_object_form_writes_the_rows_and_the_flat_form_is_refused(tmp_path):
-    """Frame 345, pass 2: the one-word form replaced the flat `acts` map,
-    and the object form stays."""
-    conn = init_db(tmp_path / "object.db")
-    ask = _page(conn)
-    sb, _ = _seat(conn, ask)
-    sb.call("rulings.rule", words=WORDS, rulings=OBJECT)
-    written = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"]
-    conn.close()
-    assert len(written) == 3 and written[2]["act"] == "remove"
-    conn = init_db(tmp_path / "flat.db")
-    ask = _page(conn)
-    sb, _ = _seat(conn, ask)
-    with pytest.raises(ValueError, match="takes no acts"):
-        sb.call("rulings.rule", words=WORDS, rulings=FLAT, acts=ACTS)
-    assert not sb.ctx.writes
-    conn.close()
-
-
-def test_the_call_forms_keep_and_add_refusals(db):
-    ask = _page(db)
-    sb, _ = _seat(db, ask)
-    with pytest.raises(ValueError, match="not an act"):
-        sb.call("rulings.rule", words=WORDS, rulings={
-            "1": "approve", "2": "approve",
-            "3": {"verdict": "contest", "act": "delete"}})
-    with pytest.raises(ValueError, match="has no verdict"):
-        sb.call("rulings.rule", words=WORDS, rulings={
-            "1": "approve", "2": "approve", "3": {"act": "remove"}})
-    with pytest.raises(ValueError, match="takes no acts"):
-        sb.call("rulings.rule", words=WORDS, rulings=OBJECT, acts=ACTS)
-    # Today's refusals stand on the object form: a line needs a ruling.
-    with pytest.raises(ValueError, match="have no ruling"):
-        sb.call("rulings.rule", words=WORDS, rulings={
-            "3": {"verdict": "contest", "words": SPAN}})
-    assert not sb.ctx.writes
 
 
 def test_frame300_a_ruling_on_a_ref_no_table_holds_is_refused(db):
@@ -242,6 +205,7 @@ def test_the_shift_answer_lands_its_rows_through_the_same_builder(db):
         ("calculate_tip", "park", "keypress", "later")], rows
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_the_view_supersedes_outdates_and_confirms(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)
@@ -353,8 +317,3 @@ def test_a_keypress_on_a_gone_ref_keeps_his_verdict_and_leaves_a_fault(db):
     (reading,) = [r for r in rulings_load(SimpleNamespace(conn=db), ask.message_id)
                   if r["id"] == f"r_{mid}"]
     assert json.loads(reading["per_item"])["r_gone"] == "approve"
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

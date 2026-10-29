@@ -358,7 +358,6 @@ MOVED = {
     ("rota/core/sandbox.py", "_names_no_source"): ("messages", "entries"),
     ("rota/core/sandbox.py", "_quoted_rows"): ("{}",),
     ("rota/core/sandbox.py", "stage"): ("glossary_terms",),
-    ("rota/roles/api.py", "_is_team_note"): ("{}",),
     ("rota/roles/api.py", "_misplaced_conflict"): ("{}", "decisions"),
     ("rota/roles/api.py", "_owner_call"): ("{}",),
     ("rota/roles/api.py", "brief_segment"): ("entries",),

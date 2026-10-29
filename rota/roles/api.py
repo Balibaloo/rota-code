@@ -11560,14 +11560,6 @@ def _ask_of(ctx: Ctx):
         (trigger,)).fetchone()
 
 
-def _is_team_note(conn, ref: str) -> bool:
-    """Whether a page line is a team's note: a ledger row, a constraint, a
-    glossary term or a model area."""
-    # `db.table_of` finds the row, and the scope is the team's tables (F22).
-    return table_of(conn, ref, among=("ledger", "constraints", "glossary_terms",
-                                      "model_areas")) is not None
-
-
 # law 6: nothing is ruled on the principal's behalf
 # The words door: a principal's word that the three ruling words do not hold
 # lands by one named mapping. Night 137's s159 wrote `drop` on seven lines and
@@ -11596,21 +11588,6 @@ SHIFT_WORDS: dict[str, str | None] = {
 }
 
 
-# One word per page line (frame 345, pass 2, the seam read's option (d)). An
-# act word is a verdict and an act. The table is the act list of the landing
-# brief, and it reads the seat's word, never his words. Meaning stays with
-# the seat (ruled: Roman, 2026-10-28). The order words, later and now, keep
-# the shift page's own map.
-WORD_ACTS: dict[str, tuple[str, str]] = {
-    "drop": ("contest", "drop"), "remove": ("contest", "remove"),
-    "rewrite": ("contest", "rewrite"), "exclude": ("contest", "exclude"),
-    "add": ("approve", "add"),
-}
-# The target kind of an act word on a page line. An add names no target.
-# The word `keep` is no act word since pass 5. A keep of a check still
-# comes in the long form, with its act and target kind.
-_WORD_KINDS = {"drop": "row", "rewrite": "row", "remove": "row",
-               "exclude": "path"}
 _PATH_SHAPE = re.compile(r"[\w.-]*/[\w./-]*\w|[\w.-]+\.py\b")
 
 
@@ -11619,18 +11596,6 @@ def _is_touch_line(conn, ref: str) -> bool:
     touches: a batch, or a guess key (frame 298's design, 3.1, point 4)."""
     return bool(guess_item(ref)
                 or table_of(conn, ref, among=("batches",)) is not None)
-
-
-# The name of a row's kind in a refusal, by its table.
-_LINE_KINDS = {"items": "a request line", "criteria": "a criterion",
-               "ledger": "the team's note", "messages": "a read-back line",
-               "glossary": "a glossary term", "constraints": "a constraint"}
-
-
-def _line_kind(conn, ref: str) -> str:
-    """The words that name the kind of the row behind a page line."""
-    table = table_of(conn, ref)
-    return _LINE_KINDS.get(table, f"a row of {table}" if table else "a row")
 
 
 def _shown_paths(conn, ref: str, order: list, page_text: str) -> list[str]:
@@ -11681,60 +11646,6 @@ def _excluded_paths(given: str, shown: list[str],
                 return None
         out.append(found)
     return list(dict.fromkeys(out))
-
-
-def _word_shape(conn, ref: str, shape: dict, matched: str | None,
-                order: list, page_text: str, key: str = "") -> dict:
-    """The object of one page line's act word, with the parts that code
-    fills.
-
-    `words` is `matched`, the words of his that name the line. `target_kind`
-    comes from the row behind the line. A
-    remove on a code line takes `source_line`. An exclude takes the paths
-    that the seat names after the word, each one a path of the line's
-    prediction. These are facts about the row and the line, never a reading
-    of what his words rule. The act checks below still read every part."""
-    out = dict(shape)
-    act = out.get("act")
-    if not act:
-        return out
-    if matched and not out.get("words"):
-        out["words"] = matched
-    # The landing prompt says that `remove` on a page line that is no code
-    # line drops that line (review p5, finding 2). The row decides, never
-    # his words, so a remove there lands as a drop of the row.
-    if act == "remove" and not _is_touch_line(conn, ref):
-        act = out["act"] = "drop"
-        out["target_kind"] = "row"
-    if not out.get("target_kind") and act in _WORD_KINDS:
-        kind = _WORD_KINDS[act]
-        if act == "remove":
-            kind = "source_line"
-        out["target_kind"] = kind
-    # On "keep line 5 to the terminal module" the path his words name is the
-    # path he keeps. So the seat names the paths an exclude takes off, and
-    # code checks each one against the line (frame 345, pass 7).
-    if act == "exclude" and "given" in out:
-        given = out.pop("given")
-        if not _is_touch_line(conn, ref):
-            raise ValueError(
-                f"line {key} is {_line_kind(conn, ref)}, and it lists no files. "
-                f"exclude takes a path off a line that lists the files the "
-                f"change touches. Give line {key} another word")
-        shown = _shown_paths(conn, ref, order, page_text)
-        paths = _excluded_paths(given, shown,
-                                _shown_entries(conn, ref, order, page_text))
-        if not paths:
-            listed = ", ".join(shown) or "(none)"
-            said = (f"{given.strip()!r} is not a path of line {key}"
-                    if given.strip() else
-                    f"exclude names the paths to take off line {key}")
-            raise ValueError(
-                f"line {key}: {said}. Line {key} lists {listed}. Write exclude "
-                f"and each path to take off, for example \"exclude "
-                f"{shown[0] if shown else 'src/a.py'}\"")
-        out["target"], out["paths"] = paths[0], paths
-    return out
 
 
 def _word_key(raw, words: dict) -> str:
@@ -12282,8 +12193,8 @@ def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
     # rides beside a backed verdict: "fine" carried a contest of g1 beside
     # its approve of g2 (review p7 p2, finding p2-2).
     # A choice of one option backs the contest of the others: "the options
-    # one" contests the command sense. A numbered page keeps its own line
-    # doors for a contest (`_unnamed_contest`), so this reads a clarify.
+    # one" contests the command sense. A numbered page takes the menu form
+    # (frame 345, pass R2), so this reads a clarify.
     def shown_of(ref: str) -> str:
         line = order.index(ref) + 1 if ref in (order or []) else None
         return _shown_text(conn, ref, line, page_text)
@@ -12694,12 +12605,6 @@ class LineReading:
                       faulted_texts: tuple[str, ...] = ()) -> bool:
         """True when the words, with no line number, name the request."""
         return _names_request(self.words, request_texts, faulted_texts)
-
-    def note_act(self, n: int, page_text: str,
-                 within: str | None = None) -> str | None:
-        """What the words ask of note line `n`: "drop", "change", "own"
-        or None."""
-        return _note_words(self.words, n, page_text, within=within)
 
     def _pair(self) -> tuple[set[int], set[int]]:
         return self.faulted, self.matched
@@ -13307,102 +13212,8 @@ def built_line_faulted(words: str, order: list[str] | None, ref: str,
     return any(n in faulted for n in _lines_of(order, ref))
 
 
-def _line_refusal(words: str, contested: set[int], faulted: set[int],
-                  matched: set[int], size: int, request_first: bool,
-                  quoted: bool, batch_lines: frozenset[int] = frozenset(),
-                  item_lines: frozenset[int] = frozenset(),
-                  request_lines: frozenset[int] = frozenset(),
-                  request_texts: tuple[str, ...] = (),
-                  faulted_texts: tuple[str, ...] = (),
-                  earlier_lines: frozenset[int] | None = None,
-                  item_texts: dict[int, str] | None = None
-                  ) -> str | None:
-    """The refusal of a ruling the words do not support, or None.
-
-    `faulted` and `matched` come from `_line_reading`, after the batch lift.
-    `size` is the count of lines on the page. `request_first` says that line
-    1 is a request item. `quoted` says that the words quote line 1.
-    `batch_lines` are the lines that show a batch's prediction.
-    `item_lines` are the lines that show a request item or a criterion.
-    `request_lines` are the lines that show a request item.
-    `request_texts` are the ids and the texts of those items.
-    `faulted_texts` are the texts of the items and criteria on the lines in
-    `faulted`. `earlier_lines` are the lines that his earlier answers to the
-    page name, or None when the reply is his only answer.
-    `item_texts` maps each criterion line to its text.
-
-    Two cue doors left this function in frame 345, pass 3. The agreement
-    door refused a contest of a line that his words "match", and
-    `_faulted_approve` refused an approve of a line that a cue faults. Both
-    read meaning through cue lists and refused words that the match
-    supports, as "removing line 5 is right" and "finish with line 2 alone".
-    The match and `_no_words_refusal` are the fact now (ruled: Roman,
-    2026-10-28, "doors used for meaning are a symptom of poor
-    prompting/context").
-    """
-    sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
-    # law 6: nothing is ruled on the principal's behalf
-    # A batch line is left to the batch door only when the words name files
-    # or tests, the words of its prediction. Night 150's m37 faulted lines 1
-    # to 5, and the contest of batch_1 on line 6, which no sentence names,
-    # cost an Architect relay. m52 and m58 did the same to batch_2 (frame
-    # 258).
-    spared = (batch_lines if _line_reading(words).touches_files
-              else frozenset())
-    unnamed = _unnamed_contest(sentences, contested - spared,
-                               faulted | matched, size, item_lines,
-                               request_lines, earlier_lines, item_texts)
-    if unnamed:
-        return unnamed
-    if not request_first or 1 not in contested or quoted:
-        return None
-    named = sorted(n for n in faulted if n <= size)
-    # A reply that asks to keep the change and faults no line asks for no
-    # line-1 contest. Night 151's m46 and m64: "Please don't drop this
-    # change." and "Lines 2 and 3 say what I want" (frame 305, review 2).
-    if not named and 1 not in faulted and _KEEP_CHANGE.search(words or ""):
-        return ("The words do not fault line 1, and they ask to keep the "
-                "change. Approve line 1.")
-    if not named or 1 in faulted:
-        return None
-    # Any reference to line 1 can carry a fault the cues miss. Night 144's
-    # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
-    if any(1 in _line_reading(s).named for s in sentences):
-        return None
-    # A sentence with no line number can correct the request itself. Night
-    # 143's m263: "Also, take the version from the running interpreter's
-    # version info" (frame 234, review 1, finding 2). It must name the
-    # request or say what to build. Night 151's m46, "Please don't drop this
-    # change.", is about the batch, and its line-1 contest cancelled bg_1
-    # (frame 258, pass 2). When the words fault a batch line, a sentence that
-    # names tests or a file path corrects the prediction, as the Liaison's
-    # brief says. Night 155's m62, m93 and m179 did so and named the
-    # request's subject. Each line-1 contest cancelled a live batch (frame
-    # 258, pass 3). A reply that asks to keep the change corrects no request
-    # in any sentence. Night 143's m359 said "don't drop this change", and
-    # its line-1 contest abandoned bg_6 (`plans/frame258-review-2.md`).
-    batch_faulted = bool(batch_lines & faulted)
-    if not _KEEP_CHANGE.search(words or "") and any(
-            s.strip() and not _line_reading(s).refs
-            and not _BARE_AGREEMENT.fullmatch(s)
-            and not (batch_faulted and _FILES_TALK.search(s))
-            and _line_reading(s).names_request(request_texts, faulted_texts)
-            for s in sentences):
-        return None
-    # The shape of the batch door's refusal, which names the line first.
-    # Night 161's s181 read "approve the rest" as no answer for line 1
-    # (`plans/frame258-provenance.md`, 3).
-    lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
-    return (f"line 1: the words do not fault the request. They fault "
-            f"{lines}. Rule {lines} as the words say, and approve line 1.")
-
-
 # The words of a batch's prediction: what the change touches.
 _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
-# Tests or a file path: m179's "name src/click/utils.py". "file" and
-# "touch" stay out, because "write to a file" corrects the request (frame
-# 258, pass 3 review, finding 1).
-_FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
 # A reply that asks to keep the change: "Please don't drop the JSON change."
 # (frame 258, review 2, finding 2). The apostrophe can be straight or curly.
 # "change" stays out: "Do not change echo itself" is a files correction, and
@@ -13688,13 +13499,6 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
     return out
 
 
-def _no_words_refusal(n: int) -> str:
-    """The one refusal of a ruling on line `n` that no words of his name
-    (frame 345, pass 2c). It names the two rulings that need no words."""
-    return (f"line {n}: no words of his name line {n}. Rule the lines his "
-            f"words name, and approve or leave out line {n}")
-
-
 def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
     """The words fault only the files under request line `line` (its pointer)
     or under the item's code line or batch line, and correct none of the
@@ -13719,12 +13523,6 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
         else:
             content = True
     return files and not content
-
-
-def _request_item(conn: sqlite3.Connection, item_id: str) -> bool:
-    from .principal import _is_request_item
-
-    return _is_request_item(conn, item_id)
 
 
 def code_stamp(conn: sqlite3.Connection, message_id: str | None) -> dict:
@@ -13805,11 +13603,6 @@ def _names_request(sentence: str, request_texts: tuple[str, ...],
     return bool(words(sentence) & asked)
 
 
-# A sentence that opens with one of these words goes on about the lines of
-# the sentence before it. Night 150's m316: "Lines 4 to 8 are wrong. They
-# repeat the confirm() flag five times, and they should state what the
-# version flag must do." The second sentence spared lines 3 and 9 (frame 258).
-_BACK_REF = re.compile(r"\W*(?:they|it|its|these|those|both|each|their)\b", re.I)
 # A reply that opens so agrees with the page. Night 150's m25: "Ok, this
 # matches what I asked for." (frame 258).
 _AGREES = re.compile(
@@ -13827,172 +13620,6 @@ _AGREEMENT_ALONE = re.compile(
     rf"\W*(?:{_AGREE_PHRASE})(?:\W+(?:{_AGREE_PHRASE}))*\W*", re.I)
 
 
-def _unnumbered(sentences: list[str]) -> list[str]:
-    """The sentences that can correct a line they never number.
-
-    A bare agreement corrects nothing. A sentence that opens with "They" or
-    "It" after a numbered sentence is about that sentence's lines.
-    """
-    out: list[str] = []
-    numbered = False
-    for s in sentences:
-        if _line_reading(s).refs:
-            numbered = True
-            continue
-        if numbered and _BACK_REF.match(s):
-            continue
-        numbered = False
-        if s.strip() and not _BARE_AGREEMENT.fullmatch(s):
-            out.append(s)
-    return out
-
-
-def _unnamed_contest(sentences: list[str], contested: set[int],
-                     read: set[int], size: int,
-                     item_lines: frozenset[int] = frozenset(),
-                     request_lines: frozenset[int] = frozenset(),
-                     earlier_lines: frozenset[int] | None = None,
-                     item_texts: dict[int, str] | None = None) -> str | None:
-    """The refusal of a contest on a line the words never name, or None.
-
-    Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
-    s281 contested lines 5, 6 and 8 to 11. The contest of the Critic's notes
-    on lines 5 and 6 went to the Vision Keeper and cost bg_2. `read` holds
-    the faulted and matched lines after the batch lift, so the item of a
-    merged or abandoned batch's line counts as named. Line 1 stays with the
-    line-1 refusal and its guards, a quote and a page that opens with no
-    request. The caller leaves out a batch line when the words name files
-    or tests, because the batch door rules that line. Its prediction spans
-    several lines of text, and night 136's m85 said "Line 2" for one of them
-    (`test_request_page.py`). `item_lines` are the lines of the request
-    items and the criteria. `request_lines` are the request items alone.
-    `earlier_lines` are the lines whose rows take their words from his
-    earlier answer to the same page, by `words_from`. It is None when the
-    reply is his only answer to the page. `item_texts` maps each criterion
-    line to its text.
-
-    law 6: nothing is ruled on the principal's behalf
-    """
-    named = {n for n in read if 1 <= n <= size}
-    for s in sentences:
-        named |= {n for n in _line_reading(s, size).named if 1 <= n <= size}
-        # The lines the match names count too, so this door reads no
-        # stricter source than `line_words` (frame 345, pass 3). In L1
-        # approve-one-line-only, "2 and 3 say the same sentence" named
-        # lines 2 and 3 for the match and for no reference here.
-        named |= _subject_lines(
-            _QUOTED.sub(lambda m: " " * len(m.group(0)), s), size)
-    if not named:
-        return _agreed_contest(sentences, contested, size, request_lines)
-    # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
-    # A contest can rest on an earlier answer of the exchange. Night 168's
-    # m76 said "Line 5 is wrong", m78 named line 6 only, and the refused
-    # contest of line 5 became an approve of it (frame 337).
-    unnamed = sorted(n for n in contested - named - (earlier_lines or set())
-                     if n != 1)
-    if not unnamed:
-        return None
-    # A sentence with no line number can correct an item line it never
-    # numbers. Night 143's m263 corrected the request so (frame 234, review
-    # 1, finding 2). It spares the request and its criteria alone, so a
-    # statement line, a note or the description is refused. Night 150's
-    # m140 contested the description row against "Ok, I approve the page"
-    # (frame 258). One added sentence let s281's contest of the notes land
-    # (review 3, finding 1).
-    # Words that number a line spare a criterion line only when a sentence
-    # with no number shares a name with the line's text. Night 172's m121
-    # numbered line 12, and "The other lines are fine." let a contest of
-    # criterion line 4 land (F2 pass 2, W5). A name can still point at a
-    # criterion that no number reaches (pass 2b).
-    loose = _unnumbered(sentences)
-    if loose:
-        # A sentence that agrees spares nothing. "The `format_filename`
-        # docstring is fine as it is." spared line 4 (the F2 review, pass 2,
-        # finding 1). So the sentence must hold a fault word.
-        said = set().union(*(_line_reading(s).names for s in loose
-                             if _line_reading(s).faults))
-        unnamed = [n for n in unnamed if n not in request_lines and not (
-            n in item_lines and said
-            & _line_reading((item_texts or {}).get(n, "")).names)]
-        if not unnamed:
-            return None
-    read_earlier = ("" if earlier_lines is None else
-                    f" His earlier answers to this page do not name "
-                    f"{_lines(unnamed)} either.")
-    return (f"The words name {_lines(sorted(named))} and do not name "
-            f"{_lines(unnamed)}. A contest rests on the principal's words. "
-            f"Approve the lines the words do not name, or rule them as the "
-            f"words say.{read_earlier}")
-
-
-def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
-                     ) -> tuple[frozenset[int] | None, frozenset[int]]:
-    """The page lines that his earlier answers to the page name, or None,
-    and the lines that his latest earlier answer about each line says match.
-
-    The rows are the principal rows of the query that fills
-    `earlier_exchange` in `runner.py`, so the door reads the answers that
-    the seat's prompt shows. None says that the reply is his only answer.
-    """
-    texts = [t for t, _ in _earlier_answers(conn, ask_id, reply_id)]
-    if not texts:
-        return None, frozenset()
-    # The latest answer about a line wins. An earlier "Line 5 is fine" let a
-    # contest of line 5 land against his word (frame 337, review 1, finding
-    # 1), and a later "Line 5 is wrong" overrides it.
-    said: dict[int, bool] = {}
-    named: set[int] = set()
-    for t in texts:
-        reading = _line_reading(t, size)
-        faulted, matched = reading
-        said.update({n: True for n in matched - faulted})
-        said.update({n: False for n in faulted})
-        named |= reading.named
-    return (frozenset(n for n in named if 1 <= n <= size),
-            frozenset(n for n, fine in said.items() if fine and 1 <= n <= size))
-
-
-def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
-                     ) -> dict[int, tuple[str, str]]:
-    """Each page line that his earlier answers to the page name, with the
-    latest answer that names it and the sentence that names it.
-
-    The rows are the principal rows of `earlier_exchange`, as in
-    `_earlier_reading`. A row on such a line records that answer as its
-    source, so the record says which of his words the contest rests on
-    (frame 337; the seam design, 1.1, `words_from`).
-    """
-    out: dict[int, tuple[str, str]] = {}
-    for text, message_id in _earlier_answers(conn, ask_id, reply_id):
-        for sentence in _RULING_SENTENCE.split(text):
-            for n in sorted(_line_reading(sentence, size).named):
-                if 1 <= n <= size:
-                    out[n] = (message_id, sentence.strip())
-    return out
-
-
-def _earlier_answers(conn, ask_id: str, reply_id: str
-                     ) -> list[tuple[str, str]]:
-    """His words and the message id of each earlier answer to the page
-    `ask_id`, in order, without the reply `reply_id`.
-
-    A clarify answer lands on the verdict path of `land`, which writes no
-    `body_text`. So the words come from `said`, and an answer is kept when
-    its words are not empty (night 172, wall W7)."""
-    from .principal import said as his_words
-
-    out = []
-    for m in conn.execute(
-            "SELECT id FROM messages WHERE cause_id = ? AND verb = 'converse' "
-            "AND id != ? AND from_role = 'principal' ORDER BY seq",
-            (ask_id, reply_id)):
-        text = his_words(conn, m["id"])
-        if text:
-            out.append((text, m["id"]))
-    return out
-
-
-_PAGE_LINE = re.compile(r"^\s+(\d+)\. (.*)$", re.M)
 # The refusal of words that name no line of the account's page. His next
 # request page reads it from the page's note (`account_unnamed_line`). No
 # door writes it since frame 345, pass 3, so old notes alone carry it.
@@ -14000,123 +13627,9 @@ ACCOUNT_NO_LINE = ("The words name no line of this page, so they change no "
                    "row on it.")
 
 
-def _account_page_refusal(words: str, ruled: set[int], page_text: str,
-                          size: int, contested: set[int]) -> str | None:
-    """The refusal of a ruling on the account's page that his words do not
-    name, or None.
-
-    The account's page has no line of a request. Words land only on a line
-    they name by number or share a name with, by the F2 name rule. Words
-    about format_filename on s272's page of claims landed 7 contests, then 7
-    approves, on 7 claims they never named (the review of P9, p2, finding
-    2, and p3, finding 1). Agreement alone approves every line, and words
-    that name lines by a word are left to the other doors.
-
-    law 6: nothing is ruled on the principal's behalf
-    """
-    if not any(1 <= n <= size for n in ruled):
-        return None
-    if _AGREEMENT_ALONE.fullmatch(words or ""):
-        return None
-    reading = _line_reading(words, size)
-    # "Drop all seven lines" names lines by a word, and the door cannot read
-    # which, as in `_agreed_contest`. Night 133's m123 said so.
-    if reading.line_word:
-        return None
-    named = {n for n in reading.named | reading.faulted | reading.matched
-             if 1 <= n <= size}
-    said = reading.names
-    if said:
-        named |= {int(m.group(1)) for m in _PAGE_LINE.finditer(page_text or "")
-                  if said & _line_reading(m.group(2)).names}
-    # Words that name no line by number or by name rule every line of the
-    # page, as `line_words` binds them (frame 345, pass 3). The door that
-    # refused them with `ACCOUNT_NO_LINE` read a stricter source than the
-    # match, and it refused "Drop both of those examples" on a page of two.
-    if not named:
-        return None
-    unnamed = sorted(n for n in contested if 1 <= n <= size and n not in named)
-    if not unnamed:
-        return None
-    return (f"The words name {_lines(sorted(named))} and do not name "
-            f"{_lines(unnamed)}. On the account's page a contest lands only "
-            f"on a line the words name.")
-
-
-def _agreed_contest(sentences: list[str], contested: set[int], size: int,
-                    request_lines: frozenset[int]) -> str | None:
-    """The refusal of a contest when the words name no line, or None.
-
-    Words that name no line, agree with the page and add an instruction
-    correct the request alone. Night 150's m25, "Ok, this matches what I
-    asked for. Please build it with the standard library json module
-    only.", was ruled a contest of `how_it_works`, the description row. The
-    contested wake then made the item `json_only` from his instruction, and
-    both batches of the night were that item's and were cancelled (frame
-    258). A contest or a revise of the request line lands. Both wake the
-    Vision Keeper's contested mode, which amends the item with his words.
-    A reply that names a line by a word, "the line" or "both lines", is
-    left alone, because the door cannot read which line it names.
-
-    A reply that is agreement alone admits no contest on any line. Over
-    every night's records, 5 of 1513 such replies drew a contest, and each
-    contest was the seat's error: night 151's m23 "ok" contested lines 2
-    and 3 and cost 2 asks and 11 sessions (frame 258, pass 2).
-
-    law 6: nothing is ruled on the principal's behalf
-    """
-    if _AGREEMENT_ALONE.fullmatch(" ".join(sentences)):
-        if not any(1 <= n <= size for n in contested):
-            return None
-        return (f"The words agree with the page and name no line, so every "
-                f"line is approved. Approve "
-                f"{_lines(list(range(1, size + 1)))}.")
-    if not request_lines or not sentences or not _AGREES.match(sentences[0]):
-        return None
-    if _line_reading(" ".join(sentences)).line_word:
-        return None
-    # The instruction is a sentence after the agreement. A reply of one
-    # sentence that agrees and adds words is left alone, because the door
-    # cannot read where the words go (frame 258, review 1, finding 1).
-    if not any(s.strip() and not _BARE_AGREEMENT.fullmatch(s)
-               for s in sentences[1:]):
-        return None
-    unnamed = sorted(n for n in contested
-                     if 1 <= n <= size and n not in request_lines)
-    if not unnamed:
-        return None
-    asked = _lines(sorted(request_lines))
-    return (f"The words name no line and agree with the page, so their "
-            f"instruction is about the request, {asked}. Approve "
-            f"{_lines(unnamed)}, and rule {asked} as the words say.")
-
-
 def _lines(ns: list[int]) -> str:
     """"line 3" or "lines 3, 4 and 7"."""
     return f"line{'' if len(ns) == 1 else 's'} {_line_set(ns)}"
-
-
-# The words that ask to take a team's note off the page. Night 161's s357
-# read "take them off this page" for lines 10, 13 and 14 (frame 305).
-_NOTE_DROP = re.compile(
-    r"\b(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|"
-    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b", re.I)
-# The words that ask a note for new words. A fault alone names no change, so
-# "Line 11 is wrong" stays no revise (frame 305, review 1, finding 2).
-_NOTE_CHANGE = re.compile(
-    r"\b(?:use|change|make|replace|rewrite|reword|say|switch|rename|move|add|"
-    r"update|set|fix|put|correct|call|run|mention|include|cover|instead|"
-    r"rather|should|must|needs? to|has to|have to)\b", re.I)
-# A clause that keeps the note, or that does not follow it, asks no change.
-# Night 160's m11 said "I don't understand line 2", and m45 said "Line 2 and
-# its check now say what I want" (frame 305, review 1, findings 1 and 2).
-_NOTE_NO_CHANGE = re.compile(
-    r"\bas (?:it is|they are|written|it stands)\b|\bunchanged\b|\bstays?\b|"
-    r"\bunderstand\b|\bunclear\b|\bconfus\w*|\bwhat I (?:want|wanted|asked|meant)\b",
-    re.I)
-# The words before a drop word that make it part of the note's new text:
-# "Line 11 should say the escaping is removed" (review 1, finding 4).
-_NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
 
 
 def _lines_of(order: list | None, ref) -> list[int]:
@@ -14140,81 +13653,6 @@ def _line_body(page_text: str, n: int) -> str:
     found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
                       page_text or "", re.M)
     return found.group(1) if found else ""
-
-
-def _note_words(words: str, n: int, page_text: str,
-                within: str | None = None) -> str | None:
-    """What the principal's words ask of team-note line `n`.
-
-    "drop" when a clause about the line asks to take it off. "change" when a
-    clause about the line asks for new words by a change verb. "own" when a
-    clause reads as a drop only by a word the line's own text holds. None
-    otherwise. Night 161's s357 said "On line 11, use click directly in the
-    test" (frame 305).
-
-    `within` is an act's span. When it is given, only a clause whose range
-    in the words meets the span's range is read. A clause keeps the lines
-    of the clause before it, so the span needs no line of its own (the
-    reviews of pass 4b, P4b-3, and of pass 4c, P4c-3).
-    """
-    # Whole words: "Remove line 11" on a note that holds "removed" is a drop
-    # (frame 305, review 1, finding 5).
-    body = " " + " ".join(re.findall(r"[\w']+", _line_body(page_text, n).lower())) + " "
-    found: set[str] = set()
-    clauses = _cue_clauses(words)
-    meets = [True] * len(clauses)
-    if within:
-        # Both sides fold alike, so a clause's folded text sits in the
-        # folded words, in order. A span that runs past a clause edge
-        # meets both clauses (the review of pass 4c, P4c-3).
-        def fold(s: str) -> str:
-            return " ".join((s or "").split()).casefold()
-
-        text, span = fold(words), fold(within)
-        start = text.find(span)
-        end = start + len(span)
-        at = 0
-        for i, (cl, _refs, _q) in enumerate(clauses):
-            c = fold(cl)
-            c_start = text.find(c, at) if c else -1
-            if c_start < 0:
-                meets[i] = False
-                continue
-            at = c_start + len(c)
-            meets[i] = start >= 0 and c_start < end and start < at
-    for (cl, refs, question), meet in zip(clauses, meets):
-        if not refs or n not in refs or not meet:
-            continue
-        drops = [m for m in _NOTE_DROP.finditer(cl)
-                 if not _NEGATED.search(cl[:m.start()])
-                 and not _NOTE_SAYS.search(cl[:m.start()])]
-        if drops and not _KEEP_CHANGE.search(cl):
-            if all(" " + " ".join(re.findall(r"[\w']+", m.group(0).lower())) + " "
-                   in body for m in drops):
-                found.add("own")
-            else:
-                found.add("drop")
-            continue
-        if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
-            continue
-        rest = cl
-        for r in reversed(_line_reading(cl).refs):
-            rest = rest[:r.start] + " " + rest[r.end:]
-        # "Line 11 is about the echo json change" describes the line. Its
-        # "change" is a noun, and only a modal makes it a request.
-        if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
-                and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
-                                  r"instead|rather)\b", rest, re.I)):
-            continue
-        # A negated change verb asks to keep the line: "Do not change line
-        # 4." The drop verbs' guard serves (the seam review, p3-5).
-        if any(not _NEGATED.search(rest[:m.start()])
-               for m in _NOTE_CHANGE.finditer(rest)):
-            found.add("change")
-    for kind in ("drop", "change", "own"):
-        if kind in found:
-            return kind
-    return None
 
 
 def _names_path(span: str, target: str) -> bool:
@@ -14254,20 +13692,6 @@ def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
         return ""
     item = str(ref).split(":", 1)[1]
     return code_line(conn, item, code_target(conn, item))
-
-
-def _quotes_line(words: str, page_text: str, n: int) -> bool:
-    """Whether the words quote line `n` of the rendered page: a run of five
-    or more of the line's words, case-folded. The capture takes the line's
-    indented sub-lines and stops at a section header, which has no indent."""
-    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
-                      page_text or "", re.M)
-    if not found:
-        return False
-    said = re.findall(r"[\w']+", found.group(1).casefold())
-    heard = " " + " ".join(re.findall(r"[\w']+", (words or "").casefold())) + " "
-    return any(f" {' '.join(said[k:k + 5])} " in heard
-               for k in range(len(said) - 4))
 
 
 def _line_set(lines: list[int]) -> str:
@@ -14342,7 +13766,6 @@ def _argument_key(ctx: "Ctx", key: str, rulings: dict, words: str = "",
 # acts that the mechanical readers already read on each row kind (the design
 # page of 2026-10-29, fact 2). So an act cannot be left out, named wrong, or
 # put on a kind that cannot move it.
-MENU_PAGES = True
 _MENU_BASE = {
     "criterion": ("approve", "drop", "rewrite"),
     "touch": ("approve", "rewrite"),
@@ -14760,11 +14183,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     ruling lands and an unnamed line would close unruled. One ruling per
     session: a second is a second reading of the same words.
 
-    A value of `rulings` is one word of `WORD_ACTS` or `RULING_WORDS`, or an
-    object with `verdict` and, optionally, `act`, `target` and `words`. Code
-    turns a word into the object and copies his words from `line_words`
-    (frame 345, pass 2). A page refuses the flat `acts` map. A clarify's
-    answer keeps it, and both forms write the same `ruled_refs` rows.
+    On a page, a value of `rulings` is one option of `landing.menus`, keyed
+    by a line, a clause or "rest" (`menu_ruling`, frame 345, pass R2). A
+    shift page takes one word of `SHIFT_WORDS` per line. A clarify's answer
+    takes one word of `RULING_WORDS` or an object with `verdict` and,
+    optionally, `act`, `target` and `words`. A page refuses the flat `acts`
+    map. A clarify's answer keeps it, and both forms write the same
+    `ruled_refs` rows.
     """
     from ..core.runner import new_id
     from .principal import render_page
@@ -14847,27 +14272,31 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # no line, so its answer keeps the flat map of `answering.md`.
         from .principal import SHIFT_ASK as _shift
 
-        if MENU_PAGES and not ask["id"].startswith(_shift):
+        if not ask["id"].startswith(_shift):
             raise ValueError(menu_form_text(len(page_clauses(
                 _his_reply(ctx), len(order)))))
         raise ValueError(
             "rulings.rule takes no acts: give each line one word in rulings, "
             "such as {\"5\": \"drop\"}.")
     his = _his_reply(ctx)
-    # The menu form of a page (frame 345, pass R1). It runs before every
-    # door of the word form below, `_words_outside` included: the clause
-    # gives the words, so a `words` field of the seat is not read (pass R1b).
-    # It bypasses the act-name checks, the span check, `_no_words_refusal`,
-    # the read-back words check, `_line_refusal` with `_unnamed_contest`, and
-    # the other readers of his words. Pass R2 retires them. A shift page
-    # keeps its own form.
-    from .principal import SHIFT_ASK as _shift_ask
+    from .principal import SHIFT_ASK
 
-    if (MENU_PAGES and not is_clarify and (order or refs)
-            and isinstance(rulings, dict) and rulings
-            and not ask["id"].startswith(_shift_ask)):
-        return _menu_page(ctx, ask, rulings, his, order or refs, keys,
-                          page_text)
+    shift = ask["id"].startswith(SHIFT_ASK)
+    # A page takes the menu form only (frame 345, pass R2; ruled: Roman,
+    # 2026-10-29 10:29, "Yes do R"). The menu runs before `_words_outside`:
+    # the clause gives the words, so a `words` field of the seat is not read
+    # (pass R1b). A shift page and a clarify keep their own forms below.
+    if not is_clarify and not shift:
+        if isinstance(rulings, dict) and rulings:
+            return _menu_page(ctx, ask, rulings, his, order or refs, keys,
+                              page_text)
+        # An empty ruling of a page with no numbered line acknowledges the
+        # page below. Any other empty or non-map ruling is no menu call
+        # (review p9, outside the points).
+        if not (isinstance(rulings, dict)
+                and (not row_order or batches_only)):
+            raise ValueError(menu_form_text(len(page_clauses(
+                his, len(order or refs)))))
     # A call with no `words` rests on his reply, whole, from the record. The
     # landing brief's own examples carry `words` inside a line's object, and
     # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
@@ -14950,33 +14379,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # home (the F26 review, finding 1).
     gone = {r for r in [*order, *keys] if not str(r).startswith(READING_REF)
             and ruled_ref_home(ctx.conn, r) is None}
-    from .principal import SHIFT_ASK, _items_reached, off_page
+    from .principal import _items_reached
     from ..core.scheduler import aside_items
 
-    shift = ask["id"].startswith(SHIFT_ASK)
-    # The page's own filter, so the door keeps the rows the page numbers.
-    off = set() if (shift or is_clarify) else off_page(
-        ctx.conn, refs, confirm=ask["verb"] == "confirm")
-    # His contest of a read-back line corrects the rows of that reply, and
-    # the new page need not hold them. Those refs are keys here, past the
-    # off-page rule (the review of pass 5, finding 1; the seam design, 2.3).
-    from .principal import ruled as _ruled_rows_of
-
-    read_back = {r[len(READING_REF):] for r in order or []
-                 if str(r).startswith(READING_REF)}
-    read_keys = {row["ref"]: reply for reply in read_back
-                 for row in _ruled_rows_of(ctx.conn, reply=reply)
-                 if not str(row["ref"]).startswith(READING_REF)}
     per_item: dict[str, str] = {}
     key_of: dict[str, str] = {}
-    # The act, the target and the span of each ref, from the object form or
-    # from one word. `per_item` keeps the verdict word, so every door below
-    # reads the same map as before (the seam design, 1.4).
+    # The act, the target and the span of each ref, from the object form.
+    # `per_item` keeps the verdict word, so every door below reads the same
+    # map as before (the seam design, 1.4).
     shape_of: dict[str, dict] = {}
-    # Each page line with the words of his that name it. The landing block
-    # showed the seat the same match (frame 345, pass 2).
-    his_lines = (line_words(his, len(order)) if order and not shift
-                 and not is_clarify else {})
     stray = _stray_act_fields(ctx, rulings, words,
                               [] if is_clarify else order, shift)
     if stray:
@@ -14990,34 +14401,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if isinstance(ruling, dict):
             shape = _ruling_shape(key, ruling)
             ruling = shape.pop("verdict")
-        # One word per line: an act word is a verdict and an act, by the table
-        # of `WORD_ACTS`. The table reads the seat's word, never his words.
-        # The long form keeps the parts that the seat gave, and code fills
-        # only the parts of a word.
-        line_n = (int(key) if his_lines and key.isdigit()
-                  and 1 <= int(key) <= len(order) else None)
-        if (line_n and shape is None
-                and _word_key(ruling, WORD_ACTS) in WORD_ACTS):
-            said = str(ruling).strip()
-            ruling, act = WORD_ACTS[_word_key(ruling, WORD_ACTS)]
-            shape = {"act": act}
-            # Only exclude takes a suffix: the paths to take off the line.
-            if act == "exclude":
-                shape["given"] = (said.split(None, 1) + [""])[1]
-        else:
-            line_n = None
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
         elif key in keys and not shift:
-            ref = key
-        elif key in read_keys and not shift and not is_clarify:
-            ref = key
-        # The code line of a request item on this page is admitted by its key
-        # with no line, because a page can go out before the guess exists
-        # (frame 298's design, 3.1, point 5).
-        elif (not shift and not is_clarify and guess_item(key) in (order or [])
-              and _request_item(ctx.conn, guess_item(key))):
             ref = key
         else:
             ref = None
@@ -15029,35 +14416,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 raise ValueError(
                     f"line {key} is not waiting. resume takes up a request "
                     f"you put aside.")
-        # A row of another request is no line of this page, so words here
-        # never change it (frame 193's design, 2.F.7).
-        # A row he saw on the page takes his words, as night 172's m131 did
-        # before P9: "Drop lines 9 to 15". A row he never saw there takes
-        # none (law 6; the review of P9, finding 3).
-        if (ref is not None and ref in off and ruling in ("contest", "revise")
-                and ref not in read_keys and ref not in (order or [])):
-            from .principal import request_of
-
-            items = _items_reached(ctx.conn, ref)
-            if any(request_of(ctx.conn, i) for i in items):
-                raise ValueError(
-                    f"{key} is your earlier request, {', '.join(items)}, and "
-                    f"this page is about another request. Words on this page "
-                    f"do not change it. Leave the row out of the ruling.")
-            raise ValueError(
-                f"{key} is no line of this page. Words on this page do not "
-                f"change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key
-            # A line that no clause names rests on his whole reply. The one
-            # word has no place for words, so code fills them. The span
-            # check asked for words, the seat repeated its word, and the run
-            # ended (frame 345, pass 2b, finding 2).
-            if shape and line_n:
-                shape = _word_shape(ctx.conn, ref, shape,
-                                    his_lines.get(line_n) or (his or "").strip(),
-                                    order, page_text, key)
             if shape:
                 shape_of[ref] = shape
         elif is_clarify:
@@ -15069,15 +14430,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
-    # A row of an earlier reply takes a ruling only beside his contest of
-    # that reply's read-back line.
-    for ref in [r for r in per_item if r in read_keys and r not in (order or [])]:
-        line = READING_REF + read_keys[ref]
-        if per_item.get(line) not in ("contest", "revise"):
-            raise ValueError(
-                f"{key_of[ref]} is a row of his earlier answer, and this page "
-                f"does not number it. Rule it only when his words contest the "
-                f"read-back line {order.index(line) + 1}, and contest that line")
     # The flat form of the act, the fallback of the seam design's doubt 1.
     # It names the keys of `rulings`, so it writes the rows the object form
     # writes. Only a clarify's answer reaches here (frame 345, pass 2).
@@ -15172,10 +14524,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             # His span names the path, its file or its stem: "the options
             # and defaults test files" names tests/test_options.py. A path
             # shape keeps an identifier such as `clear` out (law 6, the
-            # seam review, p4-2 and p4-4). The word form skips this read: the
-            # seat names the paths, and on a keep-to form his words name the
-            # paths he keeps (frame 345, pass 7).
-            if "paths" not in shape and not _names_path(span, target):
+            # seam review, p4-2 and p4-4).
+            if not _names_path(span, target):
                 raise ValueError(
                     f"{line}: an exclude needs his words to name the file "
                     f"{target}, by its path, file name or stem. Leave the act "
@@ -15189,142 +14539,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"{line}: his words {span!r} ask no removal of "
                 f"{shape['target']}, so leave the "
                 f"act out or copy his words that ask for it")
-    # ruling: DECISIONS 1445, the principal's words land on the row they name
-    # A team's note takes no revise. Revise rewrites a line of the request,
-    # and the request has its own lines on the page. Night 136's s557 revised
-    # a constraint row with the words for the version option item, and the
-    # words reached the Architect, never the item (frame 190's design, 2.2.1
-    # and 2.F, amendment 2).
-    from .principal import _is_request_item
-
-    asked = [(i + 1, r) for i, r in enumerate(order or [])
-             if not is_clarify and _is_request_item(ctx.conn, r)]
-    for ref, ruling in per_item.items():
-        if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
-            continue
-        # A sentence that asks to change the note is a revise of the note.
-        # Night 161's s357 heard "On line 11, use click directly in the
-        # test", and the old door refused it five times (frame 305). An act
-        # of the call is checked against the span it rests on, so a rewrite
-        # on "I don't understand line 11" is refused as before. A revise with
-        # no act reads his whole reply, as c4a51c7d did (the review of pass
-        # 4, P4-1). The span check of pass 3 replaces this reader.
-        shape = shape_of.get(ref) or {}
-        act = shape.get("act")
-        span = shape.get("words") or words
-        within = None
-        if act and not _line_reading(span).refs:
-            # A span that names no line is read in the clause of his message
-            # that holds it. s357's "use click directly in the test" names
-            # no line, and its clause starts "On line 11" (the review of pass
-            # 4b, P4b-3). The span check above found the message.
-            from .principal import said as his_words
-
-            within, span = span or None, his_words(ctx.conn,
-                                                   _words_from(ctx, span or ""))
-        said = next((a for a in (
-            _line_reading(span).note_act(n, page_text, within=within)
-            for n in _lines_of(order, ref)) if a), None)
-        if act == "drop":
-            said = "drop"
-        if said == "change" and act in (None, "rewrite"):
-            continue
-        line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
-        # law 6: nothing is ruled on the principal's behalf
-        # The refusal offers a request line only when the words name it by
-        # number or quote it. Night 156's s239 moved its revise to the one
-        # line the text named, and bg_2 died. Over nights 139 to 156 the
-        # text fired 19 times, and 7 next calls moved the revise to line 1
-        # on words that never named line 1 (frame 296). `_names_request`
-        # stays out: it reads 5 of those 7 replies as naming the request.
-        refs_named = _line_reading(words, len(order)).named
-        named = ", or ".join(
-            f"line {n}, {r}" for n, r in asked
-            if n in refs_named or _quotes_line(words, page_text, n))
-        offer = (f"The words name {named}. Revise the line the words are about."
-                 if named else
-                 "The words name no line of the request, and a revise of the "
-                 "request needs the principal's words on the request.")
-        if said == "own":
-            # The drop word is the note's own word, so the words can mean
-            # either route. law 6: the Liaison picks none for the principal.
-            raise ValueError(
-                f"{line} is the team's note, not your request. The words use a "
-                f"word the note itself holds, so they do not say which route. "
-                f"To change the note, revise it on words that say the change. "
-                f"To drop the note, contest it. If neither fits, ask the "
-                f"principal: rulings.rule(ask=...) with no rulings.")
-        # A revise of a note now lands on words that say the change, so the
-        # old "revise rewrites a line of what the principal asked for" is
-        # gone. The drop route stays first (frame 296).
-        # The door reads a reference by number only, so the text says so
-        # (frame 305, review 1, finding 3).
-        change = ("" if said == "drop" else
-                  f"To change the note, revise it only on words that name {line} "
-                  f"by number and say the change. A revise of the request "
-                  f"rewrites a line of what the principal asked for. ")
-        raise ValueError(
-            f"{line} is the team's note, not your request. To drop the note, "
-            f"contest it. {change}{offer}")
-    # law 3: a message routes to the writer of the artefact holding the answer
-    # A files correction of a request belongs on the code it touches, and
-    # never on the request. Over nights 136 to 156 it landed on line 1 19 of
-    # 19 times, wrote `contested`, and killed 5 live batches (frame 298's
-    # design, 3.3; `plans/frame298-count.md`).
-    stamp = {} if is_clarify else code_stamp(ctx.conn, ask["id"])
-    for n, item in asked:
-        guess_key = f"{GUESS_REF}{item}"
-        code_lines = frozenset(
-            i + 1 for i, r in enumerate(order) if r == guess_key or ctx.conn.execute(
-                "SELECT 1 FROM batches WHERE id = ? AND item_id = ?",
-                (r, item)).fetchone())
-        if not pointer_fault(words, n, code_lines):
-            continue
-        if per_item.get(item) not in ("contest", "revise"):
-            continue
-        said = f"line {n} is the request, and the words fault only the code it touches."
-        if guess_key in order:
-            m = order.index(guess_key) + 1
-            raise ValueError(
-                f"{said} That code is line {m}, and the team rewrites it from "
-                f"the principal's words. Rule line {m} contest with the words, "
-                f"and approve line {n}.")
-        if code_lines:
-            m = min(code_lines)
-            raise ValueError(
-                f"{said} That code is line {m}, the change's plan. Rule line {m} "
-                f"contest with the words, and approve line {n}.")
-        # A page with no code line said the team has not guessed, whatever
-        # set came later, so the refusal says the same and names the key.
-        # A live read of `touch_guesses` contradicted the page (frame 298,
-        # review 3, finding 1).
-        raise ValueError(
-            f"{said} The team has not guessed that code yet. Rule the key "
-            f"{guess_key} contest with the words, and approve line {n}.")
-    # The code line itself. A guess takes any contest or revise with words.
-    # A batch target keeps the batch line's rules and frame 255's check
-    # (frame 298's design, 3.1, points 2 and 3).
-    for ref, ruling in per_item.items():
-        item = guess_item(ref)
-        if item is None or ruling == "approve":
-            continue
-        target = stamp.get(ref) or {}
-        batch_id = target.get("batch") if isinstance(target, dict) else None
-        if not batch_id:
-            continue
-        batch = ctx.conn.execute("SELECT head_commit, status FROM batches "
-                                 "WHERE id = ?", (batch_id,)).fetchone()
-        key = key_of.get(ref, ref)
-        if batch is None or batch["status"] in ("merged", "abandoned"):
-            raise ValueError(
-                f"{key} is the change's plan, and the change is "
-                f"{batch['status'] if batch else 'gone'}. A ruling on it moves "
-                f"nothing. Approve {key}.")
-        if batch["head_commit"] and not code_line_faulted(
-                words, order, ref,
-                _line_reading(words, len(order) if order else None).faulted):
-            raise ValueError(
-                f"the words do not fault the code of {item}. Approve {key}.")
     # A batch line is a prediction of what the change touches. Before the
     # build, a correction of it goes to the Architect, who wrote it: night
     # 136's five corrections of a predicted file were refused here, and bg_2
@@ -15338,37 +14552,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The doors read his reply, never the seat's `words`. A seat that added
     # "Line 4 is wrong too." to m121 landed a contest of line 4 (the F2
     # review of pass 2, finding 8).
-    words_reading = _line_reading(his, len(order) if order else None)
-    read_cues, read_matched = words_reading.cues, words_reading.matched
-    read_faulted = set(read_cues)
-    # A ruling on a line rests on the match: the words of his that name the
-    # line (frame 345, pass 2c). The doors read the match, never a cue, so
-    # no door reads meaning (ruled: Roman, 2026-10-28, "doors used for
-    # meaning are a symptom of poor prompting/context"). The read-back line
-    # is his alone, so any verdict on it needs his words. On another line,
-    # only a change needs them. The refusal fires once per line, because a
-    # refusal that the seat cannot act on is a loop.
-    match = his_lines or (line_words(his, len(order)) if order and not
-                          is_clarify else {})
-    for ref, ruling in per_item.items():
-        lines = _lines_of(order, ref)
-        if not lines or ruling == "absent":
-            continue
-        n = lines[0]
-        readback = str(ref).startswith(READING_REF)
-        if not readback and ruling not in ("contest", "revise"):
-            continue
-        # The match gives a line no words only when his reply names another
-        # line and does not approve the whole page (`line_words`).
-        if any(match.get(k) for k in lines) or not any(match.values()):
-            continue
-        refusal = _no_words_refusal(n)
-        if not any(fn == "rulings.rule" and why == refusal
-                   for fn, why, *_ in (getattr(ctx, "refusals", None) or [])):
-            raise ValueError(refusal)
-    # The check above replaces two cue reads of his reply: the fault or
-    # change verb of a revise and the confirm of a read-back line. They
-    # refused 53 and 32 rulings in the 24 cases of 1eb5c557.
+    read_faulted = set(_line_reading(his, len(order) if order else None).cues)
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -15423,110 +14607,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
                 f"page takes one: the ask closes when the ruling lands. A line "
                 f"the reply does not contest is approve")
-    # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
-    # His earlier answer to the page can rule a line that the reply does not
-    # name. Night 168's m76 said "Line 5 is wrong", and m78 named line 6
-    # only. The row records m76 as the source of its words, and the naming
-    # door reads the earlier lines from the rows (frame 337).
-    earlier = ({} if is_clarify or not order else
-               _earlier_sources(ctx.conn, ask["id"], ctx.trigger, len(order)))
-    if earlier:
-        here = words_reading.named
-        for i, r in enumerate(order):
-            if (per_item.get(r) in ("contest", "revise") and i + 1 in earlier
-                    and i + 1 not in here
-                    and not (shape_of.get(r) or {}).get("words")):
-                source, said = earlier[i + 1]
-                shape_of[r] = {**(shape_of.get(r) or {}), "words": said,
-                               "words_from": source}
-    from_earlier = frozenset(
-        i + 1 for i, r in enumerate(order or [])
-        if (shape_of.get(r) or {}).get("words_from") not in (None, ctx.trigger))
-    # law 6: nothing is ruled on the principal's behalf
-    # A contest must rest on the words. Night 146 (frame 234): s427 contested
-    # four lines the words said match, and s122 contested line 1, the
-    # request, when the words faulted lines 3 and 5. Each cancelled a batch.
-    # The account's page: a present of no request and no request line
-    # (ruled: Roman, 2026-10-28 09:10, frame 344). His reply is read even
-    # when the call passes no words, so 7 approves with empty words of the
-    # review of P9, p3, finding 1, are refused too.
-    from .principal import page_owner
-
-    if (order and not is_clarify and not shift and ask["verb"] == "present"
-            and not asked
-            and page_owner(ctx.conn, row_refs) is None):
-        ruled_lines = {i + 1 for i, r in enumerate(order) if r in per_item}
-        refusal = _account_page_refusal(his, ruled_lines, page_text,
-                                        len(order), contested={
-                                            i + 1 for i, r in enumerate(order)
-                                            if per_item.get(r) != "approve"})
-        if refusal:
-            raise ValueError(refusal)
-    if (words or "").strip() and not is_clarify and order:
-        faulted, matched = set(read_faulted), set(read_matched)
-        # law 9: batches are immutable once formed; only scope recomposes one
-        # A fault of a merged or abandoned change's line is a fault of its
-        # item, because the batch door above sends that contest to the item.
-        # A built change that is open keeps the fault on its own line: frame
-        # 255's door admits the contest there. 16 of 16 files corrections on
-        # nights 136 to 149 asked to keep the change, so an item contest
-        # beside them cancels what the principal wanted (frame 255, review 1,
-        # finding 1). Night 133's s313 faulted bg_2 and contested line 1.
-        for n in list(faulted):
-            if not 1 <= n <= len(order):
-                continue
-            batch = ctx.conn.execute(
-                "SELECT item_id, status FROM batches WHERE id = ?",
-                (order[n - 1],)).fetchone()
-            if batch is not None and batch["item_id"] in order and (
-                    batch["status"] in ("merged", "abandoned")):
-                faulted |= set(_lines_of(order, batch["item_id"]))
-        # A team's note lands a revise as a contest, so his keep refuses
-        # both. "Leave line 11 as it is." admitted the revise (frame 305,
-        # review 1, finding 1).
-        contested = {i + 1 for i, r in enumerate(order)
-                     if per_item.get(r) == "contest"
-                     or (per_item.get(r) == "revise" and _is_team_note(ctx.conn, r))}
-        # A shift page numbers requests, and a page can open with a note, so
-        # line 1 is the request only when it is a request item (frame 234,
-        # review 1, finding 1).
-        request_first = not shift and _is_request_item(ctx.conn, order[0])
-        # A code line holds only files, as a batch line does (frame 298's
-        # design, 3.1, point 4).
-        # `db.tables_of` finds the table of each page line (F22).
-        line_tables = [tables_of(ctx.conn, r, among=("batches", "criteria"))
-                       for r in order]
-        batch_lines = frozenset(
-            i + 1 for i, r in enumerate(order)
-            if guess_item(r) or "batches" in line_tables[i])
-        # ruling: DECISIONS 1445, a contest lands only on a request line it names
-        # The description row and the account rows are items too, but they
-        # are no part of the request. Night 150's m140 and m316 contested
-        # `how_it_works` on a sentence with no line number (frame 258).
-        request_lines = frozenset(n for n, _ in asked)
-        item_lines = request_lines | frozenset(
-            i + 1 for i in range(len(order)) if "criteria" in line_tables[i])
-        earlier_read, _ = _earlier_reading(
-            ctx.conn, ask["id"], ctx.trigger, len(order))
-        refusal = _line_refusal(
-            his, contested, faulted, matched, len(order), request_first,
-            request_first and _quotes_line(his, page_text, 1), batch_lines,
-            item_lines, request_lines, tuple(
-                t for _, r in asked for t in (r, (ctx.conn.execute(
-                    "SELECT text FROM items WHERE id = ?", (r,)).fetchone()
-                    or [""])[0] or "")),
-            tuple((ctx.conn.execute(
-                "SELECT text FROM items WHERE id = ? UNION ALL "
-                "SELECT text FROM criteria WHERE id = ?",
-                (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
-                for n in sorted(faulted) if 1 <= n <= len(order)),
-            # None says that the reply is his only answer to the page.
-            None if earlier_read is None else from_earlier,
-            {n: (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
-                                  (order[n - 1],)).fetchone() or [""])[0] or ""
-             for n in item_lines - request_lines})
-        if refusal:
-            raise ValueError(refusal)
     unbacked = _unbacked_approve(ctx.conn, words, per_item, key_of, shape_of,
                                  order, page_text)
     if unbacked:
