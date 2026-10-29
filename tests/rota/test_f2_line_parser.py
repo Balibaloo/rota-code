@@ -9,18 +9,12 @@ from __future__ import annotations
 
 import ast
 import re
-import sqlite3
 from pathlib import Path
 
 import rota
 from rota.roles import api
 
 PACKAGE = Path(rota.__file__).parent
-
-# A bare "3 is wrong" after a colon or a full stop is a line reference,
-# because the parser cuts the sentences first (frame 305, review 1).
-AFTER_COLON = "Fix this: 3 is wrong."
-AFTER_STOP = "Line 2 is fine. 3 is wrong."
 
 
 def test_reading_unpacks_as_the_pair_and_carries_the_refs():
@@ -57,41 +51,6 @@ def test_pointer_fault_skips_a_bare_fault_with_through():
     assert api.pointer_fault(words, 2) is True
 
 
-def test_unnumbered_reads_a_bare_reference_after_a_colon():
-    assert api._unnumbered([AFTER_COLON]) == []
-
-
-def test_unnamed_contest_reads_a_bare_reference_after_a_colon():
-    got = api._unnamed_contest([AFTER_COLON], {3, 4}, set(), 5)
-    assert got is not None and "4" in got
-
-
-def _messages(*bodies: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE messages (id TEXT, cause_id TEXT, verb TEXT, "
-                 "from_role TEXT, body_text TEXT, seq INTEGER)")
-    # `said` reads the entry of a message first (wall W7), so the tables exist.
-    conn.execute("CREATE TABLE entries (id TEXT, text TEXT)")
-    conn.execute("CREATE TABLE config (key TEXT, value TEXT)")
-    for i, body in enumerate(bodies):
-        conn.execute("INSERT INTO messages VALUES (?, 'ask', 'converse', "
-                     "'principal', ?, ?)", (f"m{i}", body, i))
-    return conn
-
-
-def test_earlier_sources_reads_a_bare_reference_after_a_colon():
-    got = api._earlier_sources(_messages(AFTER_COLON), "ask", "reply", 5)
-    assert got == {3: ("m0", AFTER_COLON)}
-
-
-def test_earlier_reading_reads_a_bare_reference_after_a_full_stop():
-    named, fine = api._earlier_reading(_messages(AFTER_STOP), "ask",
-                                       "reply", 5)
-    assert named == {2, 3}
-    assert fine == {2}
-
-
 # Fact F3, pass 1b. The reading carries what his words permit or ask of a
 # named target. Each door reads it from the reading, not by its own list.
 
@@ -107,12 +66,6 @@ def test_reading_says_when_the_words_touch_files():
     assert not api._line_reading("Line 2 is wrong").touches_files
 
 
-def test_reading_says_what_the_words_ask_of_a_note():
-    reading = api._line_reading("Note 7 is wrong, drop it.")
-    assert reading.note_act(7, "") == api._note_words(
-        "Note 7 is wrong, drop it.", 7, "")
-
-
 # The pin. The names below are the parser's line rule and cue lists. Only
 # the parser's own functions in api.py read them. A second reader goes red.
 PARSER_NAMES = {
@@ -126,7 +79,11 @@ PARSER_NAMES = {
     "_NOTE_SAYS", "_NOTE_NO_CHANGE", "_NOTE_CHANGE", "_names_request",
     "_note_words",
 }
-DELETED = {"_PAGE_CUE", "_LINE_CHECK", "_CUE_BARE_FAULT"}
+DELETED = {"_PAGE_CUE", "_LINE_CHECK", "_CUE_BARE_FAULT",
+           # The note reader left with the word form of a page
+           # call (frame 345, pass R2).
+           "_NOTE_DROP", "_NOTE_SAYS", "_NOTE_NO_CHANGE",
+           "_NOTE_CHANGE", "_note_words"}
 PARSER_SITES = {
     "<module>", "_ref_lines", "_line_refs", "_line_reading", "LineReading",
     "_line_cues", "_live_cues", "_agreement", "_instruction_cue",

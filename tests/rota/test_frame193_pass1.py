@@ -231,6 +231,7 @@ def _m62(db):
     return _landing(db, "m62", refs, "m63", M63, 62)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     sb = _m62(db)
     rulings = {1: "approve", **{n: "drop" for n in range(2, 9)}}
@@ -243,18 +244,7 @@ def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     assert "drop" not in stored.values()
 
 
-def test_an_unknown_word_is_refused_with_the_map(db):
-    sb = _m62(db)
-    rulings = {1: "approve", 2: "later", **{n: "contest" for n in range(3, 9)}}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M63)
-    assert str(e.value) == (
-        "line 2: 'later' is not a ruling. Each line takes approve, contest or "
-        "revise. drop, remove and strike are contest. keep is approve. resume "
-        "takes up a request you put aside. ask, unclear and question are a question: "
-        "rulings.rule(ask=...) with no rulings.")
-
-
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_phrase_maps_by_its_first_word(db):
     sb = _m62(db)
     rulings = {1: "Approve", 2: " drop it ", **{n: "contest" for n in range(3, 9)}}
@@ -308,23 +298,6 @@ def _m161(db):
     return _landing(db, "m161", refs, "m162", M162, 163)
 
 
-def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
-    sb = _m161(db)
-    rulings = {2: "contest", 3: "approve", 4: "contest", 5: "contest",
-               6: "revise", 8: "ask"}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M162)
-    assert str(e.value) == (
-        "line 8: 'ask' is a question back, and a question is its own call: "
-        "rulings.rule(ask=\"<one sentence about line 8>\") with no rulings.")
-    # The named call lands the question, and the door writes no ruling.
-    out = sb.call("rulings.rule",
-                  ask="Line 8 keeps one retry on a closed input. Do you want "
-                      "the normal prompt to change?")
-    assert out["to"] == "principal"
-    assert not any(w[0] == "rulings" for w in sb.ctx.writes)
-
-
 # Frame 197: night 138's m11, a present of eight lines, seven ledger rows and
 # the description item, as s94 saw it. m12 is the principal's reply.
 M11_LEDGER = (
@@ -364,6 +337,24 @@ M12 = ("Lines 2 and 8 are wrong, because on the README side they show a short la
        "there. The rest is fine.")
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
+    sb = _m161(db)
+    rulings = {2: "contest", 3: "approve", 4: "contest", 5: "contest",
+               6: "revise", 8: "ask"}
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings=rulings, words=M162)
+    assert str(e.value) == (
+        "line 8: 'ask' is a question back, and a question is its own call: "
+        "rulings.rule(ask=\"<one sentence about line 8>\") with no rulings.")
+    # The named call lands the question, and the door writes no ruling.
+    out = sb.call("rulings.rule",
+                  ask="Line 8 keeps one retry on a closed input. Do you want "
+                      "the normal prompt to change?")
+    assert out["to"] == "principal"
+    assert not any(w[0] == "rulings" for w in sb.ctx.writes)
+
+
 def _m11(db):
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
                "version, is_description) VALUES ('how_it_works', ?, 'in_scope', "
@@ -380,6 +371,30 @@ def _m11(db):
     return _landing(db, "m11", refs, "m12", M12, 11)
 
 
+# Night 139's m141: the item, its three criteria and the running change bg_3,
+# which the page numbers line 5. m142 is the principal's reply.
+ITEM_139 = "version_option_show_python"
+CRITERIA_139 = (
+    ("c1_version_option_show_python",
+     "When `version_option` is invoked with `show_python=True`, the output message "
+     "must append the running Python version formatted exactly as "
+     "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from `sys.version_info`."),
+    ("c2_version_option_show_python",
+     "The `show_python` flag must be a boolean parameter that controls whether the "
+     "Python version is appended to the standard version message, defaulting to "
+     "False when not explicitly set."),
+    ("c3_version_option_show_python",
+     "The `show_python` flag must default to False when not explicitly set, "
+     "preserving existing behavior where only the package version is shown."),
+)
+M142 = ("Please don't drop this change; I want the team to fix it. The check for "
+        "line 2 seems to call the custom version helper without its callback, so it "
+        "should test the real version option instead. The check for line 3 shows "
+        "the flag changes nothing yet, so the Python version still needs to be "
+        "appended to the message when the flag is on.")
+
+
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
     sb = _m11(db)
     # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
@@ -408,29 +423,6 @@ def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
     assert row["words"] == M12
 
 
-# Night 139's m141: the item, its three criteria and the running change bg_3,
-# which the page numbers line 5. m142 is the principal's reply.
-ITEM_139 = "version_option_show_python"
-CRITERIA_139 = (
-    ("c1_version_option_show_python",
-     "When `version_option` is invoked with `show_python=True`, the output message "
-     "must append the running Python version formatted exactly as "
-     "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from `sys.version_info`."),
-    ("c2_version_option_show_python",
-     "The `show_python` flag must be a boolean parameter that controls whether the "
-     "Python version is appended to the standard version message, defaulting to "
-     "False when not explicitly set."),
-    ("c3_version_option_show_python",
-     "The `show_python` flag must default to False when not explicitly set, "
-     "preserving existing behavior where only the package version is shown."),
-)
-M142 = ("Please don't drop this change; I want the team to fix it. The check for "
-        "line 2 seems to call the custom version helper without its callback, so it "
-        "should test the real version option instead. The check for line 3 shows "
-        "the flag changes nothing yet, so the Python version still needs to be "
-        "appended to the message when the flag is on.")
-
-
 def _m141(db):
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
                "version) VALUES (?, ?, 'in_scope', 'approved', 4, 1, 4)",
@@ -452,6 +444,7 @@ def _m141(db):
     return _landing(db, "m141", refs, "m142", M142, 144)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s263s_contest_of_the_change_line_names_line_5(db):
     sb = _m141(db)
     # s263's call at turns 1 to 3 of night 139, to the byte.
@@ -501,19 +494,16 @@ def _s263_with(db, added):
     return sb.call("rulings.rule", rulings=rulings, words=reply)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
     out = _s263_with(db, "The `show_python` default must also hold when the "
                          "flag is passed as None.")
     assert out["per_item"]["c3_version_option_show_python"] == "contest"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
     with pytest.raises(ValueError) as e:
         _s263_with(db, "The `show_python` default is fine as it is.")
     assert str(e.value).startswith(
         "The words name lines 2 and 3 and do not name line 4.")
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

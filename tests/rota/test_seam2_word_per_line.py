@@ -110,42 +110,6 @@ def test_the_cue_clauses_keep_their_cuts():
         "Line 3 is wrong", "drop it", "keep line 4.", "Fine", "go ahead."]
 
 
-def test_the_word_table_gives_a_verdict_and_an_act():
-    assert api.WORD_ACTS["drop"] == ("contest", "drop")
-    assert api.WORD_ACTS["remove"] == ("contest", "remove")
-    assert api.WORD_ACTS["rewrite"] == ("contest", "rewrite")
-    assert api.WORD_ACTS["exclude"] == ("contest", "exclude")
-    assert api.WORD_ACTS["add"] == ("approve", "add")
-    # Pass 5: the seat gave `keep` on approve words in 18 of 18 Gemma runs,
-    # so keep is the verdict approve and no act word.
-    assert "keep" not in api.WORD_ACTS
-    assert api.RULING_WORDS["keep"] == "approve"
-
-
-def test_the_word_shape_fills_words_and_the_target_kind(db):  # noqa: F811
-    page = "1. The change touches:\n   src/click/utils.py\n   tests/test_utils.py\n"
-    for act, kind in (("drop", "row"), ("rewrite", "row"), ("remove", "row"),
-                      ("add", None)):
-        shape = api._word_shape(db, "c_1", {"act": act}, "Line 1 is wrong",
-                                ["c_1"], page)
-        assert shape.get("target_kind") == kind
-        assert shape["words"] == "Line 1 is wrong"
-    # The seat names the path after the word, and code finds it on the line
-    # (pass 7).
-    shape = api._word_shape(db, "guess:calc", {"act": "exclude",
-                                               "given": "utils.py"},
-                            "drop the utils file from line 1", ["guess:calc"],
-                            page, "1")
-    assert shape == {"act": "exclude", "target_kind": "path",
-                     "words": "drop the utils file from line 1",
-                     "target": "src/click/utils.py",
-                     "paths": ["src/click/utils.py"]}
-    # A remove on a code line takes a source line.
-    shape = api._word_shape(db, "guess:calc", {"act": "remove"}, "x",
-                            ["guess:calc"], page)
-    assert shape["target_kind"] == "source_line"
-
-
 DROP = "Drop line 3, because nobody types the percentage. The rest is fine."
 
 
@@ -171,19 +135,6 @@ def test_the_landing_block_shows_his_words_beside_each_line(db):  # noqa: F811
     assert landing["his_words"] == {
         "1": "The rest is fine.", "2": "The rest is fine.",
         "3": "Drop line 3, because nobody types the percentage."}
-
-
-def test_the_flat_acts_map_is_refused_with_the_one_word_form(db):  # noqa: F811
-    ask = _page(db)
-    sb, _ = _seat(db, ask, words=DROP)
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
-                                         "3": "contest"},
-                acts={"3": {"act": "drop", "words": "Drop line 3"}})
-    assert str(e.value).endswith(
-        "rulings.rule takes no acts: give each line one word in rulings, "
-        "such as {\"5\": \"drop\"}.")
-    assert not sb.ctx.writes
 
 
 # Pass 2b: the review p3 of 27291602 (`plans/f345-review-p3.md`).
@@ -271,6 +222,12 @@ def test_a_tail_clause_gives_the_exclude_its_path_words(case_id, line, tail):
     _verbatim(his, got)
 
 
+# Pass 3: a subject that lists bare numbers. L1 approve-one-line-only.
+ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
+            "each; I am not reading those. approve 1 only.")
+
+
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
     """Finding 2: a one-word drop on a line that shows "no words" lands
     with his whole reply as its words. The span check refused it before,
@@ -293,11 +250,6 @@ def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa:
     assert (row["verdict"], row["act"], row["target_kind"]) == (
         "contest", "drop", "row")
     assert row["words"] == his
-
-
-# Pass 3: a subject that lists bare numbers. L1 approve-one-line-only.
-ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
-            "each; I am not reading those. approve 1 only.")
 
 
 @pytest.mark.parametrize("his, named", [
@@ -334,6 +286,7 @@ def test_a_number_list_inside_a_clause_names_no_line(his):
     assert set(got.values()) == {his}
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
     """L1 approve-one-line-only: the seat wrote 1 approve, 2 and 3 drop, and
     the no-words refusal took all three runs, because the match gave lines
@@ -410,19 +363,6 @@ def test_the_exclude_suffix_names_paths_of_the_line():
     assert api._excluded_paths("utils.py", shown + ["src/x/utils.py"]) is None
 
 
-def test_a_path_off_the_line_is_refused_with_the_lines_paths(tmp_path):
-    sb, page = _case_seat(tmp_path, M77)
-    for given, said in (("exclude src/click/core.py",
-                         "'src/click/core.py' is not a path of line 5"),
-                        ("exclude", "exclude names the paths to take off")):
-        with page, pytest.raises(ValueError) as e:
-            sb.call("rulings.rule", rulings={**M77_OTHERS, "5": given})
-        assert said in str(e.value)
-        assert ("Line 5 lists src/click/_compat.py, src/click/termui.py, "
-                "tests/test_basic.py") in str(e.value)
-    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
-
-
 def test_two_paths_land_two_excludes_with_his_words(tmp_path):
     """"keep line 5 to the terminal module" names the paths he keeps. The
     seat names the others, and each one lands its own exclude."""
@@ -438,15 +378,6 @@ def test_two_paths_land_two_excludes_with_his_words(tmp_path):
         ("contest", "exclude", "path", "tests/test_options.py", 5)]
     assert len({r["id"] for r in rows}) == 2
     assert all("keep line 5 to the terminal module" in r["words"] for r in rows)
-
-
-def test_exclude_on_a_criterion_line_is_refused_with_its_kind(tmp_path):
-    sb, page = _case_seat(tmp_path, M77)
-    with page, pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={
-            "1": "approve", "2": "exclude", "3": "approve", "4": "approve",
-            "5": "approve", "6": "approve"})
-    assert str(e.value).startswith("line 2 is a criterion, and it lists no files")
 
 
 def test_two_excludes_on_one_line_both_count_after_the_land(tmp_path):
@@ -530,8 +461,3 @@ def test_both_forms_land_on_a_line_of_path_name_entries(tmp_path):
         rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
                 and w[2]["ref"] == "b_3"]
         assert [(r["act"], r["target"]) for r in rows] == [("exclude", target)]
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

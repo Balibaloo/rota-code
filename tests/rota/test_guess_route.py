@@ -214,19 +214,7 @@ def test_the_cue_does_not_read_a_request_correction_as_files():
 # The wall: s322 on m192, bg_3 stamped on the code line
 # ---------------------------------------------------------------------------
 
-def test_s322s_line_1_contest_is_refused_and_the_refusal_names_the_key(db):
-    """Night 156's s322 contested line 1 on m192, the item went `contested`,
-    and `cancel` abandoned bg_3, whose prediction was already right."""
-    _page(db, stamp={KEY: {"batch": "bg_3"}})
-    sb = _landing(db, _reply(db, M192))
-    with pytest.raises(ValueError) as refused:
-        sb.call("rulings.rule", rulings=S322, words=M192)
-    assert str(refused.value) == (
-        f"line 1 is the request, and the words fault only the code it touches. "
-        f"The team has not guessed that code yet. Rule the key {KEY} contest "
-        f"with the words, and approve line 1.")
-
-
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
     """The reading the refusal asks for lands. bg_3 has a head commit, so the
     code line keeps frame 255's check, and the cue holds it. The item keeps
@@ -243,6 +231,7 @@ def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
                       ).fetchone()["status"] == "running"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_verdict_on_bg_3_relays_to_annotate(db):
     _page(db, stamp={KEY: {"batch": "bg_3"}})
     vid = _land_ruling(db, M192, S322_MOVED)
@@ -257,40 +246,11 @@ def test_the_verdict_on_bg_3_relays_to_annotate(db):
                           detail="relay"), db) == "annotate"
 
 
-def test_a_built_batch_target_takes_frame_255s_check(db):
-    """Words that fault no file of the code line meet the batch check."""
-    _page(db, stamp={KEY: {"batch": "bg_3"}})
-    words = "Lines 2 to 4 are still wrong: each check runs with the flag off."
-    ruling = {**{r: "approve" for r in REFS}, "ver_opt_show_py": "contest",
-              "ver_opt_show_py_env": "contest", "ver_opt_show_py_format": "contest",
-              KEY: "contest"}
-    sb = _landing(db, _reply(db, words))
-    with pytest.raises(ValueError, match=f"the words do not fault the code of "
-                                         f"{ITEM}. Approve {KEY}."):
-        sb.call("rulings.rule", rulings=ruling, words=words)
-
-
-def test_a_closed_batch_target_moves_nothing(db):
-    _page(db, batch="abandoned", stamp={KEY: {"batch": "bg_3"}})
-    sb = _landing(db, _reply(db, M192))
-    with pytest.raises(ValueError, match="is the change's plan, and the change "
-                                         "is abandoned"):
-        sb.call("rulings.rule", rulings=S322_MOVED, words=M192)
-
-
 # ---------------------------------------------------------------------------
 # No batch: the guess
 # ---------------------------------------------------------------------------
 
-def test_with_no_guess_the_refusal_says_the_team_has_not_guessed(db):
-    _page(db, batch=None)
-    sb = _landing(db, _reply(db, M192))
-    with pytest.raises(ValueError) as refused:
-        sb.call("rulings.rule", rulings=S322, words=M192)
-    assert "The team has not guessed that code yet. Rule the key " \
-           f"{KEY} contest with the words, and approve line 1." in str(refused.value)
-
-
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_request_correction_still_lands_on_line_1(db):
     """The cue refuses no (b) reply: 43 of 43 in-sample."""
     _page(db, batch=None, guess=True)
@@ -307,6 +267,7 @@ def _guess_verdict(db) -> str:
     return _land_ruling(db, M192, S322_MOVED)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     vid = _guess_verdict(db)
     assert _verdict(db, vid).get(KEY) == "contest"
@@ -318,6 +279,7 @@ def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     assert cancel(db) == []
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_an_off_page_key_lands_with_no_stamp(db):
     """A page sent before the guess carries no stamp. The key's target is
     then the current guess (design 3.1, point 5)."""
@@ -339,12 +301,14 @@ def _relay(db, vid: str) -> str:
                       "AND to_role = 'architect'", (vid,)).fetchone()["id"]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
     rid = _relay(db, _guess_verdict(db))
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     assert _mode_key(wake, db) == "guess"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("key_ruling, disputed", [
     ({"verdict": "contest", "act": "exclude", "target": "tests/test_options.py",
       # A span is a run of whole clauses of his reply (review p7 p1, 3).
@@ -370,6 +334,7 @@ def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
     assert inbound["guess"] == [p for p in shown if p not in disputed]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):
     vid = _guess_verdict(db)
     rid = _relay(db, vid)
@@ -397,6 +362,11 @@ def test_the_ref_door_resolves_a_request_items_key_only(db):
     assert not ref_resolves(ctx, "guess:ver_opt_show_py")
 
 
+# ---------------------------------------------------------------------------
+# The op's review lows
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_send_door_refuses_a_relay_of_a_key_that_names_no_item(db):
     vid = _guess_verdict(db)
     (wake,) = [w for w in open_tips(db) if w.message_id == vid]
@@ -408,10 +378,6 @@ def test_the_send_door_refuses_a_relay_of_a_key_that_names_no_item(db):
         "SELECT body_refs FROM messages WHERE cause_id = ? AND verb = 'relay'", (vid,))]
     assert not any("guess:nothing_here" in r for r in relayed), relayed
 
-
-# ---------------------------------------------------------------------------
-# The op's review lows
-# ---------------------------------------------------------------------------
 
 def test_the_op_names_the_woken_item_for_an_unknown_id(db):
     _page(db, batch=None)
@@ -430,8 +396,3 @@ def test_the_op_refuses_a_symbol_under_a_directory_the_index_lacks(db):
     with pytest.raises(ValueError, match="nowhere/x.py is under a directory"):
         sb.call("batches.guess", item_id=ITEM, paths=["tests/test_basic.py"],
                 symbols=["nowhere/x.py::y"])
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

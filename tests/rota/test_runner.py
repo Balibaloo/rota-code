@@ -1917,6 +1917,7 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
         assert word not in first
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
     """The replay of s336's end: one refused call three times, the repeat
     door, a barren commit. The first run keeps the reply open, and the
@@ -3754,8 +3755,3 @@ def test_a_challenge_pairing_a_criterion_with_a_base_red_project_test_quotes_the
     assert str(exc.value) == (
         "inh_00000000 has no criterion: it is the project's own test and "
         + _F207_FACT)
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

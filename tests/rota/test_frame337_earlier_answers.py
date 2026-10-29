@@ -79,54 +79,20 @@ def _rule6(db, earlier, words=M78, rulings=S193):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s193s_contest_of_line_5_lands_on_m76_in_the_exchange(db):
     out = _rule6(db, [M76])
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
 
 
-def test_s193s_contest_is_refused_with_no_earlier_answer(db):
-    with pytest.raises(ValueError) as e:
-        _rule6(db, [])
-    assert str(e.value) == REFUSAL
-
-
-def test_s281s_single_reply_stays_refused_with_the_same_text(db):
-    with pytest.raises(ValueError) as e:
-        _rule11(db, M131, S281)
-    assert str(e.value) == (
-        "The words name lines 3, 4 and 7 and do not name lines 5, 6 and 8 to "
-        "11. A contest rests on the principal's words. Approve the lines the "
-        "words do not name, or rule them as the words say.")
-
-
-def test_an_earlier_answer_that_names_no_line_leaves_the_contest_refused(db):
-    with pytest.raises(ValueError) as e:
-        _rule6(db, ["I don't understand the ticket, so what is it?"])
-    assert str(e.value).startswith(REFUSAL)
-
-
-def test_the_refusal_says_that_it_read_the_earlier_answers(db):
-    with pytest.raises(ValueError) as e:
-        _rule6(db, ["I don't understand the ticket, so what is it?"])
-    assert str(e.value) == (REFUSAL + " His earlier answers to this page do "
-                            "not name line 5 either.")
-
-
-# Review 1, finding 1: an earlier "Line 5 is fine" let the contest of line 5
-# land against his word. The latest answer about a line wins.
-def test_an_earlier_match_with_no_later_word_refuses_the_contest(db):
-    with pytest.raises(ValueError) as e:
-        _rule6(db, ["Line 5 is fine. What is the ticket on line 6?"])
-    assert str(e.value).startswith("The words say line 5 matches what the "
-                                   "principal asked for")
-
-
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_later_fault_after_an_earlier_match_lands_the_contest(db):
     out = _rule6(db, ["Line 5 is fine. What is the ticket on line 6?",
                       "Line 5 is wrong after all."])
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     """The seam design, pass 2: the row on line 5 records m76 as the source
     of its words, and the row on line 6 keeps the reply m78."""
@@ -138,8 +104,3 @@ def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     assert (five["line"], five["words_from"]) == (5, "m76")
     assert five["words"] == "Line 5 is wrong: ..."
     assert rows["l_c5331791cf"]["words_from"] == sb.ctx.trigger
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

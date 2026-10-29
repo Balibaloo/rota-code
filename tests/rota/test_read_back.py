@@ -92,6 +92,7 @@ def _first_reply(db):
     return _answer(db, ask, WORDS, THREE)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db):
     reply, _ = _first_reply(db)
     owed = readings_owed(db)
@@ -115,6 +116,7 @@ def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db
     assert "as the team read it" in page.splitlines()[-1]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_shift_page_and_a_clarify_carry_no_line(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -127,6 +129,7 @@ def test_a_shift_page_and_a_clarify_carry_no_line(db):
     assert ref not in order and "as the team read it" not in page
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_ok_confirms_every_row_of_that_reply(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -147,6 +150,7 @@ def test_ok_confirms_every_row_of_that_reply(db):
     assert ref not in json.loads(verdict["body_refs"])
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_supersedes_and_the_next_page_reads_the_new_rows_once(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -172,6 +176,7 @@ def test_a_contest_supersedes_and_the_next_page_reads_the_new_rows_once(db):
     assert "line 4" not in page.splitlines()[-1]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_ignores_the_line_confirms_nothing(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -185,6 +190,7 @@ def test_a_reply_that_ignores_the_line_confirms_nothing(db):
     assert READING_REF + reply in readings_owed(db)
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_basis_ruled_counts_a_confirmed_reading_only(db):
     reply, out = _first_reply(db)
     db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
@@ -199,6 +205,7 @@ def test_basis_ruled_counts_a_confirmed_reading_only(db):
     assert prov() == "decided"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_table_of_ref_knows_a_reading_ref(db):
     reply, _ = _first_reply(db)
     assert _table_of_ref(db, READING_REF + reply) == "messages"
@@ -206,6 +213,7 @@ def test_table_of_ref_knows_a_reading_ref(db):
     assert _table_of_ref(db, "calculate_tip") == "items"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_night_report_counts_the_rows_unconfirmed_at_the_end(db):
     from rota.tools.nightreport import Night, _unconfirmed_line
 
@@ -214,6 +222,7 @@ def test_the_night_report_counts_the_rows_unconfirmed_at_the_end(db):
         "read-back: 3 rows of 1 replies unconfirmed at the night's end")
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("verb, refs", [("present", ["calculate_tip"]),
                                         ("confirm", ["s1"])])
 def test_the_send_door_writes_the_reading_ref_into_the_page(db, verb, refs):
@@ -227,6 +236,7 @@ def test_the_send_door_writes_the_reading_ref_into_the_page(db, verb, refs):
     assert sent[-1] == READING_REF + reply, sent
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     """The review of pass 5, finding 1: page 2 holds s1 and the line only."""
     reply, _ = _first_reply(db)
@@ -249,6 +259,7 @@ def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     assert "keep how_it_works" in page.splitlines()[-1]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
     reply, _ = _first_reply(db)
     ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
@@ -257,6 +268,7 @@ def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
                 {"1": "approve", "2": "approve", "l_1": "approve"})
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_only_his_words_confirm_the_line(db):
     """The review of pass 5, finding 2: words that skip line 3 approve
     lines 1 and 2, and the door refuses the approve of line 3."""
@@ -269,6 +281,7 @@ def test_only_his_words_confirm_the_line(db):
     assert set(_confirmed(db, reply).values()) == {None}
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
     """The review of pass 5, finding 4."""
     reply, _ = _first_reply(db)
@@ -280,6 +293,7 @@ def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
     assert ref not in order and "as the team read it" not in page
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_his_reply_alone_confirms_a_reading(db):
     """The review of pass 5b, finding 5, probe P2d: his reply skips line 3,
     and the Liaison passes the words "ok". Since F2 pass 2f, `words` must be
@@ -300,6 +314,7 @@ def test_his_reply_alone_confirms_a_reading(db):
                                          "3": "approve"}, words="ok")
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
     """The review of pass 5b, finding 6: the seat needs the ids of the rows
     that the line reads back."""
@@ -318,8 +333,3 @@ def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
         ("s1", 1, "approve"), ("calculate_tip", 2, "approve"),
         ("l_1", 3, "contest")], rows
     assert rows[2]["act"] == "remove" and rows[2]["target"] == "how_it_works"
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

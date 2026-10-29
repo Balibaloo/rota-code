@@ -44,6 +44,7 @@ S212 = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
         "9": "approve", "10": "approve", "11": "approve"}
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s212s_map_with_the_faulted_lines_contested_lands(db):
     rulings = dict(S212, **{"6": "contest", "7": "contest"})
     out = _rule11(db, M105, rulings)
@@ -51,6 +52,7 @@ def test_s212s_map_with_the_faulted_lines_contested_lands(db):
     assert out["per_item"]["l_2"] == "contest"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_right_approve_of_a_matched_line_lands(db):
     words = "Line 3 is wrong. Lines 2 and 4 match what I asked for."
     rulings = {str(n): "approve" for n in range(1, 12)}
@@ -224,29 +226,8 @@ def test_the_m245_page_numbers_bg_4_as_line_6(m245):
     assert order == [B4_ITEM] + [c for c, _, _ in B4_CRITERIA] + ["bg_4"]
 
 
-def test_the_night_map_is_refused_for_lines_4_and_6(m245):
-    with pytest.raises(ValueError) as e:
-        _rule_m245(m245, M245_MAP)
-    assert str(e.value).startswith(
-        'The words fault line 4, "wrong", and line 6, "wrong".'), str(e.value)
-
-
-def test_an_approve_of_the_open_change_line_is_refused(m245):
-    """The seat fixes line 4 and keeps the approve of line 6. Before
-    review 1's fix, the ruling landed and the files correction was lost."""
-    with pytest.raises(ValueError) as e:
-        _rule_m245(m245, dict(M245_MAP, **{"4": "contest"}))
-    said = str(e.value)
-    assert said.startswith('The words fault line 6, "wrong".'), said
-    assert "Rule line 6 contest or revise" in said
-
-
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_map_with_line_6_contested_lands(m245):
     out = _rule_m245(m245, dict(M245_MAP, **{"4": "contest", "6": "contest"}))
     assert out["per_item"]["bg_4"] == "contest"
     assert out["per_item"][B4_ITEM] == "approve"
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")

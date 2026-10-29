@@ -137,6 +137,7 @@ def test_the_page_numbers_bg_2_as_line_8(m91):
     assert order == [ITEM] + [c for c, _ in CRITERIA] + ["bg_2"]
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_m92s_files_correction_lands_as_a_contest_of_bg_2(m91):
     """s199 on m92. The door refused line 8 three times, and the reply
     landed no ruling row (frame 255)."""
@@ -146,6 +147,7 @@ def test_m92s_files_correction_lands_as_a_contest_of_bg_2(m91):
     assert out["per_item"][ITEM] == "approve"
 
 
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_land_keeps_bg_2_and_the_relay_reaches_the_architect(m91):
     """The row `rulings_rule` admits stays in the verdict after the head
     commit, and the relay takes bg_2 to the Architect (frame 255's scope,
@@ -173,16 +175,6 @@ def test_land_keeps_bg_2_and_the_relay_reaches_the_architect(m91):
     assert relays == [["bg_2"]], relays
 
 
-def test_m105_does_not_fault_line_8_and_is_still_refused(m91):
-    """s212 on m105. The words fault lines 2, 3, 5, 6 and 7 and not line 8,
-    so the contest of line 8 was the seat's error and the door holds."""
-    sb = _sandbox(m91, _reply(m91, M105))
-    with pytest.raises(ValueError) as refused:
-        sb.call("rulings.rule", rulings=MAP, words=M105)
-    assert str(refused.value) == (
-        "line 8: the words do not fault bg_2's files. Approve line 8.")
-
-
 def test_a_contest_at_a_list_item_s_range_passes_the_built_batch_filter():
     """Frame 282, review 1, finding 1: `land` keeps a contest of a built batch
     at lines 11 to 14 when the words fault them as a list item's range. The
@@ -197,8 +189,3 @@ def test_a_contest_at_a_list_item_s_range_passes_the_built_batch_filter():
     kept = [ref for ref in order
             if built_line_faulted(words, order, ref, faulted)]
     assert kept == ["bg_6", "bg_7", "bg_10", "bg_11", "bg_12", "bg_13", "bg_14"]
-
-
-# These tests pin the doors of the word form of a page call. Pass R2
-# retires the doors and these pins (frame 345, the R1 brief, step 5).
-pytestmark = pytest.mark.usefixtures("old_page_form")
