@@ -99,16 +99,19 @@ def test_a_line_key_wins_over_its_clause_key(db):  # noqa: F811
     assert rows["l_1"]["act"] == "drop"
 
 
-def test_a_line_no_clause_names_takes_approve_and_a_change_is_refused_once(
+def test_a_line_no_clause_names_takes_approve_and_a_change_is_refused(
         db):  # noqa: F811
+    """Review p9c: the same call twice in one session lands nothing on
+    line 1, because the quote lies in a clause that names line 3."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words="Drop line 3.")
-    with pytest.raises(ValueError, match="no clause of his names line 1"):
-        sb.call("rulings.rule", rulings={"3": "drop", "1": "drop"})
-    # The repeat rests the change on his whole reply.
-    sb.call("rulings.rule", rulings={"3": "drop", "1": "drop"})
-    rows = _rows(sb)
-    assert (rows["s1"]["act"], rows["s1"]["words"]) == ("drop", "Drop line 3.")
+    for call in ({"3": "drop", "1": "drop"},
+                 {"1": "other \"Drop line 3.\"", "3": "drop"}):
+        for _ in (1, 2):
+            with pytest.raises(ValueError,
+                               match="no clause of his names line 1"):
+                sb.call("rulings.rule", rulings=call)
+    assert not [w for w in sb.ctx.writes if w[0] == "ruled_refs"]
     # approve needs no words.
     sb, _ = _seat(db, ask, words="Drop line 3.")
     sb.call("rulings.rule", rulings={"3": "drop", "1": "approve"})

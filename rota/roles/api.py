@@ -14627,14 +14627,13 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             span = given
         if span is None:
             # A line that no clause names has no words of his to carry a
-            # change. The refusal fires once, and a repeat rests the
-            # option on his whole reply, as `_no_words_refusal` did.
-            refusal = (f"line {n}: no clause of his names line {n}, so line "
-                       f"{n} takes approve. To change line {n}, give add or "
-                       f"other with a quote of his words that ask for it")
-            if refusal not in refused:
-                raise ValueError(refusal)
-            span = (his or "").strip()
+            # change, so the refusal fires on every call. A repeat that
+            # rested on his whole reply landed a contest he never asked for
+            # (review p9c).
+            raise ValueError(
+                f"line {n}: no clause of his names line {n}, so line {n} "
+                f"takes approve. To change line {n}, give add or other with "
+                f"a quote of his words that ask for it")
         choices.append((f"line {n}", value, [n], {n: span}, rows))
     ruled: dict[int, str] = {}
     covered: set[int] = set()
