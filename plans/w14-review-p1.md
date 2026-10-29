@@ -127,3 +127,36 @@ Verdict: READY. 0 high findings, 1 low finding. p2 finding 5 closed on a probe.
 ### (d) Usage
 
 Input tokens: about 25k. Output tokens: about 3k. Total: about 28k. The harness gives no exact count.
+
+## p4: commit 6fba24ed on w14cases, the retire check in the 24 cases
+
+READY. The three cases name the right criteria, the runner reads the retire through the one reader, no expectation moved, and the 4 unit tests pass. Two low findings, no high.
+
+### (a) Verdicts
+
+1. CONFIRMED. Case m102-m103: his words say "Drop both of those examples", `body_refs` and the fixture rows are c_2 and c_3 (yaml 4844-4872). Case m116-m118: lines 7 and 8 of the page carry the c_2 and c_3 texts, and `body_refs` positions 7 and 8 are c_2 and c_3 (yaml 4937-4938, 4975). Case m136-m138: the same positions, and his words say "Removing lines 7 and 8 is right" (yaml 5469). Line 10 is a reading, not a criterion, so its contest adds no id.
+2. CONFIRMED. `retire_problems` calls `criteria_page_acts` (api.py 6618), which calls `_dropped_line` (6582). The map shows one caller of `criteria_page_acts`: `runner._page_acts` at runner.py 278, the relay wake. `criteria_retire` (6738) guards with the same `_dropped_line` through `ruling_drops_line`. See findings 1 and 2 for two reads the check does not make.
+3. CONFIRMED. `git diff 6fba24ed~1 6fba24ed -- tests/rota/cases/l3_rulings.yaml` adds 15 lines: three `expect_retired` blocks with comments. No `expect_lines`, `expect_refs` or `expect` line moved.
+4. CONFIRMED. `test_a_landed_drop_of_the_row_reads_as_the_retire` runs `fixtures.run_case` with a `ScriptedBackend` that calls `rulings.rule`, then reads with `landed_lines` and `retire_problems`. No row is seeded in `rulings`. The per-row `words` meets the door's demand that each act rests on his words. It changes what the door accepts, not what the reader reads, so the tested path is the same.
+5. CONFIRMED. `retire_problems` returns `[]` before any read when the field is absent (test_l3_rulings.py 108-109). Unit test 4 shows it. Replay of L3R-n175-m121-m122 is wrong 0 of 3 with the same problems, and no retire string. Replay of m102-m103 is wrong 0 of 3 and now carries "criterion c_2...: not retired" per run, so the check fires in a real replay.
+6. CONFIRMED. The replay writes to the register: `UPDATE cassettes SET hits` (cassettes.py 436) and `INSERT INTO case_runs` (658). The copy holds 510955 `case_runs` rows, the main 510811, so 144 rows of the builder's runs live only in the copy. `case_runs` feeds the cockpit, `benchmarks.py` and `casestatus`. The main needs none of them for the merge. The copy is gitignored and safe to delete after this review.
+7. CONFIRMED. `pytest tests/rota/test_l3r_retire_check.py -q -p no:cacheprovider` with `ROTA_L1` unset: 4 passed in 13.43 s.
+
+### (b) Findings
+
+1. tests/rota/test_l3_rulings.py 116. Low. PLAUSIBLE. The check passes `expect_retired` as the refs. The relay wake passes the relay's `body_refs` (runner.py 273-278). A criterion that the relay does not name gets no `criteria.retire` offer, and the check still reads it as retired. Fix: after the landing, read the relay message's `body_refs` and pass those, or add one problem when a wanted id is not in them.
+2. tests/rota/test_l3_rulings.py 116 and rota/roles/api.py 6647-6651. Low. PLAUSIBLE. `criteria_page_acts` skips a row with `retired_by` set. A future runner path that retires in the case run makes the check say "not retired". No path does so today. Fix: count `retired_by IS NOT NULL` as retired before the reader call.
+3. Outside. D:/repos/rota/tests/rota/cassettes.db. Low. CONFIRMED. The main register has no `case_runs` row that carries the new retire problem strings. Fix: after the merge, replay the three cases once in D:/repos/rota, then delete C:/Users/roman/rota_w14c/tests/rota/cassettes.db.
+
+### (c) Probes
+
+All ran from C:/Users/roman/rota_w14c with D:/repos/rota/.venv/Scripts/python.exe, nothing written to a tracked file.
+- `git diff 6fba24ed~1 6fba24ed -- tests/rota/cases/l3_rulings.yaml` and `-- tests/rota/test_l3_rulings.py`.
+- `rota.tools.map fn criteria_page_acts`, `fn criteria_retire`, `table case_runs`.
+- sqlite count of `case_runs` and sum of `hits` in both registers (python -c).
+- `pytest tests/rota/test_l3r_retire_check.py -q -p no:cacheprovider`, ROTA_L1 unset: 4 passed.
+- `pytest tests/rota/test_l3_rulings.py -q -p no:cacheprovider -k "m121-m122 or m102-m103"`: both wrong 0 of 3, retire strings on m102 only.
+
+### (d) Usage
+
+Input about 60k tokens, output about 7k tokens, total about 67k.
