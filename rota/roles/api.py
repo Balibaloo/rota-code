@@ -14439,6 +14439,11 @@ def line_menu(conn, ref: str, order: list, page_text: str) -> tuple[str, list[st
             return kind, ["approve"]
         options[1:1] = [f"exclude {p}" for p in
                         _shown_paths(conn, ref, order, page_text)]
+    # An item outside the request, as the description `how_it_works`, takes
+    # an add too. Two cases expect approve with add there: n174-m47-m48 and
+    # n175-m75-m76 (review p9, finding 3).
+    if kind == "other" and table_of(conn, ref, among=("items",)):
+        options.insert(1, "add <quote>")
     return kind, options + [_MENU_OTHER]
 
 
@@ -14551,14 +14556,13 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     for c in clauses:
         for n in c["lines"]:
             span_of.setdefault(n, c["words"])
-    rest, rest_given = "approve", False
+    rest = "approve"
     by_clause: dict[int, object] = {}
     by_line: dict[int, object] = {}
     for key, value in rulings.items():
         key = str(key).strip()
         low = key.lower()
         if low == "rest":
-            rest_given = True
             rest = _OPTION_SAME["line"].get(_menu_option(value)[0],
                                             _menu_option(value)[0])
             if rest not in ("approve", "none"):
@@ -14600,17 +14604,21 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             rows = value.get("rows") or []
             value = value.get("option")
         span = span_of.get(n)
+        name, given = _menu_option(value)
+        if span is None and name in ("approve", "ok", "none"):
+            continue
+        if (span is None and name in ("add", "other") and given
+                and _holds_span(his, given)):
+            # His quoted words carry the change, as "This page also leaves
+            # out my request" carries an add on line 1 (n175-m75-m76).
+            span = given
         if span is None:
-            name = _menu_option(value)[0]
-            if name in ("approve", "ok", "none"):
-                continue
             # A line that no clause names has no words of his to carry a
             # change. The refusal fires once, and a repeat rests the
             # option on his whole reply, as `_no_words_refusal` did.
             refusal = (f"line {n}: no clause of his names line {n}, so line "
-                       f"{n} takes approve. To change line {n}, use the key "
-                       f"of the clause that asks for the change, with "
-                       f"\"lines\": [{n}]")
+                       f"{n} takes approve. To change line {n}, give add or "
+                       f"other with a quote of his words that ask for it")
             if refusal not in refused:
                 raise ValueError(refusal)
             span = (his or "").strip()
@@ -14679,24 +14687,30 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     f"it goes with an option that corrects the read-back line")
             per_item[rid] = per_item[line_ref]
             shape_of[rid] = {"words": spans[order.index(line_ref) + 1]}
-    # A line that a clause names takes an option, by its clause, its line or
-    # a `rest` that the seat gave. The default rest never rules it, because
-    # it would approve a line that he contested and the seat left out.
-    missing = [] if rest_given else [
-        f"line {n} (clause c{k})" for k, c in enumerate(clauses, 1)
-        for n in c["lines"] if n not in ruled and n not in covered]
+    # The rest never rules a line that his words name, because it would
+    # approve a line that he contested and the seat left out (review p9,
+    # finding 1). Only the lines of a rest clause, as "the rest is fine",
+    # are the rest's own.
+    rest_lines = {n for c in clauses if _REST_LINES.search(c["words"])
+                  for n in c["lines"]}
+    missing = [f"line {n}" for n in sorted(span_of)
+               if n not in ruled and n not in covered and n not in rest_lines]
     if missing:
         raise ValueError(
-            f"{', '.join(dict.fromkeys(missing))}: his words name the line, "
-            f"and the call gives it no option. Give the clause key or the "
-            f"line key an option from the menu, or none")
+            f"{', '.join(missing)}: his words name the line, and the call "
+            f"gives it no option. Key each of those lines by its number with "
+            f"an option from its menu")
     for n, ref in enumerate(order, 1):
-        # A read-back line is his alone, so the rest rules it only when his
-        # words name it (the seam design's review, finding 1).
-        if (n in ruled or ref in per_item or ref in gone or rest != "approve"
-                or (menu[n][0] == "read-back" and n not in span_of)):
+        # A read-back line is his alone, so the rest rules it only when a
+        # rest clause of his names it (the seam design's review, finding 1).
+        if (n in ruled or n in covered or ref in per_item or ref in gone
+                or rest != "approve"
+                or (menu[n][0] == "read-back" and n not in rest_lines)):
             continue
         per_item[ref] = "approve"
+        # The words of the clause that names the line, else his reply
+        # (review p9, finding 2).
+        shape_of[ref] = {"words": span_of.get(n, (his or "").strip())}
     left = [str(n) for n, ref in enumerate(order, 1)
             if ref not in per_item and ref not in gone and n not in ruled
             and menu[n][0] != "read-back" and not is_test_row(conn, ref)]

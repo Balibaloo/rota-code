@@ -16,24 +16,23 @@ The menus:
 - The line of the files that the change touches: `approve`, `exclude <path>` takes that file off, `rewrite`. Join two paths with a comma: `exclude src/a.py, tests/test_a.py`.
 - The read-back line, "Your answer ...": `ok` when it reads him right, `misread`, `misread, drop`, `slightly off` when it is right in substance and needs other words, `rewrite`.
 - The request line: `approve`, `add <quote>` when the reply asks for something that the page leaves out.
-- Any other line: `approve`, `drop`, `rewrite`.
+- Any other line: `approve`, `drop`, `rewrite`, and `add <quote>` on an item.
 - Every line: `other <quote>` when no option fits. A quote is his words, copied.
 
-Call `rulings.rule` once. Key each option by its page line number. `rest`
-rules every line you do not key: `approve`, or `none` to leave them out. A
-read-back line that no clause names stays out. For the reply "Lines 2 and 3
-are wrong: ... Line 7 is slightly off, because ... Line 8 is a misread, since
-..., so please drop it; the rest of the page is fine.":
-`rulings.rule(rulings={"2": "rewrite", "3": "rewrite", "7": "slightly off", "8": "misread, drop", "rest": "approve"})`
-A clause that names several lines can take one clause key for all of them: `"c1": "rewrite"` rules lines 2 and 3.
+Call `rulings.rule` once. Key each option by its page line number. Give an
+option to every line that his words name. `rest` rules the lines that no
+clause names and the lines of his "the rest is fine": `approve`, or `none`.
+For the reply "Line 2 asks too much, drop it. Line 4 should say two decimals.
+Line 6 reads my answer right. The rest is fine.":
+`rulings.rule(rulings={"2": "drop", "4": "rewrite", "6": "ok", "rest": "approve"})`
 
-When a clause names the wrong lines or no line, give its clause key the
-lines: `"c3": {"option": "add <quote>", "lines": [1]}`. When a clause corrects
-a row of the earlier answer under a read-back line, add the row ids from
-`read_back`: `"8": {"option": "misread", "rows": ["<id>"]}`.
+When his words ask for a change and name no line, key the line the change is
+about and quote his words: `"1": "add <quote>"`. When his words correct a row
+of the earlier answer under a read-back line, add the row ids from
+`read_back`: `"6": {"option": "misread", "rows": ["<id>"]}`.
 
 Use `ask` only when the reply is a question about the page, or when you
-cannot tell what a clause rules. Call `rulings.rule(ask="...")` with one
+cannot tell what his words rule. Call `rulings.rule(ask="...")` with one
 sentence and no `rulings`. The page stays open, and the next reply comes back
 here with this exchange in `earlier_exchange`. Otherwise stop after the one
 call. The ruling lands after this session.

@@ -159,8 +159,46 @@ def test_rest_none_leaves_a_line_unruled_and_is_refused(db):  # noqa: F811
 def test_a_line_his_words_name_needs_an_option(db):  # noqa: F811
     ask = _page(db)
     sb, _ = _seat(db, ask, words=DROP)
-    with pytest.raises(ValueError, match=r"line 3 \(clause c1\)"):
+    with pytest.raises(ValueError, match="line 3: his words name the line"):
         sb.call("rulings.rule", rulings={"c2": "approve"})
+    # Review p9, finding 1: rest never rules a line that his clause names.
+    with pytest.raises(ValueError, match="line 3: his words name the line"):
+        sb.call("rulings.rule", rulings={"rest": "approve"})
+    with pytest.raises(ValueError, match="line 3: his words name the line"):
+        sb.call("rulings.rule", rulings={"1": "approve", "rest": "approve"})
+
+
+def test_the_rest_gives_the_words_of_the_clause_that_names_the_line(
+        db):  # noqa: F811
+    """Review p9, finding 2: both keys give an approved line the same
+    words."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=DROP)
+    sb.call("rulings.rule", rulings={"3": "drop", "rest": "approve"})
+    assert _rows(sb)["s1"]["words"] == "The rest is fine."
+
+
+def test_a_quote_of_his_carries_a_change_to_a_line_no_clause_names(
+        db):  # noqa: F811
+    ask = _page(db)
+    words = "Drop line 3. The page leaves out the tax."
+    sb, _ = _seat(db, ask, words=words)
+    sb.call("rulings.rule", rulings={
+        "3": "drop", "2": "add The page leaves out the tax.",
+        "rest": "approve"})
+    row = _rows(sb)["calculate_tip"]
+    assert (row["verdict"], row["act"]) == ("approve", "add")
+    assert row["words"] == "The page leaves out the tax."
+
+
+def test_an_item_outside_the_request_offers_add(db):  # noqa: F811
+    """Review p9, finding 3: the description line `how_it_works`."""
+    _page(db)
+    db.execute("UPDATE items SET is_description = 1 WHERE id = 'how_it_works'")
+    kind, options = api.line_menu(db, "how_it_works", ["how_it_works"], "")
+    assert kind == "other"
+    assert options == ["approve", "add <quote>", "drop", "rewrite",
+                       "other <quote>"]
 
 
 def test_the_lines_correction_moves_the_option(db):  # noqa: F811

@@ -1,4 +1,4 @@
 # ordered
 rulings.rule
 rulings.line
-# rulings.rule takes one option of landing.menus per page line number, or per clause key c1, c2 of landing.clauses, and rest for every line not keyed: approve or none.
+# rulings.rule takes one option of landing.menus per page line number, and rest: approve or none.
