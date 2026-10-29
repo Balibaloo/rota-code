@@ -1,6 +1,7 @@
 # L3 rulings: 24 real pages of nights 170 to 175, with his real replies.
 #
-# Written from `l3_rulings_judged.yaml` (frame 345). Each case wakes the
+# Written from `tests/rota/cases/sources/l3_rulings_judged.yaml` (frame
+# 345). Each case wakes the
 # Liaison on his reply with the page lines verbatim, and the real doors
 # of `rota/roles/api.py` judge each call. `expect_lines` is the judge's
 # `expect` line, read per line. The rows hold the ids of the records.

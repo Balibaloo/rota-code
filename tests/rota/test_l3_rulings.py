@@ -156,8 +156,13 @@ def refusals(log: _Turns) -> list[dict]:
 
 def runner_errors(result, refused: list[dict]) -> list[str]:
     """The session's errors that no door raised."""
-    door = {r["refusal"] for r in refused}
-    return [e for e in result.outcome.errors if e not in door]
+    # The text after the first colon, because a held call's error reads
+    # "<fn> (held): <refusal>" (the review of d9bc5e96, low 1).
+    def tail(text: str) -> str:
+        return text.split(":", 1)[-1].strip()
+
+    door = {tail(r["refusal"]) for r in refused}
+    return [e for e in result.outcome.errors if tail(e) not in door]
 
 
 @pytest.mark.parametrize("case", _cases(), ids=[c["id"] for c in _cases()])
