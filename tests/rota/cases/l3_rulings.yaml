@@ -4905,6 +4905,11 @@
       verdict: contest
       act: drop
       target_kind: row
+  # W14 retires each criterion that his words delete. The runner reads
+  # the retire through criteria_page_acts after the landing.
+  expect_retired:
+  - c_2_format_filename_example
+  - c_3_format_filename_example
   forbidden: {}
 
 # judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'remove lines 7 and 8 and finish with line 2 alone'; 9 approve; 10-11 approve
@@ -5167,6 +5172,11 @@
         verdict: approve
       '11':
         verdict: approve
+  # W14 retires each criterion that his words delete. The runner reads
+  # the retire through criteria_page_acts after the landing.
+  expect_retired:
+  - c_2_format_filename_example
+  - c_3_format_filename_example
   forbidden: {}
 
 # judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'remove only lines 7 and 8, because I asked for one example and nothing more'; 9 approve; 10 contest
@@ -5686,4 +5696,9 @@
         verdict: approve
       '10':
         verdict: contest
+  # W14 retires each criterion that his words delete. The runner reads
+  # the retire through criteria_page_acts after the landing.
+  expect_retired:
+  - c_2_format_filename_example
+  - c_3_format_filename_example
   forbidden: {}
