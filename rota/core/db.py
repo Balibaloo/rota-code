@@ -418,6 +418,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # older verdict's truth, since no pass named a line before.
         if not _has_column(conn, "verdicts", "lines"):
             conn.execute("ALTER TABLE verdicts ADD COLUMN lines TEXT")
+        # The same for the route of each criterion of a pass (sprint 35 row
+        # 4): NULL is every older verdict's truth, since no other route existed.
+        if not _has_column(conn, "verdicts", "routes"):
+            conn.execute("ALTER TABLE verdicts ADD COLUMN routes TEXT")
         # The same for the item version a ticket was sliced from (frame 190):
         # NULL is unknown, so an older ticket is never retired and never
         # sliced again.

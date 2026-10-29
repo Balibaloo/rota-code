@@ -140,6 +140,76 @@
     # rewrites the test.
     writes: [criteria, tests]
 
+# Night 174 (sprint 35 row 4): bg_2 changed clear() to return a bool, and
+# c_3_clear_prints_same said the printed output stays the same. No added line
+# meets such a criterion. The door refused the comment that stated it, and the
+# Critic failed c_3 three times (plans/night174-read.md line 71). Here the
+# same shape is on send(): the return value changes, and the delivered
+# message stays. The kept line `smtp.send_message(msg)` meets <c3>.
+- id: L1-CR-a-kept-behaviour-passes-by-its-kept-line
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 4
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "send returns True when it has sent the message"
+    edit:
+      src/notify/delivery.py: |
+        import smtplib
+        from email.message import EmailMessage
+
+        from .templates import render
+
+
+        def build(to, subject, template, **values):
+            msg = EmailMessage()
+            msg["To"] = to
+            msg["Subject"] = subject
+            msg.set_content(render(template, **values))
+            return msg
+
+
+        def send(msg, host="localhost", port=25) -> bool:
+            with smtplib.SMTP(host, port) as smtp:
+                smtp.send_message(msg)
+            return True
+  fixture:
+    items:
+      - {id: <i1>, text: "send reports that it sent the message", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "send returns a bool"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "send() returns True when it has sent the message",
+         term_refs: '[]'}
+      - {id: <c3>, ticket_id: <tk1>,
+         text: "The message sent by send() remains exactly the same; only the return value changes behavior",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_send.py,
+         body: "assert send(msg) is True"}
+      - {id: <tst3>, batch_id: <b1>, criterion_id: <c3>, path: test_send.py,
+         body: "assert sent_messages() == [msg]"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
+      - {id: <r3>, batch_id: <b1>, test_id: <tst3>, commit_sha: abc123, result: pass}
+  expect:
+    # The pass lands through the kept route for <c3>. The verdict row's
+    # `routes` holds "kept". A fail on <c3> is the night's wrong verdict.
+    writes:
+      verdicts: {count: 1, text_includes: ['"result": "pass"', 'kept']}
+  forbidden:
+    writes: [criteria, tests, items]
+    recipients: [vision_keeper, architect, liaison]
+
 # Night 94 (2026-09-27): the Critic passed `bg_1`, then the Architect filed a
 # finding against `echo`, a constraint the Critic had falsified in s78. The
 # finding woke the Developer twice and the batch never merged. Ruled by Roman
