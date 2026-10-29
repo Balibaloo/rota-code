@@ -14605,12 +14605,25 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             value = value.get("option")
         span = span_of.get(n)
         name, given = _menu_option(value)
-        if span is None and name in ("approve", "ok", "none"):
+        if span is None and name == "none":
             continue
+        if span is None and name in ("approve", "ok"):
+            # A read-back line is his alone, so an approve that no words of
+            # his name leaves it out (the seam design's review, finding 1).
+            if menu[n][0] == "read-back":
+                continue
+            # The seat keyed the line approve, so the line lands approve on
+            # his whole reply. A skip here met the "no ruling" door 27 times
+            # in R1c, where the seat keyed every line and sent rest none
+            # (review p9b-1).
+            span = (his or "").strip()
         if (span is None and name in ("add", "other") and given
-                and _holds_span(his, given)):
+                and any(not c["lines"] and _holds_span(c["words"], given)
+                        for c in clauses)):
             # His quoted words carry the change, as "This page also leaves
-            # out my request" carries an add on line 1 (n175-m75-m76).
+            # out my request" carries an add on line 1 (n175-m75-m76). The
+            # quote lies in a clause that names no line, so it names no
+            # other line (review p9b-2).
             span = given
         if span is None:
             # A line that no clause names has no words of his to carry a

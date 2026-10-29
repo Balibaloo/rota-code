@@ -248,3 +248,32 @@ def test_the_old_forms_are_refused_with_the_menu_form_named(db):  # noqa: F811
         sb.call("rulings.rule", rulings={"3": "drop"},
                 acts={"3": {"act": "drop"}})
 
+
+def test_a_line_key_approve_on_an_unnamed_line_lands_with_rest_none(
+        db):  # noqa: F811
+    """Review p9b-1: the seat keyed every line approve and sent rest none,
+    and the skipped lines met the "no ruling" door 27 times in R1c."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words="Drop line 3.")
+    sb.call("rulings.rule", rulings={"1": "approve", "2": "ok", "3": "drop",
+                                     "rest": "none"})
+    rows = _rows(sb)
+    assert rows["s1"]["verdict"] == rows["calculate_tip"]["verdict"] == "approve"
+    assert rows["s1"]["words"] == "Drop line 3."
+
+
+def test_a_quote_that_names_another_line_carries_no_change(db):  # noqa: F811
+    """Review p9b-2: the quote must lie in a clause that names no line."""
+    ask = _page(db)
+    words = "Drop line 3 and its tax. The page leaves out the tip."
+    sb, _ = _seat(db, ask, words=words)
+    with pytest.raises(ValueError, match="no clause of his names line 2"):
+        sb.call("rulings.rule", rulings={
+            "3": "drop", "2": "add Drop line 3 and its tax.",
+            "rest": "approve"})
+    sb, _ = _seat(db, ask, words=words)
+    sb.call("rulings.rule", rulings={
+        "3": "drop", "2": "add The page leaves out the tip.",
+        "rest": "approve"})
+    assert _rows(sb)["calculate_tip"]["act"] == "add"
+
