@@ -1,0 +1,5682 @@
+# L3 rulings: 24 real pages of nights 170 to 175, with his real replies.
+#
+# Written from `l3_rulings_judged.yaml` (frame 345). Each case wakes the
+# Liaison on his reply with the page lines verbatim, and the real doors
+# of `rota/roles/api.py` judge each call. `expect_lines` is the judge's
+# `expect` line, read per line. The rows hold the ids of the records.
+# Columns the records do not hold are filled with the least the schema
+# needs, so a door that reads a row by id finds it.
+
+# judge.expect: 1-17 approve; 18-28 contest, act drop, row, words 'so please drop them'; 29 approve
+# shape: an approving clause ('are fine') read as a fault; a named read-back line approved
+- id: L3R-n170-m6-m7
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m7>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - how_it_works
+    - argument
+    - command
+    - completion
+    - completion#root
+    - context
+    - context#root
+    - decorator
+    - group
+    - line
+    - option
+    - option#src_click
+    - parameter
+    - parser
+    - stream
+    - usage
+    - usageerror
+    - flag_needs_value
+    - get_current_context
+    - pop_context
+    - push_context
+    - resolve_color_default
+    - sentinel
+    - sentinel_flag_needs_value
+    - sentinel_unset
+    - t_flag_needs_value
+    - t_unset
+    - unset
+    - reading:<m3>
+    cause: <m6>
+    body_text: 'Lines 18 to 28 are wrong: they don''t explain any word, they just list people who use
+      some of click''s internal helpers, and I never said anything about that, so please drop them. Your
+      reading of my last answer in line 29 is right, and line 1 and the rest of the word notes are fine
+      with me.'
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - The program is a command-line interface toolkit called Click. Users write scripts that define commands
+      and options, and Click handles parsing and executing them. The user writes commands and options
+      in Python functions, and Click turns these into a command-line interface that accepts arguments
+      and options. The output is the result of running the command with the provided inputs.
+    - 'Argument: a positional parameter class'
+    - 'command: A class representing a single executable unit in the CLI.'
+    - 'completion: a mechanism for suggesting command-line arguments as the user types, implemented via
+      CompletionItem objects returned by completion functions registered in shell contexts.'
+    - 'completion: a suggestion system for CLI arguments populated by registered functions'
+    - 'Context: runtime state holder for a CLI invocation'
+    - 'context: a runtime state holder carrying mutable data across command execution'
+    - 'decorator: A function that transforms another function into a Click command, group, or parameter.'
+    - 'group: a container class for organizing multiple subcommands under a single entry point'
+    - 'line: a string segment in a file or output stream used for formatting and parsing in Click'
+    - 'option: a parameterized CLI input defined by the Option class that accepts flags or values'
+    - 'Option: an optional named or flag argument class'
+    - 'Parameter: the base class for CLI arguments'
+    - 'parser: internal component interpreting CLI input into Python objects'
+    - 'stream: An I/O object managed by Click for encoding and buffering.'
+    - 'usage: the string returned by get_usage or printed as part of a UsageError message to describe
+      how a command should be invoked.'
+    - 'UsageError: exception for invalid user input'
+    - Users of Click that use `FLAG_NEEDS_VALUE` as a sentinel value
+    - Users of Click that use `get_current_context` for accessing the current context
+    - Users of Click that use `pop_context` for popping contexts
+    - Users of Click that use `push_context` for pushing contexts
+    - Users of Click that use `resolve_color_default` for color resolution
+    - Users of Click that use `Sentinel` for sentinel values
+    - Users of Click that use `Sentinel.FLAG_NEEDS_VALUE` as a sentinel value
+    - Users of Click that use `Sentinel.UNSET` as a sentinel value
+    - Users of Click that use `T_FLAG_NEEDS_VALUE` as a type hint for `FLAG_NEEDS_VALUE`
+    - Users of Click that use `T_UNSET` as a type hint for `UNSET`
+    - Users of Click that use `UNSET` as a sentinel value
+    - 'Your answer "Ok, that matches click as it is today, ...", as the team read it: 4 lines approved.
+      Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: how_it_works
+      text: The program is a command-line interface toolkit called Click. Users write scripts that define
+        commands and options, and Click handles parsing and executing them. The output is the result of
+        running the command with the provided inputs.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m6>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["how_it_works", "argument", "command", "completion", "completion#root", "context",
+        "context#root", "decorator", "group", "line", "option", "option#src_click", "parameter", "parser",
+        "stream", "usage", "usageerror", "flag_needs_value", "get_current_context", "pop_context", "push_context",
+        "resolve_color_default", "sentinel", "sentinel_flag_needs_value", "sentinel_unset", "t_flag_needs_value",
+        "t_unset", "unset", "reading:<m3>"]'
+      seq: 2
+    - id: <m3>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    glossary_terms:
+    - id: argument
+      term: Argument
+      sense_short: a positional parameter class
+      version: 1
+    - id: command
+      term: command
+      sense_short: A class representing a single executable unit in the CLI.
+      version: 1
+    - id: completion
+      term: completion
+      sense_short: a mechanism for suggesting command-line arguments as the user types, implemented via
+        CompletionItem objects returned by completion functions registered in shell contexts.
+      version: 1
+    - id: completion#root
+      term: completion
+      sense_short: a suggestion system for CLI arguments populated by registered functions
+      version: 1
+    - id: context
+      term: context
+      sense_short: Runtime state holder carrying mutable data.
+      version: 1
+    - id: context#root
+      term: context
+      sense_short: Runtime state holder carrying mutable data.
+      version: 1
+    - id: decorator
+      term: decorator
+      sense_short: A callable factory that wraps a function to attach metadata, inject context objects,
+        or transform it into a CLI command/group.
+      version: 1
+    - id: group
+      term: group
+      sense_short: Container for subcommands.
+      version: 1
+    - id: line
+      term: line
+      sense_short: a string segment in a file or output stream used for formatting and parsing in Click
+      version: 1
+    - id: option
+      term: option
+      sense_short: a parameterized CLI input defined by the Option class that accepts flags or values
+      version: 1
+    - id: option#src_click
+      term: Option
+      sense_short: an optional named or flag argument class
+      version: 1
+    - id: parameter
+      term: parameter
+      sense_short: Base class for CLI arguments.
+      version: 1
+    - id: parser
+      term: parser
+      sense_short: internal component interpreting CLI input into Python objects
+      version: 1
+    - id: stream
+      term: stream
+      sense_short: An I/O object managed by Click for encoding and buffering.
+      version: 1
+    - id: usage
+      term: usage
+      sense_short: the string returned by get_usage or printed as part of a UsageError message to describe
+        how a command should be invoked.
+      version: 1
+    - id: usageerror
+      term: UsageError
+      sense_short: exception for invalid user input
+      version: 1
+    constraints:
+    - id: flag_needs_value
+      headline: Users of Click that use `FLAG_NEEDS_VALUE` as a sentinel value
+      version: 1
+    - id: get_current_context
+      headline: The `get_current_context` function is used by Click's internal logic to access the current
+        context. Users who rely on this function in their code would break if it were renamed or removed.
+      version: 1
+    - id: pop_context
+      headline: The `pop_context` function is used by Click's internal logic to remove the top level from
+        the stack. Users who rely on this function in their code would break if it were renamed or removed.
+      version: 1
+    - id: push_context
+      headline: Users of Click that use `push_context` for pushing contexts
+      version: 1
+    - id: resolve_color_default
+      headline: Users of Click that use `resolve_color_default` for color resolution
+      version: 1
+    - id: sentinel
+      headline: Users of Click that use `Sentinel` for sentinel values
+      version: 1
+    - id: sentinel_flag_needs_value
+      headline: Users of Click that use `Sentinel.FLAG_NEEDS_VALUE` as a sentinel value
+      version: 1
+    - id: sentinel_unset
+      headline: Users of Click that use `Sentinel.UNSET` as a sentinel value
+      version: 1
+    - id: t_flag_needs_value
+      headline: Users of Click that use `T_FLAG_NEEDS_VALUE` as a type hint for `FLAG_NEEDS_VALUE`
+      version: 1
+    - id: t_unset
+      headline: Users of Click that use `T_UNSET` as a type hint for `UNSET`
+      version: 1
+    - id: unset
+      headline: Users of Click that use `UNSET` as a sentinel value
+      version: 1
+    rulings:
+    - id: r_m3
+      ask_id: <m3>
+      reply_id: <m3>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m3_0
+      ruling_id: r_m3
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_1
+      ruling_id: r_m3
+      ref: defines_commands_and_options
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_2
+      ruling_id: r_m3
+      ref: parses_and_executes_inputs
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_3
+      ruling_id: r_m3
+      ref: provides_command_line_interface
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m7>
+      value: '["how_it_works", "argument", "command", "completion", "completion#root", "context", "context#root",
+        "decorator", "group", "line", "option", "option#src_click", "parameter", "parser", "stream", "usage",
+        "usageerror", "flag_needs_value", "get_current_context", "pop_context", "push_context", "resolve_color_default",
+        "sentinel", "sentinel_flag_needs_value", "sentinel_unset", "t_flag_needs_value", "t_unset", "unset",
+        "reading:<m3>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: approve
+      '8':
+        verdict: approve
+      '9':
+        verdict: approve
+      '10':
+        verdict: approve
+      '11':
+        verdict: approve
+      '12':
+        verdict: approve
+      '13':
+        verdict: approve
+      '14':
+        verdict: approve
+      '15':
+        verdict: approve
+      '16':
+        verdict: approve
+      '17':
+        verdict: approve
+      '18':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '19':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '20':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '21':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '22':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '23':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '24':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '25':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '26':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '27':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '28':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '29':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-6 approve; line 1 act add, words 'keep what clear() prints exactly as it is now, because only the return value should change'
+# shape: two read-back lines named right; a constraint sentence lands as an add, not as a keep on the read-back
+- id: L3R-n170-m58-m59
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m59>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_screen_return
+    - c1_terminal_true
+    - tk_2_clear_screen_return
+    - b_2
+    - reading:<m43>
+    - reading:<m55>
+    cause: <m58>
+    body_text: Ok, every line matches what I asked for, and lines 5 and 6 read my earlier answers right.
+      Please keep what clear() prints exactly as it is now, because only the return value should change.
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'When clear() is invoked and stdout is a terminal, the function must return True.
+
+      check: none yet.'
+    - 'When clear() is invoked and stdout is not a terminal, the function must return False.
+
+      check: none yet.'
+    - 'the work for: Make clear() return True when it cleared the screen and False when stdout is not
+      a terminal.; expected to touch src/click/termui.py, tests/test_termui.py; might touch src/click/termui.py::clear'
+    - 'Your answer "The first part is right, that is the ...", as the team read it: 1 line approved. Say
+      ok, or say what we misread.'
+    - 'Your answer "Ok, every line matches what I asked for, ...", as the team read it: 3 lines approved.
+      Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: clear_screen_return
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m58>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_screen_return", "c1_terminal_true", "tk_2_clear_screen_return", "b_2", "reading:<m43>",
+        "reading:<m55>"]'
+      seq: 2
+    - id: <m43>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m55>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_clear_screen_return
+      item_id: clear_screen_return
+      text: the tickets of the page's item
+    batches:
+    - id: b_2
+      item_id: clear_screen_return
+      status: pending
+      version: 1
+    criteria:
+    - id: c1_terminal_true
+      ticket_id: tk_clear_screen_return
+      text: When clear() is invoked and stdout is a terminal, the function must return True.
+      version: 1
+    - id: tk_2_clear_screen_return
+      ticket_id: tk_clear_screen_return
+      text: When clear() is invoked and stdout is not a terminal, the function must return False.
+      version: 1
+    rulings:
+    - id: r_m43
+      ask_id: <m43>
+      reply_id: <m43>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m55
+      ask_id: <m55>
+      reply_id: <m55>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m43_0
+      ruling_id: r_m43
+      ref: s2
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m55_0
+      ruling_id: r_m55
+      ref: clear_screen_return
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m55_1
+      ruling_id: r_m55
+      ref: guess:clear_screen_return
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m55_2
+      ruling_id: r_m55
+      ref: l_8a8da36085
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m59>
+      value: '["clear_screen_return", "c1_terminal_true", "tk_2_clear_screen_return", "b_2", "reading:<m43>",
+        "reading:<m55>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+        act: add
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-2 approve; 3 contest, act exclude, path, target tests/test_formatting.py, words 'please remove the five formatting tests from what you expect to touch'; 4 approve
+# shape: 'remove ... from what you expect to touch' is an exclude of a path, not a remove of code; read-back approved on 'reads my last answer correctly'
+- id: L3R-n170-m74-m75
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m75>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - c_1_format_filename_example
+    - b_3
+    - reading:<m70>
+    cause: <m74>
+    body_text: Line 3 is wrong because only the docstring in the utils file changes, so please remove
+      the five formatting tests from what you expect to touch. Lines 1 and 2 are right, and line 4 reads
+      my last answer correctly.
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - 'The docstring for format_filename must include an example demonstrating that when shorten=True,
+      the path a/b/c.txt is displayed as c.txt.
+
+      check: none yet.'
+    - 'the work for: Give format_filename one example in its docstring: with shorten set to True, the
+      path a/b/c.txt shows as c.txt.; expected to touch src/click/utils.py, tests/test_formatting.py::test_formatting_with_options_metavar_empty,
+      tests/test_formatting.py::test_global_show_default, tests/test_formatting.py::test_truncating_docstring,
+      tests/test_formatting.py::test_truncating_docstring_no_help, tests/test_formatting.py::test_write_usage_styled_prefix_keeps_options_on_one_line'
+    - 'Your answer "Ok, every line matches what I asked for. ...", as the team read it: 3 lines approved.
+      Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m74>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "c_1_format_filename_example", "b_3", "reading:<m70>"]'
+      seq: 2
+    - id: <m70>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    batches:
+    - id: b_3
+      item_id: format_filename_example
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example demonstrating that when shorten=True,
+        the path a/b/c.txt is displayed as c.txt.
+      version: 1
+    rulings:
+    - id: r_m70
+      ask_id: <m70>
+      reply_id: <m70>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m70_0
+      ruling_id: r_m70
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m70_1
+      ruling_id: r_m70
+      ref: guess:format_filename_example
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m70_2
+      ruling_id: r_m70
+      ref: l_39e53c7758
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m75>
+      value: '["format_filename_example", "c_1_format_filename_example", "b_3", "reading:<m70>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: contest
+        act: exclude
+        target_kind: path
+      '4':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-2 approve; 3 contest, no act; 4 approve
+# shape: the baseline: one wrong note, two right lines, the read-back named right
+- id: L3R-n171-m27-m28
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m28>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - get_app_dir_windows
+    - guess:get_app_dir_windows
+    - l_498102cd2f
+    - reading:<m21>
+    cause: <m27>
+    body_text: Line 3 is wrong, because click does not do this today and adding it is the whole change
+      I asked for. Lines 1 and 2 are right, with Roaming when the roaming flag is True and Local otherwise.
+      Line 4 reads my last answer correctly.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData Roaming or AppData
+      Local folder under the home folder instead of the bare home folder.
+    - 'The team''s guess at the code this touches: src/click/utils.py. It might touch src/click/utils.py::get_app_dir.'
+    - The behaviour described in s1 is correctly implemented in the software and aligns with the ratified
+      statement.
+    - 'Your answer "Yes to the first item: that is the ...", as the team read it: 1 line approved. Say
+      ok, or say what we misread.'
+  fixture:
+    items:
+    - id: get_app_dir_windows
+      text: In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData Roaming
+        or AppData Local folder under the home folder instead of the bare home folder.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m27>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["get_app_dir_windows", "guess:get_app_dir_windows", "l_498102cd2f", "reading:<m21>"]'
+      seq: 2
+    - id: <m21>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    touch_guesses:
+    - item_id: get_app_dir_windows
+      item_ver: 1
+      grain_kind: path
+      grain: src/click/utils.py (path, expected); src/click/utils.py::get_app_dir (symbol, possible)
+    ledger:
+    - id: l_498102cd2f
+      about_ref: get_app_dir_windows
+      about_table: items
+      default_taken: The behaviour described in s1 is correctly implemented in the software and aligns
+        with the ratified statement.
+      status: open
+      author: vision_keeper
+    rulings:
+    - id: r_m21
+      ask_id: <m21>
+      reply_id: <m21>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m21_0
+      ruling_id: r_m21
+      ref: s1
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m28>
+      value: '["get_app_dir_windows", "guess:get_app_dir_windows", "l_498102cd2f", "reading:<m21>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: contest
+        act: null
+      '4':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-4 approve; 5 contest, act exclude, path, one target per file he names out, words 'keep line 5 to the terminal module, the compat module and the terminal tests'; 6 approve
+# shape: 'keep line 5 to X' is an exclude of every other path; the read-back approved
+- id: L3R-n172-m76-m77
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m77>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_returns_status
+    - c_1_clear_terminal
+    - c_2_clear_non_tty
+    - c_3_clear_success
+    - bg_2
+    - reading:<m72>
+    cause: <m76>
+    body_text: Lines 1 to 4 are right, and line 6 reads my last answer correctly. Line 5 is wrong because
+      the clear change has nothing to do with the encoding helpers or with the tests for defaults, options,
+      the test runner and the app folder. Please keep line 5 to the terminal module, the compat module
+      and the terminal tests.
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - clear() returns True if it successfully cleared the screen, and False if stdout is not a terminal.
+    - 'The function returns True if the screen was cleared via ANSI escape codes, and False if stdout
+      is not a terminal.
+
+      check: none yet.'
+    - 'If stdout is not a terminal (isatty returns False), the function must return False immediately
+      without attempting to clear.
+
+      check: none yet.'
+    - 'The function must return True only after successfully executing the screen clearing command.
+
+      check: none yet.'
+    - 'the work for: clear() returns True if it successfully cleared the screen, and False if stdout is
+      not a terminal.; expected to touch src/click/_compat.py, src/click/termui.py, tests/test_basic.py,
+      tests/test_defaults.py, tests/test_options.py, tests/test_termui.py, tests/test_testing.py, tests/test_utils/test_get_app_dir.py;
+      commitments: get_best_encoding (bound to src/click/_compat.py), is_ascii_encoding (bound to src/click/_compat.py),
+      make_text_stream (bound to src/click/_compat.py)'
+    - 'Your answer "Lines 1 to 5 are right. Lines 6 ...", as the team read it: line 6 is wrong; line 7
+      is wrong; line 8 is wrong; line 9 is wrong; line 10 is wrong; line 11 is wrong; line 12 is wrong;
+      line 13 is wrong; line 14 is wrong; line 15 is wrong; line 16 is wrong; line 17 is wrong; line 18
+      is wrong; line 19 is wrong; line 20 is wrong; line 21 is wrong; line 22 is wrong; line 23 is wrong;
+      line 24 is wrong; 5 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: clear_returns_status
+      text: clear() returns True if it successfully cleared the screen, and False if stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m76>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_tty", "c_3_clear_success",
+        "bg_2", "reading:<m72>"]'
+      seq: 2
+    - id: <m72>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_clear_returns_status
+      item_id: clear_returns_status
+      text: the tickets of the page's item
+    batches:
+    - id: bg_2
+      item_id: clear_returns_status
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_clear_terminal
+      ticket_id: tk_clear_returns_status
+      text: The function returns True if the screen was cleared via ANSI escape codes, and False if stdout
+        is not a terminal.
+      version: 1
+    - id: c_2_clear_non_tty
+      ticket_id: tk_clear_returns_status
+      text: If stdout is not a terminal (isatty returns False), the function must return False immediately
+        without attempting to clear.
+      version: 1
+    - id: c_3_clear_success
+      ticket_id: tk_clear_returns_status
+      text: The function must return True only after successfully executing the screen clearing command.
+      version: 1
+    rulings:
+    - id: r_m72
+      ask_id: <m72>
+      reply_id: <m72>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m72_0
+      ruling_id: r_m72
+      ref: clear_returns_status
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_1
+      ruling_id: r_m72
+      ref: guess:clear_returns_status
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_2
+      ruling_id: r_m72
+      ref: c_1_clear_terminal
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_3
+      ruling_id: r_m72
+      ref: c_2_clear_non_tty
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_4
+      ruling_id: r_m72
+      ref: c_3_clear_success
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_5
+      ruling_id: r_m72
+      ref: context#root
+      line: 6
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_6
+      ruling_id: r_m72
+      ref: decorator#src_click
+      line: 7
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_7
+      ruling_id: r_m72
+      ref: group
+      line: 8
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_8
+      ruling_id: r_m72
+      ref: group#root
+      line: 9
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_9
+      ruling_id: r_m72
+      ref: parameter
+      line: 10
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_10
+      ruling_id: r_m72
+      ref: flag_needs_value
+      line: 11
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_11
+      ruling_id: r_m72
+      ref: get_best_encoding
+      line: 12
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_12
+      ruling_id: r_m72
+      ref: get_current_context
+      line: 13
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_13
+      ruling_id: r_m72
+      ref: helpformatter
+      line: 14
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_14
+      ruling_id: r_m72
+      ref: is_ascii_encoding
+      line: 15
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_15
+      ruling_id: r_m72
+      ref: make_text_stream
+      line: 16
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_16
+      ruling_id: r_m72
+      ref: parametersource
+      line: 17
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_17
+      ruling_id: r_m72
+      ref: pop_context
+      line: 18
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_18
+      ruling_id: r_m72
+      ref: push_context
+      line: 19
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_19
+      ruling_id: r_m72
+      ref: resolve_color_default
+      line: 20
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_20
+      ruling_id: r_m72
+      ref: sentinel
+      line: 21
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_21
+      ruling_id: r_m72
+      ref: t_unset
+      line: 22
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_22
+      ruling_id: r_m72
+      ref: unset
+      line: 23
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m72_23
+      ruling_id: r_m72
+      ref: t_flag_needs_value
+      line: 24
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m77>
+      value: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_tty", "c_3_clear_success",
+        "bg_2", "reading:<m72>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: contest
+        act: exclude
+        target_kind: path
+      '6':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1 approve; 2 contest, act exclude, path, target tests/test_utils/test_format_filename.py, words 'the change goes in the docstring of the function in click's own source, not in a test file'; 3 approve; 4 approve
+# shape: 'The other lines are fine' approves the read-back line too
+- id: L3R-n172-m92-m93
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m93>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - guess:format_filename_example
+    - l_07cfe2696b
+    - reading:<m84>
+    cause: <m92>
+    body_text: Line 2 is wrong because the change goes in the docstring of the function in click's own
+      source, not in a test file. Only the docstring changes and the code stays the same. The other lines
+      are fine.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - With shorten set to True, the path a/b/c.txt is displayed as c.txt in the docstring of format_filename.
+    - 'The team''s guess at the code this touches: tests/test_utils/test_format_filename.py.'
+    - The example in the docstring of format_filename with shorten=True correctly displays the path a/b/c.txt
+      as c.txt.
+    - 'Your answer "You misread my answer: I said line 1 ...", as the team read it: 1 line approved. Say
+      ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: With shorten set to True, the path a/b/c.txt is displayed as c.txt in the docstring of format_filename.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m92>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "guess:format_filename_example", "l_07cfe2696b", "reading:<m84>"]'
+      seq: 2
+    - id: <m84>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    touch_guesses:
+    - item_id: format_filename_example
+      item_ver: 1
+      grain_kind: path
+      grain: tests/test_utils/test_format_filename.py (path, expected); src/click/utils.py (path, expected);
+        src/click/utils.py::format_filename (symbol, possible)
+    ledger:
+    - id: l_07cfe2696b
+      about_ref: format_filename_example
+      about_table: items
+      default_taken: The example in the docstring of format_filename with shorten=True correctly displays
+        the path a/b/c.txt as c.txt.
+      status: open
+      author: vision_keeper
+    rulings:
+    - id: r_m84
+      ask_id: <m84>
+      reply_id: <m84>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m84_0
+      ruling_id: r_m84
+      ref: s3
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m93>
+      value: '["format_filename_example", "guess:format_filename_example", "l_07cfe2696b", "reading:<m84>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: exclude
+        target_kind: path
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-3 approve; 4 contest, act drop, row, words 'I asked only for the one example and not for any added text about the shorten parameter'; 5-7 approve
+# shape: 'the team read my earlier answers correctly' approves every read-back line; a criterion he did not ask for is a drop
+- id: L3R-n172-m97-m98
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m98>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - c_1_format_filename_example
+    - c_2_format_filename_example
+    - c_3_format_filename_example
+    - bg_3
+    - reading:<m84>
+    - reading:<m93>
+    cause: <m97>
+    body_text: Line 4 is wrong, because I asked only for the one example and not for any added text about
+      the shorten parameter and the other parameters. The other lines are fine, and the team read my earlier
+      answers correctly.
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - With shorten set to True, the path a/b/c.txt is displayed as c.txt in the docstring of format_filename.
+    - 'The docstring of format_filename must include an example demonstrating that when shorten=True,
+      a path like "a/b/c.txt" is displayed as "c.txt".
+
+      check: none yet.'
+    - 'The example in the docstring must explicitly show the input path and the resulting shortened output
+      to verify the behavior.
+
+      check: none yet.'
+    - 'The docstring must clarify that the shortening behavior is controlled by the shorten parameter
+      and does not affect other parameters.
+
+      check: none yet.'
+    - 'the work for: With shorten set to True, the path a/b/c.txt is displayed as c.txt in the docstring
+      of format_filename.; expected to touch src/click/utils.py; might touch src/click/utils.py::format_filename'
+    - 'Your answer "You misread my answer: I said line 1 ...", as the team read it: 1 line approved. Say
+      ok, or say what we misread.'
+    - 'Your answer "Line 2 is wrong because the change goes ...", as the team read it: line 2 is wrong;
+      2 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: With shorten set to True, the path a/b/c.txt is displayed as c.txt in the docstring of format_filename.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m97>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "c_1_format_filename_example", "c_2_format_filename_example",
+        "c_3_format_filename_example", "bg_3", "reading:<m84>", "reading:<m93>"]'
+      seq: 2
+    - id: <m84>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m93>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    batches:
+    - id: bg_3
+      item_id: format_filename_example
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring of format_filename must include an example demonstrating that when shorten=True,
+        a path like "a/b/c.txt" is displayed as "c.txt".
+      version: 1
+    - id: c_2_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The example in the docstring must explicitly show the input path and the resulting shortened
+        output to verify the behavior.
+      version: 1
+    - id: c_3_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring must clarify that the shortening behavior is controlled by the shorten parameter
+        and does not affect other parameters.
+      version: 1
+    rulings:
+    - id: r_m84
+      ask_id: <m84>
+      reply_id: <m84>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m93
+      ask_id: <m93>
+      reply_id: <m93>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m84_0
+      ruling_id: r_m84
+      ref: s3
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m93_0
+      ruling_id: r_m93
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m93_1
+      ruling_id: r_m93
+      ref: guess:format_filename_example
+      line: 2
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m93_2
+      ruling_id: r_m93
+      ref: l_07cfe2696b
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m98>
+      value: '["format_filename_example", "c_1_format_filename_example", "c_2_format_filename_example",
+        "c_3_format_filename_example", "bg_3", "reading:<m84>", "reading:<m93>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1 approve; 2 contest, act drop, row, words 'so please drop it and keep only the format_filename docstring example'
+# shape: a fault cue taken from the clause about another line
+- id: L3R-n172-m80-m81
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m81>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - s3
+    - reading:<m77>
+    cause: <m80>
+    body_text: The first request is right. The second line is wrong, because I never gave an answer about
+      lines 1 to 5, so please drop it and keep only the format_filename docstring example.
+  page:
+    header: 'Did I hear you right? I have taken this as one request:'
+    lines:
+    - '"Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt."'
+    - 'Your answer "Lines 1 to 4 are right, and line ...", as the team read it: line 5 is wrong: keep;
+      4 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: item_of_page
+      text: the item of this page
+      kind: in_scope
+      approval: draft
+      version: 1
+    entries:
+    - id: e1
+      author: principal
+      text: the principal's request
+      ts_order: 1
+    messages:
+    - id: <m80>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: confirm
+      body_refs: '["s3", "reading:<m77>"]'
+      seq: 2
+    - id: <m77>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    statements:
+    - id: s3
+      span_entry: e1
+      span_start: 0
+      span_end: 111
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      status: proposed
+    rulings:
+    - id: r_m77
+      ask_id: <m77>
+      reply_id: <m77>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m77_0
+      ruling_id: r_m77
+      ref: clear_returns_status
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m77_1
+      ruling_id: r_m77
+      ref: c_1_clear_terminal
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m77_2
+      ruling_id: r_m77
+      ref: c_2_clear_non_tty
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m77_3
+      ruling_id: r_m77
+      ref: c_3_clear_success
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m77_4
+      ruling_id: r_m77
+      ref: bg_2
+      line: 5
+      verdict: contest
+      act: keep
+      target: null
+      source: reading
+    config:
+    - key: order:<m81>
+      value: '["s3", "reading:<m77>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: drop
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: 1 approve; 2 contest, act drop, row, words 'drop the second line'
+# shape: an ordinal ('the second line') names a line
+- id: L3R-n172-m83-m84
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m84>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - s3
+    - reading:<m81>
+    cause: <m83>
+    body_text: 'You misread my answer: I said line 1 is right and the line about my earlier answer was
+      wrong. Please keep only the format_filename docstring example as the one request, and drop the second
+      line.'
+  page:
+    header: 'Did I hear you right? I have taken this as one request:'
+    lines:
+    - '"Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt."'
+    - 'Your answer "The first request is right. The second line ...", as the team read it: line 1 is wrong.
+      Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: item_of_page
+      text: the item of this page
+      kind: in_scope
+      approval: draft
+      version: 1
+    entries:
+    - id: e1
+      author: principal
+      text: the principal's request
+      ts_order: 1
+    messages:
+    - id: <m83>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: confirm
+      body_refs: '["s3", "reading:<m81>"]'
+      seq: 2
+    - id: <m81>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    statements:
+    - id: s3
+      span_entry: e1
+      span_start: 0
+      span_end: 111
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      status: proposed
+    rulings:
+    - id: r_m81
+      ask_id: <m81>
+      reply_id: <m81>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m81_0
+      ruling_id: r_m81
+      ref: s3
+      line: 1
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m84>
+      value: '["s3", "reading:<m81>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: drop
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: 1-10 approve; 11-22 contest, act drop, row, words 'Lines 11 to 22 are wrong because they name users of other parts of the library'; 23 approve; 24 contest
+# shape: 'The other lines are fine' with one read-back right and one wrong
+- id: L3R-n173-m90-m91
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m91>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - guess:format_filename_example
+    - c_1_format_filename_example_docstring
+    - c_2_format_filename_example_docstring_clarity
+    - c_3_format_filename_example_docstring_context
+    - c_4_format_filename_example_docstring_code
+    - c_5_format_filename_example_docstring_output
+    - c_6_format_filename_example_docstring_input
+    - option#root
+    - option#src_click
+    - click_file
+    - click_format_filename
+    - click_path
+    - click_utils_confirm
+    - click_utils_detect_program_name
+    - click_utils_expand_args
+    - click_utils_get_app_dir
+    - click_utils_keepopenfile
+    - click_utils_lazyfile
+    - click_utils_open_file
+    - click_utils_prompt
+    - click_utils_sentinel
+    - reading:<m75>
+    - reading:<m87>
+    cause: <m90>
+    body_text: Line 24 is wrong because I never sent an empty answer, so nothing was approved there. Lines
+      11 to 22 are wrong because they name users of other parts of the library, and only the format_filename
+      docstring changes. The other lines are fine, and the code stays the same.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - 'The team''s guess at the code this touches: src/click/utils.py.'
+    - 'The docstring for format_filename must include an example demonstrating that when shorten=True,
+      the path ''a/b/c.txt'' is displayed as ''c.txt''.
+
+      check: none yet.'
+    - 'The example in the docstring must clearly show the input path and the resulting shortened output
+      to illustrate the shorten parameter''s effect.
+
+      check: none yet.'
+    - 'The docstring example must be placed in a context where it is relevant to users reading the documentation
+      for format_filename.
+
+      check: none yet.'
+    - 'The docstring example must use the correct function signature format for format_filename, showing
+      the shorten parameter set to True.
+
+      check: none yet.'
+    - 'The docstring example must explicitly state that the output for ''a/b/c.txt'' with shorten=True
+      is ''c.txt''.
+
+      check: none yet.'
+    - 'The docstring example must explicitly state that the input path for the demonstration is ''a/b/c.txt''.
+
+      check: none yet.'
+    - 'option: Named flag parameter with optional defaults.'
+    - 'option: Named parameter for CLI flags.'
+    - Users of click.File in their command-line interfaces
+    - Users of click.format_filename in their command-line interfaces
+    - Users of click.Path in their command-line interfaces
+    - Users of click.utils.confirm in their command-line interfaces
+    - Users of click.utils._detect_program_name in their command-line interfaces
+    - Users of click.utils._expand_args in their command-line interfaces
+    - Users of click.utils.get_app_dir in their command-line interfaces
+    - Users of click.utils._KeepOpenFile in their command-line interfaces
+    - Users of click.utils._LazyFile in their command-line interfaces
+    - Users of click.utils.open_file in their command-line interfaces
+    - Users of click.utils.prompt in their command-line interfaces
+    - Users of click.utils._sentinel in their command-line interfaces
+    - 'Your answer "Line 4 is wrong because it leaves out ...", as the team read it: 3 lines approved.
+      Say ok, or say what we misread.'
+    - 'Your answer "", as the team read it: 2 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m90>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "guess:format_filename_example", "c_1_format_filename_example_docstring",
+        "c_2_format_filename_example_docstring_clarity", "c_3_format_filename_example_docstring_context",
+        "c_4_format_filename_example_docstring_code", "c_5_format_filename_example_docstring_output",
+        "c_6_format_filename_example_docstring_input", "option#root", "option#src_click", "click_file",
+        "click_format_filename", "click_path", "click_utils_confirm", "click_utils_detect_program_name",
+        "click_utils_expand_args", "click_utils_get_app_dir", "click_utils_keepopenfile", "click_utils_lazyfile",
+        "click_utils_open_file", "click_utils_prompt", "click_utils_sentinel", "reading:<m75>", "reading:<m87>"]'
+      seq: 2
+    - id: <m75>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m87>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    touch_guesses:
+    - item_id: format_filename_example
+      item_ver: 1
+      grain_kind: path
+      grain: src/click/utils.py (path, expected)
+    criteria:
+    - id: c_1_format_filename_example_docstring
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example demonstrating that when shorten=True,
+        the path 'a/b/c.txt' is displayed as 'c.txt'.
+      version: 1
+    - id: c_2_format_filename_example_docstring_clarity
+      ticket_id: tk_format_filename_example
+      text: The example in the docstring must clearly show the input path and the resulting shortened
+        output to illustrate the shorten parameter's effect.
+      version: 1
+    - id: c_3_format_filename_example_docstring_context
+      ticket_id: tk_format_filename_example
+      text: The docstring example must be placed in a context where it is relevant to users reading the
+        documentation for format_filename.
+      version: 1
+    - id: c_4_format_filename_example_docstring_code
+      ticket_id: tk_format_filename_example
+      text: The docstring example must use the correct function signature format for format_filename,
+        showing the shorten parameter set to True.
+      version: 1
+    - id: c_5_format_filename_example_docstring_output
+      ticket_id: tk_format_filename_example
+      text: The docstring example must explicitly state that the output for 'a/b/c.txt' with shorten=True
+        is 'c.txt'.
+      version: 1
+    - id: c_6_format_filename_example_docstring_input
+      ticket_id: tk_format_filename_example
+      text: The docstring example must explicitly state that the input path for the demonstration is 'a/b/c.txt'.
+      version: 1
+    glossary_terms:
+    - id: option#root
+      term: option
+      sense_short: Named flag parameter with optional defaults.
+      version: 1
+    - id: option#src_click
+      term: option
+      sense_short: Named parameter for CLI flags.
+      version: 1
+    constraints:
+    - id: click_file
+      headline: Users of click.File in their command-line interfaces
+      version: 1
+    - id: click_format_filename
+      headline: Users of click.format_filename in their command-line interfaces
+      version: 1
+    - id: click_path
+      headline: Users of click.Path in their command-line interfaces
+      version: 1
+    - id: click_utils_confirm
+      headline: Users of click.utils.confirm in their command-line interfaces
+      version: 1
+    - id: click_utils_detect_program_name
+      headline: Users of click.utils._detect_program_name in their command-line interfaces
+      version: 1
+    - id: click_utils_expand_args
+      headline: Users of click.utils._expand_args in their command-line interfaces
+      version: 1
+    - id: click_utils_get_app_dir
+      headline: Users of click.utils.get_app_dir in their command-line interfaces
+      version: 1
+    - id: click_utils_keepopenfile
+      headline: Users of click.utils._KeepOpenFile in their command-line interfaces
+      version: 1
+    - id: click_utils_lazyfile
+      headline: Users of click.utils._LazyFile in their command-line interfaces
+      version: 1
+    - id: click_utils_open_file
+      headline: Users of click.utils.open_file in their command-line interfaces
+      version: 1
+    - id: click_utils_prompt
+      headline: Users of click.utils.prompt in their command-line interfaces
+      version: 1
+    - id: click_utils_sentinel
+      headline: Users of click.utils._sentinel in their command-line interfaces
+      version: 1
+    rulings:
+    - id: r_m75
+      ask_id: <m75>
+      reply_id: <m75>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m87
+      ask_id: <m87>
+      reply_id: <m87>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m75_0
+      ruling_id: r_m75
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m75_1
+      ruling_id: r_m75
+      ref: guess:format_filename_example
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m75_2
+      ruling_id: r_m75
+      ref: l_39e53c7758
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m87_0
+      ruling_id: r_m87
+      ref: s3
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m87_1
+      ruling_id: r_m87
+      ref: format_filename
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m91>
+      value: '["format_filename_example", "guess:format_filename_example", "c_1_format_filename_example_docstring",
+        "c_2_format_filename_example_docstring_clarity", "c_3_format_filename_example_docstring_context",
+        "c_4_format_filename_example_docstring_code", "c_5_format_filename_example_docstring_output",
+        "c_6_format_filename_example_docstring_input", "option#root", "option#src_click", "click_file",
+        "click_format_filename", "click_path", "click_utils_confirm", "click_utils_detect_program_name",
+        "click_utils_expand_args", "click_utils_get_app_dir", "click_utils_keepopenfile", "click_utils_lazyfile",
+        "click_utils_open_file", "click_utils_prompt", "click_utils_sentinel", "reading:<m75>", "reading:<m87>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: approve
+      '8':
+        verdict: approve
+      '9':
+        verdict: approve
+      '10':
+        verdict: approve
+      '11':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '12':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '13':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '14':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '15':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '16':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '17':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '18':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '19':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '20':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '21':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '22':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '23':
+        verdict: approve
+      '24':
+        verdict: contest
+  forbidden: {}
+
+# judge.expect: 1-10 approve; 12 approve; 11 and 13-22 contest, act drop, row, words 'Remove lines 11 and 13 to 22, because they name users of other parts of the library and only this one docstring changes'; 23 approve; 24 contest, act drop, row, words 'remove line 24, because I never sent an empty answer'
+# shape: one span of his words covers twelve lines; the seat must copy it once per line, not paraphrase
+- id: L3R-n173-m90-m92
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m92>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - guess:format_filename_example
+    - c_1_format_filename_example_docstring
+    - c_2_format_filename_example_docstring_clarity
+    - c_3_format_filename_example_docstring_context
+    - c_4_format_filename_example_docstring_code
+    - c_5_format_filename_example_docstring_output
+    - c_6_format_filename_example_docstring_input
+    - option#root
+    - option#src_click
+    - click_file
+    - click_format_filename
+    - click_path
+    - click_utils_confirm
+    - click_utils_detect_program_name
+    - click_utils_expand_args
+    - click_utils_get_app_dir
+    - click_utils_keepopenfile
+    - click_utils_lazyfile
+    - click_utils_open_file
+    - click_utils_prompt
+    - click_utils_sentinel
+    - reading:<m75>
+    - reading:<m87>
+    cause: <m90>
+    body_text: Lines 1 to 10 and line 12 are fine, so keep them. Remove lines 11 and 13 to 22, because
+      they name users of other parts of the library and only this one docstring changes. Line 23 is read
+      right, so keep it, but remove line 24, because I never sent an empty answer.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - 'The team''s guess at the code this touches: src/click/utils.py.'
+    - 'The docstring for format_filename must include an example demonstrating that when shorten=True,
+      the path ''a/b/c.txt'' is displayed as ''c.txt''.
+
+      check: none yet.'
+    - 'The example in the docstring must clearly show the input path and the resulting shortened output
+      to illustrate the shorten parameter''s effect.
+
+      check: none yet.'
+    - 'The docstring example must be placed in a context where it is relevant to users reading the documentation
+      for format_filename.
+
+      check: none yet.'
+    - 'The docstring example must use the correct function signature format for format_filename, showing
+      the shorten parameter set to True.
+
+      check: none yet.'
+    - 'The docstring example must explicitly state that the output for ''a/b/c.txt'' with shorten=True
+      is ''c.txt''.
+
+      check: none yet.'
+    - 'The docstring example must explicitly state that the input path for the demonstration is ''a/b/c.txt''.
+
+      check: none yet.'
+    - 'option: Named flag parameter with optional defaults.'
+    - 'option: Named parameter for CLI flags.'
+    - Users of click.File in their command-line interfaces
+    - Users of click.format_filename in their command-line interfaces
+    - Users of click.Path in their command-line interfaces
+    - Users of click.utils.confirm in their command-line interfaces
+    - Users of click.utils._detect_program_name in their command-line interfaces
+    - Users of click.utils._expand_args in their command-line interfaces
+    - Users of click.utils.get_app_dir in their command-line interfaces
+    - Users of click.utils._KeepOpenFile in their command-line interfaces
+    - Users of click.utils._LazyFile in their command-line interfaces
+    - Users of click.utils.open_file in their command-line interfaces
+    - Users of click.utils.prompt in their command-line interfaces
+    - Users of click.utils._sentinel in their command-line interfaces
+    - 'Your answer "Line 4 is wrong because it leaves out ...", as the team read it: 3 lines approved.
+      Say ok, or say what we misread.'
+    - 'Your answer "", as the team read it: 2 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m90>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "guess:format_filename_example", "c_1_format_filename_example_docstring",
+        "c_2_format_filename_example_docstring_clarity", "c_3_format_filename_example_docstring_context",
+        "c_4_format_filename_example_docstring_code", "c_5_format_filename_example_docstring_output",
+        "c_6_format_filename_example_docstring_input", "option#root", "option#src_click", "click_file",
+        "click_format_filename", "click_path", "click_utils_confirm", "click_utils_detect_program_name",
+        "click_utils_expand_args", "click_utils_get_app_dir", "click_utils_keepopenfile", "click_utils_lazyfile",
+        "click_utils_open_file", "click_utils_prompt", "click_utils_sentinel", "reading:<m75>", "reading:<m87>"]'
+      seq: 2
+    - id: <m75>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m87>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    touch_guesses:
+    - item_id: format_filename_example
+      item_ver: 1
+      grain_kind: path
+      grain: src/click/utils.py (path, expected)
+    criteria:
+    - id: c_1_format_filename_example_docstring
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example demonstrating that when shorten=True,
+        the path 'a/b/c.txt' is displayed as 'c.txt'.
+      version: 1
+    - id: c_2_format_filename_example_docstring_clarity
+      ticket_id: tk_format_filename_example
+      text: The example in the docstring must clearly show the input path and the resulting shortened
+        output to illustrate the shorten parameter's effect.
+      version: 1
+    - id: c_3_format_filename_example_docstring_context
+      ticket_id: tk_format_filename_example
+      text: The docstring example must be placed in a context where it is relevant to users reading the
+        documentation for format_filename.
+      version: 1
+    - id: c_4_format_filename_example_docstring_code
+      ticket_id: tk_format_filename_example
+      text: The docstring example must use the correct function signature format for format_filename,
+        showing the shorten parameter set to True.
+      version: 1
+    - id: c_5_format_filename_example_docstring_output
+      ticket_id: tk_format_filename_example
+      text: The docstring example must explicitly state that the output for 'a/b/c.txt' with shorten=True
+        is 'c.txt'.
+      version: 1
+    - id: c_6_format_filename_example_docstring_input
+      ticket_id: tk_format_filename_example
+      text: The docstring example must explicitly state that the input path for the demonstration is 'a/b/c.txt'.
+      version: 1
+    glossary_terms:
+    - id: option#root
+      term: option
+      sense_short: Named flag parameter with optional defaults.
+      version: 1
+    - id: option#src_click
+      term: option
+      sense_short: Named parameter for CLI flags.
+      version: 1
+    constraints:
+    - id: click_file
+      headline: Users of click.File in their command-line interfaces
+      version: 1
+    - id: click_format_filename
+      headline: Users of click.format_filename in their command-line interfaces
+      version: 1
+    - id: click_path
+      headline: Users of click.Path in their command-line interfaces
+      version: 1
+    - id: click_utils_confirm
+      headline: Users of click.utils.confirm in their command-line interfaces
+      version: 1
+    - id: click_utils_detect_program_name
+      headline: Users of click.utils._detect_program_name in their command-line interfaces
+      version: 1
+    - id: click_utils_expand_args
+      headline: Users of click.utils._expand_args in their command-line interfaces
+      version: 1
+    - id: click_utils_get_app_dir
+      headline: Users of click.utils.get_app_dir in their command-line interfaces
+      version: 1
+    - id: click_utils_keepopenfile
+      headline: Users of click.utils._KeepOpenFile in their command-line interfaces
+      version: 1
+    - id: click_utils_lazyfile
+      headline: Users of click.utils._LazyFile in their command-line interfaces
+      version: 1
+    - id: click_utils_open_file
+      headline: Users of click.utils.open_file in their command-line interfaces
+      version: 1
+    - id: click_utils_prompt
+      headline: Users of click.utils.prompt in their command-line interfaces
+      version: 1
+    - id: click_utils_sentinel
+      headline: Users of click.utils._sentinel in their command-line interfaces
+      version: 1
+    rulings:
+    - id: r_m75
+      ask_id: <m75>
+      reply_id: <m75>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m87
+      ask_id: <m87>
+      reply_id: <m87>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m75_0
+      ruling_id: r_m75
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m75_1
+      ruling_id: r_m75
+      ref: guess:format_filename_example
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m75_2
+      ruling_id: r_m75
+      ref: l_39e53c7758
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m87_0
+      ruling_id: r_m87
+      ref: s3
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m87_1
+      ruling_id: r_m87
+      ref: format_filename
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m92>
+      value: '["format_filename_example", "guess:format_filename_example", "c_1_format_filename_example_docstring",
+        "c_2_format_filename_example_docstring_clarity", "c_3_format_filename_example_docstring_context",
+        "c_4_format_filename_example_docstring_code", "c_5_format_filename_example_docstring_output",
+        "c_6_format_filename_example_docstring_input", "option#root", "option#src_click", "click_file",
+        "click_format_filename", "click_path", "click_utils_confirm", "click_utils_detect_program_name",
+        "click_utils_expand_args", "click_utils_get_app_dir", "click_utils_keepopenfile", "click_utils_lazyfile",
+        "click_utils_open_file", "click_utils_prompt", "click_utils_sentinel", "reading:<m75>", "reading:<m87>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: approve
+      '8':
+        verdict: approve
+      '9':
+        verdict: approve
+      '10':
+        verdict: approve
+      '12':
+        verdict: approve
+      '11':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '13':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '14':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '15':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '16':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '17':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '18':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '19':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '20':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '21':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '22':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '23':
+        verdict: approve
+      '24':
+        verdict: contest
+        act: drop
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: 1 approve; 2-3 contest, act rewrite, row, words 'with the roaming flag on, only the roaming app data variable being unset should matter, and with it off, only the local app data variable being unset should matter'; 4-6 approve; 7 revise, words 'I approved two lines, lines 1 and 4, not one'; 8 contest, act drop, row, words 'please drop it'
+# shape: 'not one' belongs to line 7's clause; line 4 is named as approved
+- id: L3R-n173-m34-m35
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m35>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - get_app_dir_windows
+    - c_1
+    - c_2
+    - c_3
+    - c_4
+    - bg_1
+    - reading:<m25>
+    - reading:<m32>
+    cause: <m34>
+    body_text: 'Lines 2 and 3 are wrong: with the roaming flag on, only the roaming app data variable
+      being unset should matter, and with it off, only the local app data variable being unset should
+      matter. Line 7 is slightly off, because I approved two lines, lines 1 and 4, not one. Line 8 is
+      a misread, since I never sent an empty answer, so please drop it; the rest of the page is fine.'
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData Roaming or AppData
+      Local folder under the home folder instead of the bare home folder.
+    - 'When get_app_dir is called on Windows with roaming=True and APPDATA or LOCALAPPDATA are unset,
+      it must return the AppData Roaming folder under the home directory.
+
+      check: none yet.'
+    - 'When get_app_dir is called on Windows with roaming=False and APPDATA or LOCALAPPDATA are unset,
+      it must return the AppData Local folder under the home directory.
+
+      check: none yet.'
+    - 'When get_app_dir is called on Windows with roaming=True and APPDATA is set, it must return the
+      value of APPDATA regardless of LOCALAPPDATA.
+
+      check: none yet.'
+    - 'When get_app_dir is called on Windows with roaming=False and LOCALAPPDATA is set, it must return
+      the value of LOCALAPPDATA.
+
+      check: none yet.'
+    - 'the work for: In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData
+      Roaming or AppData Local folder under the home folder instead of the bare home folder.; expected
+      to touch src/click/utils.py'
+    - 'Your answer "Line 2 is wrong because this function lives ...", as the team read it: line 2 is wrong;
+      line 3 is wrong; 1 line approved. Say ok, or say what we misread.'
+    - 'Your answer "", as the team read it: 5 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: get_app_dir_windows
+      text: In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData Roaming
+        or AppData Local folder under the home folder instead of the bare home folder.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m34>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["get_app_dir_windows", "c_1", "c_2", "c_3", "c_4", "bg_1", "reading:<m25>", "reading:<m32>"]'
+      seq: 2
+    - id: <m25>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m32>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_get_app_dir_windows
+      item_id: get_app_dir_windows
+      text: the tickets of the page's item
+    batches:
+    - id: bg_1
+      item_id: get_app_dir_windows
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1
+      ticket_id: tk_get_app_dir_windows
+      text: When get_app_dir is called on Windows with roaming=True and APPDATA or LOCALAPPDATA are unset,
+        it must return the AppData Roaming folder under the home directory.
+      version: 1
+    - id: c_2
+      ticket_id: tk_get_app_dir_windows
+      text: When get_app_dir is called on Windows with roaming=False and APPDATA or LOCALAPPDATA are unset,
+        it must return the AppData Local folder under the home directory.
+      version: 1
+    - id: c_3
+      ticket_id: tk_get_app_dir_windows
+      text: When get_app_dir is called on Windows with roaming=True and APPDATA is set, it must return
+        the value of APPDATA regardless of LOCALAPPDATA.
+      version: 1
+    - id: c_4
+      ticket_id: tk_get_app_dir_windows
+      text: When get_app_dir is called on Windows with roaming=False and LOCALAPPDATA is set, it must
+        return the value of LOCALAPPDATA.
+      version: 1
+    rulings:
+    - id: r_m25
+      ask_id: <m25>
+      reply_id: <m25>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m32
+      ask_id: <m32>
+      reply_id: <m32>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m25_0
+      ruling_id: r_m25
+      ref: get_app_dir_windows
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m25_1
+      ruling_id: r_m25
+      ref: guess:get_app_dir_windows
+      line: 2
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m25_2
+      ruling_id: r_m25
+      ref: l_5cda82f522
+      line: 3
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m32_0
+      ruling_id: r_m32
+      ref: tk_1
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m32_1
+      ruling_id: r_m32
+      ref: c_1
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m32_2
+      ruling_id: r_m32
+      ref: c_2
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m32_3
+      ruling_id: r_m32
+      ref: c_3
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m32_4
+      ruling_id: r_m32
+      ref: c_4
+      line: null
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m35>
+      value: '["get_app_dir_windows", "c_1", "c_2", "c_3", "c_4", "bg_1", "reading:<m25>", "reading:<m32>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '3':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: revise
+      '8':
+        verdict: contest
+        act: drop
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: 1-4 approve; 5 contest, act rewrite, row, words 'the change has to touch the clear function in the terminal UI file, so that function should be named as expected, not as nothing named'; 6 approve
+# shape: 'has to touch X' is a rewrite of the touch line, never a remove of X
+- id: L3R-n173-m61-m62
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m62>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_returns_status
+    - c_1_clear_terminal
+    - c_2_clear_non_terminal
+    - c_3_clear_tty_check
+    - bg_2
+    - reading:<m57>
+    cause: <m61>
+    body_text: 'Lines 1 to 4 are fine. Line 5 is wrong: the change has to touch the clear function in
+      the terminal UI file, so that function should be named as expected, not as nothing named. Line 6
+      read me right, so ok to that.'
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'The clear() function returns True if it successfully cleared the terminal screen, and False otherwise.
+
+      check: none yet.'
+    - 'When stdout is not a terminal (e.g., piped to a file), clear() returns False without performing
+      any clearing action.
+
+      check: none yet.'
+    - 'The return value of clear() is determined by checking if sys.stdout is a tty using the existing
+      isatty() logic before attempting to clear.
+
+      check: none yet.'
+    - 'the work for: Make clear() return True when it cleared the screen and False when stdout is not
+      a terminal.; expected to touch nothing named; might touch src/click/termui.py::clear'
+    - 'Your answer "Lines 1 to 13 are fine. Lines 14 ...", as the team read it: line 14 is wrong; line
+      15 is wrong; line 16 is wrong; line 17 is wrong; line 18 is wrong; line 19 is wrong; line 20 is
+      wrong; line 21 is wrong; line 22 is wrong; line 23 is wrong; line 24 is wrong; line 25 is wrong;
+      line 26 is wrong; line 27 is wrong; 13 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: clear_returns_status
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m61>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_terminal", "c_3_clear_tty_check",
+        "bg_2", "reading:<m57>"]'
+      seq: 2
+    - id: <m57>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_clear_returns_status
+      item_id: clear_returns_status
+      text: the tickets of the page's item
+    batches:
+    - id: bg_2
+      item_id: clear_returns_status
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_clear_terminal
+      ticket_id: tk_clear_returns_status
+      text: The clear() function returns True if it successfully cleared the terminal screen, and False
+        otherwise.
+      version: 1
+    - id: c_2_clear_non_terminal
+      ticket_id: tk_clear_returns_status
+      text: When stdout is not a terminal (e.g., piped to a file), clear() returns False without performing
+        any clearing action.
+      version: 1
+    - id: c_3_clear_tty_check
+      ticket_id: tk_clear_returns_status
+      text: The return value of clear() is determined by checking if sys.stdout is a tty using the existing
+        isatty() logic before attempting to clear.
+      version: 1
+    rulings:
+    - id: r_m57
+      ask_id: <m57>
+      reply_id: <m57>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m57_0
+      ruling_id: r_m57
+      ref: clear_returns_status
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_1
+      ruling_id: r_m57
+      ref: guess:clear_returns_status
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_2
+      ruling_id: r_m57
+      ref: c_1_clear_terminal
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_3
+      ruling_id: r_m57
+      ref: c_2_clear_non_terminal
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_4
+      ruling_id: r_m57
+      ref: c_3_clear_tty_check
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_5
+      ruling_id: r_m57
+      ref: callback
+      line: 6
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_6
+      ruling_id: r_m57
+      ref: command#src_click
+      line: 7
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_7
+      ruling_id: r_m57
+      ref: context#root
+      line: 8
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_8
+      ruling_id: r_m57
+      ref: decorator#src_click
+      line: 9
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_9
+      ruling_id: r_m57
+      ref: group
+      line: 10
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_10
+      ruling_id: r_m57
+      ref: group#root
+      line: 11
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_11
+      ruling_id: r_m57
+      ref: parameter
+      line: 12
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_12
+      ruling_id: r_m57
+      ref: parameter#root
+      line: 13
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_13
+      ruling_id: r_m57
+      ref: flag_needs_value
+      line: 14
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_14
+      ruling_id: r_m57
+      ref: get_best_encoding
+      line: 15
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_15
+      ruling_id: r_m57
+      ref: get_current_context
+      line: 16
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_16
+      ruling_id: r_m57
+      ref: helpformatter
+      line: 17
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_17
+      ruling_id: r_m57
+      ref: is_ascii_encoding
+      line: 18
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_18
+      ruling_id: r_m57
+      ref: make_text_stream
+      line: 19
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_19
+      ruling_id: r_m57
+      ref: parametersource
+      line: 20
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_20
+      ruling_id: r_m57
+      ref: pop_context
+      line: 21
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_21
+      ruling_id: r_m57
+      ref: push_context
+      line: 22
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_22
+      ruling_id: r_m57
+      ref: resolve_color_default
+      line: 23
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_23
+      ruling_id: r_m57
+      ref: sentinel
+      line: 24
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_24
+      ruling_id: r_m57
+      ref: t_flag_needs_value
+      line: 25
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_25
+      ruling_id: r_m57
+      ref: t_unset
+      line: 26
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m57_26
+      ruling_id: r_m57
+      ref: unset
+      line: 27
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m62>
+      value: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_terminal", "c_3_clear_tty_check",
+        "bg_2", "reading:<m57>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '6':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-7 approve; 8-67 contest, act drop, row, words 'so please drop them'; 68 contest; line 1 act add, words 'clear should return True when it cleared the screen and False when stdout is not a terminal'
+# shape: sixty rows of no request dropped at once; a lost request put back as an add; a read-back he denies
+- id: L3R-n174-m47-m48
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m48>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - how_it_works
+    - command#src_click
+    - context#root
+    - decorator#src_click
+    - group#root
+    - option#root
+    - parameter#root
+    - parameter
+    - abort
+    - badargumentusage
+    - badoptionusage
+    - badparameter
+    - clear
+    - cli
+    - clickexception
+    - cmd_init
+    - cmd_status
+    - confirm
+    - confirmation_option
+    - custom_version_option
+    - echo
+    - echo_via_pager
+    - edit
+    - flag_needs_value
+    - get_app_dir
+    - get_best_encoding
+    - get_binary_stream
+    - get_current_context
+    - get_pager_file
+    - get_text_stream
+    - getchar
+    - group
+    - help_option
+    - helpformatter
+    - is_ascii_encoding
+    - iter_rows
+    - join_options
+    - launch
+    - make_pass_decorator
+    - make_text_stream
+    - measure_table
+    - missingparameter
+    - nonclosingtextiowrapper
+    - nosuchcommand
+    - nosuchoption
+    - open_file
+    - parameter
+    - parametersource
+    - pass_context
+    - pass_obj
+    - password_option
+    - pause
+    - pop_context
+    - push_context
+    - resolve_color_default
+    - secho
+    - sentinel
+    - style
+    - t_flag_needs_value
+    - t_unset
+    - term_len
+    - unset
+    - unstyle
+    - version_option
+    - wrap_text
+    - progressbar
+    - prompt
+    - reading:<m14>
+    cause: <m47>
+    body_text: 'Line 68 misreads me, because I never wrote "On line 5, also remove lines 17, 18" and my
+      last answer said the change only touches clear in the terminal UI file and that clear''s output
+      stays exactly the same with only the return value changing. Lines 8 to 67 are a long repeated list
+      of user groups that has nothing to do with this change, so please drop them. This page also no longer
+      shows my request: clear should return True when it cleared the screen and False when stdout is not
+      a terminal.'
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - The program is a command-line interface toolkit called Click. Users write scripts that define commands
+      and options, and Click handles parsing and executing them. The user writes commands and options
+      in Python functions, and Click turns these into a command-line interface that accepts arguments
+      and options. The output is the result of running the command with the provided inputs.
+    - 'command: An executable unit in the CLI.'
+    - 'context: Holds execution state for a command.'
+    - 'decorator: Transforms a function into a CLI element.'
+    - 'group: Container for multiple commands.'
+    - 'option: Named parameter for CLI flags.'
+    - 'parameter: Argument or option attached to a command.'
+    - Users of Click's command-line parsing
+    - Users of Click's exception handling
+    - Users of Click's exception handling
+    - Users of Click's exception handling
+    - Users of Click's exception handling
+    - Users of Click's terminal UI
+    - The Complex CLI example and its commands
+    - Users of Click's exception handling
+    - The init command in the Complex CLI example
+    - The status command in the Complex CLI example
+    - Users of Click's terminal UI
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's terminal output
+    - Users of Click's terminal UI
+    - Users of Click's terminal UI
+    - Users of Click's sentinel values
+    - Users of Click's file handling
+    - Users of Click's encoding handling
+    - Users of Click's stream handling
+    - Users of Click's context handling
+    - Users of Click's terminal UI
+    - Users of Click's stream handling
+    - Users of Click's terminal UI
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's help formatting
+    - Users of Click's encoding handling
+    - Users of Click's help formatting
+    - Users of Click's option parsing
+    - Users of Click's terminal UI
+    - Users of Click's command-line parsing
+    - Users of Click's stream handling
+    - Users of Click's help formatting
+    - Users of Click's exception handling
+    - Users of Click's stream handling
+    - Users of Click's exception handling
+    - Users of Click's exception handling
+    - Users of Click's file handling
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's command-line parsing
+    - Users of Click's terminal UI
+    - Users of Click's context handling
+    - Users of Click's context handling
+    - Users of Click's color handling
+    - Users of Click's terminal UI
+    - Users of Click's sentinel values
+    - Users of Click's terminal UI
+    - Users of Click's type hints
+    - Users of Click's type hints
+    - Users of Click's terminal width calculations
+    - Users of Click's sentinel values
+    - Users of Click's terminal UI
+    - Users of Click's command-line parsing
+    - Users of Click's help formatting
+    - Users of Click's terminal UI
+    - Users of Click's terminal UI
+    - 'Your answer "On line 5, also remove lines 17, 18 ...", as the team read it: line 2 is wrong: keep;
+      line 3 is wrong: rewrite; 2 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: how_it_works
+      text: The program is a command-line interface toolkit called Click. Users write scripts that define
+        commands and options, and Click handles parsing and executing them. The user writes commands and
+        options in Python functions, and Click turns these into a command-line interface that accepts
+        arguments and options. The output is the result of running the command with the provided inputs.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m47>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["how_it_works", "command#src_click", "context#root", "decorator#src_click", "group#root",
+        "option#root", "parameter#root", "parameter", "abort", "badargumentusage", "badoptionusage", "badparameter",
+        "clear", "cli", "clickexception", "cmd_init", "cmd_status", "confirm", "confirmation_option",
+        "custom_version_option", "echo", "echo_via_pager", "edit", "flag_needs_value", "get_app_dir",
+        "get_best_encoding", "get_binary_stream", "get_current_context", "get_pager_file", "get_text_stream",
+        "getchar", "group", "help_option", "helpformatter", "is_ascii_encoding", "iter_rows", "join_options",
+        "launch", "make_pass_decorator", "make_text_stream", "measure_table", "missingparameter", "nonclosingtextiowrapper",
+        "nosuchcommand", "nosuchoption", "open_file", "parameter", "parametersource", "pass_context",
+        "pass_obj", "password_option", "pause", "pop_context", "push_context", "resolve_color_default",
+        "secho", "sentinel", "style", "t_flag_needs_value", "t_unset", "term_len", "unset", "unstyle",
+        "version_option", "wrap_text", "progressbar", "prompt", "reading:<m14>"]'
+      seq: 2
+    - id: <m14>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    glossary_terms:
+    - id: command#src_click
+      term: command
+      sense_short: An executable unit in the CLI.
+      version: 1
+    - id: context#root
+      term: context
+      sense_short: Holds execution state for a command.
+      version: 1
+    - id: decorator#src_click
+      term: decorator
+      sense_short: Transforms a function into a CLI element.
+      version: 1
+    - id: group#root
+      term: group
+      sense_short: Container for multiple commands.
+      version: 1
+    - id: option#root
+      term: option
+      sense_short: Named parameter for CLI flags.
+      version: 1
+    - id: parameter#root
+      term: parameter
+      sense_short: Argument or option attached to a command.
+      version: 1
+    - id: parameter
+      term: Users of Click's command-line parsing
+      sense_short: Users of Click's command-line parsing
+      version: 1
+    - id: get_app_dir
+      term: Users of Click's file handling
+      sense_short: Users of Click's file handling
+      version: 1
+    - id: group
+      term: Users of Click's command-line parsing
+      sense_short: Users of Click's command-line parsing
+      version: 1
+    constraints:
+    - id: abort
+      headline: Users of Click's exception handling
+      version: 1
+    - id: badargumentusage
+      headline: Users of Click's exception handling
+      version: 1
+    - id: badoptionusage
+      headline: Users of Click's exception handling
+      version: 1
+    - id: badparameter
+      headline: Users of Click's exception handling
+      version: 1
+    - id: clear
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: cli
+      headline: The Complex CLI example and its commands
+      version: 1
+    - id: clickexception
+      headline: Users of Click's exception handling
+      version: 1
+    - id: cmd_init
+      headline: The init command in the Complex CLI example
+      version: 1
+    - id: cmd_status
+      headline: The status command in the Complex CLI example
+      version: 1
+    - id: confirm
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: confirmation_option
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: custom_version_option
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: echo
+      headline: Users of Click's terminal output
+      version: 1
+    - id: echo_via_pager
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: edit
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: flag_needs_value
+      headline: Users of Click's sentinel values
+      version: 1
+    - id: get_best_encoding
+      headline: Users of Click's encoding handling
+      version: 1
+    - id: get_binary_stream
+      headline: Users of Click's stream handling
+      version: 1
+    - id: get_current_context
+      headline: Users of Click's context handling
+      version: 1
+    - id: get_pager_file
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: get_text_stream
+      headline: Users of Click's stream handling
+      version: 1
+    - id: getchar
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: help_option
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: helpformatter
+      headline: Users of Click's help formatting
+      version: 1
+    - id: is_ascii_encoding
+      headline: Users of Click's encoding handling
+      version: 1
+    - id: iter_rows
+      headline: Users of Click's help formatting
+      version: 1
+    - id: join_options
+      headline: Users of Click's option parsing
+      version: 1
+    - id: launch
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: make_pass_decorator
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: make_text_stream
+      headline: Users of Click's stream handling
+      version: 1
+    - id: measure_table
+      headline: Users of Click's help formatting
+      version: 1
+    - id: missingparameter
+      headline: Users of Click's exception handling
+      version: 1
+    - id: nonclosingtextiowrapper
+      headline: Users of Click's stream handling
+      version: 1
+    - id: nosuchcommand
+      headline: Users of Click's exception handling
+      version: 1
+    - id: nosuchoption
+      headline: Users of Click's exception handling
+      version: 1
+    - id: open_file
+      headline: Users of Click's file handling
+      version: 1
+    - id: parametersource
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: pass_context
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: pass_obj
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: password_option
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: pause
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: pop_context
+      headline: Users of Click's context handling
+      version: 1
+    - id: push_context
+      headline: Users of Click's context handling
+      version: 1
+    - id: resolve_color_default
+      headline: Users of Click's color handling
+      version: 1
+    - id: secho
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: sentinel
+      headline: Users of Click's sentinel values
+      version: 1
+    - id: style
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: t_flag_needs_value
+      headline: Users of Click's type hints
+      version: 1
+    - id: t_unset
+      headline: Users of Click's type hints
+      version: 1
+    - id: term_len
+      headline: Users of Click's terminal width calculations
+      version: 1
+    - id: unset
+      headline: Users of Click's sentinel values
+      version: 1
+    - id: unstyle
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: version_option
+      headline: Users of Click's command-line parsing
+      version: 1
+    - id: wrap_text
+      headline: Users of Click's help formatting
+      version: 1
+    - id: progressbar
+      headline: Users of Click's terminal UI
+      version: 1
+    - id: prompt
+      headline: Users of Click's terminal UI
+      version: 1
+    rulings:
+    - id: r_m14
+      ask_id: <m14>
+      reply_id: <m14>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m14_0
+      ruling_id: r_m14
+      ref: challenge_items_parses_and_executes_inputs
+      line: 2
+      verdict: contest
+      act: keep
+      target: null
+      source: reading
+    - id: rr_m14_1
+      ruling_id: r_m14
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m14_2
+      ruling_id: r_m14
+      ref: l_ef290320ed
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m14_3
+      ruling_id: r_m14
+      ref: l_cd03fcf7bd
+      line: 3
+      verdict: contest
+      act: rewrite
+      target: null
+      source: reading
+    config:
+    - key: order:<m48>
+      value: '["how_it_works", "command#src_click", "context#root", "decorator#src_click", "group#root",
+        "option#root", "parameter#root", "parameter", "abort", "badargumentusage", "badoptionusage", "badparameter",
+        "clear", "cli", "clickexception", "cmd_init", "cmd_status", "confirm", "confirmation_option",
+        "custom_version_option", "echo", "echo_via_pager", "edit", "flag_needs_value", "get_app_dir",
+        "get_best_encoding", "get_binary_stream", "get_current_context", "get_pager_file", "get_text_stream",
+        "getchar", "group", "help_option", "helpformatter", "is_ascii_encoding", "iter_rows", "join_options",
+        "launch", "make_pass_decorator", "make_text_stream", "measure_table", "missingparameter", "nonclosingtextiowrapper",
+        "nosuchcommand", "nosuchoption", "open_file", "parameter", "parametersource", "pass_context",
+        "pass_obj", "password_option", "pause", "pop_context", "push_context", "resolve_color_default",
+        "secho", "sentinel", "style", "t_flag_needs_value", "t_unset", "term_len", "unset", "unstyle",
+        "version_option", "wrap_text", "progressbar", "prompt", "reading:<m14>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+        act: add
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: approve
+      '8':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '9':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '10':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '11':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '12':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '13':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '14':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '15':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '16':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '17':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '18':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '19':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '20':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '21':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '22':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '23':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '24':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '25':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '26':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '27':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '28':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '29':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '30':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '31':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '32':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '33':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '34':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '35':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '36':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '37':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '38':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '39':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '40':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '41':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '42':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '43':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '44':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '45':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '46':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '47':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '48':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '49':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '50':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '51':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '52':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '53':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '54':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '55':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '56':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '57':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '58':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '59':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '60':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '61':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '62':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '63':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '64':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '65':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '66':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '67':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '68':
+        verdict: contest
+  forbidden: {}
+
+# judge.expect: 1 approve; 2-6 approve; 7 contest, act rewrite, row, words 'the work touches the clear function in the terminal UI file for certain, not only that it might'; 8 approve; 9 contest, act rewrite, row, words 'my earlier answer kept the clear function and removed only the string helper in the utils file, and that it added to line 3 that clear prints exactly the same output, with no removal'
+# shape: 'Change line N to say X' rewrites N with X; a read-back corrected by its rows
+- id: L3R-n174-m53-m55
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m55>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_returns_status
+    - c_1_clear_terminal
+    - c_2_clear_non_terminal
+    - c_3_clear_prints_same
+    - c_4_clear_terminal_success
+    - c_5_clear_terminal_skip
+    - bg_2
+    - reading:<m36>
+    - reading:<m43>
+    cause: <m53>
+    body_text: Keep lines 2 to 6 and line 8 as they are. Change line 7 to say the work touches the clear
+      function in the terminal UI file for certain, not only that it might. Change line 9 to read that
+      my earlier answer kept the clear function and removed only the string helper in the utils file,
+      and that it added to line 3 that clear prints exactly the same output, with no removal.
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'The clear() function returns True if it successfully cleared the terminal screen, and False otherwise.
+
+      check: none yet.'
+    - 'When stdout is not a terminal (isatty returns False), clear() must return False without performing
+      any clearing action.
+
+      check: none yet.'
+    - 'The output printed by clear() remains exactly the same; only the return value changes behavior.
+
+      check: none yet.'
+    - 'When clear() executes the ANSI escape sequence to clear the screen, it must return True.
+
+      check: none yet.'
+    - 'When clear() detects that stdout is not a terminal and skips execution, it must return False.
+
+      check: none yet.'
+    - 'the work for: Make clear() return True when it cleared the screen and False when stdout is not
+      a terminal.; expected to touch nothing named; might touch src/click/termui.py::clear'
+    - 'Your answer "ok", as the team read it: 1 line approved. Say ok, or say what we misread.'
+    - 'Your answer "Line 2 is wrong: this change only touches ...", as the team read it: line 2 is wrong:
+      remove src/click/termui.py::clear; line 3 is wrong: remove; 1 line approved. Say ok, or say what
+      we misread.'
+  fixture:
+    items:
+    - id: clear_returns_status
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m53>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_terminal", "c_3_clear_prints_same",
+        "c_4_clear_terminal_success", "c_5_clear_terminal_skip", "bg_2", "reading:<m36>", "reading:<m43>"]'
+      seq: 2
+    - id: <m36>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m43>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_clear_returns_status
+      item_id: clear_returns_status
+      text: the tickets of the page's item
+    batches:
+    - id: bg_2
+      item_id: clear_returns_status
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_clear_terminal
+      ticket_id: tk_clear_returns_status
+      text: The clear() function returns True if it successfully cleared the terminal screen, and False
+        otherwise.
+      version: 1
+    - id: c_2_clear_non_terminal
+      ticket_id: tk_clear_returns_status
+      text: When stdout is not a terminal (isatty returns False), clear() must return False without performing
+        any clearing action.
+      version: 1
+    - id: c_3_clear_prints_same
+      ticket_id: tk_clear_returns_status
+      text: The output printed by clear() remains exactly the same; only the return value changes behavior.
+      version: 1
+    - id: c_4_clear_terminal_success
+      ticket_id: tk_clear_returns_status
+      text: When clear() executes the ANSI escape sequence to clear the screen, it must return True.
+      version: 1
+    - id: c_5_clear_terminal_skip
+      ticket_id: tk_clear_returns_status
+      text: When clear() detects that stdout is not a terminal and skips execution, it must return False.
+      version: 1
+    rulings:
+    - id: r_m36
+      ask_id: <m36>
+      reply_id: <m36>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m43
+      ask_id: <m43>
+      reply_id: <m43>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m36_0
+      ruling_id: r_m36
+      ref: s2
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m43_0
+      ruling_id: r_m43
+      ref: clear_returns_status
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m43_1
+      ruling_id: r_m43
+      ref: guess:clear_returns_status
+      line: 2
+      verdict: contest
+      act: remove
+      target: src/click/termui.py::clear
+      source: reading
+    - id: rr_m43_2
+      ruling_id: r_m43
+      ref: l_fff72d15fd
+      line: 3
+      verdict: contest
+      act: remove
+      target: null
+      source: reading
+    config:
+    - key: order:<m55>
+      value: '["clear_returns_status", "c_1_clear_terminal", "c_2_clear_non_terminal", "c_3_clear_prints_same",
+        "c_4_clear_terminal_success", "c_5_clear_terminal_skip", "bg_2", "reading:<m36>", "reading:<m43>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '8':
+        verdict: approve
+      '9':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: ask: the page is the touch page of the clear change, which is merged; his third request has its own page. One sentence, no rulings
+# shape: he answers the wrong page; a ruling that drops a merged change's rows is a question, not a ruling
+- id: L3R-n174-m53-m58
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m58>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - c_1_clear_terminal
+    - tst_clear_terminal
+    - c_2_clear_non_terminal
+    - tst_clear_non_terminal
+    - c_3_clear_prints_same
+    - tst_clear_prints_same
+    - c_4_clear_terminal_success
+    - tst_clear_terminal_success
+    - c_5_clear_terminal_skip
+    - tst_clear_terminal_skip
+    - clear_returns_status
+    - bg_2
+    cause: <m53>
+    body_text: 'I can''t approve this page, because every line, 1 through 12, describes the clear-screen
+      change, and we''re working on the third change now: one example in the format filename docstring.
+      Please drop all twelve lines and replace them with one line saying the docstring gains an example
+      where, with shorten set to true, the path a/b/c.txt shows as c.txt. The new page should also say
+      that only the docstring in the termui file changes and the code stays the same.'
+  page:
+    header: Before I build this, here is what I expect to touch.
+    lines:
+    - The clear() function returns True if it successfully cleared the terminal screen, and False otherwise.
+    - 'check: clear terminal, calls result = clear(), expects result is True, "clear() should return True
+      when stdout is a terminal.". Passes.'
+    - When stdout is not a terminal (isatty returns False), clear() must return False without performing
+      any clearing action.
+    - 'check: clear non terminal, calls result = clear(), expects result is False, "clear() should return
+      False when stdout is not a terminal.". Passes.'
+    - The output printed by clear() remains exactly the same; only the return value changes behavior.
+    - 'check: clear prints same, calls result = clear(), expects result is True, "clear() should return
+      True when stdout is a terminal.". Passes.'
+    - When clear() executes the ANSI escape sequence to clear the screen, it must return True.
+    - 'check: clear terminal success, calls result = clear(), expects result is True, "clear() should
+      return True when it executes the ANSI escape sequence.". Passes.'
+    - When clear() detects that stdout is not a terminal and skips execution, it must return False.
+    - 'check: clear terminal skip, calls result = clear(), expects result is False, "clear() should return
+      False when it skips execution.". Passes.'
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'the work for: Make clear() return True when it cleared the screen and False when stdout is not
+      a terminal.; expected to touch nothing named; might touch src/click/termui.py::clear'
+  fixture:
+    items:
+    - id: clear_returns_status
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    tickets:
+    - id: tk_clear_returns_status
+      item_id: clear_returns_status
+      text: the tickets of the page's item
+    batches:
+    - id: bg_2
+      item_id: clear_returns_status
+      status: merged
+      version: 1
+    criteria:
+    - id: c_1_clear_terminal
+      ticket_id: tk_clear_returns_status
+      text: The clear() function returns True if it successfully cleared the terminal screen, and False
+        otherwise.
+      version: 1
+    - id: c_2_clear_non_terminal
+      ticket_id: tk_clear_returns_status
+      text: When stdout is not a terminal (isatty returns False), clear() must return False without performing
+        any clearing action.
+      version: 1
+    - id: c_3_clear_prints_same
+      ticket_id: tk_clear_returns_status
+      text: The output printed by clear() remains exactly the same; only the return value changes behavior.
+      version: 1
+    - id: c_4_clear_terminal_success
+      ticket_id: tk_clear_returns_status
+      text: When clear() executes the ANSI escape sequence to clear the screen, it must return True.
+      version: 1
+    - id: c_5_clear_terminal_skip
+      ticket_id: tk_clear_returns_status
+      text: When clear() detects that stdout is not a terminal and skips execution, it must return False.
+      version: 1
+    tests:
+    - id: tst_clear_terminal
+      batch_id: bg_2
+      path: tests/test_of_page.py
+      body: '{"id": "tst_clear_terminal", "criterion_id": "c_1_clear_terminal", "path": "tests/test_termui_c_1_clear_terminal.py",
+        "body": "from click.termui import clear\nimport sys\n\ndef test_clear_terminal():\n    # Mock
+        stdout.isatty to return True (terminal)\n    original_isatty = sys.stdout.isatty\n    sys.stdout.isatty
+        = lambda: True\n    try:\n        result = clear()\n        assert result is True, \'
+      version: 1
+    - id: tst_clear_non_terminal
+      batch_id: bg_2
+      path: tests/test_of_page.py
+      body: '{"id": "tst_clear_non_terminal", "criterion_id": "c_2_clear_non_terminal", "path": "tests/test_termui_c_2_clear_non_terminal.py",
+        "body": "from click.termui import clear\nimport sys\n\ndef test_clear_non_terminal():\n    # Mock
+        stdout.isatty to return False (non-terminal)\n    original_isatty = sys.stdout.isatty\n    sys.stdout.isatty
+        = lambda: False\n    try:\n        result = clear()\n        as'
+      version: 1
+    - id: tst_clear_prints_same
+      batch_id: bg_2
+      path: tests/test_of_page.py
+      body: '{"id": "tst_clear_prints_same", "criterion_id": "c_3_clear_prints_same", "path": "tests/test_termui_c_3_clear_prints_same.py",
+        "body": "from click.termui import clear\nimport sys\n\ndef test_clear_prints_same():\n    # Mock
+        stdout.isatty to return True (terminal)\n    original_isatty = sys.stdout.isatty\n    sys.stdout.isatty
+        = lambda: True\n    try:\n        result = clear()\n        assert resul'
+      version: 1
+    - id: tst_clear_terminal_success
+      batch_id: bg_2
+      path: tests/test_of_page.py
+      body: '{"id": "tst_clear_terminal_success", "criterion_id": "c_4_clear_terminal_success", "path":
+        "tests/test_termui_c_4_clear_terminal_success.py", "body": "from click.termui import clear\nimport
+        sys\n\ndef test_clear_terminal_success():\n    # Mock stdout.isatty to return True (terminal)\n    original_isatty
+        = sys.stdout.isatty\n    sys.stdout.isatty = lambda: True\n    try:\n        result = clear()\n'
+      version: 1
+    - id: tst_clear_terminal_skip
+      batch_id: bg_2
+      path: tests/test_of_page.py
+      body: '{"id": "tst_clear_terminal_skip", "criterion_id": "c_5_clear_terminal_skip", "path": "tests/test_termui_c_5_clear_terminal_skip.py",
+        "body": "from click.termui import clear\nimport sys\n\ndef test_clear_terminal_skip():\n    #
+        Mock stdout.isatty to return False (non-terminal)\n    original_isatty = sys.stdout.isatty\n    sys.stdout.isatty
+        = lambda: False\n    try:\n        result = clear()\n      '
+      version: 1
+    messages:
+    - id: <m53>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["c_1_clear_terminal", "tst_clear_terminal", "c_2_clear_non_terminal", "tst_clear_non_terminal",
+        "c_3_clear_prints_same", "tst_clear_prints_same", "c_4_clear_terminal_success", "tst_clear_terminal_success",
+        "c_5_clear_terminal_skip", "tst_clear_terminal_skip", "clear_returns_status", "bg_2"]'
+      seq: 2
+    config:
+    - key: order:<m58>
+      value: '["c_1_clear_terminal", "tst_clear_terminal", "c_2_clear_non_terminal", "tst_clear_non_terminal",
+        "c_3_clear_prints_same", "tst_clear_prints_same", "c_4_clear_terminal_success", "tst_clear_terminal_success",
+        "c_5_clear_terminal_skip", "tst_clear_terminal_skip", "clear_returns_status", "bg_2"]'
+  expect:
+    writes:
+      rulings:
+        count: 0
+  expect_lines:
+    ask: true
+  forbidden: {}
+
+# judge.expect: 1 approve; 2 contest, act exclude, path, target src/click/utils.py, words 'the change touches only clear in src/click/termui.py and its tests, not make_str in src/click/utils.py'; 3 contest, act rewrite, row, words 'clear() returns False only when stdout is not a terminal, and what it prints stays the same'; 4 left out
+# shape: a seat that lands nothing on a plain two-line correction
+- id: L3R-n175-m44-m45
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m45>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_screen_return
+    - guess:clear_screen_return
+    - l_8a8da36085
+    - reading:<m38>
+    cause: <m44>
+    body_text: 'Line 2 is wrong: the change touches only clear in src/click/termui.py and its tests, not
+      make_str in src/click/utils.py. For line 3, clear() returns False only when stdout is not a terminal,
+      and what it prints stays the same.'
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'The team''s guess at the code this touches: src/click/termui.py, src/click/utils.py, tests/test_termui.py,
+      tests/test_utils/test_clear.py. It might touch src/click/termui.py::clear, src/click/utils.py::make_str.'
+    - The clear() function's return value indicates whether the screen was successfully cleared, which
+      is essential for feedback and error handling in terminal-based applications.
+    - 'Your answer "ok", as the team read it: 1 line approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: clear_screen_return
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m44>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_screen_return", "guess:clear_screen_return", "l_8a8da36085", "reading:<m38>"]'
+      seq: 2
+    - id: <m38>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    touch_guesses:
+    - item_id: clear_screen_return
+      item_ver: 1
+      grain_kind: path
+      grain: src/click/termui.py (path, expected); src/click/termui.py::clear (symbol, possible); src/click/utils.py
+        (path, expected); src/click/utils.py::make_str (symbol, possible); tests/test_termui.py (path,
+        expected); tests/test_utils/test_clear.py (path, expected); src/click/termui.py (path, expected);
+        src/click/termui.py::clear (symbol, possible); tests/test_termui.py (path, expected)
+    ledger:
+    - id: l_8a8da36085
+      about_ref: clear_screen_return
+      about_table: items
+      default_taken: The clear() function's return value indicates whether the screen was successfully
+        cleared, which is essential for feedback and error handling in terminal-based applications.
+      status: open
+      author: vision_keeper
+    rulings:
+    - id: r_m38
+      ask_id: <m38>
+      reply_id: <m38>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m38_0
+      ruling_id: r_m38
+      ref: s2
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m45>
+      value: '["clear_screen_return", "guess:clear_screen_return", "l_8a8da36085", "reading:<m38>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: exclude
+        target_kind: path
+      '3':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '4':
+        verdict: absent
+  forbidden: {}
+
+# judge.expect: 1 approve; 2 contest, act exclude, path, target src/click/utils.py, words 'drop the utils file and the string helper in it'; 3 contest, act rewrite, row, words 'replace the note with this: clear returns True when it cleared the screen and False only when standard output is not a terminal, and what it prints stays the same'; 4 left out
+# shape: the team's note replaced on words that name the line
+- id: L3R-n175-m44-m46
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m46>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - clear_screen_return
+    - guess:clear_screen_return
+    - l_8a8da36085
+    - reading:<m38>
+    cause: <m44>
+    body_text: 'Line 1 is right. For line 2, drop the utils file and the string helper in it, and keep
+      only the clear function in the terminal UI file and its tests. For line 3, replace the note with
+      this: clear returns True when it cleared the screen and False only when standard output is not a
+      terminal, and what it prints stays the same.'
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+    - 'The team''s guess at the code this touches: src/click/termui.py, src/click/utils.py, tests/test_termui.py,
+      tests/test_utils/test_clear.py. It might touch src/click/termui.py::clear, src/click/utils.py::make_str.'
+    - The clear() function's return value indicates whether the screen was successfully cleared, which
+      is essential for feedback and error handling in terminal-based applications.
+    - 'Your answer "ok", as the team read it: 1 line approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: clear_screen_return
+      text: Make clear() return True when it cleared the screen and False when stdout is not a terminal.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m44>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["clear_screen_return", "guess:clear_screen_return", "l_8a8da36085", "reading:<m38>"]'
+      seq: 2
+    - id: <m38>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    touch_guesses:
+    - item_id: clear_screen_return
+      item_ver: 1
+      grain_kind: path
+      grain: src/click/termui.py (path, expected); src/click/termui.py::clear (symbol, possible); src/click/utils.py
+        (path, expected); src/click/utils.py::make_str (symbol, possible); tests/test_termui.py (path,
+        expected); tests/test_utils/test_clear.py (path, expected); src/click/termui.py (path, expected);
+        src/click/termui.py::clear (symbol, possible); tests/test_termui.py (path, expected)
+    ledger:
+    - id: l_8a8da36085
+      about_ref: clear_screen_return
+      about_table: items
+      default_taken: The clear() function's return value indicates whether the screen was successfully
+        cleared, which is essential for feedback and error handling in terminal-based applications.
+      status: open
+      author: vision_keeper
+    rulings:
+    - id: r_m38
+      ask_id: <m38>
+      reply_id: <m38>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m38_0
+      ruling_id: r_m38
+      ref: s2
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m46>
+      value: '["clear_screen_return", "guess:clear_screen_return", "l_8a8da36085", "reading:<m38>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: contest
+        act: exclude
+        target_kind: path
+      '3':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+      '4':
+        verdict: absent
+  forbidden: {}
+
+# judge.expect: 1-4 approve; 5 contest, act drop, row, words 'line 5 about the example program has nothing to do with it'; 6 contest; line 1 act add, words 'my request for the one docstring example'
+# shape: an account page with no request: the request comes back as an add, the stray row drops, the read-back he denies is contested
+- id: L3R-n175-m75-m76
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m76>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - how_it_works
+    - command#root
+    - stream#src_click
+    - usage#src_click
+    - cli
+    - reading:<m56>
+    cause: <m75>
+    body_text: Line 6 misreads me, because I never said lines 10 to 24 were wrong. I said only that the
+      docstring in the utils file changes, with no code and no test file touched. This page also leaves
+      out my request for the one docstring example, and line 5 about the example program has nothing to
+      do with it.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - The program is a command-line interface toolkit called Click. Users write scripts that define commands
+      and options, and Click handles parsing and executing them. The user writes commands and options
+      in Python functions, and Click turns these into a command-line interface that accepts arguments
+      and options. The output is the result of running the command with the provided inputs.
+    - 'command: An executable unit in the CLI.'
+    - 'stream: Managed IO object ensuring correct encoding and buffer ownership.'
+    - 'usage: Formatted command invocation string.'
+    - The `cli` function is the main entry point for the `complex` example. It is a Click group that contains
+      the commands `init` and `status`.
+    - 'Your answer "Lines 10 to 24 are wrong: they list ...", as the team read it: line 10 is wrong; line
+      11 is wrong; line 12 is wrong; line 13 is wrong; line 14 is wrong; line 15 is wrong; line 16 is
+      wrong; line 17 is wrong; line 18 is wrong; line 19 is wrong; line 20 is wrong; line 21 is wrong;
+      line 22 is wrong; line 23 is wrong; line 24 is wrong; 9 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: how_it_works
+      text: The program is a command-line interface toolkit called Click. Users write scripts that define
+        commands and options, and Click handles parsing and executing them. The user writes commands and
+        options in Python functions, and Click turns these into a command-line interface that accepts
+        arguments and options. The output is the result of running the command with the provided inputs.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m75>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["how_it_works", "command#root", "stream#src_click", "usage#src_click", "cli", "reading:<m56>"]'
+      seq: 2
+    - id: <m56>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    glossary_terms:
+    - id: command#root
+      term: command
+      sense_short: An executable unit in the CLI.
+      version: 1
+    - id: stream#src_click
+      term: stream
+      sense_short: Managed IO object ensuring correct encoding and buffer ownership.
+      version: 1
+    - id: usage#src_click
+      term: usage
+      sense_short: Formatted command invocation string.
+      version: 1
+    constraints:
+    - id: cli
+      headline: The `cli` function is the main entry point for the `complex` example. It is a Click group
+        that contains the commands `init` and `status`.
+      version: 1
+    rulings:
+    - id: r_m56
+      ask_id: <m56>
+      reply_id: <m56>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m56_0
+      ruling_id: r_m56
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_1
+      ruling_id: r_m56
+      ref: command#src_click
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_2
+      ruling_id: r_m56
+      ref: context#root
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_3
+      ruling_id: r_m56
+      ref: decorator#src_click
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_4
+      ruling_id: r_m56
+      ref: group
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_5
+      ruling_id: r_m56
+      ref: group#root
+      line: 6
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_6
+      ruling_id: r_m56
+      ref: option#root
+      line: 7
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_7
+      ruling_id: r_m56
+      ref: parameter
+      line: 8
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_8
+      ruling_id: r_m56
+      ref: parameter#root
+      line: 9
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_9
+      ruling_id: r_m56
+      ref: flag_needs_value
+      line: 10
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_10
+      ruling_id: r_m56
+      ref: get_best_encoding
+      line: 11
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_11
+      ruling_id: r_m56
+      ref: get_current_context
+      line: 12
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_12
+      ruling_id: r_m56
+      ref: helpformatter
+      line: 13
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_13
+      ruling_id: r_m56
+      ref: is_ascii_encoding
+      line: 14
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_14
+      ruling_id: r_m56
+      ref: make_text_stream
+      line: 15
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_15
+      ruling_id: r_m56
+      ref: parametersource
+      line: 16
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_16
+      ruling_id: r_m56
+      ref: pass_environment
+      line: 17
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_17
+      ruling_id: r_m56
+      ref: pop_context
+      line: 18
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_18
+      ruling_id: r_m56
+      ref: push_context
+      line: 19
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_19
+      ruling_id: r_m56
+      ref: resolve_color_default
+      line: 20
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_20
+      ruling_id: r_m56
+      ref: sentinel
+      line: 21
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_21
+      ruling_id: r_m56
+      ref: t_flag_needs_value
+      line: 22
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_22
+      ruling_id: r_m56
+      ref: t_unset
+      line: 23
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_23
+      ruling_id: r_m56
+      ref: unset
+      line: 24
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m76>
+      value: '["how_it_works", "command#root", "stream#src_click", "usage#src_click", "cli", "reading:<m56>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+        act: add
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '6':
+        verdict: contest
+  forbidden: {}
+
+# judge.expect: 1-4 approve; 5 contest, act drop, row, words 'Remove line 5, because the example program has nothing to do with my request'; 6 contest, act rewrite, row, words 'add one example to the format filename docstring that shows the path a/b/c.txt as c.txt when shorten is True, and change only that docstring in the utils file, with no code and no test file touched'
+# shape: 'Remove line N' on a page row is a drop with his words; 'Replace line N with' is a rewrite
+- id: L3R-n175-m75-m77
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m77>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - how_it_works
+    - command#root
+    - stream#src_click
+    - usage#src_click
+    - cli
+    - reading:<m56>
+    cause: <m75>
+    body_text: 'Lines 1 to 4 are fine. Remove line 5, because the example program has nothing to do with
+      my request. Replace line 6 with my real request: add one example to the format filename docstring
+      that shows the path a/b/c.txt as c.txt when shorten is True, and change only that docstring in the
+      utils file, with no code and no test file touched.'
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - The program is a command-line interface toolkit called Click. Users write scripts that define commands
+      and options, and Click handles parsing and executing them. The user writes commands and options
+      in Python functions, and Click turns these into a command-line interface that accepts arguments
+      and options. The output is the result of running the command with the provided inputs.
+    - 'command: An executable unit in the CLI.'
+    - 'stream: Managed IO object ensuring correct encoding and buffer ownership.'
+    - 'usage: Formatted command invocation string.'
+    - The `cli` function is the main entry point for the `complex` example. It is a Click group that contains
+      the commands `init` and `status`.
+    - 'Your answer "Lines 10 to 24 are wrong: they list ...", as the team read it: line 10 is wrong; line
+      11 is wrong; line 12 is wrong; line 13 is wrong; line 14 is wrong; line 15 is wrong; line 16 is
+      wrong; line 17 is wrong; line 18 is wrong; line 19 is wrong; line 20 is wrong; line 21 is wrong;
+      line 22 is wrong; line 23 is wrong; line 24 is wrong; 9 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: how_it_works
+      text: The program is a command-line interface toolkit called Click. Users write scripts that define
+        commands and options, and Click handles parsing and executing them. The user writes commands and
+        options in Python functions, and Click turns these into a command-line interface that accepts
+        arguments and options. The output is the result of running the command with the provided inputs.
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m75>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["how_it_works", "command#root", "stream#src_click", "usage#src_click", "cli", "reading:<m56>"]'
+      seq: 2
+    - id: <m56>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    glossary_terms:
+    - id: command#root
+      term: command
+      sense_short: An executable unit in the CLI.
+      version: 1
+    - id: stream#src_click
+      term: stream
+      sense_short: Managed IO object ensuring correct encoding and buffer ownership.
+      version: 1
+    - id: usage#src_click
+      term: usage
+      sense_short: Formatted command invocation string.
+      version: 1
+    constraints:
+    - id: cli
+      headline: The `cli` function is the main entry point for the `complex` example. It is a Click group
+        that contains the commands `init` and `status`.
+      version: 1
+    rulings:
+    - id: r_m56
+      ask_id: <m56>
+      reply_id: <m56>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m56_0
+      ruling_id: r_m56
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_1
+      ruling_id: r_m56
+      ref: command#src_click
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_2
+      ruling_id: r_m56
+      ref: context#root
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_3
+      ruling_id: r_m56
+      ref: decorator#src_click
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_4
+      ruling_id: r_m56
+      ref: group
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_5
+      ruling_id: r_m56
+      ref: group#root
+      line: 6
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_6
+      ruling_id: r_m56
+      ref: option#root
+      line: 7
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_7
+      ruling_id: r_m56
+      ref: parameter
+      line: 8
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_8
+      ruling_id: r_m56
+      ref: parameter#root
+      line: 9
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_9
+      ruling_id: r_m56
+      ref: flag_needs_value
+      line: 10
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_10
+      ruling_id: r_m56
+      ref: get_best_encoding
+      line: 11
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_11
+      ruling_id: r_m56
+      ref: get_current_context
+      line: 12
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_12
+      ruling_id: r_m56
+      ref: helpformatter
+      line: 13
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_13
+      ruling_id: r_m56
+      ref: is_ascii_encoding
+      line: 14
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_14
+      ruling_id: r_m56
+      ref: make_text_stream
+      line: 15
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_15
+      ruling_id: r_m56
+      ref: parametersource
+      line: 16
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_16
+      ruling_id: r_m56
+      ref: pass_environment
+      line: 17
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_17
+      ruling_id: r_m56
+      ref: pop_context
+      line: 18
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_18
+      ruling_id: r_m56
+      ref: push_context
+      line: 19
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_19
+      ruling_id: r_m56
+      ref: resolve_color_default
+      line: 20
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_20
+      ruling_id: r_m56
+      ref: sentinel
+      line: 21
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_21
+      ruling_id: r_m56
+      ref: t_flag_needs_value
+      line: 22
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_22
+      ruling_id: r_m56
+      ref: t_unset
+      line: 23
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m56_23
+      ruling_id: r_m56
+      ref: unset
+      line: 24
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m77>
+      value: '["how_it_works", "command#root", "stream#src_click", "usage#src_click", "cli", "reading:<m56>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '6':
+        verdict: contest
+        act: rewrite
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: c_2 contest, act drop, row, words 'Drop both of those examples, because I asked for only one example in the docstring'; c_3 the same
+# shape: a clarify on two criteria: both rows drop, and the drop retires the criteria
+- id: L3R-n175-m102-m103
+  tier: l3_rulings
+  role: liaison
+  prompt: answering
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m103>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - c_2_format_filename_example
+    - c_3_format_filename_example
+    cause: <m102>
+    body_text: 'Drop both of those examples, because I asked for only one example in the docstring: with
+      shorten set to True, the path a/b/c.txt shows as c.txt.'
+  page:
+    header: I need one thing from you before I can continue.
+    lines:
+    - not numbered on the page; the wake's ref 1
+    - not numbered on the page; the wake's ref 2
+  fixture:
+    items:
+    - id: item_of_page
+      text: the item of this page
+      kind: in_scope
+      approval: draft
+      version: 1
+    tickets:
+    - id: tk_item_of_page
+      item_id: item_of_page
+      text: the tickets of the page's item
+    criteria:
+    - id: c_2_format_filename_example
+      ticket_id: tk_item_of_page
+      text: The docstring for format_filename must include an example showing that when shorten=False,
+        the path a/b/c.txt is displayed as a/b/c.txt.
+      version: 1
+    - id: c_3_format_filename_example
+      ticket_id: tk_item_of_page
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+      version: 1
+    messages:
+    - id: <m102>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: clarify
+      body_refs: '["c_2_format_filename_example", "c_3_format_filename_example"]'
+      seq: 2
+    config:
+    - key: order:<m103>
+      value: '["c_2_format_filename_example", "c_3_format_filename_example"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '2':
+        verdict: contest
+        act: drop
+        target_kind: row
+  forbidden: {}
+
+# judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'remove lines 7 and 8 and finish with line 2 alone'; 9 approve; 10-11 approve
+# shape: 'finish with line 2 alone' keeps line 2 and drops the others
+- id: L3R-n175-m116-m118
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m118>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - c_1_format_filename_example
+    - tst_c1_final
+    - tst_c1_format_filename_example
+    - tst_c1_new
+    - tst_c4
+    - c_2_format_filename_example
+    - c_3_format_filename_example
+    - bg_3
+    - reading:<m79>
+    - reading:<m103>
+    cause: <m116>
+    body_text: 'Please don''t give up on this change: remove lines 7 and 8 and finish with line 2 alone,
+      because I asked for only one example and only the docstring changes, not the code. Lines 1 to 6
+      and line 9 are ok. Lines 10 and 11 read me right, because lines 3 and 4 on that older page were
+      the same two extra examples that are lines 7 and 8 here.'
+  page:
+    header: The team stopped work on this change.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - The docstring for format_filename must include an example showing that when shorten=True, the path
+      a/b/c.txt is displayed as c.txt.
+    - 'check: format filename shorten true, calls result = format_filename("a/b/c.txt", shorten=True),
+      expects result == "c.txt". Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shortens, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'The docstring for format_filename must include an example showing that when shorten=False, the
+      path a/b/c.txt is displayed as a/b/c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'The docstring for format_filename must include an example showing that when shorten=True, a long
+      path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'the work for: Give format_filename one example in its docstring: with shorten set to True, the
+      path a/b/c.txt shows as c.txt.; expected to touch src/click/utils.py'
+    - 'Your answer "Remove lines 3 and 4, because I asked ...", as the team read it: line 3 is wrong;
+      line 4 is wrong; 3 lines approved. Say ok, or say what we misread.'
+    - 'Your answer "Drop both of those examples, because I asked ...", as the team read it: a row is wrong:
+      remove c_2_format_filename_example; a row is wrong: remove c_3_format_filename_example. Say ok,
+      or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m116>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m79>", "reading:<m103>"]'
+      seq: 2
+    - id: <m79>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    - id: <m103>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    batches:
+    - id: bg_3
+      item_id: format_filename_example
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        the path a/b/c.txt is displayed as c.txt.
+      version: 1
+    - id: c_2_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=False,
+        the path a/b/c.txt is displayed as a/b/c.txt.
+      version: 1
+    - id: c_3_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+      version: 1
+    tests:
+    - id: tst_c1_final
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_final", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_final.py",
+        "body": "import pytest\nfrom click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    \"\"\"Test
+        that shorten=True truncates the path to the basename.\"\"\"\n    result = format_filename(\"a/b/c.txt\",
+        shorten=True)\n    assert result == \"c'
+      version: 1
+    - id: tst_c1_format_filename_example
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_format_filename_example", "criterion_id": "c_1_format_filename_example", "path":
+        "tests/test_utils/test_format_filename_c_1_format_filename_example_2.py", "body": "from click.utils
+        import format_filename\n\ndef test_format_filename_shorten_true():\n    \"\"\"Test that shorten=True
+        strips the directory from a short path.\"\"\"\n    assert format_filename(\"a/b/c.txt\", shorten=True) '
+      version: 1
+    - id: tst_c1_new
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_new", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_format_filename_example.py",
+        "body": "def test_format_filename_shortens():\n    from click.utils import format_filename\n    assert
+        format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"", "table": "tests"}'
+      version: 1
+    - id: tst_c4
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c4", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_4.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    #
+        Example from c_1_format_filename_example:\n    # with shorten=True, the path a/b/c.txt shows as
+        c.txt.\n    assert format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"", "tabl'
+      version: 1
+    rulings:
+    - id: r_m79
+      ask_id: <m79>
+      reply_id: <m79>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m103
+      ask_id: <m103>
+      reply_id: <m103>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m79_0
+      ruling_id: r_m79
+      ref: c_2_format_filename_example
+      line: 3
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m79_1
+      ruling_id: r_m79
+      ref: c_3_format_filename_example
+      line: 4
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m79_2
+      ruling_id: r_m79
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m79_3
+      ruling_id: r_m79
+      ref: c_1_format_filename_example
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m79_4
+      ruling_id: r_m79
+      ref: bg_3
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m103_0
+      ruling_id: r_m103
+      ref: c_2_format_filename_example
+      line: null
+      verdict: contest
+      act: remove
+      target: c_2_format_filename_example
+      source: reading
+    - id: rr_m103_1
+      ruling_id: r_m103
+      ref: c_3_format_filename_example
+      line: null
+      verdict: contest
+      act: remove
+      target: c_3_format_filename_example
+      source: reading
+    config:
+    - key: order:<m118>
+      value: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m79>", "reading:<m103>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '8':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '9':
+        verdict: approve
+      '10':
+        verdict: approve
+      '11':
+        verdict: approve
+  forbidden: {}
+
+# judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'remove only lines 7 and 8, because I asked for one example and nothing more'; 9 approve; 10 contest
+# shape: 'change only the docstring in the file on line 9, not the code' approves line 9
+- id: L3R-n175-m121-m122
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m122>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - c_1_format_filename_example
+    - tst_c1_final
+    - tst_c1_format_filename_example
+    - tst_c1_new
+    - tst_c4
+    - c_2_format_filename_example
+    - c_3_format_filename_example
+    - bg_3
+    - reading:<m118>
+    cause: <m121>
+    body_text: 'Line 10 misreads me: keep lines 2 to 6 as they are, and remove only lines 7 and 8, because
+      I asked for one example and nothing more. Please don''t give up on this change. Finish it with line
+      2 alone, and change only the docstring in the file on line 9, not the code.'
+  page:
+    header: The team stopped work on this change.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - The docstring for format_filename must include an example showing that when shorten=True, the path
+      a/b/c.txt is displayed as c.txt.
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'The docstring for format_filename must include an example showing that when shorten=False, the
+      path a/b/c.txt is displayed as a/b/c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'The docstring for format_filename must include an example showing that when shorten=True, a long
+      path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'the work for: Give format_filename one example in its docstring: with shorten set to True, the
+      path a/b/c.txt shows as c.txt.; expected to touch src/click/utils.py'
+    - 'Your answer "Please don''t give up on this change: remove ...", as the team read it: line 7 is
+      wrong: remove c_2_format_filename_example; line 8 is wrong: remove c_3_format_filename_example;
+      line 2 is wrong: remove c_1_format_filename_example; line 3 is wrong: remove tst_c1_final; line
+      4 is wrong: remove tst_c1_format_filename_example; line 5 is wrong: remove tst_c1_new; line 6 is
+      wrong: remove tst_c4; 2 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m121>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m118>"]'
+      seq: 2
+    - id: <m118>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    batches:
+    - id: bg_3
+      item_id: format_filename_example
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        the path a/b/c.txt is displayed as c.txt.
+      version: 1
+    - id: c_2_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=False,
+        the path a/b/c.txt is displayed as a/b/c.txt.
+      version: 1
+    - id: c_3_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+      version: 1
+    tests:
+    - id: tst_c1_final
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_final", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_final.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    \"\"\"Test
+        that shorten=True truncates a/b/c.txt to c.txt.\"\"\"\n    assert format_filename(\"a/b/c.txt\",
+        shorten=True) == \"c.txt\"", "table": "tests"}'
+      version: 1
+    - id: tst_c1_format_filename_example
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_format_filename_example", "criterion_id": "c_1_format_filename_example", "path":
+        "tests/test_utils/test_format_filename_c_1_format_filename_example_2.py", "body": "from click.utils
+        import format_filename\n\ndef test_format_filename_shorten_true():\n    \"\"\"Test that shorten=True
+        strips the directory from a short path.\"\"\"\n    assert format_filename(\"a/b/c.txt\", shorten=True) '
+      version: 1
+    - id: tst_c1_new
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_new", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_format_filename_example.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    assert
+        format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"", "table": "tests"}'
+      version: 1
+    - id: tst_c4
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c4", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_4.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    #
+        Example from c_1_format_filename_example:\n    # with shorten=True, the path a/b/c.txt shows as
+        c.txt.\n    assert format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"", "tabl'
+      version: 1
+    rulings:
+    - id: r_m118
+      ask_id: <m118>
+      reply_id: <m118>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m118_0
+      ruling_id: r_m118
+      ref: c_2_format_filename_example
+      line: 7
+      verdict: contest
+      act: remove
+      target: c_2_format_filename_example
+      source: reading
+    - id: rr_m118_1
+      ruling_id: r_m118
+      ref: c_3_format_filename_example
+      line: 8
+      verdict: contest
+      act: remove
+      target: c_3_format_filename_example
+      source: reading
+    - id: rr_m118_2
+      ruling_id: r_m118
+      ref: c_1_format_filename_example
+      line: 2
+      verdict: contest
+      act: remove
+      target: c_1_format_filename_example
+      source: reading
+    - id: rr_m118_3
+      ruling_id: r_m118
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: format_filename_example
+      source: reading
+    - id: rr_m118_4
+      ruling_id: r_m118
+      ref: bg_3
+      line: 9
+      verdict: approve
+      act: null
+      target: bg_3
+      source: reading
+    - id: rr_m118_5
+      ruling_id: r_m118
+      ref: tst_c1_final
+      line: 3
+      verdict: contest
+      act: remove
+      target: tst_c1_final
+      source: reading
+    - id: rr_m118_6
+      ruling_id: r_m118
+      ref: tst_c1_format_filename_example
+      line: 4
+      verdict: contest
+      act: remove
+      target: tst_c1_format_filename_example
+      source: reading
+    - id: rr_m118_7
+      ruling_id: r_m118
+      ref: tst_c1_new
+      line: 5
+      verdict: contest
+      act: remove
+      target: tst_c1_new
+      source: reading
+    - id: rr_m118_8
+      ruling_id: r_m118
+      ref: tst_c4
+      line: 6
+      verdict: contest
+      act: remove
+      target: tst_c4
+      source: reading
+    config:
+    - key: order:<m122>
+      value: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m118>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '8':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '9':
+        verdict: approve
+      '10':
+        verdict: contest
+  forbidden: {}
+
+# judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'Removing lines 7 and 8 is right'; 9 approve; 10 contest
+# shape: 'Removing lines 7 and 8 is right' confirms a removal; 'instead of giving up' is no fault
+- id: L3R-n175-m136-m138
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m138>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - format_filename_example
+    - c_1_format_filename_example
+    - tst_c1_final
+    - tst_c1_format_filename_example
+    - tst_c1_new
+    - tst_c4
+    - c_2_format_filename_example
+    - c_3_format_filename_example
+    - bg_3
+    - reading:<m122>
+    cause: <m136>
+    body_text: 'Line 10 misreads me on line 9: keep line 9 as it is, because the work changes only the
+      docstring in that file and not the code. Removing lines 7 and 8 is right, and the other lines are
+      approved. Please finish this change with line 2 instead of giving up.'
+  page:
+    header: The team stopped work on this change.
+    lines:
+    - 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+      shows as c.txt.'
+    - The docstring for format_filename must include an example showing that when shorten=True, the path
+      a/b/c.txt is displayed as c.txt.
+    - 'check: format filename shortens path, calls result = format_filename("a/b/c.txt", shorten=True),
+      expects result == "c.txt". Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename one example, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'check: format filename shorten true, expects format_filename("a/b/c.txt", shorten=True) == "c.txt".
+      Passes.'
+    - 'The docstring for format_filename must include exactly one example showing that when shorten=True,
+      the path a/b/c.txt is displayed as c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'The docstring for format_filename must include an example showing that when shorten=True, a long
+      path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+
+      check: none. The team gave up writing it after 3 tries.'
+    - 'the work for: Give format_filename one example in its docstring: with shorten set to True, the
+      path a/b/c.txt shows as c.txt.; expected to touch src/click/utils.py'
+    - 'Your answer "Line 10 misreads me: keep lines 2 to ...", as the team read it: line 7 is wrong: remove
+      c_2_format_filename_example; line 8 is wrong: remove c_3_format_filename_example; line 9 is to change;
+      6 lines approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: format_filename_example
+      text: 'Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt
+        shows as c.txt.'
+      kind: in_scope
+      approval: draft
+      version: 1
+    messages:
+    - id: <m136>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m122>"]'
+      seq: 2
+    - id: <m122>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: an earlier answer of this thread
+      seq: 1
+    tickets:
+    - id: tk_format_filename_example
+      item_id: format_filename_example
+      text: the tickets of the page's item
+    batches:
+    - id: bg_3
+      item_id: format_filename_example
+      status: pending
+      version: 1
+    criteria:
+    - id: c_1_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        the path a/b/c.txt is displayed as c.txt.
+      version: 1
+    - id: c_2_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include exactly one example showing that when shorten=True,
+        the path a/b/c.txt is displayed as c.txt.
+      version: 1
+    - id: c_3_format_filename_example
+      ticket_id: tk_format_filename_example
+      text: The docstring for format_filename must include an example showing that when shorten=True,
+        a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt.
+      version: 1
+    tests:
+    - id: tst_c1_final
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_final", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_final.py",
+        "body": "\ndef test_format_filename_shortens_path():\n    \"\"\"Test that format_filename shortens
+        a/b/c.txt to c.txt when shorten=True.\"\"\"\n    from click.utils import format_filename\n    result
+        = format_filename(\"a/b/c.txt\", shorten=True)\n    assert result =='
+      version: 1
+    - id: tst_c1_format_filename_example
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_format_filename_example", "criterion_id": "c_1_format_filename_example", "path":
+        "tests/test_utils/test_format_filename_c_1_format_filename_example_2.py", "body": "from click.utils
+        import format_filename\n\ndef test_format_filename_shorten_true():\n    \"\"\"Test that shorten=True
+        strips the directory from a short path.\"\"\"\n    assert format_filename(\"a/b/c.txt\", shorten=True) '
+      version: 1
+    - id: tst_c1_new
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c1_new", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_1_format_filename_example.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_one_example():\n    \"\"\"Test
+        that the docstring includes exactly one example for shorten=True.\n\n    The principal said: \"Give
+        format_filename one example in its docstring'
+      version: 1
+    - id: tst_c4
+      batch_id: bg_3
+      path: tests/test_of_page.py
+      body: '{"id": "tst_c4", "criterion_id": "c_1_format_filename_example", "path": "tests/test_utils/test_format_filename_c_4.py",
+        "body": "from click.utils import format_filename\n\ndef test_format_filename_shorten_true():\n    #
+        Example from c_1_format_filename_example:\n    # with shorten=True, the path a/b/c.txt shows as
+        c.txt.\n    assert format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"", "tabl'
+      version: 1
+    rulings:
+    - id: r_m122
+      ask_id: <m122>
+      reply_id: <m122>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m122_0
+      ruling_id: r_m122
+      ref: format_filename_example
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_1
+      ruling_id: r_m122
+      ref: c_1_format_filename_example
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_2
+      ruling_id: r_m122
+      ref: tst_c1_final
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_3
+      ruling_id: r_m122
+      ref: tst_c1_format_filename_example
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_4
+      ruling_id: r_m122
+      ref: tst_c1_new
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_5
+      ruling_id: r_m122
+      ref: tst_c4
+      line: 6
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m122_6
+      ruling_id: r_m122
+      ref: c_2_format_filename_example
+      line: 7
+      verdict: contest
+      act: remove
+      target: c_2_format_filename_example
+      source: reading
+    - id: rr_m122_7
+      ruling_id: r_m122
+      ref: c_3_format_filename_example
+      line: 8
+      verdict: contest
+      act: remove
+      target: c_3_format_filename_example
+      source: reading
+    - id: rr_m122_8
+      ruling_id: r_m122
+      ref: bg_3
+      line: 9
+      verdict: revise
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m138>
+      value: '["format_filename_example", "c_1_format_filename_example", "tst_c1_final", "tst_c1_format_filename_example",
+        "tst_c1_new", "tst_c4", "c_2_format_filename_example", "c_3_format_filename_example", "bg_3",
+        "reading:<m122>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '1':
+        verdict: approve
+      '2':
+        verdict: approve
+      '3':
+        verdict: approve
+      '4':
+        verdict: approve
+      '5':
+        verdict: approve
+      '6':
+        verdict: approve
+      '7':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '8':
+        verdict: contest
+        act: drop
+        target_kind: row
+      '9':
+        verdict: approve
+      '10':
+        verdict: contest
+  forbidden: {}
