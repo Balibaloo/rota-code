@@ -13413,17 +13413,59 @@ _REST_LINES = re.compile(
 # An all word names every line: "every line matches what I asked for".
 _ALL_LINES = re.compile(
     r"\b(?:every|each)\s+line\b|\ball\s+(?:the\s+|of\s+the\s+)?lines\b", re.I)
+# A line reference names its line only as the subject of its clause (frame
+# 345, pass 2b, finding 1). In n172-m80-m81, "I never gave an answer about
+# lines 1 to 5" bound line 1 to "drop it". The subject stands at the clause
+# start. Two words may come before it: a verb or a preposition, as in
+# "Change line 7", "Please keep line 5" and "For line 3".
+_SUBJECT_LEAD = 2
+# A quoted span holds other words than his ruling. In n174-m47-m48, the
+# quote "also remove lines 17, 18" bound lines 17 and 18 to line 68.
+_QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
+# A number after "at", "in", "see", a path or a code name with a colon names
+# a place in code or in a text, never a page line ("get_app_dir:518").
+_NOT_SUBJECT = re.compile(
+    rf"(?:\b(?:at|in|see)|{_PATH_SHAPE.pattern}|\w:)\s*$", re.I)
+# A second reference joined to a subject is a subject too: "Lines 1 to 10
+# and line 12 are fine", "line 3 or line 4".
+_REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
+
+
+def _subject_lines(clause: str, size: int) -> set[int]:
+    """The page lines that `clause` is about: the numbers, the ranges and
+    the ordinals that stand as its subject. `clause` holds his quoted spans
+    as blanks already, so a number in a quote names nothing."""
+    found = [(r.start, r.end, set(r.lines))
+             for r in _line_reading(clause, size).refs]
+    for m in _ORDINAL_LINE.finditer(clause):
+        word = m.group(1).lower()
+        found.append((m.start(), m.end(),
+                      {size if word == "last" else _ORDINALS.index(word) + 1}))
+    named: set[int] = set()
+    last_end = None
+    for start, end, lines in sorted(found, key=lambda f: f[0]):
+        before = clause[:start]
+        lead = (len(before.split()) <= _SUBJECT_LEAD
+                and not _NOT_SUBJECT.search(before))
+        joined = (last_end is not None
+                  and _REF_JOIN.fullmatch(clause[last_end:start]))
+        if lead or joined:
+            named |= lines
+            last_end = end
+    return {n for n in named if 1 <= n <= size}
 
 
 def line_words(his: str, size: int) -> dict[int, str | None]:
     """The words of his reply that name each page line, verbatim, or None.
 
-    A clause names the lines that its numbers, its ranges or its ordinals
-    name, and "every line" names them all. A clause with no line reference names the lines of the clause
-    before it, as in `_cue_clauses`. A rest clause such as "the other lines
-    are fine" names every line that no clause names. A reply that approves
-    the page names each line that is still not named, with the whole reply.
-    So does a reply that names no line at all.
+    A clause names the lines that stand as its subject, by `_subject_lines`,
+    and "every line" names them all. A clause with no line reference names
+    no line (frame 345, pass 2b, finding 3). In n170-m58-m59, "keep what
+    clear() prints" took lines 5 and 6 from the clause before it. A rest
+    clause such as "the other lines are fine" names every line that no
+    clause names. A reply that approves the page names each line that is
+    still not named, with the whole reply. So does a reply that names no
+    line at all.
 
     The match says which words name a line, never what they rule. Meaning
     stays with the seat (ruled: Roman, 2026-10-28, "doors used for meaning
@@ -13435,32 +13477,23 @@ def line_words(his: str, size: int) -> dict[int, str | None]:
     `_words_from`, then proves them by construction.
     """
     text = his or ""
+    # The cuts come from his words as they are, so they stay the cuts of the
+    # cue doors (rule C76). The references come from the same places with
+    # each quote blanked, so the offsets agree.
+    blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), text)
     spans: dict[int, list[tuple[int, int]]] = {}
     rest: list[tuple[int, int]] = []
-    last: set[int] | str | None = None
     for start, end, _sent in _clause_spans(text):
-        cl = text[start:end]
-        named = {n for n in _line_reading(cl, size).named if 1 <= n <= size}
-        for m in _ORDINAL_LINE.finditer(cl):
-            word = m.group(1).lower()
-            n = size if word == "last" else _ORDINALS.index(word) + 1
-            if 1 <= n <= size:
-                named.add(n)
+        cl = blank[start:end]
+        named = _subject_lines(cl, size)
         if _ALL_LINES.search(cl) and not _REST_LINES.search(cl):
             named = set(range(1, size + 1))
         # "line 1 and the rest of the word notes are fine" names line 1 and
         # the rest at once (night 170's m7).
-        if named:
-            last = named
-            if _REST_LINES.search(cl):
-                rest.append((start, end))
-        elif _REST_LINES.search(cl):
-            last = "rest"
-        if last == "rest":
+        if _REST_LINES.search(cl):
             rest.append((start, end))
-        elif last:
-            for n in last:
-                spans.setdefault(n, []).append((start, end))
+        for n in named:
+            spans.setdefault(n, []).append((start, end))
     if rest:
         for n in range(1, size + 1):
             if n not in spans:
@@ -14462,8 +14495,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key
+            # A line that no clause names rests on his whole reply. The one
+            # word has no place for words, so code fills them. The span
+            # check asked for words, the seat repeated its word, and the run
+            # ended (frame 345, pass 2b, finding 2).
             if shape and line_n:
-                shape = _word_shape(ctx.conn, ref, shape, his_lines.get(line_n),
+                shape = _word_shape(ctx.conn, ref, shape,
+                                    his_lines.get(line_n) or (his or "").strip(),
                                     order, page_text)
             if shape:
                 shape_of[ref] = shape

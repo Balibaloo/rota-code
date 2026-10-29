@@ -16,11 +16,11 @@ Give each line one word:
 - `revise`: the line is right in substance and needs other words. "Line 2 is right, but say cleared" revises line 2.
 - `drop`: the words take the line off the page. "Drop line 5", "remove line 5" and "removing line 5 is right" drop line 5.
 - `rewrite`: the line must say something else. "Replace line 6 with my real request" rewrites line 6.
-- `remove`: the words delete code that they name, never a page line. "You can remove the line at 518 in get_app_dir" removes code.
+- `remove`: the words delete code that they name. "You can remove the line at 518 in get_app_dir" removes code. On any other page line, `remove` is a drop of that line.
 - `exclude`: the words take a file off a line that lists the files the change touches. "Drop the utils file" excludes it.
 - `keep`: the words keep the line and fault only its check. "Keep line 4, but fix its check" keeps line 4.
 - `add`: the words ask for a new line. "Also add a line that says the output stays the same" is `add` on one line of the item.
-- `later` or `now`: only on a page that asks which request goes first. "It is a separate request" is `later`.
+- `later` or `now`: only on a page that asks which request goes first. "It is a separate request" is `later`. "Do this one first" is `now`.
 
 A correction counts against the line it is about, and only that line.
 Words about files, tests or paths go on the line that lists the files, never
