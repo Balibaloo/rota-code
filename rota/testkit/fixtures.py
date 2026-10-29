@@ -1634,7 +1634,9 @@ def _page_as_seen(case: dict):
             return page, order
         # The seeded order, because a fresh render orders the rows its own
         # way, and 12 of 24 cases differ (the review of 5b525a72, low 3).
-        return text, principal.door_rows(conn, reply_id, "order") or order
+        # Through `seen_order`, the one reader of the record (fact F28).
+        # With no ask it reads the record only.
+        return text, principal.seen_order(conn, reply_id, None) or order
 
     return mock.patch.object(principal, "render_page", seen)
 
