@@ -283,7 +283,7 @@ def test_the_park_page_renders_word_for_word_through_the_request_block(n132):
     assert ask.rendered.splitlines() == PAGE_132
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_names_it(n132):
     """Night 132, s218: woken on m117, the reply to the park ask, the
     Liaison had no line to rule and sent one sentence back (m118)."""
@@ -305,7 +305,7 @@ def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_nam
             ) in render_state(n132)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132):
     """Night 132, s218, the other way: line 3 is cr_2, and its contest goes
     to the criterion's writer through `verdict_signoff`."""
@@ -359,7 +359,7 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     assert len(P.REGISTRY["park_ask"].fn(n132)) == 1
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("call", [
     "done", f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
     'TOOL: msg.relay_vision_keeper(refs=["cr_1_confirm_eof_default", '
@@ -400,7 +400,7 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
     assert park_criterion_relay(n132, rows[0]["id"])
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n132):
     """The diff review of 0baacf55, finding 2: `stage_park_relay` widened a
     held relay and kept every criterion in it. One contest and two approves
@@ -434,7 +434,7 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
     assert held["body_refs"] == ["cr_2_confirm_eof_behavior"]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("call", [
     f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
     'TOOL: msg.relay_terminologist(refs=["cr_2_confirm_eof_behavior"])'])
@@ -735,7 +735,7 @@ def _touch_reply(conn):
     return sb
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     """Night 133, s313: r_2e20813fbe contested bg_2, landed, and moved
     nothing. The principal's words reached no seat. M198 faults line 2, the
@@ -770,7 +770,7 @@ N121 = [(f"cr_{n}", f"criterion {n} of confirm on a closed stdin", f"tst_confirm
                "result is True"), n != 2) for n in range(1, 7)]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
     """Night 121, s278: the Liaison sent eight approvals for a park ask with
     no line, was refused, and asked three times."""

@@ -249,7 +249,7 @@ M192_LINE_1 = M192[M192.index("Line 1 also"):]
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     _state(db, guess=True)
     mid = _send(db, [ITEM])

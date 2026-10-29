@@ -53,7 +53,7 @@ def test_a_landing_counts_its_ruled_refs_rows_as_writes(tmp_path, case_id,
     assert not [p for p in res.problems if "ruled_refs" in p]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("case_id, size, lines", DROPS)
 def test_remove_on_a_line_that_is_no_code_lands_as_a_drop(tmp_path, case_id,
                                                           size, lines):

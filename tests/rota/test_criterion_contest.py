@@ -419,7 +419,7 @@ def test_a_repair_wake_with_no_contest_keeps_todays_prompt(db, approve):
 
 # --- frame 226, the store -----------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noqa: F811
     """The ruling keeps the text the principal read, because a criterion
     keeps no history. Night 132's page, line 4 is `cr_2`."""

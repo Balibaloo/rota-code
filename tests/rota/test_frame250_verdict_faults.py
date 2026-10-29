@@ -44,7 +44,7 @@ S212 = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
         "9": "approve", "10": "approve", "11": "approve"}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s212s_map_with_the_faulted_lines_contested_lands(db):
     rulings = dict(S212, **{"6": "contest", "7": "contest"})
     out = _rule11(db, M105, rulings)
@@ -52,7 +52,7 @@ def test_s212s_map_with_the_faulted_lines_contested_lands(db):
     assert out["per_item"]["l_2"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_right_approve_of_a_matched_line_lands(db):
     words = "Line 3 is wrong. Lines 2 and 4 match what I asked for."
     rulings = {str(n): "approve" for n in range(1, 12)}
@@ -226,7 +226,7 @@ def test_the_m245_page_numbers_bg_4_as_line_6(m245):
     assert order == [B4_ITEM] + [c for c, _, _ in B4_CRITERIA] + ["bg_4"]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_map_with_line_6_contested_lands(m245):
     out = _rule_m245(m245, dict(M245_MAP, **{"4": "contest", "6": "contest"}))
     assert out["per_item"]["bg_4"] == "contest"

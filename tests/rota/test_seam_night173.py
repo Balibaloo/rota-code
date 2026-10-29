@@ -130,7 +130,7 @@ def _no_removal(line, span, target):
 
 # W16: a removal of code lands only on his removal request.
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s179s_call_without_the_act_lands_the_contest(night):
     ctx = night(173, "m62", merged=False)
     api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": A, "4": A, "5": "contest",
@@ -164,7 +164,7 @@ def test_a_removal_request_names_its_target(span, target, asks):
 
 # W9: a line number in his report of an earlier answer names the earlier page.
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s120s_call_on_m35_lands_with_c_3_approved(night):
     """s120 call 2 was refused on lines 1 and 4, and call 3 then revised
     c_3. His "lines 1 and 4" are lines of the page m24."""
@@ -177,7 +177,7 @@ def test_s120s_call_on_m35_lands_with_c_3_approved(night):
     assert all(r["verdict"] != "revise" for r in rows.values())
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_change_request_backs_the_revise(night, monkeypatch):
     """The review's p2-1: "Replace Roaming in line 4 with Local." faults no
     line, and it asks to change line 4, so the revise lands."""
@@ -329,7 +329,7 @@ def _recorded_call(n, sid, k):
     return trigger, calls[k - 1]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_ref_on_two_lines_takes_its_act_on_either_line(night):
     """m47 shows `parameter` on lines 8 and 47. s168 call 3 keys its act
     "8", and the door refused it as a key rulings did not hold. The call's
@@ -369,7 +369,7 @@ L8 = (" Line 8 is a misread, since I never sent an empty answer, so please "
       "drop it.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("middle, lands", [
     ("Line 7 is slightly off. Line 4 should say the local variable matters.",
      True),
@@ -446,7 +446,7 @@ M55_RULINGS = {"1": A, "2": A, "3": A, "4": A, "5": A, "6": A, "7": "revise",
                "8": A, "9": "revise"}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_revise_on_lines_his_words_name_passes(night):
     """n174-m53-m55: "Change line 7" and "Change line 9" name lines 7 and 9,
     so a revise of each passes the door."""
@@ -457,7 +457,7 @@ def test_a_revise_on_lines_his_words_name_passes(night):
                   if r["verdict"] == "revise") == [7, 9]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
     """No words of m55 name line 1, and his words name other lines. A revise
     of line 1 is refused once, and the same call then lands."""
@@ -476,7 +476,7 @@ def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
                for r in _rows(ctx).values())
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
     """n173-m90-m91: "The other lines are fine" names line 23, the read-back
     line. The door refused its approve 21 times at 1eb5c557."""

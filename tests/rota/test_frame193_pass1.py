@@ -231,7 +231,7 @@ def _m62(db):
     return _landing(db, "m62", refs, "m63", M63, 62)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     sb = _m62(db)
     rulings = {1: "approve", **{n: "drop" for n in range(2, 9)}}
@@ -244,7 +244,7 @@ def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     assert "drop" not in stored.values()
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_phrase_maps_by_its_first_word(db):
     sb = _m62(db)
     rulings = {1: "Approve", 2: " drop it ", **{n: "contest" for n in range(3, 9)}}
@@ -337,7 +337,7 @@ M12 = ("Lines 2 and 8 are wrong, because on the README side they show a short la
        "there. The rest is fine.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
     sb = _m161(db)
     rulings = {2: "contest", 3: "approve", 4: "contest", 5: "contest",
@@ -394,7 +394,7 @@ M142 = ("Please don't drop this change; I want the team to fix it. The check for
         "appended to the message when the flag is on.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
     sb = _m11(db)
     # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
@@ -444,7 +444,7 @@ def _m141(db):
     return _landing(db, "m141", refs, "m142", M142, 144)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s263s_contest_of_the_change_line_names_line_5(db):
     sb = _m141(db)
     # s263's call at turns 1 to 3 of night 139, to the byte.
@@ -494,14 +494,14 @@ def _s263_with(db, added):
     return sb.call("rulings.rule", rulings=rulings, words=reply)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
     out = _s263_with(db, "The `show_python` default must also hold when the "
                          "flag is passed as None.")
     assert out["per_item"]["c3_version_option_show_python"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
     with pytest.raises(ValueError) as e:
         _s263_with(db, "The `show_python` default is fine as it is.")

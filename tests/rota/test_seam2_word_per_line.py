@@ -227,7 +227,7 @@ ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
             "each; I am not reading those. approve 1 only.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
     """Finding 2: a one-word drop on a line that shows "no words" lands
     with his whole reply as its words. The span check refused it before,
@@ -286,7 +286,7 @@ def test_a_number_list_inside_a_clause_names_no_line(his):
     assert set(got.values()) == {his}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
     """L1 approve-one-line-only: the seat wrote 1 approve, 2 and 3 drop, and
     the no-words refusal took all three runs, because the match gave lines

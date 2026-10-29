@@ -59,7 +59,7 @@ def _rule_request(db, words, rulings, verb="present"):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_same_words_land_when_line_1_is_approved(db):
     out = _rule_request(db, S122_ON_REQUEST,
                         {"1": "approve", "2": "contest", "3": "contest"})
@@ -67,7 +67,7 @@ def test_the_same_words_land_when_line_1_is_approved(db):
                                "how_it_works": "contest", "l_1": "contest"}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_page_that_opens_with_a_quote_takes_a_contest_on_line_1(db):
     # Line 1 is the statement s1, not a request item (review 1, finding 1).
     out = _rule(db, S122_SHAPE, {"1": "contest", "2": "approve", "3": "contest",
@@ -75,7 +75,7 @@ def test_a_page_that_opens_with_a_quote_takes_a_contest_on_line_1(db):
     assert out["per_item"]["s1"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reference_to_line_1_with_no_cue_lets_it_be_contested(db):
     words = ("Line 1 isn't a request, so please take it off the page. Line 2 "
              "is also wrong.")
@@ -83,7 +83,7 @@ def test_a_reference_to_line_1_with_no_cue_lets_it_be_contested(db):
     assert out["per_item"]["calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
     words = ("Line 2 is wrong because the bill is typed once. Also, take the "
              "tip in cents.")
@@ -91,7 +91,7 @@ def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
     assert out["per_item"]["calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_quote_branch_lands(tmp_path):
     db = init_db(tmp_path / "rota.db")
     words = "Line 2 is wrong, and the software calculates the tip wrong too."
@@ -99,7 +99,7 @@ def test_the_quote_branch_lands(tmp_path):
     assert out["per_item"]["calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_fault_past_the_end_of_the_page_refuses_nothing(db):
     # Review 1, finding 7: the refusal names lines, so it needs one.
     out = _rule_request(db, "Line 9 is wrong.",
@@ -107,14 +107,14 @@ def test_a_fault_past_the_end_of_the_page_refuses_nothing(db):
     assert out["per_item"]["calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_fault_after_a_match_in_one_clause_lands_the_contest(db):
     words = "Line 2's text is right now, but its check still types the bill."
     out = _rule_request(db, words, {"1": "approve", "2": "contest", "3": "approve"})
     assert out["per_item"]["how_it_works"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_negated_match_lands_the_contest(db):
     out = _rule_request(db, "Line 2 doesn't match what I asked for.",
                         {"1": "approve", "2": "contest", "3": "approve"})
@@ -167,7 +167,7 @@ RIGHT_143_144 = {
 }
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("night_ask", sorted(RIGHT_143_144))
 def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
     words, rulings = RIGHT_143_144[night_ask]
@@ -185,7 +185,7 @@ M236 = ("Line 12 is wrong: I never overruled the helper. I still want it "
         "the termui and context test files don't belong there.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_m236_the_moved_reading_lands_with_the_item_approved(db):
     out = _rule_request(db, M236, {"guess:calculate_tip": "contest", "1": "approve",
                                    "2": "approve", "3": "approve"})
@@ -193,7 +193,7 @@ def test_m236_the_moved_reading_lands_with_the_item_approved(db):
     assert out["per_item"]["guess:calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_words_that_fault_line_1_land_a_contest_on_it(db):
     words = "1 is wrong: the request should say json, not yaml"
     out = _rule(db, words, {"1": "contest", "2": "approve", "3": "approve",
@@ -207,7 +207,7 @@ def test_an_approval_and_a_named_fault_land_as_before(db):
     assert set(out["per_item"].values()) == {"approve"}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_named_fault_on_line_4_lands(tmp_path):
     db = init_db(tmp_path / "rota.db")
     out = _rule(db, "4 is wrong", {"1": "approve", "2": "approve",
@@ -337,7 +337,7 @@ def test_through_reads_as_a_range():
         set(), set(range(8, 12)))
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
     # Night 143's m263: such a sentence can correct a line it never numbers.
     words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
@@ -347,7 +347,7 @@ def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
     assert out["per_item"]["how_it_works"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_bare_agreement_names_no_line(db):
     with pytest.raises(ValueError) as e:
         _rule(db, "Line 3 is wrong. The rest looks fine.",
@@ -393,7 +393,7 @@ def _rule11(db, words, rulings):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
     # m263's shape: a numbered fault and an unnumbered correction. The
     # fixture's criteria are items of the request, so line 4 is a request
@@ -406,7 +406,7 @@ def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
     assert out["per_item"]["c3"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_an_unnumbered_sentence_never_spares_a_note_line(db):
     words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
              "in cents.")
@@ -418,7 +418,7 @@ def test_an_unnumbered_sentence_never_spares_a_note_line(db):
                                    "line 6.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
     """Review 3, finding 2, through the door: night 136's page with bg_2
     unbuilt on line 5. The words number line 2 and nothing else, and the
@@ -455,7 +455,7 @@ M316 = ("Lines 4 to 8 are wrong. They repeat the confirm() flag five times, and 
         "change is merged.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("verb", ["contest", "revise"])
 def test_m25s_instruction_lands_on_the_request_line(db, verb):
     out = _rule_request(db, M25, {"1": verb, "2": "approve", "3": "approve"})

@@ -164,7 +164,7 @@ def n133(db):
     return db
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_agenda_page_of_seat_rows_is_the_accounts_page(n133):
     """Night 133, s228's dispatch and s229's turn on m122: seven seat rows
     of no request. Frame 190's design 2.1 added the open request, and
@@ -492,7 +492,7 @@ def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
                         ).fetchone()["status"] == "resolved"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contested_criterion_travels_and_an_approved_one_does_not(m399):
     """A contest of one criterion line and approves of the rest. The relay
     carries the contested criterion and no approved one, on a page that is
@@ -653,7 +653,7 @@ def _message(db, mid: str, sender: str, to: str, verb: str, refs, cause=None,
                (mid, cause, cause or mid, sender, to, verb, json.dumps(refs), status, seq))
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     """Night 136, s537 on m400. The words named line one, and the page had
     no line of the request, so they landed on a constraint row. The item
@@ -717,7 +717,7 @@ def test_the_vision_keepers_relay_cannot_undo_a_revise(m399):
     assert sb.call("problem.set_approval", id=ITEM_136, approval="contested")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     """Night 136, s185 on m85: "Line 2 names the wrong tests". The door
     refused the batch line five times, and bg_2 built from the wrong
@@ -789,7 +789,7 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
     """The diff review of 2dace61b, finding 4: on a touch note a contest of
     the batch line kept the verdict, and the approve of the draft item then
@@ -1382,7 +1382,7 @@ def test_an_amended_item_that_is_not_delivered_is_sliced_again(db):
     assert not any(text in page for _, text in CRIT_133), page
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_note_contest_never_overwrites_an_approve_of_a_stamped_criterion(m399):
     """The delta review of 2c602d1b, finding 1, case E: a Terminologist's
     note about c1, every line approved and the note contested. The note's

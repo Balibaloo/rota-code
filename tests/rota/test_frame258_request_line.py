@@ -100,7 +100,7 @@ def test_the_refusal_is_under_50_words():
     assert len(REFUSAL.split()) < 50
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_criteria_words_alone_do_not_spare_line_1(page):
     # Without the keep sentence, only the subtraction of the criteria's
     # words refuses the contest.
@@ -109,7 +109,7 @@ def test_the_criteria_words_alone_do_not_spare_line_1(page):
     assert ruled.get(ITEM) != "contest", ruled
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_map_with_line_1_approved_lands(page):
     said, ruled = _rule(page, M67, {**S181, "1": "approve"})
     assert REFUSAL not in said, said
@@ -119,7 +119,7 @@ def test_the_map_with_line_1_approved_lands(page):
         assert ruled.get(cid) == "contest", ruled
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
     words = (f"{M67} Line 1 is wrong too, because the flag should be called "
              "eof_default.")
@@ -127,7 +127,7 @@ def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
     assert ruled.get(ITEM) == "contest", (said, ruled)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_request_word_no_criterion_holds_lets_line_1_be_contested(page):
     # "let" is in the request and in no criterion.
     words = f"{REST} I never said to let confirm() guess the answer."

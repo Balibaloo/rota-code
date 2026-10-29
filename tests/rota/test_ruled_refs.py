@@ -124,7 +124,7 @@ def test_the_writer_holds_the_stored_verdicts_and_a_row_never_changes(db):
                    "WHERE id = 'rr_approve'")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)
@@ -157,7 +157,7 @@ def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
                                          "words": WORDS, "text": None}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_object_form_writes_the_rows_and_the_flat_form_is_refused(tmp_path):
     """Frame 345, pass 2: the one-word form replaced the flat `acts` map,
     and the object form stays."""
@@ -225,7 +225,7 @@ def test_the_shift_answer_lands_its_rows_through_the_same_builder(db):
         ("calculate_tip", "park", "keypress", "later")], rows
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_view_supersedes_outdates_and_confirms(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)

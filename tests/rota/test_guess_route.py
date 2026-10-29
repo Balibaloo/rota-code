@@ -214,7 +214,7 @@ def test_the_cue_does_not_read_a_request_correction_as_files():
 # The wall: s322 on m192, bg_3 stamped on the code line
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
     """The reading the refusal asks for lands. bg_3 has a head commit, so the
     code line keeps frame 255's check, and the cue holds it. The item keeps
@@ -231,7 +231,7 @@ def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
                       ).fetchone()["status"] == "running"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_verdict_on_bg_3_relays_to_annotate(db):
     _page(db, stamp={KEY: {"batch": "bg_3"}})
     vid = _land_ruling(db, M192, S322_MOVED)
@@ -250,7 +250,7 @@ def test_the_verdict_on_bg_3_relays_to_annotate(db):
 # No batch: the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_request_correction_still_lands_on_line_1(db):
     """The cue refuses no (b) reply: 43 of 43 in-sample."""
     _page(db, batch=None, guess=True)
@@ -267,7 +267,7 @@ def _guess_verdict(db) -> str:
     return _land_ruling(db, M192, S322_MOVED)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     vid = _guess_verdict(db)
     assert _verdict(db, vid).get(KEY) == "contest"
@@ -279,7 +279,7 @@ def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     assert cancel(db) == []
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_an_off_page_key_lands_with_no_stamp(db):
     """A page sent before the guess carries no stamp. The key's target is
     then the current guess (design 3.1, point 5)."""
@@ -301,14 +301,14 @@ def _relay(db, vid: str) -> str:
                       "AND to_role = 'architect'", (vid,)).fetchone()["id"]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
     rid = _relay(db, _guess_verdict(db))
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     assert _mode_key(wake, db) == "guess"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("key_ruling, disputed", [
     ({"verdict": "contest", "act": "exclude", "target": "tests/test_options.py",
       # A span is a run of whole clauses of his reply (review p7 p1, 3).
@@ -334,7 +334,7 @@ def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
     assert inbound["guess"] == [p for p in shown if p not in disputed]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):
     vid = _guess_verdict(db)
     rid = _relay(db, vid)
@@ -366,7 +366,7 @@ def test_the_ref_door_resolves_a_request_items_key_only(db):
 # The op's review lows
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_send_door_refuses_a_relay_of_a_key_that_names_no_item(db):
     vid = _guess_verdict(db)
     (wake,) = [w for w in open_tips(db) if w.message_id == vid]

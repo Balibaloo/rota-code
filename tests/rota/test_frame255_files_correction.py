@@ -137,7 +137,7 @@ def test_the_page_numbers_bg_2_as_line_8(m91):
     assert order == [ITEM] + [c for c, _ in CRITERIA] + ["bg_2"]
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_m92s_files_correction_lands_as_a_contest_of_bg_2(m91):
     """s199 on m92. The door refused line 8 three times, and the reply
     landed no ruling row (frame 255)."""
@@ -147,7 +147,7 @@ def test_m92s_files_correction_lands_as_a_contest_of_bg_2(m91):
     assert out["per_item"][ITEM] == "approve"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_land_keeps_bg_2_and_the_relay_reaches_the_architect(m91):
     """The row `rulings_rule` admits stays in the verdict after the head
     commit, and the relay takes bg_2 to the Architect (frame 255's scope,

@@ -1917,7 +1917,7 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
         assert word not in first
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
     """The replay of s336's end: one refused call three times, the repeat
     door, a barren commit. The first run keeps the reply open, and the

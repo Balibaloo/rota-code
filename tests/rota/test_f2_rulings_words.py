@@ -86,7 +86,7 @@ def _folded(rulings: dict, acts: dict) -> dict:
                           for k, v in acts.items()}}
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s271s_call_lands_on_his_reply(night):
     """s271 call 1 on m127 with m129: the words sit in the act only."""
     ctx = night("m129", LATE[2:])
@@ -98,7 +98,7 @@ def test_s271s_call_lands_on_his_reply(night):
     assert row["words"] == S271_SPAN
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s275s_call_lands_on_his_reply(night):
     """s275 call 1 on m130 with m132: drops and a rewrite, no `words`."""
     ctx = night("m132", ["m132"])
@@ -129,7 +129,7 @@ W129 = ("Fix the change instead of giving up by putting back the two removed "
         "right, and all the other lines are fine.")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s271s_call_with_its_nested_words_as_words_lands(night):
     """s271's span sat in the act only. It is m129's first sentence, so the
     same call with that span as `words` is a part of his reply and lands."""
@@ -143,7 +143,7 @@ def test_s271s_call_with_its_nested_words_as_words_lands(night):
     assert row["words"] == S271_SPAN
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_line_objects_words_from_his_reply_land_on_the_row(night):
     ctx = night("m129", LATE[2:])
     api.rulings_rule(ctx, rulings={
@@ -196,7 +196,7 @@ def test_the_refusal_quotes_the_failed_sentence_and_his_nearest():
         "docstring changes and the code stays the same.'")
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s258s_call_with_line_4_approved_lands(night):
     ctx = night("m121", LATE)
     api.rulings_rule(ctx, rulings={**R8, "12": "contest"}, words=W121)

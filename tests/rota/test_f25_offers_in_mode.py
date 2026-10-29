@@ -96,7 +96,7 @@ def _run(case: dict, seat, tmp_path):
 DROP_WORDS = "please drop line 3, the rest is fine"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_offer_of_stray_fields_carries_every_line_of_the_page(tmp_path):
     """L1-LI-a-dropped-line-is-a-contest: the seat sent line 3 alone with
     the act's fields beside it. The offer moved the fields into line 3 and
@@ -121,7 +121,7 @@ def test_the_offer_of_stray_fields_carries_every_line_of_the_page(tmp_path):
     assert r.passed, r.problems
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
     """Law 6: only his words choose a verdict. His reply faults line 2, and
     the seat left line 2 out. The refusal names line 2 and offers no call,

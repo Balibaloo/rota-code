@@ -79,20 +79,20 @@ def _rule6(db, earlier, words=M78, rulings=S193):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s193s_contest_of_line_5_lands_on_m76_in_the_exchange(db):
     out = _rule6(db, [M76])
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_later_fault_after_an_earlier_match_lands_the_contest(db):
     out = _rule6(db, ["Line 5 is fine. What is the ticket on line 6?",
                       "Line 5 is wrong after all."])
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     """The seam design, pass 2: the row on line 5 records m76 as the source
     of its words, and the row on line 6 keeps the reply m78."""

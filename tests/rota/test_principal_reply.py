@@ -216,7 +216,7 @@ def _prompt_tokens(system: str, user: str) -> int:
     return int((len(system) + len(user)) / 3.97)
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_landing_wake_for_a_77_line_present_fits_the_window(db):
     """
     The wall of night 85 (2026-09-18). The landing wake for a 77-line present
@@ -311,7 +311,7 @@ def _landing(db, ask, text):
     return sb, msg
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     from rota.roles.principal import apply_rulings
 
@@ -351,7 +351,7 @@ def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     assert apply_rulings(db) == []
 
 
-@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_ruling_door_holds_the_page(db):
     ask = _present(db)
     sb, _ = _landing(db, ask, "fine")
