@@ -16806,6 +16806,28 @@ def _note_files(ctx, batch_id: str, diff_text: str
 # section 4). Each route names a fact that the door checks: a context line
 # of the diff, or a passing test of the criterion.
 _ROUTE_WORDS = ("kept", "test")
+# A kept line of these characters alone closes a bracket and does nothing.
+_BRACKETS_ONLY = "()[]{},;: "
+
+
+def _code_context(ctx, batch_id: str, diff_text: str) -> set[str]:
+    """The stripped context lines of the diff's code files. A line of a file
+    with no code is no evidence, as on the added side (frame 306)."""
+    row = ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                           (batch_id,)).fetchone()
+    tree = row["worktree"] if row else None
+    out: set[str] = set()
+    code = False
+    for ln in diff_text.splitlines():
+        if ln.startswith("+++ "):
+            name = ln[4:].rstrip()
+            rel = name[2:] if name.startswith("b/") else name
+            code = name != "/dev/null" and _holds_code(ctx, tree, rel)
+        elif ln.startswith(("---", "@@", "diff ")):
+            continue
+        elif code and ln.startswith(" "):
+            out.add(ln[1:].strip())
+    return out
 
 
 def _route_of(parts: list[str] | None) -> str | None:
@@ -16851,8 +16873,8 @@ def _route_fault(ctx, batch_id: str, cid: str, route: str,
     """Why a `kept:` or `test:` value does not hold, or "" when it holds.
 
     The door checks a fact, never the seat's words. A kept line is a context
-    line of the diff with behaviour. A test is a test of the batch, bound to
-    the criterion, live, and its last run in the batch passed.
+    line of a code file in the diff, with behaviour. A test is a test of the
+    batch, bound to the criterion, live, and passed at the batch's head.
     """
     value = _route_value(parts)
     if not value or len(parts) > 1:
@@ -16861,17 +16883,27 @@ def _route_fault(ctx, batch_id: str, cid: str, route: str,
                 f"{'s' if len(parts) > 1 else ''} after `{route}:`, and a "
                 f"{route} value names one.")
     if route == "kept":
-        if _line_held(value, [a for a, _ in kept]):
-            kinds = _held_kinds(value, kept)
-            if kinds and all(kinds):
+        # One whole context line of a code file, never a fragment or a line
+        # of prose (frame 344, review 1, finding 1).
+        if value in {a for a, _ in kept}:
+            kinds = [k for a, k in kept if a == value]
+            if all(kinds):
                 return (f"the kept line for {cid}, {value!r}, is {kinds[0]}. "
                         f"{_why_refused(cid, kinds[0])}")
+            if value.startswith(_HEADER_STARTS):
+                return (f"the kept line for {cid}, {value!r}, is a header. A "
+                        f"header names a function or a class, and it does "
+                        f"nothing that a criterion asks for.")
+            if not value.strip(_BRACKETS_ONLY):
+                return (f"the kept line for {cid}, {value!r}, holds only "
+                        f"brackets, and it does nothing that a criterion "
+                        f"asks for.")
             return ""
-        if _line_held(value, added):
+        if value in added:
             return (f"the kept line for {cid}, {value!r}, is an added line "
                     f"of the diff. Send it without `kept:`.")
-        return (f"the kept line for {cid}, {value!r}, is not a context line "
-                f"of the diff of batch {batch_id}.")
+        return (f"the kept line for {cid}, {value!r}, is not a whole context "
+                f"line of a code file in the diff of batch {batch_id}.")
     own = [r["id"] for r in ctx.conn.execute(
         "SELECT id FROM tests WHERE batch_id = ? AND criterion_id = ? "
         "AND retired_by IS NULL ORDER BY id", (batch_id, cid))]
@@ -16889,10 +16921,11 @@ def _route_fault(ctx, batch_id: str, cid: str, route: str,
     run = ctx.conn.execute(
         "SELECT result, commit_sha FROM latest_runs WHERE batch_id = ? AND "
         "test_id = ?", (batch_id, value)).fetchone()
-    # The last run of the batch counts, as the brief rules. The review tick
-    # fires only when every run at the head passed, so no head check is added.
-    if run is None:
-        return f"the test {value} has no run in batch {batch_id}."
+    # A pass at an older commit says nothing of the head (frame 344, review
+    # 1, finding 4).
+    head = _head_commit(ctx, batch_id)
+    if run is None or run["commit_sha"] != head:
+        return f"the test {value} has no run at the head of batch {batch_id}."
     if run["result"] != "pass":
         return f"the last run of the test {value} gave {run['result']}, not pass."
     return ""
@@ -16967,6 +17000,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
     diff_text = _batch_diff(ctx, batch_id, function_context=True)
     kept: list[tuple[str, str | None]] = []
     kinds, runs = _added_walk(diff_text, kept)
+    # The kept route reads whole context lines of code files only (frame
+    # 344, review 1, finding 1).
+    code_ctx = _code_context(ctx, batch_id, diff_text)
+    kept = [(a, k) for a, k in kept if a in code_ctx]
     # Frame 306's case, night 162: s247 passed b_2 on six lines of a file
     # of criteria rows. A line of a file with no code is no evidence.
     notes, code_added = _note_files(ctx, batch_id, diff_text)
@@ -17063,7 +17100,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                 f"one criterion only, because a unit named for every "
                 f"criterion names nothing. Copy for {cid} the added line or "
                 f"the unit that meets it, without the +, and send the pass "
-                f"again. {listed}{_fail_tail(cid, claim_for(cid))}")
+                f"again. {listed}If no added line meets {cid}, that is a fail on it: {claim_for(cid)}")
         # The refusal names the statement form first, and both shapes of a
         # value of several lines (review 1, low 6). The one line comes
         # after it, because no one line meets a criterion of several cases.
@@ -17092,7 +17129,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                 f"documentation. Copy "
                 f"the one added line of code that does what {cid} says, "
                 f"without the +, and send the pass again. {listed}"
-                f"{_fail_tail(cid, claim_for(cid))}")
+                f"If no added line meets {cid}, that is a fail on it: {claim_for(cid)}")
         # The seat's own code lines come first, because the right line is
         # among them, and the capped list of the diff can omit all of them
         # (frame 201's review 1, finding 2, probe e1).
@@ -17131,7 +17168,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
             f"criterion only. Send it whole, as one text with line breaks or "
             f"as a list of lines. Otherwise copy a line of the [diff] block "
             f"that meets {cid}, without the +, and send the pass again. "
-            f"{form}{sent}{listed}{_fail_tail(cid, claim_for(cid))}")
+            f"{form}{sent}{listed}If no added line meets {cid}, that is a fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())
     added = added_texts
     for cid in plain:
@@ -17149,7 +17186,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                         f"or by a test, not by a note. Copy the added line of "
                         f"code or of a test that does what {cid} says, without "
                         f"the +, and send the pass again. {listed}"
-                        f"{_fail_tail(cid, claim_for(cid))}")
+                        f"If no added line meets {cid}, that is a fail on it: {claim_for(cid)}")
                 continue
             # Name the set, do not merely reject the guess.
             best, ratio = "", 0.0
@@ -17170,11 +17207,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                     f"the line for {cid}, {quote!r}: that is the criterion's "
                     f"text, not a line of the diff. Copy the added line that "
                     f"does what {cid} says, without the +, and send the pass "
-                    f"again. {listed}{_fail_tail(cid, claim)}")
+                    f"again. {listed}If no added line meets {cid}, that is a fail on it: {claim}")
             nearest = nearest or listed
             # A kept line sent bare is the kept route without its prefix.
             # The door says so from the diff, a fact (sprint 35 row 4).
-            if _line_held(quote, [a for a, _ in kept]):
+            if _stripped(quote) in {a for a, _ in kept}:
                 nearest = (f"{quote!r} is a context line of the diff, a line "
                            f"that the change keeps. {nearest}")
             raise LinesRefusal(
@@ -17196,7 +17233,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                 f"the line for {cid}, {quote!r}, is {kind}. "
                 f"{_why_refused(cid, kind)} Copy the added line that does "
                 f"what {cid} says, without the +, and send the pass again. "
-                f"{listed}{_fail_tail(cid, claim_for(cid))}")
+                f"{listed}If no added line meets {cid}, that is a fail on it: {claim_for(cid)}")
     return routes
 
 

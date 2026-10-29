@@ -327,7 +327,10 @@ def test_a_block_for_every_criterion_is_refused(s279):
     assert said == (
         _block_head(CR1, 4) + _s279_sent(L_FLAG, L_VERSION,
                                                         L_MESSAGE)
-        + _S279_CODE + _fail_tail(CR1))
+        + _S279_CODE + "If no added line "
+        "meets cr_1_version_option_show_python_flag, that is a fail on it: "
+        "`verdicts.claim_encodes('cr_1_version_option_show_python_flag', "
+        "encodes=...)` first, as for any fail")
 
 
 def test_a_value_of_two_lines_lands(s279):
@@ -346,7 +349,10 @@ def test_a_value_of_three_lines_is_refused(s279):
     # Frame 201: a comment among code lines keeps the block sentence.
     assert said == (
         _block_head(CR3, 3) +
-        f"{_s279_sent(L_VERSION, L_FLAG)}{_S279_CODE}{_fail_tail(CR3)}")
+        f"{_s279_sent(L_VERSION, L_FLAG)}{_S279_CODE}If no "
+        f"added line meets {CR3}, that is a fail on it: "
+        f"`verdicts.claim_encodes({CR3!r}, encodes=...)` first, as for any "
+        f"fail")
 
 
 def test_an_empty_line_is_no_line(s279):
@@ -588,8 +594,10 @@ def _no_behaviour(cid, quote, kind, code=()) -> str:
     return (
         f"the line for {cid}, {quote!r}, is {kind}. {why} "
         f"Copy the added line that does what "
-        f"{cid} says, without the +, and send the pass again. {listed}"
-        f"{_fail_tail(cid)}")
+        f"{cid} says, without the +, and send the pass again. {listed}If no "
+        f"added line meets {cid}, that is a fail on it: "
+        f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for any "
+        f"fail")
 
 
 def _repo_of(tmp_path, rel, before: str, after: str) -> tuple[str, str]:
@@ -887,7 +895,10 @@ def test_a_quoted_criterion_is_named_as_the_criterion_text(tmp_path):
         "the criterion's text, not a line of the diff. Copy the added line "
         "that does what c_78356e says, without the +, and send the pass "
         "again. The added lines of code are "
-        + ", ".join(repr(c) for c in code) + ". " + _fail_tail("c_78356e"))
+        + ", ".join(repr(c) for c in code) + ". If no added line meets "
+        "c_78356e, that is a fail on it: "
+        "`verdicts.claim_encodes('c_78356e', encodes=...)` first, as for any "
+        "fail")
     # The criterion's text is named before the fail route (frame 180, pass 4).
     assert said.index("the criterion's text") < said.index("claim_encodes")
 
@@ -932,7 +943,7 @@ def test_the_block_refusal_lists_eight_code_lines(tmp_path):
     said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": block})
     assert said.startswith("the value for cr_1 holds 3 lines")
-    assert "'value_7 = compute(7)', and 1 more. If the change keeps" in said
+    assert "'value_7 = compute(7)', and 1 more. If no added line" in said
     assert "value_8" not in said
 
 
@@ -1000,7 +1011,9 @@ def bg2(tmp_path):
 
 
 def _bg2_fail_route(cid) -> str:
-    return _fail_tail(cid)
+    return (f"If no added line meets {cid}, that is a fail on it: "
+            f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for "
+            f"any fail")
 
 
 def test_s324_docstring_block_names_the_code_lines(bg2):
@@ -1184,7 +1197,9 @@ def test_the_block_text_names_the_held_code_lines_first(tmp_path):
         "hold these added lines: 'value_10 = compute(10)', 'value_20 = "
         "compute(20)', 'value_30 = compute(30)'. Copy the line among them "
         "that does what the criterion says. The added "
-        f"lines of code are {shown}, and 32 more. " + _fail_tail("cr_1"))
+        f"lines of code are {shown}, and 32 more. If no added line meets "
+        "cr_1, that is a fail on it: `verdicts.claim_encodes('cr_1', "
+        "encodes=...)` first, as for any fail")
 
 
 # Frame 201, pass 2b: review 2. The walk's diff opens each hunk at a `def`

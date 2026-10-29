@@ -466,11 +466,20 @@ def _review_pending_line(conn: sqlite3.Connection, batch_id: str) -> str:
     if not head or not head["head_commit"]:
         return ""
     sha = head["head_commit"]
-    runs = [r["result"] for r in conn.execute(
-        "SELECT result FROM latest_runs WHERE batch_id = ? AND commit_sha = ?",
-        (batch_id, sha))]
-    if not runs or any(r != "pass" for r in runs):
+    # Every live test counts. A test whose last run is red at an older
+    # commit has no run at the head, and the line must not fire then
+    # (frame 344, review 1, finding 2). The harness's set is the live set.
+    from .harness import live_tests_for
+
+    tests = live_tests_for(conn, batch_id)
+    if not tests:
         return ""
+    for t in tests:
+        run = conn.execute(
+            "SELECT result, commit_sha FROM latest_runs WHERE batch_id = ? "
+            "AND test_id = ?", (batch_id, t["id"])).fetchone()
+        if run is None or run["commit_sha"] != sha or run["result"] != "pass":
+            return ""
     if conn.execute("SELECT 1 FROM verdicts WHERE batch_id = ? AND "
                     "commit_sha = ?", (batch_id, sha)).fetchone():
         return ""

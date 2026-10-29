@@ -190,7 +190,7 @@
          text: "The message sent by send() remains exactly the same; only the return value changes behavior",
          term_refs: '[]'}
     batches:
-      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: HEAD}
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
@@ -199,13 +199,17 @@
       - {id: <tst3>, batch_id: <b1>, criterion_id: <c3>, path: test_send.py,
          body: "assert sent_messages() == [msg]"}
     test_runs:
-      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
-      - {id: <r3>, batch_id: <b1>, test_id: <tst3>, commit_sha: abc123, result: pass}
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: HEAD, result: pass}
+      - {id: <r3>, batch_id: <b1>, test_id: <tst3>, commit_sha: HEAD, result: pass}
   expect:
-    # The pass lands through the kept route for <c3>. The verdict row's
-    # `routes` holds "kept". A fail on <c3> is the night's wrong verdict.
-    writes:
-      verdicts: {count: 1, text_includes: ['"result": "pass"', 'kept']}
+    # The pass lands through the kept route or the test route for <c3>.
+    # Both are right, because <tst3> binds <c3> and passed (frame 344,
+    # review 1, finding 3). A fail on <c3> is the night's wrong verdict.
+    any_of:
+      - writes:
+          verdicts: {count: 1, text_includes: ['"result": "pass"', 'kept:']}
+      - writes:
+          verdicts: {count: 1, text_includes: ['"result": "pass"', 'test:']}
   forbidden:
     writes: [criteria, tests, items]
     recipients: [vision_keeper, architect, liaison]

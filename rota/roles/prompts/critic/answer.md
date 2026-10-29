@@ -21,7 +21,8 @@ the answer in hand, then finish the review the way any review ends:
    criterion, its id and the added line of the diff that meets it, copied
    without the `+`. When the lines of one statement, or of one docstring run
    for a documentation criterion, meet it, copy them as a list, each without
-   the `+`.
+   the `+`. A criterion whose behaviour the change keeps takes `kept: <a line
+   of the diff that starts with a space>` or `test: <its passing test id>`.
 
 A second challenge on the same test is the same argument again and is refused.
 If the Tester fixed the test instead of defending it, the new test is in

@@ -33,18 +33,26 @@ C3 = "c_3_clear_prints_same"
 _BEFORE = (
     "def clear():\n"
     "    # Clear the terminal screen.\n"
+    "    codes = {\n"
+    "        \"clear\": \"CLEAR\",\n"
+    "    }\n"
     "    if not isatty():\n"
     "        return\n"
     "    echo(\"CLEAR\", nl=False)\n"
 )
 _AFTER = (
-    "def clear() -> bool:\n"
+    "def clear():\n"
     "    # Clear the terminal screen.\n"
+    "    codes = {\n"
+    "        \"clear\": \"CLEAR\",\n"
+    "    }\n"
     "    if not isatty():\n"
     "        return False\n"
     "    echo(\"CLEAR\", nl=False)\n"
     "    return True\n"
 )
+README_BEFORE = "# Term\n\nThe clear function wipes the screen.\n"
+README_AFTER = README_BEFORE + "It returns True when it clears.\n"
 KEPT = 'echo("CLEAR", nl=False)'
 
 
@@ -61,9 +69,11 @@ def db(tmp_path):
     repo.mkdir()
     _git(repo, "init", "-q")
     (repo / "termui.py").write_bytes(_BEFORE.encode())
+    (repo / "README.md").write_bytes(README_BEFORE.encode())
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "base")
     (repo / "termui.py").write_bytes(_AFTER.encode())
+    (repo / "README.md").write_bytes(README_AFTER.encode())
     _git(repo, "commit", "-q", "-am", "the batch")
     head = _git(repo, "rev-parse", "HEAD").strip()
     conn = init_db(tmp_path / "rota.db")
@@ -139,8 +149,8 @@ def test_a_kept_line_that_is_no_context_line_is_refused(db):
     said = _refused(_critic(db), {C1: "return True",
                                   C3: 'kept: echo("CLEAR")'})
     assert said.startswith(
-        f"the kept line for {C3}, 'echo(\"CLEAR\")', is not a context line "
-        f"of the diff of batch bg_2.")
+        f"the kept line for {C3}, 'echo(\"CLEAR\")', is not a whole context "
+        f"line of a code file in the diff of batch bg_2.")
     _forms_named(said)
 
 
@@ -157,6 +167,28 @@ def test_a_kept_comment_is_refused(db):
                                   C3: "kept: # Clear the terminal screen."})
     assert "is a comment. A docstring or comment line counts only" in said
     _forms_named(said)
+
+
+@pytest.mark.parametrize("value,said", [
+    ("def clear():", "is a header."),
+    ("}", "holds only brackets"),
+    ("nl=False)", "is not a whole context line"),
+    ("The clear function wipes the screen.", "is not a whole context line"),
+], ids=["header", "brace", "fragment", "prose"])
+def test_a_kept_line_with_no_behaviour_of_its_own_is_refused(db, value, said):
+    """Frame 344, review 1, finding 1: a header, a bracket, a part of a line
+    and a line of a file with no code are no kept behaviour."""
+    got = _refused(_critic(db), {C1: "return True", C3: f"kept: {value}"})
+    assert said in got
+    _forms_named(got)
+
+
+def test_a_test_that_passed_at_an_older_commit_is_refused(db):
+    """Frame 344, review 1, finding 4: the pass must be at the head."""
+    db.execute("UPDATE batches SET head_commit = 'newer'")
+    said = _refused(_critic(db), {C1: "return True", C3: "test: tst_c3"})
+    assert said.startswith("the test tst_c3 has no run at the head of batch "
+                           "bg_2.")
 
 
 def test_a_passing_bound_test_lands_with_no_hold_on_it(db):
@@ -221,6 +253,15 @@ def test_no_exhaust_line_when_a_test_fails(db):
     db.commit()
     assert _review_pending_line(db, "bg_2") == ""
     assert EXHAUST not in _exhausted_prompt(db)
+
+
+def test_no_exhaust_line_when_a_test_is_red_at_an_older_commit(db):
+    """Frame 344, review 1, finding 2: tst_c3 last failed at an older
+    commit and has no run at the head."""
+    db.execute("DELETE FROM test_runs WHERE test_id = 'tst_c3'")
+    _run(db, "tst_c3", "fail", "older")
+    db.commit()
+    assert _review_pending_line(db, "bg_2") == ""
 
 
 def test_no_exhaust_line_when_a_verdict_exists(db):
