@@ -4846,11 +4846,7 @@
     cause: <m102>
     body_text: 'Drop both of those examples, because I asked for only one example in the docstring: with
       shorten set to True, the path a/b/c.txt shows as c.txt.'
-  page:
-    header: I need one thing from you before I can continue.
-    lines:
-    - not numbered on the page; the wake's ref 1
-    - not numbered on the page; the wake's ref 2
+  page: {}
   fixture:
     items:
     - id: item_of_page
@@ -4881,9 +4877,10 @@
       verb: clarify
       body_refs: '["c_2_format_filename_example", "c_3_format_filename_example"]'
       seq: 2
-    config:
-    - key: order:<m103>
-      value: '["c_2_format_filename_example", "c_3_format_filename_example"]'
+      body_text: The docstring for format_filename must include an example showing that when shorten=False,
+        the path a/b/c.txt is displayed as a/b/c.txt. The docstring for format_filename must include an
+        example showing that when shorten=True, a long path like /very/long/path/to/a/b/c.txt is displayed
+        as c.txt.
   expect:
     writes:
       rulings:
@@ -4898,6 +4895,15 @@
         verdict: contest
         act: drop
         target_kind: row
+  expect_refs:
+    c_2_format_filename_example:
+      verdict: contest
+      act: drop
+      target_kind: row
+    c_3_format_filename_example:
+      verdict: contest
+      act: drop
+      target_kind: row
   forbidden: {}
 
 # judge.expect: 1-6 approve; 7-8 contest, act drop, row, words 'remove lines 7 and 8 and finish with line 2 alone'; 9 approve; 10-11 approve

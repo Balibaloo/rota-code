@@ -1626,9 +1626,15 @@ def _page_as_seen(case: dict):
     text = "\n".join([case["page"].get("header") or ""]
                      + [f"  {n}. {line}" for n, line in enumerate(lines, 1)])
 
+    reply_id = (case.get("inbound") or {}).get("id")
+
     def seen(conn, verb, refs, question=None, **kw):
         page, order = real(conn, verb, refs, question, **kw)
-        return (text, order) if kw.get("ask_id") == ask_id else (page, order)
+        if kw.get("ask_id") != ask_id:
+            return page, order
+        # The seeded order, because a fresh render orders the rows its own
+        # way, and 12 of 24 cases differ (the review of 5b525a72, low 3).
+        return text, principal.door_rows(conn, reply_id, "order") or order
 
     return mock.patch.object(principal, "render_page", seen)
 
