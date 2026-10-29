@@ -82,7 +82,9 @@ def _cases() -> list[dict]:
     out = []
     for path in sorted(CASES.glob("l*.yaml")):
         out.extend(c for c in (fixtures.load_case(path) or [])
-                   if not c.get("first"))     # chains are L3's, in test_l3.py
+                   if not c.get("first")      # chains are L3's, in test_l3.py
+                   # The night pages run in test_l3_rulings.py (frame 345).
+                   and c.get("tier") != "l3_rulings")
     # Same-model cases stay contiguous: each alternation of the
     # bar model is a full weight reload on a GPU that fits one.
     out.sort(key=lambda c: c.get("model", ""))

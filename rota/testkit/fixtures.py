@@ -1597,7 +1597,52 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
 
     if case.get("replies"):
         backend = _Replied(_replies_of(case), backend)
-    outcome = run_session(conn, wake, backend=backend, pins=pins,
+    with _page_as_seen(case):
+        outcome = _run_session(conn, wake, backend, pins, instructions, case)
+    return _case_result(case, conn, db_path, backend, outcome, wake, before,
+                        seeded, repo, run_no)
+
+
+def _page_as_seen(case: dict):
+    """
+    The page of a case with `page.lines`, as the principal saw it.
+
+    A real page from a night cannot come back from its rows: a row can move
+    after his reply, and the records keep the lines and not the section
+    heads. The case then tests the reading, not the renderer (frame 345).
+    The seat's wake and the door read the same text. The order stays the
+    record's, through `seen_order`.
+    """
+    import contextlib
+    from unittest import mock
+
+    lines = (case.get("page") or {}).get("lines")
+    if not lines:
+        return contextlib.nullcontext()
+    from ..roles import principal
+
+    real = principal.render_page
+    ask_id = (case.get("inbound") or {}).get("cause")
+    text = "\n".join([case["page"].get("header") or ""]
+                     + [f"  {n}. {line}" for n, line in enumerate(lines, 1)])
+
+    reply_id = (case.get("inbound") or {}).get("id")
+
+    def seen(conn, verb, refs, question=None, **kw):
+        page, order = real(conn, verb, refs, question, **kw)
+        if kw.get("ask_id") != ask_id:
+            return page, order
+        # The seeded order, because a fresh render orders the rows its own
+        # way, and 12 of 24 cases differ (the review of 5b525a72, low 3).
+        return text, principal.door_rows(conn, reply_id, "order") or order
+
+    return mock.patch.object(principal, "render_page", seen)
+
+
+def _run_session(conn, wake, backend, pins, instructions, case):
+    from ..core.loop import _batch_of
+
+    return run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
                           area=area_for(case, wake),
@@ -1605,6 +1650,12 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                           # mode gets the one the wake derives, which is what
                           # production would give it.
                           mode=case.get("mode"))
+
+
+def _case_result(case, conn, db_path, backend, outcome, wake, before, seeded,
+                 repo, run_no) -> CaseResult:
+    from ..core.loop import _batch_of
+
     delta = capture(conn, outcome.session_id, before, messages_before=seeded)
 
     # `runner` records a thrown-out call as f"{call.name}: {exc}", so the
