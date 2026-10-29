@@ -1917,6 +1917,46 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
         assert word not in first
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
+    """The replay of s336's end: one refused call three times, the repeat
+    door, a barren commit. The first run keeps the reply open, and the
+    second run's wake says why and returns the page (frame 267, 5.4). The
+    completion is s336's turn 1 on night 151, verbatim, on a page of twelve
+    lines as m177 had (review 1, finding 4)."""
+    for k in range(1, 13):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?,?,'in_scope','pending',0,1)",
+                   (f"i{k}", f"the change does thing {k}"))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m177','t9','liaison','principal','present',?,177,'open')",
+               (json.dumps([f"i{k}" for k in range(1, 13)]),))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_text, seq, status) VALUES "
+               "('m178','m177','t9','principal','liaison','converse',"
+               "?,178,'open')", (S336_M178,))
+    db.commit()
+    call = S336_TURN_1
+    wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")
+    shown = []
+    for _ in range(2):
+        backend = ScriptedBackend([call] * 5)
+        outcome = run_session(db, wake, backend=backend, pins=Pins(model="scripted"))
+        assert outcome.committed, outcome.errors
+        assert outcome.errors[-1] == "repeated its previous turn verbatim twice; ended"
+        shown.append(backend.calls[0][1])
+        if len(shown) == 1:
+            assert _status(db, "m178")["status"] == "open"
+            assert _status(db, "m178")["unresolved_note"] == "rulings.rule: " + S336_REFUSAL
+    assert "ended with no ruling" not in shown[0]
+    assert ("A session on this reply ended with no ruling. Its last refusal or "
+            "error: rulings.rule: " + S336_REFUSAL) in shown[1]
+    assert _status(db, "m178")["status"] == "answered"
+    assert _status(db, "m177") == {"status": "open",
+                                   "unresolved_note": "m178: rulings.rule: " + S336_REFUSAL}
+
+
 def test_a_reply_that_stages_a_ruling_is_answered_as_before(db):
     from rota.core.db import Write
 

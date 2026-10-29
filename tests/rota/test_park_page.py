@@ -284,6 +284,28 @@ def test_the_park_page_renders_word_for_word_through_the_request_block(n132):
 
 
 @pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_names_it(n132):
+    """Night 132, s218: woken on m117, the reply to the park ask, the
+    Liaison had no line to rule and sent one sentence back (m118)."""
+    mid = _liaison_presents(n132, ITEM_132)
+    reply = _reply(n132, mid, WALK)
+    whole = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole}, words='{WALK}')")
+    assert out.committed, out.errors
+    assert n132.execute("SELECT status FROM messages WHERE id = ?",
+                        (mid,)).fetchone()["status"] == "answered"
+    (verdict,) = n132.execute("SELECT id, status FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    assert verdict["status"] == "answered", "the ceiling wakes no Liaison"
+    assert park_rests(n132, "bg_2")
+    assert P.REGISTRY["park_ask"].fn(n132) == []
+    assert [f for f in invariants.i5(n132)] == []
+    assert ("Stuck: bg_2 stops here. You approved its checks as they stand, and "
+            "4 of them still fail. A new commit on the change starts it again."
+            ) in render_state(n132)
+
+
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132):
     """Night 132, s218, the other way: line 3 is cr_2, and its contest goes
     to the criterion's writer through `verdict_signoff`."""
@@ -746,6 +768,37 @@ def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
 N121 = [(f"cr_{n}", f"criterion {n} of confirm on a closed stdin", f"tst_confirm_eof_cr{n}",
          _body(f"confirm_eof_cr{n}", 'result = confirm("Yes or no?", default_on_eof=True)',
                "result is True"), n != 2) for n in range(1, 7)]
+
+
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
+    """Night 121, s278: the Liaison sent eight approvals for a park ask with
+    no line, was refused, and asked three times."""
+    conn = init_db(tmp_path / "rota.db")
+    _night(conn, item=ITEM_133, text=ITEM_TEXT, head="fb5736cf", attempt=7, rows=N121)
+    mid = _liaison_presents(conn, ITEM_133)
+    (ask,) = pending_asks(conn)
+    assert len(ask.order) == 13
+    reply = _reply(conn, mid, WALK)
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("liaison", conn, mode="normal", session_id="s278",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = reply
+    with pytest.raises(ValueError, match="'14' is not a line of the page"):
+        sb.call("rulings.rule", rulings={str(n): "approve" for n in range(1, 15)},
+                words=WALK)
+    seven = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
+    out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={seven}, words='{WALK}')")
+    assert out.committed, out.errors
+    (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    assert verdict["status"] == "answered"
+    assert P.REGISTRY["park_ask"].fn(conn) == []
+    assert invariants.i5(conn) == []
+    assert "Stuck: bg_2 stops here. You approved its checks as they stand, and 5 of " \
+           "them still fail." in render_state(conn)
 
 
 def test_a_terminologist_relay_of_a_criterion_runs_criterion_repair(n132):

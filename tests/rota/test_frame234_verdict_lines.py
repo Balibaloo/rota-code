@@ -100,6 +100,14 @@ def test_the_quote_branch_lands(tmp_path):
 
 
 @pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_a_fault_past_the_end_of_the_page_refuses_nothing(db):
+    # Review 1, finding 7: the refusal names lines, so it needs one.
+    out = _rule_request(db, "Line 9 is wrong.",
+                        {"1": "contest", "2": "approve", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_a_fault_after_a_match_in_one_clause_lands_the_contest(db):
     words = "Line 2's text is right now, but its check still types the bill."
     out = _rule_request(db, words, {"1": "approve", "2": "contest", "3": "approve"})

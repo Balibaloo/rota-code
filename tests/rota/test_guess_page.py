@@ -249,6 +249,28 @@ M192_LINE_1 = M192[M192.index("Line 1 also"):]
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
+    _state(db, guess=True)
+    mid = _send(db, [ITEM])
+    (ask,) = [a for a in pending_asks(db) if a.message_id == mid]
+    land(db, ask, parse_reply(ask, M192_LINE_1))
+    db.commit()
+    sb = build("liaison", db, mode="landing",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = db.execute("SELECT id FROM messages WHERE cause_id = ? "
+                                "AND from_role = 'principal'", (mid,)).fetchone()["id"]
+    every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
+    with pytest.raises(ValueError, match=(
+            r"line 1 is the request, and the words fault only the code it touches\. "
+            r"That code is line 2, and the team rewrites it from the principal's "
+            r"words\. Rule line 2 contest with the words, and approve line 1\.")):
+        sb.call("rulings.rule", rulings=dict(every, **{"1": "contest"}), words=M192_LINE_1)
+    out = sb.call("rulings.rule", rulings=dict(every, **{"2": "contest"}), words=M192_LINE_1)
+    assert out["per_item"][KEY] == "contest"
+    assert out["per_item"][ITEM] == "approve"
+
+
 def _annotate_set(db):
     sb = build("architect", db, mode="annotate",
                allow=prompts.mode_tools("architect", "annotate"))

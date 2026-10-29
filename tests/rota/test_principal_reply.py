@@ -351,6 +351,29 @@ def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     assert apply_rulings(db) == []
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_the_ruling_door_holds_the_page(db):
+    ask = _present(db)
+    sb, _ = _landing(db, ask, "fine")
+    with pytest.raises(ValueError, match="not a line of the page"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                         "3": "approve", "9": "approve"})
+    with pytest.raises(ValueError, match="lines 3, 4 have no ruling"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve"})
+    with pytest.raises(ValueError, match="not a ruling"):
+        sb.call("rulings.rule", rulings={"1": "yes", "2": "approve",
+                                         "3": "approve", "4": "approve"})
+    # A call with no words reads his reply, whole (F2 pass 2). "fine"
+    # names no line, so the contest of line 2 has nothing behind it.
+    with pytest.raises(ValueError, match="The words agree with the page"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "contest",
+                                         "3": "approve", "4": "approve"})
+    # A row id names a line as well as its number does.
+    out = sb.call("rulings.rule", rulings={"s1": "approve", "calculate_tip": "approve",
+                                           "3": "approve", "l_1": "approve"})
+    assert set(out["per_item"].values()) == {"approve"}
+
+
 def test_no_open_page_means_no_ruling(db):
     from rota.core.sandbox import build
     from rota.roles import prompts

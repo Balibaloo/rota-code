@@ -458,6 +458,25 @@ def test_a_revise_on_lines_his_words_name_passes(night):
 
 
 @pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
+    """No words of m55 name line 1, and his words name other lines. A revise
+    of line 1 is refused once, and the same call then lands."""
+    ctx = night(174, "m55", merged=False)
+    assert api.line_words(principal_said(ctx), 9)[1] is None
+    ctx.refusals = []
+    call = {**M55_RULINGS, "1": "revise"}
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings=dict(call))
+    assert str(e.value) == (
+        "line 1: no words of his name line 1. Rule the lines his words name, "
+        "and approve or leave out line 1")
+    ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))
+    api.rulings_rule(ctx, rulings=dict(call))
+    assert any(r["line"] == 1 and r["verdict"] == "revise"
+               for r in _rows(ctx).values())
+
+
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
 def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
     """n173-m90-m91: "The other lines are fine" names line 23, the read-back
     line. The door refused its approve 21 times at 1eb5c557."""

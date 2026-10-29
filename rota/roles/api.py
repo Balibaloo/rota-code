@@ -14287,13 +14287,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the clause gives the words, so a `words` field of the seat is not read
     # (pass R1b). A shift page and a clarify keep their own forms below.
     if not is_clarify and not shift:
-        if isinstance(rulings, dict) and rulings:
+        if (order or refs) and isinstance(rulings, dict) and rulings:
             return _menu_page(ctx, ask, rulings, his, order or refs, keys,
                               page_text)
         # An empty ruling of a page with no numbered line acknowledges the
-        # page below. Any other empty or non-map ruling is no menu call
-        # (review p9, outside the points).
-        if not (isinstance(rulings, dict)
+        # page below. Any other ruling is no menu call, a map on a page with
+        # no line and no ref included (review p9, outside the points; review
+        # p10, finding 2).
+        if not (isinstance(rulings, dict) and not rulings
                 and (not row_order or batches_only)):
             raise ValueError(menu_form_text(len(page_clauses(
                 his, len(order or refs)))))

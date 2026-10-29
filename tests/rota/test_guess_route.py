@@ -366,6 +366,19 @@ def test_the_ref_door_resolves_a_request_items_key_only(db):
 # The op's review lows
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_the_send_door_refuses_a_relay_of_a_key_that_names_no_item(db):
+    vid = _guess_verdict(db)
+    (wake,) = [w for w in open_tips(db) if w.message_id == vid]
+    out = run_session(db, wake, backend=ScriptedBackend(
+        ['TOOL: msg.relay_architect(refs=["guess:nothing_here"])', "done"]),
+        pins=PINS, instructions="relay")
+    assert any("'guess:nothing_here' names no row" in e for e in out.errors)
+    relayed = [json.loads(r["body_refs"]) for r in db.execute(
+        "SELECT body_refs FROM messages WHERE cause_id = ? AND verb = 'relay'", (vid,))]
+    assert not any("guess:nothing_here" in r for r in relayed), relayed
+
+
 def test_the_op_names_the_woken_item_for_an_unknown_id(db):
     _page(db, batch=None)
     sb = build("architect", db, mode="guess", session_id="s1",

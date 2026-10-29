@@ -227,6 +227,31 @@ ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
             "each; I am not reading those. approve 1 only.")
 
 
+@pytest.mark.skip(reason="frame 345 R2: word form, re-pin on the menu form")
+def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
+    """Finding 2: a one-word drop on a line that shows "no words" lands
+    with his whole reply as its words. The span check refused it before,
+    and the one word has no place for words. "on line 3" is no subject of
+    its clause, so the match names no words for line 3. Pass 2c refuses the
+    drop once with the sentence of the match, and the repeat lands."""
+    his = "Line 1 is right. Nobody needs the note on line 3, so drop it."
+    ask = _page(db)
+    sb, reply = _seat(db, ask, words=his)
+    assert api.line_words(his, 3)[3] is None
+    call = {"1": "approve", "2": "approve", "3": "drop"}
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings=dict(call))
+    assert str(e.value) == (
+        "line 3: no words of his name line 3. Rule the lines his words name, "
+        "and approve or leave out line 3")
+    sb.call("rulings.rule", rulings=dict(call))
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    row = rows["l_1"]
+    assert (row["verdict"], row["act"], row["target_kind"]) == (
+        "contest", "drop", "row")
+    assert row["words"] == his
+
+
 @pytest.mark.parametrize("his, named", [
     (ONE_LINE, {1, 2, 3}),
     ("1 is fine, 2 and 3 are wrong", {1, 2, 3}),
