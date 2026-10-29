@@ -35,7 +35,13 @@ counts of W14 are out.
    (n175-m102-m103, m116-m118, m136-m138) land a retire. Landed at
    346b266c, 2026-10-29 05:19: the runner checks the retire on each run.
 4. The rows of 00:50 that stay: the account page with no request (old row
-   3), the Critic's review loop (old 4), `criteria.json` in clickI (old 5),
+   3), the Critic's review loop (old 4, read 2026-10-29 05:3x,
+   `plans/critic-loop-read-2026-10-29.md`: looped on nights 171, 174 and
+   175; cause, `_pass_lines_check` and `review.md` admit an added line or a
+   fail only, so a criterion met by a kept line or a passing test loops,
+   and `_why_refused` refuses the comment that says so; the build is a
+   route for that state plus an exhaust that tells the Developer the tests
+   pass, 2 cycles, after the seam pass lands), `criteria.json` in clickI (old 5),
    W5 closed by dfc16500, read 2026-10-29 05:3x, `plans/w5-read-2026-10-29.md`:
    one reader `kind_of` serves both doors, 0 on nights 170 to 175 (old 6);
    frame 324 closed 2026-10-29 05:22 under its residue rule. No night runs for them; each is
