@@ -11578,6 +11578,9 @@ RULING_WORDS: dict[str, str | None] = {
     "approve": "approve", "contest": "contest", "revise": "revise",
     "drop": "contest", "remove": "contest", "strike": "contest",
     "resume": "resume",
+    # The seat gave `keep` on approve words in 18 of 18 Gemma runs, so
+    # keep approves the line (frame 345, pass 5, the seam read of his words).
+    "keep": "approve",
     "ask": None, "unclear": None, "question": None,
 }
 
@@ -11601,11 +11604,13 @@ SHIFT_WORDS: dict[str, str | None] = {
 WORD_ACTS: dict[str, tuple[str, str]] = {
     "drop": ("contest", "drop"), "remove": ("contest", "remove"),
     "rewrite": ("contest", "rewrite"), "exclude": ("contest", "exclude"),
-    "keep": ("revise", "keep"), "add": ("approve", "add"),
+    "add": ("approve", "add"),
 }
 # The target kind of an act word on a page line. An add names no target.
+# The word `keep` is no act word since pass 5. A keep of a check still
+# comes in the long form, with its act and target kind.
 _WORD_KINDS = {"drop": "row", "rewrite": "row", "remove": "row",
-               "exclude": "path", "keep": "check"}
+               "exclude": "path"}
 _PATH_SHAPE = re.compile(r"[\w.-]*/[\w./-]*\w|[\w.-]+\.py\b")
 
 

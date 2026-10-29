@@ -11,15 +11,14 @@ A long page carries `rows_not_shown` instead of `line_rows`, and then
 `rulings.line` reads the row behind one line.
 
 Give each line one word:
-- `approve`: the words agree with the line or approve the whole page. Words that say the line reads the answer right, or keep it as it is, approve it. "Lines 1 to 4 are fine" approves lines 1 to 4. "Line 4 reads my last answer correctly" and "keep lines 2 to 6 as they are" approve those lines.
+- `approve`: the words agree with the line or approve the whole page. Words that say the line reads the answer right, or keep it as it is, approve it. "Lines 1 to 4 are fine" approves lines 1 to 4. "Line 4 reads my last answer correctly", "keep line 4" and "keep lines 2 to 6 as they are" approve those lines.
 - `contest`: the words say the line is wrong and ask for no change below. "Line 6 misreads me" contests line 6.
-- `revise`: the line is right in substance and needs other words. "Line 7 is slightly off, because I approved two lines, lines 1 and 4, not one" revises line 7.
+- `revise`: the line is right in substance and needs other words. "Line 7 is slightly off, because I approved two lines, lines 1 and 4, not one" revises line 7. Words that say the line is wrong are never `revise`.
 - `drop`: the words take the line off the page. "Drop line 5", "remove line 5" and "removing line 5 is right" drop line 5. Words that say the principal never asked for what the line says drop it: "Wrong, I asked only for the total" drops the line.
 - `rewrite`: the line must say something else. "Change line 7 to say the work touches the clear function in the terminal UI file for certain" rewrites line 7.
 - `remove`: the words delete code that they name. "You can remove the line at 518 in get_app_dir" removes code. On any other page line, `remove` is a drop of that line.
-- `exclude`: the words take a file off a line that lists the files the change touches. "Drop the utils file" excludes it. A file or a test that the words take off that line is `exclude`, also when the verb is "remove" or "keep": "remove the five formatting tests from what you expect to touch" excludes them.
-- `keep`: only for a line whose check the words fault while they keep the line. "Keep line 4, but fix its check" keeps line 4. Words that keep a line and fault nothing are `approve`.
-- `add`: the words ask for a new line. "Also add a line that says the output stays the same" is `add` on one line of the item.
+- `exclude`: the words take a file off a line that lists the files the change touches. "Drop the utils file" excludes it. "Keep line 5 to the terminal module" excludes the other files of line 5. A file or a test that the words take off that line is `exclude`, also when the verb is "remove" or "keep": "remove the five formatting tests from what you expect to touch" excludes them.
+- `add`: the words ask for a new line. "Also add a line that says the output stays the same" is `add` on one line of the item. Words that say the page leaves out his request are `add` on line 1.
 - `later` or `now`: only on a page that asks which request goes first. "It is a separate request" is `later`. "Do this one first" is `now`.
 
 A correction counts against the line it is about, and only that line.

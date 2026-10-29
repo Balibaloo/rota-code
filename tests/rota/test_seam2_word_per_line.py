@@ -115,14 +115,17 @@ def test_the_word_table_gives_a_verdict_and_an_act():
     assert api.WORD_ACTS["remove"] == ("contest", "remove")
     assert api.WORD_ACTS["rewrite"] == ("contest", "rewrite")
     assert api.WORD_ACTS["exclude"] == ("contest", "exclude")
-    assert api.WORD_ACTS["keep"] == ("revise", "keep")
     assert api.WORD_ACTS["add"] == ("approve", "add")
+    # Pass 5: the seat gave `keep` on approve words in 18 of 18 Gemma runs,
+    # so keep is the verdict approve and no act word.
+    assert "keep" not in api.WORD_ACTS
+    assert api.RULING_WORDS["keep"] == "approve"
 
 
 def test_the_word_shape_fills_words_and_the_target_kind(db):  # noqa: F811
     page = "1. The change touches:\n   src/click/utils.py\n   tests/test_utils.py\n"
-    for act, kind in (("drop", "row"), ("rewrite", "row"), ("keep", "check"),
-                      ("remove", "row"), ("add", None)):
+    for act, kind in (("drop", "row"), ("rewrite", "row"), ("remove", "row"),
+                      ("add", None)):
         shape = api._word_shape(db, "c_1", {"act": act}, "Line 1 is wrong",
                                 ["c_1"], page)
         assert shape.get("target_kind") == kind
@@ -335,3 +338,27 @@ def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
     sb.call("rulings.rule", rulings={"1": "approve", "2": "drop", "3": "drop"})
     rulings = [w for w in sb.ctx.writes if w[0] == "rulings"]
     assert len(rulings) == 1
+
+
+def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
+    """L3R-n174-m47-m48: the page showed the term `parameter` on lines 8 and
+    47, and the landing wrote the row on line 8 alone. The judge read "line
+    47: no ruling" though the call gave a word for every line. Each line of
+    the row now lands its own row, keyed by the line number (pass 5)."""
+    ask = _page(db, refs=("calculate_tip", "s1", "l_1", "l_1"))
+    order = list(ask.order)
+    assert order.count("l_1") == 2, order
+    lines = [n for n, r in enumerate(order, 1) if r == "l_1"]
+    sb, _ = _seat(db, ask, words="Drop the note, both times. The rest is fine.")
+    call = {str(n): "approve" for n in range(1, len(order) + 1)}
+    call.update({str(n): "drop" for n in lines})
+    sb.call("rulings.rule", rulings=call)
+    rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
+            and w[2]["ref"] == "l_1"]
+    assert sorted(r["line"] for r in rows) == lines
+    assert {(r["verdict"], r["act"]) for r in rows} == {("contest", "drop")}
+    assert len({r["id"] for r in rows}) == 2
+    _commit(db, sb)
+    landed = db.execute("SELECT line FROM ruled_refs WHERE ref = 'l_1' AND "
+                        "source = 'reading'").fetchall()
+    assert sorted(r[0] for r in landed) == lines
