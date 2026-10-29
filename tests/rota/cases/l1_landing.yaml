@@ -349,3 +349,145 @@
   forbidden:
     writes: [statements, items, decisions, ledger]
     recipients: [vision_keeper, terminologist, architect, principal]
+
+# Night 175 (W14): he deleted c_2 and c_3 five times in his own verb, and the
+# seat wrote `remove` on the rows. Only `drop` retires a criterion, so both
+# rows stayed live with no test and walk 3 gave up. The page and the reply
+# are m116 and m118 of the night, without the two read-back lines.
+- id: L1-LI-remove-lines-on-a-criteria-page-is-a-drop
+  tier: T1
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<b1>, <i1>, <c1>, <c2>, <c3>], cause: <m_present>,
+            body_text: "Please don't give up on this change: remove lines 7 and 8 and finish with line 2 alone, because I asked for only one example and only the docstring changes, not the code. Lines 1 to 6 and line 9 are ok."}
+  fixture:
+    items:
+      - {id: <i1>, text: "Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt shows as c.txt.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "give format_filename one example in its docstring"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=True, the path a/b/c.txt is displayed as c.txt."}
+      - {id: <c2>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=False, the path a/b/c.txt is displayed as a/b/c.txt."}
+      - {id: <c3>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=True, a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt."}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
+         body: "def test_example():\n    pass\n"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<b1>","<i1>","<c1>","<c2>","<c3>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"',
+                                          '"<i1>": "approve"', '"<c1>": "approve"']}
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 7, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 8, "verdict": "contest", "act": "drop", "target_kind": "row"'],
+                   text_excludes: ['"act": "remove"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
+# Night 175's m103 on the clarify m102, shown here as a present of the same
+# two criteria. The seat read the meaning right and wrote `remove`.
+- id: L1-LI-drop-both-examples-is-a-drop-of-both-rows
+  tier: T1
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<c2>, <c3>], cause: <m_present>,
+            body_text: "Drop both of those examples, because I asked for only one example in the docstring: with shorten set to True, the path a/b/c.txt shows as c.txt."}
+  fixture:
+    items:
+      - {id: <i1>, text: "Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt shows as c.txt.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "give format_filename one example in its docstring"}
+    criteria:
+      - {id: <c2>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=False, the path a/b/c.txt is displayed as a/b/c.txt."}
+      - {id: <c3>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=True, a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt."}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<c2>","<c3>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"']}
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 1, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 2, "verdict": "contest", "act": "drop", "target_kind": "row"'],
+                   text_excludes: ['"act": "remove"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
+# Night 175's m138 on the page of m118: his own verb in the gerund. The seat
+# approved lines 7 and 8 and contested line 2, the reverse of his words.
+- id: L1-LI-removing-lines-is-right-is-a-drop
+  tier: T1
+  role: liaison
+  prompt: landing
+  model: qwen3:8b
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<b1>, <i1>, <c1>, <c2>, <c3>], cause: <m_present>,
+            body_text: "Removing lines 7 and 8 is right, and the other lines are approved."}
+  fixture:
+    items:
+      - {id: <i1>, text: "Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt shows as c.txt.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "give format_filename one example in its docstring"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=True, the path a/b/c.txt is displayed as c.txt."}
+      - {id: <c2>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include exactly one example showing that when shorten=True, the path a/b/c.txt is displayed as c.txt."}
+      - {id: <c3>, ticket_id: <tk1>,
+         text: "The docstring for format_filename must include an example showing that when shorten=True, a long path like /very/long/path/to/a/b/c.txt is displayed as c.txt."}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_1.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst2>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_2.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst3>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_3.py,
+         body: "def test_example():\n    pass\n"}
+      - {id: <tst4>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_format_filename_4.py,
+         body: "def test_example():\n    pass\n"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<b1>","<i1>","<c1>","<c2>","<c3>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<c2>": "contest"', '"<c3>": "contest"',
+                                          '"<i1>": "approve"', '"<c1>": "approve"']}
+      ruled_refs: {text_includes: ['"ref": "<c2>", "line": 7, "verdict": "contest", "act": "drop", "target_kind": "row"',
+                                   '"ref": "<c3>", "line": 8, "verdict": "contest", "act": "drop", "target_kind": "row"'],
+                   text_excludes: ['"act": "remove"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]

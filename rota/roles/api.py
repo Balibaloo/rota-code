@@ -6562,23 +6562,57 @@ def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
                 and granted(ctx.conn, id, "keep"))
 
 
+# The line `_dropped_line` gives when his ruling drops a row of a clarify
+# page. A clarify page shows no line numbers, so the drop names the row
+# itself. Night 175's r_m103_2 on the clarify m102 dropped c_2 and c_3 with
+# no line, and nothing retired them (the W14 review, p2, finding 5). Every
+# caller tests the value against None, so 0 still reads as a drop.
+DROPS_THE_ROW = 0
+
+
 def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
     """The page line of criterion `id` when his newest landed ruling on it
     has the act `drop`, or None. The answer door names the drop and asks no
     rewrite (frame 308, review 4, point 2). The line is the row's own line,
-    or the line of `id` on the page of the ruling."""
+    or the line of `id` on the page of the ruling, or `DROPS_THE_ROW` for a
+    clarify page."""
     return _dropped_line(ctx.conn, id)
 
 
 def _dropped_line(conn: sqlite3.Connection, id: str) -> int | None:
     """The page line that the act `drop` of his newest landed ruling on `id`
-    drops, or None (the seam design, pass 4)."""
+    drops, or None (the seam design, pass 4).
+
+    A `remove` with the kind `row` is a drop too. The kind decides, and the
+    target does not, as for `drop`. His delete words came as "remove", and the
+    seat copied the verb: 6 of 15 deletes on nights 170 to 175 (W14, question
+    1). Night 175's r_m103_2 and r_m148 stored c_2 and c_3 as `remove`, kind
+    `row`, with the criterion's own id as the target. The reading sits here
+    and not in `grant`, because `grant` answers for every act and its other
+    callers read `remove` as a delete of code. A `remove` of any other kind is
+    not a drop. Night 175's r_m118 put kind `source_line` on c_1, and r_m138
+    put no kind, against his words, and c_1 stays live.
+
+    A drop on a clarify page has no line, and it gives `DROPS_THE_ROW`."""
     from .principal import grant
 
     row = grant(conn, id, "drop")
     if row is None:
-        return None
-    return row["line"] or _ruling_line(conn, {"id": row["ruling_id"]}, id)
+        row = grant(conn, id, "remove")
+        if row is None or row["target_kind"] != "row":
+            return None
+    line = row["line"] or _ruling_line(conn, {"id": row["ruling_id"]}, id)
+    if line is None and _ruled_on_clarify(conn, row["ruling_id"]):
+        return DROPS_THE_ROW
+    return line
+
+
+def _ruled_on_clarify(conn: sqlite3.Connection, ruling_id: str) -> bool:
+    """Whether the ruling `ruling_id` answers a clarify page."""
+    page = conn.execute(
+        "SELECT m.verb FROM rulings r JOIN messages m ON m.id = r.ask_id "
+        "WHERE r.id = ?", (ruling_id,)).fetchone()
+    return bool(page and page["verb"] == "clarify")
 
 
 def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:

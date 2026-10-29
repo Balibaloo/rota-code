@@ -22,7 +22,7 @@ Most lines take no act. A line he approves as it stands takes the word alone: "y
 The act names are not verdicts. A page that asks which request goes first takes no act and no `acts`: "it is a separate request" is `rulings={"1": "later"}`.
 The acts:
 - `remove` deletes the code that his words name, and never a file of the guess: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
-- `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
+- `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`. A delete of a page line is `drop` with `target_kind` `row` when his words say "remove", "drop", "strike" or "delete", and `remove` is only for code that a `source_line`, `identifier` or `sentence` target names.
 - `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
 - `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
 - `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too.
@@ -57,9 +57,8 @@ Otherwise the reply is a ruling. Read each numbered line against it:
   printing.
 - The reply says the line is right in substance and asks for other words:
   `revise`.
-- The reply strikes or drops a line from the change: `contest`. The door
-  reads `drop`, `remove` and `strike` as `contest`. A reply that drops a word
-  and keeps the line is `revise`.
+- The reply strikes or drops a line from the change: `contest`. A reply that
+  drops a word and keeps the line is `revise`.
 - The page asks which request goes first. A reply that says the earlier one is
   separate or for later is `later`, even when it also says drop it from this
   change. On that page, line 1 is a request to order, not to judge: `later`,

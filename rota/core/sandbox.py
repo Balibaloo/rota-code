@@ -2167,8 +2167,11 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     missing = [r for r in missing if r not in dropped]
     unwritten = [r for r in unwritten if r not in dropped]
     dropped = {r: n for r, n in dropped.items() if r in given}
+    # A clarify page has no line numbers, so its drop names the row alone.
     drop_said = " ".join(
-        f"The principal's ruling drops line {n}, which is {cid}. Your answer "
+        (f"The principal's ruling drops {cid}." if n == api.DROPS_THE_ROW
+         else f"The principal's ruling drops line {n}, which is {cid}.")
+        + f" Your answer "
         f"carries {cid} as it stands now. Do not rewrite {cid}. No call in "
         f"this mode drops a criterion." for cid, n in dropped.items())
     unwritten = [r for r in unwritten if r not in dropped]

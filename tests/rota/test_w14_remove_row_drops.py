@@ -1,0 +1,212 @@
+"""W14, pass 1: a `remove` on a criterion's own row takes the row away.
+
+On nights 170 to 175 he deleted a criterion 15 times in landed rulings. 3
+carried the act `drop` and retired the row. 6 carried `remove` with the kind
+`row`, and nothing read them. Night 175 stopped on two such rows: c_2 and c_3
+stayed live with no test, and the walk gave up (the W14 read, question 1).
+The one reader is `_dropped_line`, so every door that asks "does his ruling
+take this row away" reads the same answer.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from rota.core.db import backfill_ruled_refs, init_db
+from rota.core.runner import _wake_allow
+from rota.core.sandbox import build
+from rota.core.scheduler import Wake
+from rota.roles.api import _dropped_line, criteria_page_acts
+from rota.testkit.fixtures import seed_acts, seed_verdict
+
+ITEM = "format_filename_example"
+TICKET = "tk_1_format_filename_example"
+CRITERIA = {
+    "c_1_format_filename_example": "The docstring for format_filename must "
+        "include an example showing that when shorten=True, the path a/b/c.txt "
+        "is displayed as c.txt.",
+    "c_2_format_filename_example": "The docstring for format_filename must "
+        "include exactly one example showing that when shorten=True, the path "
+        "a/b/c.txt is displayed as c.txt.",
+    "c_3_format_filename_example": "The docstring for format_filename must "
+        "include an example showing that when shorten=True, a long path like "
+        "/very/long/path/to/a/b/c.txt is displayed as c.txt.",
+}
+C1, C2, C3 = CRITERIA
+PAGE = [ITEM, C1, C2, "bg_3"]
+WORDS = "Remove line 3, because I asked for only one example."
+
+
+def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
+    conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                 "to_role, verb, body_refs, body_text, seq) VALUES "
+                 "(?, ?, 'm116', ?, ?, ?, ?, ?, ?)",
+                 (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
+
+
+def _page(tmp_path, act: dict, ref: str = C2):
+    """Night 175's page, his contest of the line of `ref` and the seat's
+    `act` on it."""
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES (?, 'Give format_filename one example in "
+                 "its docstring.', 'in_scope', 'approved', 1, 1)", (ITEM,))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES (?, ?, "
+                 "'one docstring example')", (TICKET, ITEM))
+    for cid, text in CRITERIA.items():
+        conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                     "(?, ?, ?)", (cid, TICKET, text))
+    _message(conn, "m116", None, "liaison", "principal", "present", PAGE, 116)
+    _message(conn, "m118", "m116", "principal", "liaison", "converse", PAGE,
+             118, WORDS)
+    _message(conn, "m119", "m116", "principal", "liaison", "verdict", [ref],
+             119)
+    _message(conn, "m120", "m119", "liaison", "terminologist", "relay", [ref],
+             120)
+    seed_verdict(conn, "m119", json.dumps({ref: "contest"}))
+    conn.execute("INSERT INTO config (key, value) VALUES ('order:m118', ?)",
+                 (json.dumps(PAGE),))
+    per_item = {r: ("contest" if r == ref else "approve") for r in PAGE}
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status, verdict_id, texts) VALUES ('r_m118', 'm116', 'm118', "
+                 "?, ?, 'landed', 'm119', ?)",
+                 (json.dumps(per_item), WORDS, json.dumps({ref: CRITERIA[ref]})))
+    backfill_ruled_refs(conn)
+    seed_acts(conn, "r_m118", {ref: {"words": WORDS, **act}})
+    return conn
+
+
+def _repair(conn, ref: str = C2, door: bool = False):
+    """The relay wake. `door` offers `criteria.retire` on every ruling, so a
+    test reaches the door's own refusal."""
+    wake = Wake("terminologist", "message", message_id="m120", refs=(ref,),
+                detail="relay")
+    allow = _wake_allow(wake, conn)
+    if door and "criteria.retire" not in allow:
+        allow = allow + ["criteria.retire"]
+    sb = build("terminologist", conn, mode="criterion_repair",
+               session_id="s285", allow=allow)
+    sb.ctx.trigger = "m120"
+    return sb
+
+
+@pytest.mark.parametrize("act", [
+    {"act": "remove", "target_kind": "row"},
+    {"act": "drop", "target_kind": "row"},
+    # Night 175's r_m103_2 and r_m148 stored c_2 and c_3 this way. The kind
+    # decides, so a target that names the criterion itself still drops it.
+    {"act": "remove", "target_kind": "row", "target": C2},
+], ids=["remove-row", "drop-row", "r_m103_2-remove-row-on-its-own-id"])
+def test_a_delete_of_the_row_retires_the_criterion(tmp_path, act):
+    conn = _page(tmp_path, act)
+    assert _dropped_line(conn, C2) == 3, "the line he saw"
+    assert criteria_page_acts(conn, [C2])["retire"] == [C2]
+    sb = _repair(conn)
+    sb.call("criteria.retire", id=C2)
+    assert sb.ctx.writes, "the retire stages a write"
+
+
+@pytest.mark.parametrize("act", [
+    # A source line is code. Its delete leaves the criterion on the page.
+    {"act": "remove", "target_kind": "source_line", "target": C2},
+    {"act": "remove", "target_kind": "source_line",
+     "target": "format_filename:12"},
+    # A remove with no kind names no row.
+    {"act": "remove"},
+], ids=["remove-source-line-on-its-id", "remove-source-line",
+        "remove-no-kind"])
+def test_a_remove_that_names_no_page_line_retires_nothing(tmp_path, act):
+    conn = _page(tmp_path, act)
+    assert _dropped_line(conn, C2) is None
+    assert criteria_page_acts(conn, [C2])["retire"] == []
+    sb = _repair(conn, door=True)
+    with pytest.raises(ValueError, match="no ruling of the principal drops"):
+        sb.call("criteria.retire", id=C2)
+
+
+@pytest.mark.parametrize("act", [
+    {"act": "remove", "target_kind": "source_line", "target": C1},
+    {"act": "remove"},
+], ids=["r_m118-source-line", "r_m138-no-kind"])
+def test_the_wrong_removes_of_c_1_keep_it_live(tmp_path, act):
+    """He kept c_1. Night 175's r_m118 put `remove`, kind `source_line`, on
+    c_1, and r_m138 put `remove` with no kind. Neither retires it."""
+    conn = _page(tmp_path, act, ref=C1)
+    assert _dropped_line(conn, C1) is None
+    assert criteria_page_acts(conn, [C1])["retire"] == []
+    sb = _repair(conn, ref=C1, door=True)
+    with pytest.raises(ValueError, match="no ruling of the principal drops"):
+        sb.call("criteria.retire", id=C1)
+
+
+def test_a_row_with_no_act_stays_no_act(tmp_path):
+    conn = _page(tmp_path, {})
+    assert criteria_page_acts(conn, [C2])["retire"] == []
+
+
+CLARIFY_WORDS = ("Drop both of those examples, because I asked for only one "
+                 "example in the docstring: with shorten set to True, the "
+                 "path a/b/c.txt shows as c.txt.")
+
+
+def _clarify(tmp_path, act_of):
+    """Night 175's clarify m102 on c_2 and c_3, and his reply m103. A clarify
+    page shows no line numbers, so the rows of r_m103_2 hold no line."""
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES (?, 'Give format_filename one example in "
+                 "its docstring.', 'in_scope', 'approved', 1, 1)", (ITEM,))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES (?, ?, "
+                 "'one docstring example')", (TICKET, ITEM))
+    for cid, text in CRITERIA.items():
+        conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                     "(?, ?, ?)", (cid, TICKET, text))
+    both = [C2, C3]
+    _message(conn, "m102", None, "liaison", "principal", "clarify", both, 102,
+             CRITERIA[C2] + " " + CRITERIA[C3])
+    _message(conn, "m103", "m102", "principal", "liaison", "converse", both,
+             103, CLARIFY_WORDS)
+    _message(conn, "m103v", "m102", "principal", "liaison", "verdict", both,
+             104)
+    _message(conn, "m104", "m103v", "liaison", "terminologist", "relay", both,
+             105)
+    seed_verdict(conn, "m103v", json.dumps({C2: "contest", C3: "contest"}))
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status, verdict_id, texts) VALUES ('r_m103_2', 'm102', "
+                 "'m103', ?, ?, 'landed', 'm103v', ?)",
+                 (json.dumps({C2: "contest", C3: "contest"}), CLARIFY_WORDS,
+                  json.dumps({C2: CRITERIA[C2], C3: CRITERIA[C3]})))
+    backfill_ruled_refs(conn)
+    seed_acts(conn, "r_m103_2", {c: {"words": CLARIFY_WORDS, **act_of(c)}
+                                 for c in both})
+    lines = {r["ref"]: r["line"] for r in conn.execute(
+        "SELECT ref, line FROM ruled_refs WHERE ruling_id = 'r_m103_2' "
+        "AND act IS NOT NULL")}
+    assert lines == {C2: None, C3: None}, "a clarify row holds no line"
+    return conn
+
+
+@pytest.mark.parametrize("act_of", [
+    # r_m103_2 as night 175 stored it: remove, kind row, the own id.
+    lambda c: {"act": "remove", "target_kind": "row", "target": c},
+    lambda c: {"act": "drop", "target_kind": "row"},
+], ids=["r_m103_2-remove-row-own-id", "drop-row"])
+def test_a_delete_on_a_clarify_page_retires_both_criteria(tmp_path, act_of):
+    conn = _clarify(tmp_path, act_of)
+    assert criteria_page_acts(conn, [C2, C3])["retire"] == [C2, C3]
+    wake = Wake("terminologist", "message", message_id="m104",
+                refs=(C2, C3), detail="relay")
+    sb = build("terminologist", conn, mode="criterion_repair",
+               session_id="s256", allow=_wake_allow(wake, conn))
+    sb.ctx.trigger = "m104"
+    sb.call("criteria.retire", id=C2)
+    sb.call("criteria.retire", id=C3)
+    assert [w[1] for w in sb.ctx.writes if w[0] == "criteria"] == [C2, C3]
+
+
+def test_a_source_line_remove_on_a_clarify_page_retires_nothing(tmp_path):
+    conn = _clarify(tmp_path, lambda c: {"act": "remove",
+                                         "target_kind": "source_line",
+                                         "target": c})
+    assert criteria_page_acts(conn, [C2, C3])["retire"] == []
