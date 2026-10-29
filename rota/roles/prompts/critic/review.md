@@ -12,11 +12,11 @@ Work through it in this order:
    run for a documentation criterion, meet it, copy them as a list, each
    without the `+`. A docstring or comment line is evidence only for a
    criterion that asks for documentation. An added line meets only the
-   criterion whose change it makes. A criterion whose words say a behaviour
-   or an output stays the same is met by `kept: <the one line>`, a line that
-   starts with a space and shows that behaviour, or by `test: <the test id>`,
-   its own passing test that step 2 finds encodes it. For example, when
-   `save()` now returns an id, `kept: write(record)` meets "save() still
+   criterion whose change it makes. Some criteria keep a behaviour or an output
+   the same. Such a criterion is met by `kept: <the one line>`, a line that
+   starts with a space and shows the behaviour. It is also met by
+   `test: <the test id>`, its own passing test that step 2 finds encodes it.
+   When `save()` returns a new id, `kept: write(record)` meets "save() still
    writes the record", and the added `return` line does not. A test that
    encodes nothing is a challenge in step 2, never a pass. A criterion that
    no line and no test meets looks like it fails, a branch you may not skip:
