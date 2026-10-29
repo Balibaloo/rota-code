@@ -250,8 +250,8 @@ def test_an_unknown_word_is_refused_with_the_map(db):
         sb.call("rulings.rule", rulings=rulings, words=M63)
     assert str(e.value) == (
         "line 2: 'later' is not a ruling. Each line takes approve, contest or "
-        "revise. drop, remove and strike are contest. resume takes up a request "
-        "you put aside. ask, unclear and question are a question: "
+        "revise. drop, remove and strike are contest. keep is approve. resume "
+        "takes up a request you put aside. ask, unclear and question are a question: "
         "rulings.rule(ask=...) with no rulings.")
 
 

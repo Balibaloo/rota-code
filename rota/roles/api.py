@@ -11614,17 +11614,64 @@ _WORD_KINDS = {"drop": "row", "rewrite": "row", "remove": "row",
 _PATH_SHAPE = re.compile(r"[\w.-]*/[\w./-]*\w|[\w.-]+\.py\b")
 
 
+def _is_touch_line(conn, ref: str) -> bool:
+    """True when the row behind a page line lists the paths that a change
+    touches: a batch, or a guess key (frame 298's design, 3.1, point 4)."""
+    return bool(guess_item(ref)
+                or table_of(conn, ref, among=("batches",)) is not None)
+
+
+# The name of a row's kind in a refusal, by its table.
+_LINE_KINDS = {"items": "a request line", "criteria": "a criterion",
+               "ledger": "the team's note", "messages": "a read-back line",
+               "glossary": "a glossary term", "constraints": "a constraint"}
+
+
+def _line_kind(conn, ref: str) -> str:
+    """The words that name the kind of the row behind a page line."""
+    table = table_of(conn, ref)
+    return _LINE_KINDS.get(table, f"a row of {table}" if table else "a row")
+
+
+def _shown_paths(conn, ref: str, order: list, page_text: str) -> list[str]:
+    """The paths of the prediction that the line of `ref` shows, in order."""
+    shown = _shown_prediction(conn, ref, order, page_text)
+    return list(dict.fromkeys(p.strip("`.,")
+                              for p in _PATH_SHAPE.findall(shown)))
+
+
+def _excluded_paths(given: str, shown: list[str]) -> list[str] | None:
+    """The prediction paths that the seat's paths name, or None when one
+    seat path names no path of `shown`.
+
+    A seat path names a shown path by exact match, or as the one shown path
+    that ends with it after a slash. These are facts about two strings."""
+    out = []
+    for raw in re.split(r"[,\s]+", given or ""):
+        path = raw.strip("`'\".;:")
+        if not path or path.lower() == "and":
+            continue
+        ends = [p for p in shown if p.endswith("/" + path)]
+        if path in shown:
+            out.append(path)
+        elif len(ends) == 1:
+            out.append(ends[0])
+        else:
+            return None
+    return list(dict.fromkeys(out))
+
+
 def _word_shape(conn, ref: str, shape: dict, matched: str | None,
-                order: list, page_text: str) -> dict:
+                order: list, page_text: str, key: str = "") -> dict:
     """The object of one page line's act word, with the parts that code
     fills.
 
     `words` is `matched`, the words of his that name the line. `target_kind`
     comes from the row behind the line. A
-    remove on a code line takes `source_line`. An exclude takes the one path
-    of the line's prediction that his words name, by `_names_path`. These
-    are facts about the row and his words, never a reading of what they
-    rule. The act checks below still read every part."""
+    remove on a code line takes `source_line`. An exclude takes the paths
+    that the seat names after the word, each one a path of the line's
+    prediction. These are facts about the row and the line, never a reading
+    of what his words rule. The act checks below still read every part."""
     out = dict(shape)
     act = out.get("act")
     if not act:
@@ -11634,8 +11681,7 @@ def _word_shape(conn, ref: str, shape: dict, matched: str | None,
     # The landing prompt says that `remove` on a page line that is no code
     # line drops that line (review p5, finding 2). The row decides, never
     # his words, so a remove there lands as a drop of the row.
-    if act == "remove" and not (guess_item(ref) or table_of(
-            conn, ref, among=("batches",)) is not None):
+    if act == "remove" and not _is_touch_line(conn, ref):
         act = out["act"] = "drop"
         out["target_kind"] = "row"
     if not out.get("target_kind") and act in _WORD_KINDS:
@@ -11643,29 +11689,29 @@ def _word_shape(conn, ref: str, shape: dict, matched: str | None,
         if act == "remove":
             kind = "source_line"
         out["target_kind"] = kind
-    if act == "exclude" and not out.get("target") and out.get("words"):
-        shown = _shown_prediction(conn, ref, order, page_text)
-        paths = {p.strip("`.,") for p in _PATH_SHAPE.findall(shown)}
-        named = [p for p in paths if _names_path(out["words"], p)]
-        # "the utils file" names src/click/utils.py by its own stem, and
-        # tests/test_utils.py only by its stem less "test_". The closer name
-        # wins, and a tie names no target.
-        ranked = sorted(((_path_name_rank(out["words"], p), p) for p in named),
-                        reverse=True)
-        if ranked and (len(ranked) == 1 or ranked[0][0] > ranked[1][0]):
-            out["target"] = ranked[0][1]
+    # On "keep line 5 to the terminal module" the path his words name is the
+    # path he keeps. So the seat names the paths an exclude takes off, and
+    # code checks each one against the line (frame 345, pass 7).
+    if act == "exclude" and "given" in out:
+        given = out.pop("given")
+        if not _is_touch_line(conn, ref):
+            raise ValueError(
+                f"line {key} is {_line_kind(conn, ref)}, and it lists no files. "
+                f"exclude takes a path off a line that lists the files the "
+                f"change touches. Give line {key} another word")
+        shown = _shown_paths(conn, ref, order, page_text)
+        paths = _excluded_paths(given, shown)
+        if not paths:
+            listed = ", ".join(shown) or "(none)"
+            said = (f"{given.strip()!r} is not a path of line {key}"
+                    if given.strip() else
+                    f"exclude names the paths to take off line {key}")
+            raise ValueError(
+                f"line {key}: {said}. Line {key} lists {listed}. Write exclude "
+                f"and each path to take off, for example \"exclude "
+                f"{shown[0] if shown else 'src/a.py'}\"")
+        out["target"], out["paths"] = paths[0], paths
     return out
-
-
-def _path_name_rank(words: str, path: str) -> int:
-    """How closely `words` name `path`: 2 for the path or its file name, 1
-    for its own stem, 0 for a stem less a test prefix or suffix."""
-    text, t = (words or "").lower(), path.lower()
-    base = t.rsplit("/", 1)[-1]
-    if _says(text, t) or _says(text, base):
-        return 2
-    stem = base.rsplit(".", 1)[0]
-    return 1 if re.search(rf"(?<!\w){re.escape(stem)}(?!\w)", text) else 0
 
 
 def _word_key(raw, words: dict) -> str:
@@ -11702,7 +11748,8 @@ def _ruling_word(key: str, raw, shift: bool = False) -> str:
             f"rulings.")
     raise ValueError(
         f"line {key}: {word!r} is not a ruling. Each line takes approve, "
-        f"contest or revise. drop, remove and strike are contest. resume takes "
+        f"contest or revise. drop, remove and strike are contest. keep is "
+        f"approve. resume takes "
         f"up a request you put aside. ask, unclear and question are a question: "
         f"rulings.rule(ask=...) with no rulings.")
 
@@ -12282,16 +12329,27 @@ def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
     """The `ruled_refs` rows of the reading, built by the one builder,
     `principal.ruling_rows`. It refuses a ref that no table holds, so the
     door builds the rows before it stages any write."""
+    from ..core.db import ruled_ref_id
     from .principal import ruling_rows
 
-    reading = {}
+    reading, more = {}, {}
     for ref, verdict in per_item.items():
         shape = dict((shapes or {}).get(ref) or {})
+        more[ref] = shape.pop("paths", [])[1:]
         if shape.get("words") and not shape.get("words_from"):
             shape["words_from"] = _words_from(ctx, shape["words"])
         reading[ref] = {**shape, "verdict": verdict}
-    return ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
+    rows = ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
                        words_from=ctx.trigger, unheld=unheld)
+    # One exclude lands per path. Each further path copies the ref's own
+    # row with that target, as `_identifier_grants` does for a name.
+    for ref, paths in more.items():
+        own = next((r for r in rows if r["ref"] == ref
+                    and r["id"] == ruled_ref_id(ruling_id, ref)), None)
+        if own is not None:
+            rows += [{**own, "id": f"{own['id']}~{p}", "target": p}
+                     for p in paths]
+    return rows
 
 
 def _stage_ruling(ctx: Ctx, row: dict, rows: list[dict]) -> None:
@@ -14499,8 +14557,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                   and 1 <= int(key) <= len(order) else None)
         if (line_n and shape is None
                 and _word_key(ruling, WORD_ACTS) in WORD_ACTS):
+            said = str(ruling).strip()
             ruling, act = WORD_ACTS[_word_key(ruling, WORD_ACTS)]
             shape = {"act": act}
+            # Only exclude takes a suffix: the paths to take off the line.
+            if act == "exclude":
+                shape["given"] = (said.split(None, 1) + [""])[1]
         else:
             line_n = None
         ruling = _ruling_word(key, ruling, shift=shift)
@@ -14554,7 +14616,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             if shape and line_n:
                 shape = _word_shape(ctx.conn, ref, shape,
                                     his_lines.get(line_n) or (his or "").strip(),
-                                    order, page_text)
+                                    order, page_text, key)
             if shape:
                 shape_of[ref] = shape
         elif is_clarify:
@@ -14669,8 +14731,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             # His span names the path, its file or its stem: "the options
             # and defaults test files" names tests/test_options.py. A path
             # shape keeps an identifier such as `clear` out (law 6, the
-            # seam review, p4-2 and p4-4).
-            if not _names_path(span, target):
+            # seam review, p4-2 and p4-4). The word form skips this read: the
+            # seat names the paths, and on a keep-to form his words name the
+            # paths he keeps (frame 345, pass 7).
+            if "paths" not in shape and not _names_path(span, target):
                 raise ValueError(
                     f"{line}: an exclude needs his words to name the file "
                     f"{target}, by its path, file name or stem. Leave the act "

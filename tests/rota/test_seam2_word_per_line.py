@@ -130,11 +130,16 @@ def test_the_word_shape_fills_words_and_the_target_kind(db):  # noqa: F811
                                 ["c_1"], page)
         assert shape.get("target_kind") == kind
         assert shape["words"] == "Line 1 is wrong"
-    shape = api._word_shape(db, "c_1", {"act": "exclude"},
-                            "drop the utils file from line 1", ["c_1"], page)
+    # The seat names the path after the word, and code finds it on the line
+    # (pass 7).
+    shape = api._word_shape(db, "guess:calc", {"act": "exclude",
+                                               "given": "utils.py"},
+                            "drop the utils file from line 1", ["guess:calc"],
+                            page, "1")
     assert shape == {"act": "exclude", "target_kind": "path",
                      "words": "drop the utils file from line 1",
-                     "target": "src/click/utils.py"}
+                     "target": "src/click/utils.py",
+                     "paths": ["src/click/utils.py"]}
     # A remove on a code line takes a source line.
     shape = api._word_shape(db, "guess:calc", {"act": "remove"}, "x",
                             ["guess:calc"], page)
@@ -362,3 +367,83 @@ def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
     landed = db.execute("SELECT line FROM ruled_refs WHERE ref = 'l_1' AND "
                         "source = 'reading'").fetchall()
     assert sorted(r[0] for r in landed) == lines
+
+
+# Pass 7: on a touch line the seat writes `exclude` and the paths to take
+# off. On "keep line 5 to the terminal module" his words name the paths he
+# keeps, so code reads no path from his words. Code checks each seat path
+# against the line, a fact.
+M77 = "L3R-n172-m76-m77"
+M77_OTHERS = {"1": "approve", "2": "approve", "3": "approve", "4": "approve",
+              "6": "approve"}
+
+
+def _case_seat(tmp_path, case_id: str):
+    """The seat of one L3 case, woken on his reply, with the page he saw."""
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+    from rota.testkit import fixtures
+
+    case = fixtures.for_run(
+        {c["id"]: c for c in fixtures.load_case(CASES)}[case_id], 1)
+    conn = init_db(tmp_path / "case.db")
+    fixtures.seed(conn, case["fixture"])
+    reply = fixtures.seed_inbound(conn, case)
+    conn.commit()
+    sb = build("liaison", conn, mode="normal", session_id="s_seam",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = reply
+    return sb, fixtures._page_as_seen(case)
+
+
+def test_the_exclude_suffix_names_paths_of_the_line():
+    shown = ["src/click/utils.py", "tests/test_utils.py", "src/click/termui.py"]
+    assert api._excluded_paths("utils.py", shown) == ["src/click/utils.py"]
+    assert api._excluded_paths("src/click/termui.py, tests/test_utils.py",
+                               shown) == ["src/click/termui.py",
+                                          "tests/test_utils.py"]
+    assert api._excluded_paths("`termui.py` and test_utils.py", shown) == [
+        "src/click/termui.py", "tests/test_utils.py"]
+    # A path that ends no shown path, or that two end with, names none.
+    assert api._excluded_paths("core.py", shown) is None
+    assert api._excluded_paths("utils.py", shown + ["src/x/utils.py"]) is None
+
+
+def test_a_path_off_the_line_is_refused_with_the_lines_paths(tmp_path):
+    sb, page = _case_seat(tmp_path, M77)
+    for given, said in (("exclude src/click/core.py",
+                         "'src/click/core.py' is not a path of line 5"),
+                        ("exclude", "exclude names the paths to take off")):
+        with page, pytest.raises(ValueError) as e:
+            sb.call("rulings.rule", rulings={**M77_OTHERS, "5": given})
+        assert said in str(e.value)
+        assert ("Line 5 lists src/click/_compat.py, src/click/termui.py, "
+                "tests/test_basic.py") in str(e.value)
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
+
+
+def test_two_paths_land_two_excludes_with_his_words(tmp_path):
+    """"keep line 5 to the terminal module" names the paths he keeps. The
+    seat names the others, and each one lands its own exclude."""
+    sb, page = _case_seat(tmp_path, M77)
+    with page:
+        sb.call("rulings.rule", rulings={
+            **M77_OTHERS, "5": "exclude tests/test_defaults.py, test_options.py"})
+    rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
+            and w[2]["ref"] == "bg_2"]
+    assert [(r["verdict"], r["act"], r["target_kind"], r["target"], r["line"])
+            for r in rows] == [
+        ("contest", "exclude", "path", "tests/test_defaults.py", 5),
+        ("contest", "exclude", "path", "tests/test_options.py", 5)]
+    assert len({r["id"] for r in rows}) == 2
+    assert all("keep line 5 to the terminal module" in r["words"] for r in rows)
+
+
+def test_exclude_on_a_criterion_line_is_refused_with_its_kind(tmp_path):
+    sb, page = _case_seat(tmp_path, M77)
+    with page, pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={
+            "1": "approve", "2": "exclude", "3": "approve", "4": "approve",
+            "5": "approve", "6": "approve"})
+    assert str(e.value).startswith("line 2 is a criterion, and it lists no files")
