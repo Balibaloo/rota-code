@@ -245,3 +245,8 @@ def test_the_map_with_line_6_contested_lands(m245):
     out = _rule_m245(m245, dict(M245_MAP, **{"4": "contest", "6": "contest"}))
     assert out["per_item"]["bg_4"] == "contest"
     assert out["per_item"][B4_ITEM] == "approve"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

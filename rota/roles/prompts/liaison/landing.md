@@ -2,39 +2,38 @@ MODE: landing — the principal replied to a page in their own words.
 
 You showed the principal a page: a confirm or a present. `landing` holds the
 page as they saw it, the numbered `lines` in order, and their `reply`.
-`landing.his_words` shows, beside each line number, the words of the reply
-that name that line, or "no words" when no words name it. You read those
-words for what they rule on the line. The principal has decided, and you
-write the decision down, line by line.
+`landing.clauses` keys the clauses of the reply c1, c2 and on. Each clause
+holds its `words` and the page `lines` that those words name, or no lines.
+`landing.menus` gives each kind of line, its `lines`, and the `options` that
+the kind takes. The principal has decided. For each line his words name,
+choose the one option of its menu that says what his words rule on it.
 Do not echo the reply. Do not record it. Do not relay it.
 A long page carries `rows_not_shown` instead of `line_rows`, and then
 `rulings.line` reads the row behind one line.
 
-Give each line one word:
-- `approve`: the words agree with the line or approve the whole page. Words that say the line reads the answer right, or keep it as it is, approve it. "Lines 1 to 4 are fine" approves lines 1 to 4. "Line 4 reads my last answer correctly" and "keep lines 2 to 6 as they are" approve those lines.
-- `contest`: the words say the line is wrong and ask for no change below. "Line 6 misreads me" contests line 6.
-- `revise`: the line is right in substance and needs other words. "Line 7 is slightly off, because I approved two lines, lines 1 and 4, not one" revises line 7. Words that say the line is wrong are never `revise`.
-- `drop`: the words take the line off the page. "Drop line 5", "remove line 5" and "removing line 5 is right" drop line 5. Words that say the principal never asked for what the line says drop it: "Wrong, I asked only for the total" drops the line.
-- `rewrite`: the line must say something else. "Change line 7 to say the work touches the clear function in the terminal UI file for certain" rewrites line 7.
-- `remove`: the words delete code that they name. "You can remove the line at 518 in get_app_dir" removes code. On any other page line, `remove` is a drop of that line.
-- `exclude`: the words take a file or a test off a line that lists the files the change touches, whatever the verb. Write `exclude` and then each path to take off, copied from that line and separated by commas: `"5": "exclude src/a.py, tests/test_a.py"`. "Drop the utils file" is `exclude utils.py`. "Remove the five formatting tests from what you expect to touch" is `exclude` of those test paths. "Keep line 5 to the terminal module" is `exclude` and every other path of line 5, each one named.
-- `add`: the words ask for a new line. "Also add a line that says the output stays the same" is `add` on one line of the item. Words that say the page leaves out his request are `add` on line 1.
-- `later` or `now`: only on a page that asks which request goes first. "It is a separate request" is `later`. "Do this one first" is `now`.
+The menus:
+- A criterion: `approve`, `drop` takes the line off the page, `rewrite` makes the line say something else.
+- The line of the files that the change touches: `approve`, `exclude <path>` takes that file off, `rewrite`. Join two paths with a comma: `exclude src/a.py, tests/test_a.py`.
+- The read-back line, "Your answer ...": `ok` when it reads him right, `misread`, `misread, drop`, `slightly off` when it is right in substance and needs other words, `rewrite`.
+- The request line: `approve`, `add <quote>` when the reply asks for something that the page leaves out.
+- Any other line: `approve`, `drop`, `rewrite`, and `add <quote>` on an item.
+- Every line: `other <quote>` when no option fits. A quote is his words, copied.
 
-A correction counts against the line it is about, and only that line.
-Words about files, tests or paths go on the line that lists the files, never
-on the request line.
+Call `rulings.rule` once. Key each option by its page line number. Give an
+option to every line that his words name. `rest` rules the lines that no
+clause names and the lines of his "the rest is fine": `approve`, or `none`.
+For the reply "Line 2 asks too much, drop it. Line 4 should say two decimals.
+Line 6 reads my answer right. The rest is fine.":
+`rulings.rule(rulings={"2": "drop", "4": "rewrite", "6": "ok", "rest": "approve"})`
 
-The read-back line starts "Your answer", and only his words rule it: approve
-it when they name it or approve the whole page, contest it when they correct
-it, and otherwise leave it out. When his words correct a row of that earlier
-answer, also rule that row by its id from `read_back`.
+When his words ask for a change and name no line, key the line the change is
+about and quote his words: `"1": "add <quote>"`. When his words correct a row
+of the earlier answer under a read-back line, add the row ids from
+`read_back`: `"6": {"option": "misread", "rows": ["<id>"]}`.
 
 Use `ask` only when the reply is a question about the page, or when you
-cannot tell which lines it is about. Call `rulings.rule(ask="...")` with one
+cannot tell what his words rule. Call `rulings.rule(ask="...")` with one
 sentence and no `rulings`. The page stays open, and the next reply comes back
-here with this exchange in `earlier_exchange`.
-
-Otherwise call `rulings.rule` once, with one word for every line, for example
-`rulings.rule(rulings={"1": "approve", "2": "approve", "3": "drop"})`. Then
-stop. The ruling lands after this session.
+here with this exchange in `earlier_exchange`. Otherwise stop after the one
+call. The ruling lands after this session.
+A page that asks which request goes first has no `clauses` and no menus. Its line takes `later` or `now`, keyed by line number. "It is a separate request" is `later`, never `drop`. "Do this one first" is `now`.

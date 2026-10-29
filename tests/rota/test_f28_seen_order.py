@@ -184,3 +184,10 @@ def test_one_reader_of_the_order_he_saw():
     assert record == {("rota/roles/principal.py", "seen_order"),
                       ("rota/roles/principal.py", "land")}
     assert rendered == set()
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+import pytest  # noqa: E402
+
+pytestmark = pytest.mark.usefixtures("old_page_form")

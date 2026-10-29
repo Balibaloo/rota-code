@@ -421,3 +421,8 @@ def test_a_refusal_names_a_call_its_modes_hold(key):
 
 def test_the_table_names_only_keys_the_lint_reads():
     assert set(KNOWN_UNHELD) <= set(_keys())
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

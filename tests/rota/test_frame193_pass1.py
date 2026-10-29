@@ -512,3 +512,8 @@ def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
         _s263_with(db, "The `show_python` default is fine as it is.")
     assert str(e.value).startswith(
         "The words name lines 2 and 3 and do not name line 4.")
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

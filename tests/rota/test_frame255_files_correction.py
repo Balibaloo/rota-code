@@ -197,3 +197,8 @@ def test_a_contest_at_a_list_item_s_range_passes_the_built_batch_filter():
     kept = [ref for ref in order
             if built_line_faulted(words, order, ref, faulted)]
     assert kept == ["bg_6", "bg_7", "bg_10", "bg_11", "bg_12", "bg_13", "bg_14"]
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

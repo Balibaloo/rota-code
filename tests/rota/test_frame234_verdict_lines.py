@@ -940,3 +940,8 @@ def test_a_correction_of_the_request_beside_a_fault_lets_line_1_be_contested(
     faulted = 2 if words.startswith("Line 2") else 3
     assert _refusal(words, {1, faulted}, 3, frozenset({3}),
                     frozenset({1, 2}), frozenset({1}), ECHO_JSON) is None
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

@@ -318,3 +318,8 @@ def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
         ("s1", 1, "approve"), ("calculate_tip", 2, "approve"),
         ("l_1", 3, "contest")], rows
     assert rows[2]["act"] == "remove" and rows[2]["target"] == "how_it_works"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

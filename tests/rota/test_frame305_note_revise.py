@@ -316,3 +316,8 @@ def test_a_ruling_id_derives_from_its_reply(db):
     rulings["11"] = _act("rewrite", words)
     out = sb.call("rulings.rule", rulings=rulings, words=words)
     assert out["id"] == f"r_{mid}"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

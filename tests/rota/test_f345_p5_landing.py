@@ -75,3 +75,8 @@ def test_a_line_list_in_one_reference_keeps_its_whole_clause():
     got = line_words(words, 9)
     assert [got[n] for n in (7, 8, 9)] == [words] * 3
     assert all(got[n] is None for n in range(1, 7))
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

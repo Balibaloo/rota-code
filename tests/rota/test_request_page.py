@@ -1884,3 +1884,8 @@ def test_reply_rows_alone_draw_no_agenda_and_ride_the_next_page(bg4):
     refs = json.loads(bg4.execute("SELECT body_refs FROM messages WHERE id = ?",
                                   (mid,)).fetchone()["body_refs"])
     assert {"l_62ca6652d9", "l_6b81c7417e"} <= set(refs)
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

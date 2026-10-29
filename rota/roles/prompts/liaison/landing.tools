@@ -1,4 +1,4 @@
 # ordered
 rulings.rule
 rulings.line
-# rulings.rule takes each value as one word: approve, contest, revise, drop, rewrite, remove, exclude, keep, add, later or now.
+# rulings.rule takes one option of landing.menus per page line number, and rest: approve or none.
