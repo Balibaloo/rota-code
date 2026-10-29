@@ -2424,6 +2424,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 if matched:
                     landing["his_words"] = {
                         str(n): w or "no words" for n, w in matched.items()}
+                # The menu form (frame 345, pass R1): the clauses of his
+                # reply with the lines that each names, and per row kind the
+                # options that it takes. `rulings.rule` reads the same two,
+                # so a clause number names the same words in both places.
+                from ..roles.principal import SHIFT_ASK
+
+                if (api.MENU_PAGES and order
+                        and not clarify["id"].startswith(SHIFT_ASK)):
+                    landing["clauses"] = {
+                        str(k): c for k, c in enumerate(api.page_clauses(
+                            his_reply(conn, row["id"]) or "", len(order)), 1)}
+                    landing["menus"] = api.page_menus(conn, order, page)[0]
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a

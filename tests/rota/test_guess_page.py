@@ -317,3 +317,8 @@ def test_the_annotate_wake_reads_the_rulings_words_with_the_guess(db):
     assert pushed["the item's guess"] == {
         "paths": ["src/click/decorators.py", "tests/test_basic.py"], "symbols": [],
         "the principal said": M192}
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

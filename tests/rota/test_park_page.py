@@ -887,3 +887,8 @@ def test_the_agenda_refuses_a_run_from_before_the_faults_table(tmp_path, monkeyp
     with pytest.raises(SystemExit) as refused:
         cli.main(["agenda", "run"])
     assert str(refused.value) == f"run: {SCHEMA_STALE}"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

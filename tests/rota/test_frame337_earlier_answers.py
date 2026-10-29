@@ -138,3 +138,8 @@ def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     assert (five["line"], five["words_from"]) == (5, "m76")
     assert five["words"] == "Line 5 is wrong: ..."
     assert rows["l_c5331791cf"]["words_from"] == sb.ctx.trigger
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

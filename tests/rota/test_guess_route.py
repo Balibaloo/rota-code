@@ -430,3 +430,8 @@ def test_the_op_refuses_a_symbol_under_a_directory_the_index_lacks(db):
     with pytest.raises(ValueError, match="nowhere/x.py is under a directory"):
         sb.call("batches.guess", item_id=ITEM, paths=["tests/test_basic.py"],
                 symbols=["nowhere/x.py::y"])
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

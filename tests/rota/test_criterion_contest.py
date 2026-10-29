@@ -506,3 +506,8 @@ def test_a_seats_supersedes_on_another_seats_decision_is_admitted(db):
     assert out["id"] == "d_vk_1"
     [(_t, _id, row, *_)] = [w for w in vk.ctx.writes if w[0] == "decisions"]
     assert row["supersedes"] == "d_arch_1"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

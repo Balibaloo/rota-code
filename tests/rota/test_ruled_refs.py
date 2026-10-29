@@ -353,3 +353,8 @@ def test_a_keypress_on_a_gone_ref_keeps_his_verdict_and_leaves_a_fault(db):
     (reading,) = [r for r in rulings_load(SimpleNamespace(conn=db), ask.message_id)
                   if r["id"] == f"r_{mid}"]
     assert json.loads(reading["per_item"])["r_gone"] == "approve"
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

@@ -1,4 +1,4 @@
 # ordered
 rulings.rule
 rulings.line
-# rulings.rule takes each value as one word: approve, contest, revise, drop, rewrite, remove, exclude, keep, add, later or now.
+# rulings.rule takes one option per clause number of landing.clauses, from the menu of its lines in landing.menus, and rest: approve or none.

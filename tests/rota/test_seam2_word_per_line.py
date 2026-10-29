@@ -530,3 +530,8 @@ def test_both_forms_land_on_a_line_of_path_name_entries(tmp_path):
         rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
                 and w[2]["ref"] == "b_3"]
         assert [(r["act"], r["target"]) for r in rows] == [("exclude", target)]
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

@@ -3754,3 +3754,8 @@ def test_a_challenge_pairing_a_criterion_with_a_base_red_project_test_quotes_the
     assert str(exc.value) == (
         "inh_00000000 has no criterion: it is the project's own test and "
         + _F207_FACT)
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")

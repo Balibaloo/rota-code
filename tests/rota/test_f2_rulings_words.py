@@ -273,3 +273,8 @@ def test_a_contest_by_the_id_of_a_row_he_never_saw_is_refused(night):
     rulings["challenge_constraints_sentinel"] = "contest"
     with pytest.raises(ValueError, match="is no line of this page"):
         api.rulings_rule(ctx, rulings=rulings, words=W131)
+
+
+# These tests pin the doors of the word form of a page call. Pass R2
+# retires the doors and these pins (frame 345, the R1 brief, step 5).
+pytestmark = pytest.mark.usefixtures("old_page_form")
