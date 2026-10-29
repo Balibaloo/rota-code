@@ -14,6 +14,44 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 35, recommended on night 175's read, 2026-10-29 00:50
+
+Night 175 merged 2 of 3 on 21d145df, the first stop in three nights
+(observed: `plans/night175-read.md`, section 0). Walk 3 stopped by rule:
+he asked five times to delete the criteria c_2 and c_3, five rulings
+landed, none retired a criterion, because the one reader `_dropped_line`
+reads the act `drop` only and the seat copied his verb `remove` (observed:
+section 3; `plans/w14-faulted-approve-read-2026-10-29.md`, question 1). The
+door `_faulted_approve` refused 16 calls on five nights, 3 right and 12
+wrong, and every wrong refusal ended in a ruling against his words
+(observed: the same read, question 2). The seam cut the two-line ref fault
+to 0; the read-back line still drops 3 lines on m6 (observed: section 5).
+Order, the biggest issue first:
+
+1. W14, his delete of a criterion retires it: `landing.md` says any delete
+   of a page line is `drop` with kind `row`, with three `l1_landing` cases,
+   and `_dropped_line` reads `remove` with kind `row` on a criterion as a
+   drop, never a target equal to the criterion id. Pass 1 runs in `rota_w14`
+   from 00:48, 2 cycles. Night 176's count: criteria he deleted that stay
+   live, from 12 of 15 toward 0.
+2. Frame 345, the 24 L3R cases: the review of pass 1, the baseline run on
+   the head, then `_faulted_approve` out on a branch and the cases again.
+   The door stays or goes on that count, not on this page.
+3. The account page with no request: m75 took two answers and landed
+   nothing, the seat put an add in `acts` with no key in `rulings` twice and
+   the session ended (observed: section 3). Cases n175-m75-m76 and m77 hold
+   it; the prompt's add example is the site to read after the baseline.
+4. The Critic's review loop on an invariant criterion, sprint 34 row 2,
+   second night: CYCLE on `bg_1` at walk 1 (observed: section 2). A count on
+   nights 170 to 175, then a read.
+5. A Developer committed `criteria.json` into clickI on bg_3 (observed:
+   section 2). A read of the write door for a file outside the guess.
+6. Sprint 34 rows 7 and 4 as they stand: W5, and frame 324's second half,
+   not counted on night 175.
+7. Night 176 after rows 1 and 2 land: night 1 for W14, night 2 for the
+   seam, W11 and W10. Its read copies `n175_read_brief.md` in session
+   161c371b's scratchpad.
+
 ## Sprint 34, recommended on night 174's read, 2026-10-28 14:18
 
 Night 174 merged 3 of 3 on 3ac83acc, the second in a row (observed:
@@ -2127,6 +2165,7 @@ a different question and the night is then opened once.
 - Status 2026-10-27 05:11 (rota-90): Held by 0f8527d4, peer name rota-90, from rota-70 at 02:59. The mechanism is on the branch. Waits on: the gate at 76e18948 with re-records, running since 05:11 to gate_76e18948.txt in this session's scratchpad, then night 170 from .rota/launch_night170.sh, night 1 of 3, then the read by fact against this frame's Ends-when. Meta workflow.
 - Status 2026-10-28 05:56 (rota-0e): Night 172, the first night with a sample of the first half: criteria whose surface names examples/ on clear, 0 of 3, c_1 to c_3 name src/click/termui.py::clear; the second half, Architect sessions that repeat a bare symbol, 1 of 6, s217 sent format_filename twice, from 0 of 4 on night 171 (observed: plans/night172-read.md, section 4). The first half moved on its first sample. Meta workflow.
 - Status 2026-10-28 10:32 (rota-a5): Night 173, night 2 of 3: criteria whose surface names examples/ on clear, 0 of 3, the three name src/click/termui.py::clear; Architect sessions that repeat a bare symbol, 1 of 5, s162 sent clear and make_str twice, the door refused on make_str only and s167's bare clear landed (observed: plans/night173-read.md, section 4). Night 174 is night 3 of 3. Rota workflow.
+- Status 2026-10-29 00:43 (rota-62): Night 175, night 4: criteria whose surface names examples/ on clear, 0, the first half holds; Architect sessions that repeat a bare symbol, not counted by the read (observed: plans/night175-read.md, section 4). The second half's pass stays sprint 35 row 6, after W14 and frame 345's baseline. Rota workflow.
 
 ### 322. The criteria wake names the item and not the ticket that has no criterion, and the twin refusal asks for a second sentence, so the Terminologist invents cases for the empty ticket (2026-10-25) (48122667) (79847ec6) (b18846fb) (0699ee05) (66edc387) (ad481e08) (4cdad7e1)
 
