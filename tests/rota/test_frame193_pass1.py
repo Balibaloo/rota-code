@@ -15,6 +15,7 @@ from rota.core.db import init_db
 from rota.core.predicates import Wake, grouping
 from rota.core.runner import run_session
 from rota.llm.llm import Pins, ScriptedBackend
+from rota.roles import api
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -231,26 +232,21 @@ def _m62(db):
     return _landing(db, "m62", refs, "m63", M63, 62)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
     sb = _m62(db)
-    rulings = {1: "approve", **{n: "drop" for n in range(2, 9)}}
-    out = sb.call("rulings.rule", rulings=rulings, words=M63)
+    # The menu form (frame 345, R6). The binder puts his words on line 6
+    # inside the clause of line 5, so no clause names line 6. The menu then
+    # refuses any change of line 6, and the test pins the six other drops.
+    rulings = {1: "approve", **{n: "drop" for n in (2, 3, 4, 5, 7, 8)},
+               "rest": "approve"}
+    dropped = [lid for k, (lid, _, _) in enumerate(M62_LEDGER, 2) if k != 6]
+    out = sb.call("rulings.rule", rulings=rulings)
     assert out["per_item"]["how_it_works"] == "approve"
-    assert {out["per_item"][lid] for lid, _, _ in M62_LEDGER} == {"contest"}
+    assert {out["per_item"][lid] for lid in dropped} == {"contest"}
     row = next(w[2] for w in sb.ctx.writes if w[0] == "rulings")
     stored = json.loads(row["per_item"])
-    assert [stored[lid] for lid, _, _ in M62_LEDGER] == ["contest"] * 7
+    assert [stored[lid] for lid in dropped] == ["contest"] * 6
     assert "drop" not in stored.values()
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_phrase_maps_by_its_first_word(db):
-    sb = _m62(db)
-    rulings = {1: "Approve", 2: " drop it ", **{n: "contest" for n in range(3, 9)}}
-    out = sb.call("rulings.rule", rulings=rulings, words=M63)
-    assert out["per_item"]["how_it_works"] == "approve"
-    assert out["per_item"]["l_dd34f7bf9d"] == "contest"
 
 
 # Night 137's m161: the confirm item, its five criteria and seven ledger rows.
@@ -298,212 +294,18 @@ def _m161(db):
     return _landing(db, "m161", refs, "m162", M162, 163)
 
 
-# Frame 197: night 138's m11, a present of eight lines, seven ledger rows and
-# the description item, as s94 saw it. m12 is the principal's reply.
-M11_LEDGER = (
-    ("l_125a8d70dc", "docs/arguments.md",
-     "the README says how_it_works; the code shows Click provides a command-line "
-     "interface toolkit"),
-    ("l_12e747e99d", "docs/arguments.md",
-     "the README says defines_commands_and_options; the code shows arguments are "
-     "positional and can take nargs=-1"),
-    ("l_551dc809f0", "parses_and_executes_inputs",
-     "the README says: Click parses command-line arguments and options, then "
-     "executes the corresponding Python functions with the provided inputs; the "
-     "code shows: The API reference includes functions for parsing and executing "
-     "command-line inputs"),
-    ("l_8cac936cd4", "how_it_works",
-     "the README says: The program is a command-line interface toolkit called "
-     "Click. Users write scripts that define commands and options, and Click "
-     "handles parsing and executing them; the code shows: The API reference lists "
-     "classes and functions for building command-line interfaces, including "
-     "commands, options, and utilities"),
-    ("l_a9c0ca7d82", "defines_commands_and_options",
-     "the README says: Users define commands and options using decorators in "
-     "Python functions, which Click then uses to parse and execute command-line "
-     "inputs; the code shows: The API reference lists decorators like command, "
-     "option, and argument which are used to define commands and options in Click"),
-    ("l_ae1ec6ade4", "provides_command_line_interface",
-     "the README says: Click provides a command-line interface that users can "
-     "interact with by running scripts that define commands and options; the code "
-     "shows: The API reference includes classes and functions for building and "
-     "interacting with command-line interfaces"),
-    ("l_d5f508f6e9", "docs/arguments.md",
-     "the README says parses_and_executes_inputs; the code shows Click parses "
-     "command-line arguments and executes Python functions"),
-)
-M12 = ("Lines 2 and 8 are wrong, because on the README side they show a short label "
-       "instead of what the README actually says. Please put the README's own words "
-       "there. The rest is fine.")
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
     sb = _m161(db)
-    rulings = {2: "contest", 3: "approve", 4: "contest", 5: "contest",
-               6: "revise", 8: "ask"}
+    # The menu form (frame 345, R6): his question is clause c5, and its one
+    # option is ask.
+    rulings = {"2": "rewrite", "4": "rewrite", "5": "rewrite", "6": "drop",
+               "c5": "ask"}
     with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M162)
-    assert str(e.value) == (
-        "line 8: 'ask' is a question back, and a question is its own call: "
-        "rulings.rule(ask=\"<one sentence about line 8>\") with no rulings.")
+        sb.call("rulings.rule", rulings=rulings)
+    assert api.ASK_NOT_OPTION in str(e.value)
     # The named call lands the question, and the door writes no ruling.
     out = sb.call("rulings.rule",
                   ask="Line 8 keeps one retry on a closed input. Do you want "
                       "the normal prompt to change?")
     assert out["to"] == "principal"
     assert not any(w[0] == "rulings" for w in sb.ctx.writes)
-
-
-def _m11(db):
-    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
-               "version, is_description) VALUES ('how_it_works', ?, 'in_scope', "
-               "'approved', 4, 1, 4, 1)",
-               ("The program is a command-line interface toolkit called Click. "
-                "Users write scripts that define commands and options, and Click "
-                "parses command-line arguments and options, then executes the "
-                "corresponding Python functions with the provided inputs.",))
-    for lid, about, text in M11_LEDGER:
-        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
-                   "kind, status, author) VALUES (?, ?, 'items', ?, 'default', "
-                   "'open', 'vision_keeper')", (lid, about, text))
-    refs = [lid for lid, _, _ in M11_LEDGER] + ["how_it_works"]
-    return _landing(db, "m11", refs, "m12", M12, 11)
-
-
-# Night 139's m141: the item, its three criteria and the running change bg_3,
-# which the page numbers line 5. m142 is the principal's reply.
-ITEM_139 = "version_option_show_python"
-CRITERIA_139 = (
-    ("c1_version_option_show_python",
-     "When `version_option` is invoked with `show_python=True`, the output message "
-     "must append the running Python version formatted exactly as "
-     "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from `sys.version_info`."),
-    ("c2_version_option_show_python",
-     "The `show_python` flag must be a boolean parameter that controls whether the "
-     "Python version is appended to the standard version message, defaulting to "
-     "False when not explicitly set."),
-    ("c3_version_option_show_python",
-     "The `show_python` flag must default to False when not explicitly set, "
-     "preserving existing behavior where only the package version is shown."),
-)
-M142 = ("Please don't drop this change; I want the team to fix it. The check for "
-        "line 2 seems to call the custom version helper without its callback, so it "
-        "should test the real version option instead. The check for line 3 shows "
-        "the flag changes nothing yet, so the Python version still needs to be "
-        "appended to the message when the flag is on.")
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
-    sb = _m11(db)
-    # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={2: "contest", 8: "contest", "words": M12})
-    # The shape carries the seat's own words, verbatim, and no placeholder. The
-    # text names the lines the seat left out, so the next call can be whole.
-    assert str(e.value) == (
-        "rulings has a key words, and words is its own argument, not a line of "
-        "the page: rulings.rule(rulings={\"2\": \"contest\", \"8\": \"contest\"}, "
-        f"words=\"{M12}\"). Lines 1, 3, 4, 5, 6, 7 still take approve, contest or "
-        "revise. Each key of rulings is a line number.")
-    assert "<the principal's words>" not in str(e.value)
-    # The key ask takes the question's own call.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={2: "contest", "ask": "which words?"})
-    assert str(e.value) == (
-        "rulings has a key ask, and ask is its own argument, not a line of the "
-        "page. A question is its own call: rulings.rule(ask=\"<one sentence>\") "
-        "with no rulings.")
-    # The shape with a ruling on each named line lands with the seat's words.
-    full = {str(n): "contest" if n in (2, 8) else "approve" for n in range(1, 9)}
-    out = sb.call("rulings.rule", rulings=full, words=M12)
-    assert sorted(out["per_item"].values()) == ["approve"] * 6 + ["contest"] * 2
-    row = next(w[2] for w in sb.ctx.writes if w[0] == "rulings")
-    assert row["words"] == M12
-
-
-def _m141(db):
-    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
-               "version) VALUES (?, ?, 'in_scope', 'approved', 4, 1, 4)",
-               (ITEM_139, "Give version_option a show_python flag that appends the "
-                          "running Python version to the message."))
-    db.execute("INSERT INTO tickets (id, item_id, text, version, item_ver) "
-               "VALUES ('tk_1_version_option_show_python', ?, ?, 1, 4)",
-               (ITEM_139, "give version_option a show_python flag that appends the "
-                          "running Python version to the message"))
-    for cid, text in CRITERIA_139:
-        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
-                   "(?, 'tk_1_version_option_show_python', ?)", (cid, text))
-    db.execute("INSERT INTO batches (id, item_id, head_commit, status, version) "
-               "VALUES ('bg_3', ?, '5b04c4ae5c6d02fa81198bd919f9ff152b2850b6', "
-               "'running', 1)", (ITEM_139,))
-    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
-               "('bg_3', 'tk_1_version_option_show_python')")
-    refs = ["bg_3", ITEM_139] + [c for c, _ in CRITERIA_139]
-    return _landing(db, "m141", refs, "m142", M142, 144)
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_s263s_contest_of_the_change_line_names_line_5(db):
-    sb = _m141(db)
-    # s263's call at turns 1 to 3 of night 139, to the byte.
-    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
-               "5": "contest"}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=rulings, words=M142)
-    # M142 faults lines 2 and 3, not line 5, so the door holds (frame 255).
-    assert str(e.value) == (
-        "line 5: the words do not fault bg_3's files. Approve line 5.")
-    # "Please don't drop this change; I want the team to fix it." names the
-    # change and no criterion, so it reaches the request line alone. The
-    # contest of c3 on line 4 is r_m121's shape (F2 pass 2c).
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
-    assert str(e.value) == (
-        "The words name lines 2 and 3 and do not name line 4. A contest rests "
-        "on the principal's words. Approve the lines the words do not name, or "
-        "rule them as the words say.")
-    # The line-1 door, not the naming door, rules the request line. It reads
-    # the faults of lines 2 and 3 as no fault of the request.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={**rulings, "1": "contest",
-                                         "4": "approve", "5": "approve"},
-                words=M142)
-    assert str(e.value) == (
-        "line 1: the words do not fault the request. They fault lines 2 and "
-        "3. Rule lines 2 and 3 as the words say, and approve line 1.")
-    out = sb.call("rulings.rule", rulings={**rulings, "4": "approve",
-                                           "5": "approve"}, words=M142)
-    assert out["per_item"]["c3_version_option_show_python"] == "approve"
-    assert out["per_item"]["bg_3"] == "approve"
-    assert out["per_item"]["c1_version_option_show_python"] == "contest"
-
-
-# The F2 review of pass 2, findings 1 and 2: a sentence with no number
-# spares a criterion line only when it names the line and faults it. No
-# recorded reply of nights 170 to 172 has this shape, so the reply below is
-# M142 with one sentence added. Line 4 is c3, whose text names `show_python`.
-def _s263_with(db, added):
-    sb = _m141(db)
-    reply = M142 + " " + added
-    sb.ctx.conn.execute("UPDATE messages SET body_text = ? WHERE id = 'm142'",
-                        (reply,))
-    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
-               "5": "approve"}
-    return sb.call("rulings.rule", rulings=rulings, words=reply)
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
-    out = _s263_with(db, "The `show_python` default must also hold when the "
-                         "flag is passed as None.")
-    assert out["per_item"]["c3_version_option_show_python"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
-    with pytest.raises(ValueError) as e:
-        _s263_with(db, "The `show_python` default is fine as it is.")
-    assert str(e.value).startswith(
-        "The words name lines 2 and 3 and do not name line 4.")
