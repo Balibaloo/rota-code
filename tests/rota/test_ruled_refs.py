@@ -22,7 +22,7 @@ from rota.roles.principal import (Answer, apply_rulings, land, last_ruling_on,
 
 WORDS = ("3 is wrong: a fixed 15 percent, nobody types it. Remove the typed "
          "percentage.")
-SPAN = "Remove the typed percentage."
+CLAUSE_3 = "3 is wrong: a fixed 15 percent, nobody types it."
 
 
 @pytest.fixture
@@ -83,13 +83,8 @@ def _rows(db, ruling_id, source="landed"):
         "AND source IS NOT ? ORDER BY row_seq", (ruling_id, source))]
 
 
-OBJECT = {"1": "approve", "2": "approve",
-          "3": {"verdict": "contest", "act": "remove", "target": "how_it_works",
-                "words": SPAN}}
-FLAT = {"1": "approve", "2": "approve", "3": "contest"}
-ACTS = {"3": {"act": "remove", "target": "how_it_works", "words": SPAN}}
-
-
+# The menu call that the seat makes for WORDS (frame 345, R6).
+OBJECT = {"3": "drop", "c2": "none", "rest": "approve"}
 def test_the_table_holds_one_row_per_ruling_and_ref_and_the_view_derives(db):
     cols = [r[1] for r in db.execute("PRAGMA table_info(ruled_refs)")]
     assert cols == ["id", "ruling_id", "ref", "line", "verdict", "act",
@@ -124,11 +119,10 @@ def test_the_writer_holds_the_stored_verdicts_and_a_row_never_changes(db):
                    "WHERE id = 'rr_approve'")
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)
-    out = sb.call("rulings.rule", rulings=OBJECT, words=WORDS)
+    out = sb.call("rulings.rule", rulings=OBJECT)
     # The result and `per_item` keep their shape, so the cases keep theirs.
     assert out["per_item"] == {"s1": "approve", "calculate_tip": "approve",
                                "l_1": "contest"}, out
@@ -136,15 +130,17 @@ def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     assert tables == ["rulings", "ruled_refs", "ruled_refs", "ruled_refs"], tables
     _commit(db, sb)
     rows = _rows(db, out["id"])
+    # The menu call lands its keyed line before the rest, and its drop
+    # targets the row of the line itself (frame 345, R6).
     assert [(r["ref"], r["line"], r["verdict"]) for r in rows] == [
-        ("s1", 1, "approve"), ("calculate_tip", 2, "approve"),
-        ("l_1", 3, "contest")], rows
-    contest = rows[2]
+        ("l_1", 3, "contest"), ("s1", 1, "approve"),
+        ("calculate_tip", 2, "approve")], rows
+    contest = rows[0]
     assert (contest["act"], contest["target"], contest["words"],
-            contest["words_from"]) == ("remove", "how_it_works", SPAN, reply)
+            contest["words_from"]) == ("drop", None, CLAUSE_3, reply)
     # A row with no words of its own carries the whole reply. No act is
     # granted on it, and null never reads as a permission.
-    assert rows[0]["words"] == WORDS and rows[0]["act"] is None
+    assert rows[1]["words"] == WORDS and rows[1]["act"] is None
     assert {r["source"] for r in rows} == {"reading"}
     assert {r["status"] for r in rows} == {"open"}
     assert {r["provenance"] for r in rows} == {"reasoned"}
@@ -155,26 +151,6 @@ def test_a_reply_that_rules_three_refs_stages_three_rows_after_its_ruling(db):
     # The reader keeps its answer: the verdict and the whole reply.
     assert last_ruling_on(db, "l_1") == {"id": out["id"], "verdict": "contest",
                                          "words": WORDS, "text": None}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_object_form_writes_the_rows_and_the_flat_form_is_refused(tmp_path):
-    """Frame 345, pass 2: the one-word form replaced the flat `acts` map,
-    and the object form stays."""
-    conn = init_db(tmp_path / "object.db")
-    ask = _page(conn)
-    sb, _ = _seat(conn, ask)
-    sb.call("rulings.rule", words=WORDS, rulings=OBJECT)
-    written = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"]
-    conn.close()
-    assert len(written) == 3 and written[2]["act"] == "remove"
-    conn = init_db(tmp_path / "flat.db")
-    ask = _page(conn)
-    sb, _ = _seat(conn, ask)
-    with pytest.raises(ValueError, match="takes no acts"):
-        sb.call("rulings.rule", words=WORDS, rulings=FLAT, acts=ACTS)
-    assert not sb.ctx.writes
-    conn.close()
 
 
 def test_frame300_a_ruling_on_a_ref_no_table_holds_is_refused(db):
@@ -225,11 +201,10 @@ def test_the_shift_answer_lands_its_rows_through_the_same_builder(db):
         ("calculate_tip", "park", "keypress", "later")], rows
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_view_supersedes_outdates_and_confirms(db):
     ask = _page(db)
     sb, reply = _seat(db, ask)
-    first = sb.call("rulings.rule", rulings=OBJECT, words=WORDS)["id"]
+    first = sb.call("rulings.rule", rulings=OBJECT)["id"]
     _commit(db, sb)
     apply_rulings(db)
     # A newer landed ruling on calculate_tip supersedes the first one there.

@@ -224,6 +224,35 @@ def test_through_reads_as_a_range():
         set(), set(range(8, 12)))
 
 
+def _page11(db):
+    """m131's page shape on the `_present` fixture: line 1 the request item,
+    lines 2 to 4 its criteria, lines 5 to 11 seven team notes."""
+    from rota.roles.principal import pending_asks
+
+    _present(db)
+    for iid in ("c1", "c2", "c3"):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?,?,'in_scope','draft',0,1)",
+                   (iid, "criterion " + iid))
+    for k in range(2, 8):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, "
+                   "default_taken, status, author) VALUES (?,'how_it_works',"
+                   "'items',?,'open','critic')", (f"l_{k}", f"note text {k}"))
+    refs = ["calculate_tip", "c1", "c2", "c3"] + [f"l_{k}" for k in range(1, 8)]
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm9'",
+               (json.dumps(refs),))
+    db.commit()
+    ask = pending_asks(db)[0]
+    assert ask.order == refs, ask.order
+    return ask
+
+
+def _rule11(db, words, rulings):
+    ask = _page11(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings, words=words)
+
+
 def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
     """Review 3, finding 2, through the door: night 136's page with bg_2
     unbuilt on line 5. The seat keys line 5 with a menu option, and the

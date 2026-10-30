@@ -216,7 +216,6 @@ def _prompt_tokens(system: str, user: str) -> int:
     return int((len(system) + len(user)) / 3.97)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_landing_wake_for_a_77_line_present_fits_the_window(db):
     """
     The wall of night 85 (2026-09-18). The landing wake for a 77-line present
@@ -311,15 +310,13 @@ def _landing(db, ask, text):
     return sb, msg
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     from rota.roles.principal import apply_rulings
 
     ask = _present(db)
     sb, msg = _landing(db, ask, "4 is wrong: a fixed 15 percent, nobody types it")
-    out = sb.call("rulings.rule",
-                  rulings={"1": "approve", "2": "approve", "3": "approve", "4": "contest"},
-                  words="4 is wrong: a fixed 15 percent, nobody types it")
+    # The menu form (frame 345, R6): line 4 is the team's note.
+    out = sb.call("rulings.rule", rulings={"4": "rewrite", "rest": "approve"})
     assert out["per_item"] == {"s1": "approve", "how_it_works": "approve",
                                "calculate_tip": "approve", "l_1": "contest"}
     w = [w for w in sb.ctx.writes if w[0] == "rulings"]
@@ -351,26 +348,20 @@ def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     assert apply_rulings(db) == []
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_ruling_door_holds_the_page(db):
     ask = _present(db)
     sb, _ = _landing(db, ask, "fine")
-    with pytest.raises(ValueError, match="not a line of the page"):
+    # The menu form (frame 345, R6) holds the page with its own refusals.
+    with pytest.raises(ValueError, match="'9' is no clause and no page line"):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
                                          "3": "approve", "9": "approve"})
-    with pytest.raises(ValueError, match="lines 3, 4 have no ruling"):
+    with pytest.raises(ValueError, match="line 3, line 4: his words name the line"):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "approve"})
-    with pytest.raises(ValueError, match="not a ruling"):
+    with pytest.raises(ValueError, match="'yes' is not an option of line 1"):
         sb.call("rulings.rule", rulings={"1": "yes", "2": "approve",
                                          "3": "approve", "4": "approve"})
-    # A call with no words reads his reply, whole (F2 pass 2). "fine"
-    # names no line, so the contest of line 2 has nothing behind it.
-    with pytest.raises(ValueError, match="The words agree with the page"):
-        sb.call("rulings.rule", rulings={"1": "approve", "2": "contest",
-                                         "3": "approve", "4": "approve"})
-    # A row id names a line as well as its number does.
-    out = sb.call("rulings.rule", rulings={"s1": "approve", "calculate_tip": "approve",
-                                           "3": "approve", "l_1": "approve"})
+    out = sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                           "3": "approve", "4": "approve"})
     assert set(out["per_item"].values()) == {"approve"}
 
 

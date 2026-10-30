@@ -37,31 +37,6 @@ M105 = ("Lines 3 and 5 can be checked simply: call confirm without the flag "
         "raising a UsageError\", because confirm aborts on closed stdin and does "
         "not raise that error. Please fix those lines and keep going with the "
         "change, not drop it.")
-# s212's landed map, lines 1 to 8. On night 149, line 8 was bg_2. On the
-# fixture page, lines 8 to 11 are team notes that the words do not name.
-S212 = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
-        "5": "contest", "6": "approve", "7": "approve", "8": "approve",
-        "9": "approve", "10": "approve", "11": "approve"}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_s212s_map_with_the_faulted_lines_contested_lands(db):
-    rulings = dict(S212, **{"6": "contest", "7": "contest"})
-    out = _rule11(db, M105, rulings)
-    assert out["per_item"]["c1"] == "contest"
-    assert out["per_item"]["l_2"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_right_approve_of_a_matched_line_lands(db):
-    words = "Line 3 is wrong. Lines 2 and 4 match what I asked for."
-    rulings = {str(n): "approve" for n in range(1, 12)}
-    rulings["3"] = "contest"
-    out = _rule11(db, words, rulings)
-    assert out["per_item"]["c1"] == "approve"
-    assert out["per_item"]["c2"] == "contest"
-
-
 def test_an_approve_of_the_request_line_the_words_fault_lands(db):
     # Night 146's m164 faulted the code that line 1 names, not the request.
     words = ("Line 1 names the options, termui and basic test files, but only "
@@ -224,10 +199,3 @@ def test_the_m245_page_numbers_bg_4_as_line_6(m245):
         "SELECT body_refs FROM messages WHERE id = 'm245'").fetchone()
         ["body_refs"]), ask_id="m245")
     assert order == [B4_ITEM] + [c for c, _, _ in B4_CRITERIA] + ["bg_4"]
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_map_with_line_6_contested_lands(m245):
-    out = _rule_m245(m245, dict(M245_MAP, **{"4": "contest", "6": "contest"}))
-    assert out["per_item"]["bg_4"] == "contest"
-    assert out["per_item"][B4_ITEM] == "approve"

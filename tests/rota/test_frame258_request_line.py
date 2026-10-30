@@ -42,8 +42,6 @@ REST = ("The checks on lines 2, 3 and 4 look wrong: the default for confirm is "
         "real end-of-input. Please give the tests a proper closed stdin and "
         "have them expect a true or false default.")
 M67 = f"{KEEP} {REST}"
-S181 = {"1": "contest", "2": "contest", "3": "contest", "4": "contest",
-        "5": "approve"}
 # `_line_set` writes a run of three or more lines as a range.
 REFUSAL = ("line 1: the words do not fault the request. They fault lines 2 to "
            "4. Rule lines 2 to 4 as the words say, and approve line 1.")
@@ -100,39 +98,17 @@ def test_the_refusal_is_under_50_words():
     assert len(REFUSAL.split()) < 50
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_criteria_words_alone_do_not_spare_line_1(page):
-    # Without the keep sentence, only the subtraction of the criteria's
-    # words refuses the contest.
-    said, ruled = _rule(page, REST, S181)
-    assert REFUSAL in said, said
-    assert ruled.get(ITEM) != "contest", ruled
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_map_with_line_1_approved_lands(page):
-    said, ruled = _rule(page, M67, {**S181, "1": "approve"})
-    assert REFUSAL not in said, said
+    # The menu form (frame 345, R6): clause c3 names lines 2 to 4, and the
+    # clauses that name no line rule nothing.
+    said, ruled = _rule(page, M67, {
+        "c3": "rewrite", **{f"c{k}": "none" for k in (1, 2, 4, 5, 6)},
+        "rest": "approve"})
+    assert not said, said
     assert ruled.get(ITEM, "approve") == "approve", ruled
     assert _approval(page) == "approved"
     for cid, _ in CRIT:
         assert ruled.get(cid) == "contest", ruled
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
-    words = (f"{M67} Line 1 is wrong too, because the flag should be called "
-             "eof_default.")
-    said, ruled = _rule(page, words, S181)
-    assert ruled.get(ITEM) == "contest", (said, ruled)
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_request_word_no_criterion_holds_lets_line_1_be_contested(page):
-    # "let" is in the request and in no criterion.
-    words = f"{REST} I never said to let confirm() guess the answer."
-    said, ruled = _rule(page, words, S181)
-    assert ruled.get(ITEM) == "contest", (said, ruled)
 
 
 @pytest.mark.parametrize("words", [
