@@ -466,8 +466,11 @@ def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
     assert out["per_item"]["calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="menu_ruling: a quote inside a clause that names "
-                         "another line cannot carry a change of an unnamed line")
+@pytest.mark.skip(reason="pins a rule the code does not hold: the one clause "
+                         "names line 2, so line 1 meets the naming refusal "
+                         "'no clause of his names line 1' (api.py 14308), and a "
+                         "quote from a clause that names another line carries "
+                         "no change")
 def test_the_quote_branch_lands(db):
     words = "Line 2 is wrong, and the software calculates the tip wrong too."
     out = _menu_request(db, words, {

@@ -14,7 +14,10 @@ A long page carries `rows_not_shown` instead of `line_rows`, and then
 
 The menus:
 - A criterion: `approve`, `drop` takes the line off the page, `rewrite` makes the line say something else.
-- The line of the files that the change touches: `approve`, `exclude <path>` takes that file off, `rewrite`. Join two paths with a comma: `exclude src/a.py, tests/test_a.py`.
+- The line of the files that the change touches: `approve`, `exclude <path>` takes that file off, `rewrite`. Join two paths with a comma: `exclude src/a.py, tests/test_a.py`. Its menu's `when` says when each option applies:
+  `approve` when his words keep the shown files, or put the change in one of them: "change only the docstring in the file on line 9".
+  `exclude <path>` when his words say that a shown file is not part of the change, by its path or by its kind: "not in a test file", "drop the utils file". This holds also when he names where the change goes.
+  `rewrite` when his words refuse no shown file and say that the line must name a function or a file that it leaves out: "that function should be named as expected".
 - The read-back line, "Your answer ...": `ok` when it reads him right, `misread`, `misread, drop`, `slightly off` when it is right in substance and needs other words, `rewrite`.
 - The request line: `approve`, `add <quote>` when the reply asks for something that the page leaves out.
 - Any other line: `approve`, `drop`, `rewrite`, and `add <quote>` on an item.

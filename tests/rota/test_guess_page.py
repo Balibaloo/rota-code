@@ -249,13 +249,18 @@ M192_LINE_1 = M192[M192.index("Line 1 also"):]
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="menu_ruling quote home: a quote in a clause that "
-                         "names another line cannot change an unnumbered line")
+# Frame 347, pass 4: test words, not his. M192 named the guess files under
+# line 1, the page form before 1869cab4 of 2026-10-18. On the stamped page
+# the files stand on line 2, so the words name line 2 (shape 1 of section
+# 2.4 of plans/f347-read-2026-10-30.md).
+M192_LINE_2 = M192_LINE_1.replace("Line 1 also", "Line 2 also", 1)
+
+
 def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     _state(db, guess=True)
     mid = _send(db, [ITEM])
     (ask,) = [a for a in pending_asks(db) if a.message_id == mid]
-    land(db, ask, parse_reply(ask, M192_LINE_1))
+    land(db, ask, parse_reply(ask, M192_LINE_2))
     db.commit()
     sb = build("liaison", db, mode="landing",
                allow=prompts.mode_tools("liaison", "landing"))
@@ -263,8 +268,10 @@ def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
                                 "AND from_role = 'principal'", (mid,)).fetchone()["id"]
     every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
     # The menu form (frame 345, R6): line 2 is the code line, and the
-    # refusal of the files cue went with the word form.
-    out = sb.call("rulings.rule", rulings=dict(every, **{"2": "rewrite"}))
+    # refusal of the files cue went with the word form. His words take the
+    # options test file off the guess.
+    out = sb.call("rulings.rule", rulings=dict(
+        every, **{"2": "exclude tests/test_options.py"}))
     assert out["per_item"][KEY] == "contest"
     assert out["per_item"][ITEM] == "approve"
 

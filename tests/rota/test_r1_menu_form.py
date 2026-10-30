@@ -42,6 +42,9 @@ def test_each_row_kind_offers_its_menu(db):  # noqa: F811
     # One entry per kind and option list, with its lines.
     assert {"kind": "criterion", "lines": [2, 5], "options": OTHER} in menus
     assert len(menus) == 4
+    # Frame 347, pass 4: the touch menu says when each option applies.
+    touch = next(m for m in menus if m["kind"] == "touch")
+    assert set(touch["when"]) == {"approve", "exclude <path>", "rewrite"}
 
 
 def test_the_request_line_offers_add(db):  # noqa: F811
