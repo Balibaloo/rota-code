@@ -13873,6 +13873,32 @@ def menu_form_text(clauses: int) -> str:
             "\"rest\": \"approve\"}")
 
 
+def _earlier_answers(ctx: Ctx, page_id: str) -> tuple[str, ...]:
+    """His earlier answers to the page `page_id`, oldest first: his messages
+    of the thread after the page and before the reply. An answer before the
+    page was about another page, so it names none of these lines.
+
+    An answer counts only when its cause chain leads back to this page. A
+    second page of the Liaison ends the chain, so his answer to that page
+    names none of these lines (review p3, low 2)."""
+    if not ctx.trigger:
+        return ()
+    from .principal import said as his_words
+
+    rows = ctx.conn.execute(
+        "WITH RECURSIVE chain(id) AS (SELECT ? UNION "
+        "SELECT c.id FROM messages c JOIN chain ON c.cause_id = chain.id "
+        "WHERE NOT (c.from_role = 'liaison' AND c.verb = "
+        "(SELECT verb FROM messages WHERE id = ?))) "
+        "SELECT m.id FROM messages m, messages p, messages r "
+        "WHERE p.id = ? AND r.id = ? AND m.thread_id = r.thread_id "
+        "AND m.from_role = 'principal' AND m.id != r.id "
+        "AND m.id IN (SELECT id FROM chain) "
+        "AND m.seq > p.seq AND m.seq < r.seq ORDER BY m.seq",
+        (page_id, page_id, page_id, ctx.trigger)).fetchall()
+    return tuple(his_words(ctx.conn, row["id"]) for row in rows)
+
+
 def _menu_page(ctx: Ctx, ask, rulings: dict, his: str, order: list,
                keys: list, page_text: str) -> dict:
     """Stage the ruling of a menu call on a page and return its result.
@@ -13891,7 +13917,8 @@ def _menu_page(ctx: Ctx, ask, rulings: dict, his: str, order: list,
     refused = frozenset(why for fn, why, *_ in (
         getattr(ctx, "refusals", None) or []) if fn == "rulings.rule")
     per_item, shape_of = menu_ruling(ctx.conn, rulings, his, order, page_text,
-                                     gone, read_keys, refused)
+                                     gone, read_keys, refused,
+                                     _earlier_answers(ctx, ask["id"]))
     rid = _ruling_id(ctx, ask["id"])
     words = (his or "").strip()
     rows = _ruled_rows(ctx, rid, order,
@@ -14089,7 +14116,8 @@ def _menu_lines(given, clause: int, size: int) -> list[int]:
 
 def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 gone: set, read_keys: dict,
-                refused: frozenset = frozenset()) -> tuple[dict, dict]:
+                refused: frozenset = frozenset(),
+                earlier: tuple[str, ...] = ()) -> tuple[dict, dict]:
     """The verdict and the row shape of each ref that a menu call rules.
 
     A key is a page line, as "7", a clause, as "c2", or "rest". A line key
@@ -14115,6 +14143,19 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     for c in clauses:
         for n in c["lines"]:
             span_of.setdefault(n, c["words"])
+    # His earlier answer to the same page names a line too (frame 347, pass
+    # 3, test_frame337_earlier_answers). The reply comes first. A line counts
+    # only as the subject of an earlier clause, so the fallback of a reply
+    # that names no line binds nothing. An earlier question was answered.
+    # His latest answer about a line wins (frame 337, pass 2), so the loop
+    # reads the newest first (review p3, high 1).
+    for text in reversed(earlier):
+        for c in page_clauses(text, len(order)):
+            if _is_question(c["words"]):
+                continue
+            blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"])
+            for n in sorted(set(c["lines"]) & _subject_lines(blank, len(order))):
+                span_of.setdefault(n, c["words"])
     rest = "approve"
     by_clause: dict[int, object] = {}
     by_line: dict[int, object] = {}
@@ -14360,9 +14401,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 f"the page leaves out")
         if text not in refused:
             raise ValueError(text)
+    # A line whose row is gone takes no option, because no table holds the
+    # row to rule (frame 347, pass 3, the f28 seen order).
     missing = [f"line {n}" for n in sorted(span_of)
                if n not in ruled and n not in covered and n not in rest_lines
-               and n not in ask_lines]
+               and n not in ask_lines
+               and not (1 <= n <= len(order) and order[n - 1] in gone)]
     if missing:
         raise ValueError(
             f"{', '.join(missing)}: his words name the line, and the call "
