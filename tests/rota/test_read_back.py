@@ -23,9 +23,9 @@ from rota.roles.principal import (READING_REF, _page_body, apply_rulings, land,
 
 WORDS = ("3 is wrong: a fixed 15 percent, nobody types it. Remove the typed "
          "percentage.")
-THREE = {"1": "approve", "2": "approve",
-         "3": {"verdict": "contest", "act": "remove", "target": "how_it_works",
-               "words": "Remove the typed percentage."}}
+# The menu call that the seat makes for WORDS (frame 345, pass R6). Line 3
+# is the note l_1, and its clause asks to drop it.
+THREE = {"3": "drop", "c2": "none", "rest": "approve"}
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def _answer(db, ask, words, rulings):
     sb = build("liaison", db, mode="normal", session_id=f"s_{reply}",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = reply
-    out = sb.call("rulings.rule", rulings=rulings, words=words)
+    out = sb.call("rulings.rule", rulings=rulings)
     for w in sb.ctx.writes:
         _apply_write(db, _as_write(w), sb.ctx.role)
     db.commit()
@@ -92,7 +92,6 @@ def _first_reply(db):
     return _answer(db, ask, WORDS, THREE)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db):
     reply, _ = _first_reply(db)
     owed = readings_owed(db)
@@ -106,7 +105,8 @@ def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db
     assert last.endswith("Say ok, or say what we misread.")
     told = last.split("as the team read it: ")[1]
     clauses = told[:-len(". Say ok, or say what we misread.")].split("; ")
-    assert clauses == ["line 3 is wrong: remove how_it_works",
+    # The menu's drop lands on the row of line 3 itself (frame 345, R6).
+    assert clauses == ["line 3 is wrong: drop",
                        "2 lines approved"], clauses
     assert len(clauses) <= 3
     assert sum(1 for l in lines if "as the team read it" in l) == 1
@@ -116,7 +116,6 @@ def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db
     assert "as the team read it" in page.splitlines()[-1]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_shift_page_and_a_clarify_carry_no_line(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -129,7 +128,6 @@ def test_a_shift_page_and_a_clarify_carry_no_line(db):
     assert ref not in order and "as the team read it" not in page
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_ok_confirms_every_row_of_that_reply(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -150,7 +148,6 @@ def test_ok_confirms_every_row_of_that_reply(db):
     assert ref not in json.loads(verdict["body_refs"])
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_supersedes_and_the_next_page_reads_the_new_rows_once(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -158,7 +155,9 @@ def test_a_contest_supersedes_and_the_next_page_reads_the_new_rows_once(db):
     line = ask.order.index(ref) + 1
     assert line == 4
     words = "4 is wrong. 2 is wrong: the software does not calculate the tip."
-    rulings = {"1": "approve", "2": "contest", "3": "approve", "4": "contest"}
+    # Line 2 is the request line, so its menu holds no rewrite (frame 345, R6).
+    rulings = {"2": "other the software does not calculate the tip.",
+               "4": "misread", "rest": "approve"}
     again, _ = _answer(db, ask, words, rulings)
     # The contest confirms nothing, and the new row on the item supersedes.
     assert set(_confirmed(db, reply).values()) == {None}
@@ -176,7 +175,6 @@ def test_a_contest_supersedes_and_the_next_page_reads_the_new_rows_once(db):
     assert "line 4" not in page.splitlines()[-1]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_reply_that_ignores_the_line_confirms_nothing(db):
     reply, _ = _first_reply(db)
     ref = READING_REF + reply
@@ -190,7 +188,6 @@ def test_a_reply_that_ignores_the_line_confirms_nothing(db):
     assert READING_REF + reply in readings_owed(db)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_basis_ruled_counts_a_confirmed_reading_only(db):
     reply, out = _first_reply(db)
     db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
@@ -205,7 +202,6 @@ def test_basis_ruled_counts_a_confirmed_reading_only(db):
     assert prov() == "decided"
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_table_of_ref_knows_a_reading_ref(db):
     reply, _ = _first_reply(db)
     assert _table_of_ref(db, READING_REF + reply) == "messages"
@@ -213,7 +209,6 @@ def test_table_of_ref_knows_a_reading_ref(db):
     assert _table_of_ref(db, "calculate_tip") == "items"
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_night_report_counts_the_rows_unconfirmed_at_the_end(db):
     from rota.tools.nightreport import Night, _unconfirmed_line
 
@@ -222,7 +217,6 @@ def test_the_night_report_counts_the_rows_unconfirmed_at_the_end(db):
         "read-back: 3 rows of 1 replies unconfirmed at the night's end")
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("verb, refs", [("present", ["calculate_tip"]),
                                         ("confirm", ["s1"])])
 def test_the_send_door_writes_the_reading_ref_into_the_page(db, verb, refs):
@@ -236,7 +230,6 @@ def test_the_send_door_writes_the_reading_ref_into_the_page(db, verb, refs):
     assert sent[-1] == READING_REF + reply, sent
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     """The review of pass 5, finding 1: page 2 holds s1 and the line only."""
     reply, _ = _first_reply(db)
@@ -244,11 +237,10 @@ def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     ask = _present(db, "m_p2", ["s1", ref], 5)
     assert ask.order == ["s1", ref]
     words = "2 is wrong: it was not a remove. Keep how_it_works."
+    # The menu form names the row under the read-back line (frame 345, R6).
     again, out = _answer(db, ask, words, {
-        "1": "approve", "2": "contest",
-        "l_1": {"verdict": "approve", "act": "keep", "target": "how_it_works",
-                "words": "Keep how_it_works."}})
-    assert out["per_item"]["l_1"] == "approve", out
+        "2": {"option": "misread", "rows": ["l_1"]}, "rest": "approve"})
+    assert out["per_item"]["l_1"] == "contest", out
     old = db.execute("SELECT status FROM ruled_refs_live WHERE reply_id = ? "
                      "AND ref = 'l_1'", (reply,)).fetchone()
     assert old["status"] == "superseded"
@@ -256,32 +248,9 @@ def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     owed = readings_owed(db)
     assert owed == [READING_REF + again]
     page, _ = _page_body(db, "present", ["calculate_tip"] + owed, ask_id="m_p3")
-    assert "keep how_it_works" in page.splitlines()[-1]
+    assert "a row is wrong; 1 line approved" in page.splitlines()[-1]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
-    reply, _ = _first_reply(db)
-    ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
-    with pytest.raises(ValueError, match="read-back line 2"):
-        _answer(db, ask, "1 is fine. Keep how_it_works.",
-                {"1": "approve", "2": "approve", "l_1": "approve"})
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_only_his_words_confirm_the_line(db):
-    """The review of pass 5, finding 2: words that skip line 3 approve
-    lines 1 and 2, and the door refuses the approve of line 3."""
-    reply, _ = _first_reply(db)
-    ref = READING_REF + reply
-    ask = _present(db, "m_p2", ["calculate_tip", "s1", ref], 5)
-    with pytest.raises(ValueError, match="only his words confirm it"):
-        _answer(db, ask, "2 is fine, and 1 is fine as well.",
-                {"1": "approve", "2": "approve", "3": "approve"})
-    assert set(_confirmed(db, reply).values()) == {None}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
     """The review of pass 5, finding 4."""
     reply, _ = _first_reply(db)
@@ -293,28 +262,6 @@ def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
     assert ref not in order and "as the team read it" not in page
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_his_reply_alone_confirms_a_reading(db):
-    """The review of pass 5b, finding 5, probe P2d: his reply skips line 3,
-    and the Liaison passes the words "ok". Since F2 pass 2f, `words` must be
-    his clause, so his reply holds "ok" as a clause. Read alone, "ok"
-    approves the whole page, so a guard that read `words` would land."""
-    from rota.core.sandbox import build
-    from rota.roles import prompts
-
-    reply, _ = _first_reply(db)
-    ask = _present(db, "m_p2", ["calculate_tip", "s1", READING_REF + reply], 5)
-    his = land(db, ask, parse_reply(ask, "2 is fine, ok, and 1 is fine as well."))
-    db.commit()
-    sb = build("liaison", db, mode="normal", session_id="s_p2d",
-               allow=prompts.mode_tools("liaison", "landing"))
-    sb.ctx.trigger = his
-    with pytest.raises(ValueError, match="only his words confirm it"):
-        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
-                                         "3": "approve"}, words="ok")
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
     """The review of pass 5b, finding 6: the seat needs the ids of the rows
     that the line reads back."""
@@ -329,7 +276,29 @@ def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
                 message_id=his, refs=ask.refs)
     landing = resolve_inbound(db, wake)["landing"]
     rows = landing["read_back"]["2"]
+    # The menu call lands its keyed line before the rest (frame 345, R6).
     assert [(r["ref"], r["line"], r["verdict"]) for r in rows] == [
-        ("s1", 1, "approve"), ("calculate_tip", 2, "approve"),
-        ("l_1", 3, "contest")], rows
-    assert rows[2]["act"] == "remove" and rows[2]["target"] == "how_it_works"
+        ("l_1", 3, "contest"), ("s1", 1, "approve"),
+        ("calculate_tip", 2, "approve")], rows
+    assert rows[0]["act"] == "drop"
+
+
+def test_only_his_words_confirm_the_line(db):
+    """The review of pass 5, finding 2: words that skip line 3 approve
+    lines 1 and 2. The menu form leaves the read-back line out, so the
+    approve of line 3 confirms nothing (frame 345, R6b)."""
+    reply, _ = _first_reply(db)
+    ref = READING_REF + reply
+    ask = _present(db, "m_p2", ["calculate_tip", "s1", ref], 5)
+    _answer(db, ask, "2 is fine, and 1 is fine as well.",
+            {"1": "approve", "2": "approve", "3": "ok"})
+    assert set(_confirmed(db, reply).values()) == {None}
+
+
+def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
+    reply, _ = _first_reply(db)
+    ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
+    with pytest.raises(ValueError, match="no clause of his names line 2"):
+        _answer(db, ask, "1 is fine. Keep how_it_works.",
+                {"1": "approve", "2": {"option": "misread", "rows": ["l_1"]},
+                 "rest": "approve"})

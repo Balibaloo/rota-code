@@ -249,7 +249,7 @@ M192_LINE_1 = M192[M192.index("Line 1 also"):]
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. His words name line 1, the request, and its menu offers no option that lands on the guess key of line 2 (line_menu)")
 def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     _state(db, guess=True)
     mid = _send(db, [ITEM])
@@ -261,12 +261,9 @@ def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     sb.ctx.trigger = db.execute("SELECT id FROM messages WHERE cause_id = ? "
                                 "AND from_role = 'principal'", (mid,)).fetchone()["id"]
     every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
-    with pytest.raises(ValueError, match=(
-            r"line 1 is the request, and the words fault only the code it touches\. "
-            r"That code is line 2, and the team rewrites it from the principal's "
-            r"words\. Rule line 2 contest with the words, and approve line 1\.")):
-        sb.call("rulings.rule", rulings=dict(every, **{"1": "contest"}), words=M192_LINE_1)
-    out = sb.call("rulings.rule", rulings=dict(every, **{"2": "contest"}), words=M192_LINE_1)
+    # The menu form (frame 345, R6): line 2 is the code line, and the
+    # refusal of the files cue went with the word form.
+    out = sb.call("rulings.rule", rulings=dict(every, **{"2": "rewrite"}))
     assert out["per_item"][KEY] == "contest"
     assert out["per_item"][ITEM] == "approve"
 

@@ -24,15 +24,6 @@ def db(tmp_path):
     return init_db(tmp_path / "rota.db")
 
 
-S122_SHAPE = ("Line 3 isn't right: the user should not type the bill at all. "
-              "Line 4 also goes too far, because I didn't ask for a typed "
-              "percentage, so please drop it.")
-# The same shape on the request page, which has three lines.
-S122_ON_REQUEST = ("Line 2 isn't right: the user should not type the bill at "
-                   "all. Line 3 also goes too far, because I didn't ask for a "
-                   "typed percentage.")
-
-
 def _rule(db, words, rulings):
     ask = _present(db)
     sb, _ = _landing(db, ask, words)
@@ -57,68 +48,6 @@ def _rule_request(db, words, rulings, verb="present"):
         assert ask.order == ["calculate_tip", "how_it_works", "l_1"], ask.order
     sb, _ = _landing(db, ask, words)
     return sb.call("rulings.rule", rulings=rulings, words=words)
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_same_words_land_when_line_1_is_approved(db):
-    out = _rule_request(db, S122_ON_REQUEST,
-                        {"1": "approve", "2": "contest", "3": "contest"})
-    assert out["per_item"] == {"calculate_tip": "approve",
-                               "how_it_works": "contest", "l_1": "contest"}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_page_that_opens_with_a_quote_takes_a_contest_on_line_1(db):
-    # Line 1 is the statement s1, not a request item (review 1, finding 1).
-    out = _rule(db, S122_SHAPE, {"1": "contest", "2": "approve", "3": "contest",
-                                 "4": "contest"})
-    assert out["per_item"]["s1"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_reference_to_line_1_with_no_cue_lets_it_be_contested(db):
-    words = ("Line 1 isn't a request, so please take it off the page. Line 2 "
-             "is also wrong.")
-    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
-    assert out["per_item"]["calculate_tip"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
-    words = ("Line 2 is wrong because the bill is typed once. Also, take the "
-             "tip in cents.")
-    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
-    assert out["per_item"]["calculate_tip"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_quote_branch_lands(tmp_path):
-    db = init_db(tmp_path / "rota.db")
-    words = "Line 2 is wrong, and the software calculates the tip wrong too."
-    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
-    assert out["per_item"]["calculate_tip"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_fault_past_the_end_of_the_page_refuses_nothing(db):
-    # Review 1, finding 7: the refusal names lines, so it needs one.
-    out = _rule_request(db, "Line 9 is wrong.",
-                        {"1": "contest", "2": "approve", "3": "approve"})
-    assert out["per_item"]["calculate_tip"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_fault_after_a_match_in_one_clause_lands_the_contest(db):
-    words = "Line 2's text is right now, but its check still types the bill."
-    out = _rule_request(db, words, {"1": "approve", "2": "contest", "3": "approve"})
-    assert out["per_item"]["how_it_works"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_negated_match_lands_the_contest(db):
-    out = _rule_request(db, "Line 2 doesn't match what I asked for.",
-                        {"1": "approve", "2": "contest", "3": "approve"})
-    assert out["per_item"]["how_it_works"] == "contest"
 
 
 def test_a_clarify_contest_on_words_that_fault_lands_unread_for_lines(db):
@@ -165,27 +94,40 @@ RIGHT_143_144 = {
                  "command that turned the flag on.",
                  {"1": "approve", "2": "contest", "3": "approve"}),
 }
+# The menu call that the seat makes today for each recorded reply, and the
+# lines that it contests (frame 345, R6b). On 143 m263 his words name no
+# line 1, so the menu lands line 1 approve where the night contested it.
+MENU_143_144 = {
+    "143 m263": ({"3": "rewrite", "rest": "approve"}, ["3"]),
+    "143 m339": ({"2": "rewrite", "rest": "approve"}, ["2"]),
+    "144 m193": ({"1": "other Line 1 isn't a request, so please take it off "
+                       "the page.", "2": "rewrite", "rest": "approve"},
+                 ["1", "2"]),
+}
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("night_ask", sorted(RIGHT_143_144))
 def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
-    words, rulings = RIGHT_143_144[night_ask]
-    out = _rule_request(db, words, rulings)
-    assert sorted(k for k, v in rulings.items() if v == "contest") == sorted(
+    words, _ = RIGHT_143_144[night_ask]
+    rulings, contested = MENU_143_144[night_ask]
+    ask = _request_page(db)
+    sb, _ = _landing(db, ask, words)
+    out = sb.call("rulings.rule", rulings=rulings)
+    assert contested == sorted(
         str(["calculate_tip", "how_it_works", "l_1"].index(r) + 1)
         for r, v in out["per_item"].items() if v == "contest")
 
 
-# Night 144, m236. The words fault only the test files under line 1, so the
-# files cue of frame 298, design 3.3, refuses a contest of line 1.
+# Night 144, m236. The words fault only the test files under line 1.
 M236 = ("Line 12 is wrong: I never overruled the helper. I still want it "
         "added next to echo, and my note about line 1 was only about which "
         "test files it points at. On line 1, the echo tests are right, but "
         "the termui and context test files don't belong there.")
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the "
+                         "request line on a stamped page offers no option that "
+                         "lands on the guess key or bg_3 (line_menu)")
 def test_m236_the_moved_reading_lands_with_the_item_approved(db):
     out = _rule_request(db, M236, {"guess:calculate_tip": "contest", "1": "approve",
                                    "2": "approve", "3": "approve"})
@@ -193,26 +135,10 @@ def test_m236_the_moved_reading_lands_with_the_item_approved(db):
     assert out["per_item"]["guess:calculate_tip"] == "contest"
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_words_that_fault_line_1_land_a_contest_on_it(db):
-    words = "1 is wrong: the request should say json, not yaml"
-    out = _rule(db, words, {"1": "contest", "2": "approve", "3": "approve",
-                            "4": "approve"})
-    assert out["per_item"]["s1"] == "contest"
-
-
 def test_an_approval_and_a_named_fault_land_as_before(db):
     out = _rule(db, "fine", {"1": "approve", "2": "approve", "3": "approve",
                              "4": "approve"})
     assert set(out["per_item"].values()) == {"approve"}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_named_fault_on_line_4_lands(tmp_path):
-    db = init_db(tmp_path / "rota.db")
-    out = _rule(db, "4 is wrong", {"1": "approve", "2": "approve",
-                                   "3": "approve", "4": "contest"})
-    assert out["per_item"]["l_1"] == "contest"
 
 
 # The recorded replies of night 146, verbatim from the `messages` table of
@@ -337,33 +263,6 @@ def test_through_reads_as_a_range():
         set(), set(range(8, 12)))
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
-    # Night 143's m263: such a sentence can correct a line it never numbers.
-    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
-             "in cents.")
-    out = _rule(db, words, {"1": "approve", "2": "contest", "3": "contest",
-                            "4": "approve"})
-    assert out["per_item"]["how_it_works"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_bare_agreement_names_no_line(db):
-    with pytest.raises(ValueError) as e:
-        _rule(db, "Line 3 is wrong. The rest looks fine.",
-              {"1": "approve", "2": "contest", "3": "contest", "4": "approve"})
-    assert str(e.value).startswith("The words name line 3 and do not name "
-                                   "line 2.")
-
-
-# Frame 234, pass 2b (review 3, finding 1): one sentence with no line number
-# silenced the refusal on m131. Such a sentence can correct an item line, as
-# night 143's m263 did, but never a team note.
-UNNUMBERED = " Please also keep the tests small."
-S281 = {str(n): ("contest" if n in (3, 4, 5, 6, 8, 9, 10, 11) else "approve")
-        for n in range(1, 12)}
-
-
 def _page11(db):
     """m131's page shape on the `_present` fixture: line 1 the request item,
     lines 2 to 4 its criteria, lines 5 to 11 seven team notes."""
@@ -393,37 +292,11 @@ def _rule11(db, words, rulings):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
-    # m263's shape: a numbered fault and an unnumbered correction. The
-    # fixture's criteria are items of the request, so line 4 is a request
-    # line, and its contest lands (the F2 review of pass 2, finding 3).
-    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
-             "in cents.")
-    rulings = {str(n): "approve" for n in range(1, 12)}
-    rulings.update({"3": "contest", "4": "contest"})
-    out = _rule11(db, words, rulings)
-    assert out["per_item"]["c3"] == "contest"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_an_unnumbered_sentence_never_spares_a_note_line(db):
-    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
-             "in cents.")
-    rulings = {str(n): "approve" for n in range(1, 12)}
-    rulings.update({"3": "contest", "4": "contest", "6": "contest"})
-    with pytest.raises(ValueError) as e:
-        _rule11(db, words, rulings)
-    assert str(e.value).startswith("The words name line 3 and do not name "
-                                   "line 6.")
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
     """Review 3, finding 2, through the door: night 136's page with bg_2
-    unbuilt on line 5. The words number line 2 and nothing else, and the
-    contest of line 5 lands, because the batch door rules a batch line. The
-    contest reaches the verdict before the build."""
+    unbuilt on line 5. The seat keys line 5 with a menu option, and the
+    contest reaches the verdict before the build (re-pinned to the menu
+    form, frame 345, pass R6)."""
     from .test_request_page import ITEM_136, P, _dispatch, _reply, _verdict
     from .test_request_page import _landing as _land_session
 
@@ -432,8 +305,8 @@ def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
                     f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
     words = "Line 2 names the wrong tests. Everything else looks right."
     reply = _reply(bg2, mid, words)
-    _land_session(bg2, reply, {"1": "approve", "2": "contest", "3": "approve",
-                               "4": "approve", "5": "contest"}, words)
+    _land_session(bg2, reply, {"2": "rewrite", "5": "rewrite",
+                               "rest": "approve"}, words)
     _, ruled = _verdict(bg2, mid)
     assert ruled.get("bg_2") == "contest", ruled
 
@@ -442,25 +315,20 @@ def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
 # `rulings` table of `.rota/clickI_night150.db`.
 M25 = ("Ok, this matches what I asked for. Please build it with the standard "
        "library json module only.")
-M37 = ("Line 1 is wrong, because I never asked for anything to be built without "
-       "Click. What I asked for is an echo_json helper inside Click, next to "
-       "echo, that uses the standard library json module to print an object as "
-       "compact JSON on one line, followed by a newline. Lines 2 through 5 come "
-       "from that misreading, so please drop them.")
-M316 = ("Lines 4 to 8 are wrong. They repeat the confirm() flag five times, and "
-        "they should state what the version flag must do: the show_python flag "
-        "adds the running Python version to the version message as "
-        "major.minor.micro from sys.version_info. Line 1 also does not belong "
-        "on this page, because I put the confirm() change aside until this "
-        "change is merged.")
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-@pytest.mark.parametrize("verb", ["contest", "revise"])
-def test_m25s_instruction_lands_on_the_request_line(db, verb):
-    out = _rule_request(db, M25, {"1": verb, "2": "approve", "3": "approve"})
-    assert out["per_item"] == {"calculate_tip": verb, "how_it_works": "approve",
-                               "l_1": "approve"}
+def test_m25s_instruction_lands_on_the_request_line(db):
+    # The menu form (frame 345, pass R6): his instruction is an add on the
+    # request line, so the line lands approve with its add act.
+    ask = _request_page(db)
+    sb, _ = _landing(db, ask, M25)
+    out = sb.call("rulings.rule", rulings={
+        "1": "add Please build it with the standard library json module only.",
+        "2": "approve", "3": "approve"})
+    assert out["per_item"] == {"calculate_tip": "approve",
+                               "how_it_works": "approve", "l_1": "approve"}
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    assert rows["calculate_tip"]["act"] == "add"
 
 
 def test_m23s_approve_call_lands(db):
@@ -567,3 +435,77 @@ ECHO_JSON_TESTS = ("echo_json_tests", "Put the new tests in the utils test "
 
 QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
          "anything, and don't write the log.")
+
+
+def test_an_unnumbered_sentence_never_spares_a_note_line(db):
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    # The menu form (frame 345, R6b) still refuses a change of a note
+    # line that no clause of his names.
+    rulings = {"3": "rewrite", "6": "rewrite", "rest": "approve"}
+    with pytest.raises(ValueError) as e:
+        ask = _page11(db)
+        sb, _ = _landing(db, ask, words)
+        sb.call("rulings.rule", rulings=rulings)
+    assert str(e.value).startswith("line 6: no clause of his names line 6")
+
+
+# Pass R6c of frame 345: four menu re-pins and one skip, as review p15c rules.
+
+def _menu_request(db, words, rulings):
+    ask = _request_page(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings)
+
+
+def _menu_present(db, words, rulings):
+    ask = _present(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings)
+
+
+def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
+    words = ("Line 2 is wrong because the bill is typed once. Also, take the "
+             "tip in cents.")
+    out = _menu_request(db, words, {"1": "other Also, take the tip in cents.",
+                                    "2": "rewrite", "rest": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+@pytest.mark.skip(reason="menu_ruling: a quote inside a clause that names "
+                         "another line cannot carry a change of an unnamed line")
+def test_the_quote_branch_lands(db):
+    words = "Line 2 is wrong, and the software calculates the tip wrong too."
+    out = _menu_request(db, words, {
+        "1": "other the software calculates the tip wrong too",
+        "2": "rewrite", "rest": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_words_that_fault_line_1_land_a_contest_on_it(db):
+    words = "1 is wrong: the request should say json, not yaml"
+    out = _menu_present(db, words, {"1": "other json, not yaml",
+                                    "rest": "approve"})
+    assert out["per_item"]["s1"] == "contest"
+
+
+def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
+    # Night 143's m263: such a sentence can correct a line it never numbers.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    out = _menu_present(db, words, {"2": "other Also, take the tip in cents.",
+                                    "3": "rewrite", "rest": "approve"})
+    assert out["per_item"]["how_it_works"] == "contest"
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
+    # Lines 3 and 4 are kind request and take no rewrite.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    ask = _page11(db)
+    sb, _ = _landing(db, ask, words)
+    out = sb.call("rulings.rule", rulings={
+        "3": "other Line 3 is wrong because the tip is rounded.",
+        "4": "other Also, take the tip in cents.", "rest": "approve"})
+    assert out["per_item"]["c3"] == "contest"

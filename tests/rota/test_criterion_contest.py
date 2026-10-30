@@ -419,18 +419,18 @@ def test_a_repair_wake_with_no_contest_keeps_todays_prompt(db, approve):
 
 # --- frame 226, the store -----------------------------------------------------
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noqa: F811
     """The ruling keeps the text the principal read, because a criterion
     keeps no history. Night 132's page, line 4 is `cr_2`."""
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
-    ruling["4"] = "contest"
+    # The menu form (frame 345, R6): every line of the page takes an option.
+    ruling = {str(n): "approve" for n in range(1, 14)}
+    ruling["4"] = "rewrite"
     text = n132.execute("SELECT text FROM criteria WHERE id = "
                         "'cr_2_confirm_eof_behavior'").fetchone()["text"]
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (row,) = n132.execute("SELECT texts FROM rulings WHERE ask_id = ?",
                           (mid,)).fetchall()

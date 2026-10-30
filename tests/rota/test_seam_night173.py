@@ -61,12 +61,6 @@ W97 = ("Line 2 is wrong because only the docstring in the utils file changes, "
        "the check on line 3 can simply be that the docstring shows the "
        "example. Line 9 misread me, because I asked you to remove every "
        "formatting test, not just one.")
-W35 = ("Lines 2 and 3 are wrong: with the roaming flag on, only the roaming "
-       "app data variable being unset should matter, and with it off, only "
-       "the local app data variable being unset should matter. Line 7 is "
-       "slightly off, because I approved two lines, lines 1 and 4, not one. "
-       "Line 8 is a misread, since I never sent an empty answer, so please "
-       "drop it; the rest of the page is fine.")
 FORMATTING = ("tests/test_formatting.py::test_global_show_default, "
               "tests/test_formatting.py::test_truncating_docstring, "
               "tests/test_formatting.py::test_truncating_docstring_no_help")
@@ -115,29 +109,7 @@ def _rows(ctx):
     return {w[2]["ref"]: w[2] for w in ctx.writes if w[0] == "ruled_refs"}
 
 
-def _folded(rulings: dict, acts: dict) -> dict:
-    """The object form of a night's call that kept its act in the flat
-    `acts` map. Frame 345's pass 2 refuses that map, and the object form
-    writes the same rows (the seam design, 2.1)."""
-    return {**rulings, **{k: {"verdict": rulings[k], **v}
-                          for k, v in acts.items()}}
-
-
-def _no_removal(line, span, target):
-    return (f"line {line}: his words {span!r} ask no removal of {target}, so "
-            f"leave the act out or copy his words that ask for it")
-
-
 # W16: a removal of code lands only on his removal request.
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_s179s_call_without_the_act_lands_the_contest(night):
-    ctx = night(173, "m62", merged=False)
-    api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": A, "4": A, "5": "contest",
-                                   "6": A})
-    row = _rows(ctx)["bg_2"]
-    assert (row["verdict"], row.get("act")) == ("contest", None)
-
 
 @pytest.mark.parametrize("span, target, asks", [
     ("please remove make_str", "src/click/utils.py::make_str", True),
@@ -163,38 +135,6 @@ def test_a_removal_request_names_its_target(span, target, asks):
 
 
 # W9: a line number in his report of an earlier answer names the earlier page.
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_s120s_call_on_m35_lands_with_c_3_approved(night):
-    """s120 call 2 was refused on lines 1 and 4, and call 3 then revised
-    c_3. His "lines 1 and 4" are lines of the page m24."""
-    ctx = night(173, "m35")
-    api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
-                                   "4": A, "5": A, "6": A, "7": "contest",
-                                   "8": "drop"}, words=W35)
-    rows = _rows(ctx)
-    assert rows["c_3"]["verdict"] == "approve"
-    assert all(r["verdict"] != "revise" for r in rows.values())
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_change_request_backs_the_revise(night, monkeypatch):
-    """The review's p2-1: "Replace Roaming in line 4 with Local." faults no
-    line, and it asks to change line 4, so the revise lands."""
-    from rota.roles import principal
-
-    said = W35.replace(
-        "because I approved two lines, lines 1 and 4, not one.",
-        "because it misses a line. Replace Roaming in line 4 with Local.")
-    orig = principal.said
-    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
-        said if mid == "m35" else orig(conn, mid, *a, **k)))
-    ctx = night(173, "m35")
-    api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
-                                   "4": "revise", "5": A, "6": A,
-                                   "7": "contest", "8": "drop"}, words=said)
-    assert _rows(ctx)["c_3"]["verdict"] == "revise"
-
 
 # The 10 sentences of the read's section 4, each with the page's line count
 # and the numbers of the earlier page (`plans/seam-night173-read.md`). Night
@@ -307,44 +247,6 @@ def test_an_older_register_takes_the_act_exclude(night):
     conn.execute("SELECT COUNT(*) FROM ruled_refs_live").fetchone()
 
 
-# Seam pass 3c: the review's p3-1, p3-4 and p3-5.
-
-# Seam pass 3d: night 174's walk 2, two fact checks of `rulings_rule`.
-
-def _recorded_call(n, sid, k):
-    """The trigger and the arguments of call `k` to rulings.rule in session
-    `sid` of night `n`, read from a read-only copy of the register."""
-    from rota.llm.toolproto import ToolCall, extract
-    src = _home(n) / f"clickI_night{n}.db"
-    if not src.exists():
-        pytest.skip(f"the night {n} register is not on this machine")
-    conn = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
-    trigger = conn.execute("SELECT trigger_msg FROM sessions WHERE id = ?",
-                           (sid,)).fetchone()[0]
-    calls = [f.args for (comp,) in conn.execute(
-        "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq", (sid,))
-        for f in extract(comp or "")
-        if isinstance(f, ToolCall) and f.name == "rulings.rule"]
-    conn.close()
-    return trigger, calls[k - 1]
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_ref_on_two_lines_takes_its_act_on_either_line(night):
-    """m47 shows `parameter` on lines 8 and 47. s168 call 3 keys its act
-    "8", and the door refused it as a key rulings did not hold. The call's
-    flat `acts` map is folded into the object form (frame 345, pass 2)."""
-    trigger, args = _recorded_call(174, "s168", 3)
-    ctx = night(174, trigger)
-    acts = args.pop("acts")
-    args["rulings"] = _folded(args["rulings"], acts)
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, **args)
-    assert "acts has the key" not in str(e.value)
-    # The span check reads next, and "Drop lines 8 to 67" is not his.
-    assert str(e.value).startswith("line 8: the act drop rests on")
-
-
 # Night 174's m55, his reply on page m53, and s175 call 3's span, copied
 # here so the test reads no register (the seam review, p4-3).
 M55 = ("Line 9 misreads me: I asked to remove the string helper in the utils "
@@ -360,49 +262,6 @@ def test_a_clause_starts_after_should_say():
     """s175 call 3 copied his words after "Line 7 should say" to the
     clause end, and the door refused them."""
     assert api._holds_clauses(M55, S175_3)
-
-
-L23 = ("Lines 2 and 3 are wrong: with the roaming flag on, only the roaming "
-       "app data variable being unset should matter, and with it off, only "
-       "the local app data variable being unset should matter. ")
-L8 = (" Line 8 is a misread, since I never sent an empty answer, so please "
-      "drop it.")
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-@pytest.mark.parametrize("middle, lands", [
-    ("Line 7 is slightly off. Line 4 should say the local variable matters.",
-     True),
-    ("Line 7 is slightly off. I never said line 4 should say the local "
-     "variable matters.", False),
-    ("Line 7 is slightly off. Line 4 is fine, and it is wrong to say the "
-     "local variable matters.", False),
-    # The review's p5-1: the clause opens with "though some say".
-    ("Line 7 is slightly off. Line 4 is fine, though some say line 4 has to "
-     "say the local variable matters.", False),
-])
-def test_a_say_clause_follows_a_line_reference(night, monkeypatch, middle,
-                                               lands):
-    """The review's probe 6 on m35: a cut after "say" needs a named line
-    and no negation or fault before it (p4-1)."""
-    from rota.roles import principal
-
-    said = L23 + middle + L8
-    orig = principal.said
-    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
-        said if mid == "m35" else orig(conn, mid, *a, **k)))
-    ctx = night(173, "m35")
-    call = dict(rulings=_folded(
-        {"1": A, "2": "contest", "3": "contest", "4": "revise", "5": A,
-         "6": A, "7": "contest", "8": "drop"},
-        {"4": {"act": "rewrite", "target_kind": "row",
-               "words": "the local variable matters"}}), words=said)
-    if lands:
-        api.rulings_rule(ctx, **call)
-        assert _rows(ctx)["c_3"]["act"] == "rewrite"
-    else:
-        with pytest.raises(ValueError):
-            api.rulings_rule(ctx, **call)
 
 
 @pytest.mark.parametrize("target, span, stems", [
@@ -442,41 +301,6 @@ def test_the_span_refusal_names_the_nearest_clause():
 # Frame 345, pass 2c: the revise door and the read-back door read the match,
 # the words of his that name each line, never a cue of his reply.
 
-M55_RULINGS = {"1": A, "2": A, "3": A, "4": A, "5": A, "6": A, "7": "revise",
-               "8": A, "9": "revise"}
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_revise_on_lines_his_words_name_passes(night):
-    """n174-m53-m55: "Change line 7" and "Change line 9" name lines 7 and 9,
-    so a revise of each passes the door."""
-    ctx = night(174, "m55", merged=False)
-    api.rulings_rule(ctx, rulings=dict(M55_RULINGS))
-    rows = _rows(ctx)
-    assert sorted(r["line"] for r in rows.values()
-                  if r["verdict"] == "revise") == [7, 9]
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
-    """No words of m55 name line 1, and his words name other lines. A revise
-    of line 1 is refused once, and the same call then lands."""
-    ctx = night(174, "m55", merged=False)
-    assert api.line_words(principal_said(ctx), 9)[1] is None
-    ctx.refusals = []
-    call = {**M55_RULINGS, "1": "revise"}
-    with pytest.raises(ValueError) as e:
-        api.rulings_rule(ctx, rulings=dict(call))
-    assert str(e.value) == (
-        "line 1: no words of his name line 1. Rule the lines his words name, "
-        "and approve or leave out line 1")
-    ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))
-    api.rulings_rule(ctx, rulings=dict(call))
-    assert any(r["line"] == 1 and r["verdict"] == "revise"
-               for r in _rows(ctx).values())
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
     """n173-m90-m91: "The other lines are fine" names line 23, the read-back
     line. The door refused its approve 21 times at 1eb5c557."""
@@ -485,7 +309,9 @@ def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
     assert words[23] == "The other lines are fine, and the code stays the same."
     rulings = {str(n): A for n in range(1, 24)}
     rulings.update({str(n): "drop" for n in range(11, 23)})
-    rulings["24"] = "contest"
+    # The menu form (frame 345, R6): line 23 is the read-back line.
+    rulings["23"] = "ok"
+    rulings["24"] = "rewrite"
     api.rulings_rule(ctx, rulings=rulings)
     assert any(r["line"] == 23 and r["verdict"] == "approve"
                for r in _rows(ctx).values())
@@ -494,3 +320,41 @@ def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
 def principal_said(ctx):
     from rota.roles.principal import said
     return said(ctx.conn, ctx.trigger)
+
+
+def test_s179s_call_without_the_act_lands_the_contest(night):
+    """Night 173, m62: the contest of the change's line 5 lands on bg_2. The
+    menu form keys it rewrite, so the row carries that act (frame 345,
+    R6b)."""
+    ctx = night(173, "m62", merged=False)
+    api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": A, "4": A,
+                                   "5": "rewrite", "6": A})
+    row = _rows(ctx)["bg_2"]
+    assert (row["verdict"], row.get("act")) == ("contest", "rewrite")
+
+
+def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
+    """n174-m53-m55: no words of m55 name line 1. The menu form refuses a
+    change of line 1 on every call, not once (frame 345, R6b; review p9c)."""
+    ctx = night(174, "m55", merged=False)
+    assert api.line_words(principal_said(ctx), 9)[1] is None
+    ctx.refusals = []
+    for _ in range(2):
+        with pytest.raises(ValueError) as e:
+            api.rulings_rule(ctx, rulings={"1": "rewrite", "rest": "approve"})
+        assert str(e.value).startswith("line 1: no clause of his names line 1")
+        ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))
+
+
+def test_a_revise_on_lines_his_words_name_passes(night):
+    """n174-m53-m55: his words name lines 7 and 9, and their rewrite lands a
+    contest with the act rewrite (frame 345, R6c)."""
+    ctx = night(174, "m55", merged=False)
+    rulings = {"7": "rewrite", "9": "rewrite", "rest": "approve",
+               **{str(n): A for n in (2, 3, 4, 5, 6, 8)}}
+    api.rulings_rule(ctx, rulings=rulings)
+    rows = _rows(ctx)
+    assert sorted(r["line"] for r in rows.values()
+                  if r.get("act") == "rewrite") == [7, 9]
+    assert {r["verdict"] for r in rows.values()
+            if r.get("act") == "rewrite"} == {"contest"}

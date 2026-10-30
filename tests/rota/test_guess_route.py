@@ -100,6 +100,12 @@ S322 = {ITEM: "contest", "ver_opt_show_py": "contest",
         "l_a32fe37623": "contest", "l_ada8b7a291": "approve",
         "l_bc2ca6a611": "contest"}
 KEY = f"guess:{ITEM}"
+# The menu call that the seat makes for M192 (frame 345, R6): a clause key
+# per clause, and other with his words on the request line.
+MENU_M192 = {"c1": "rewrite", "c2": "rewrite",
+             "c3": "other Line 1 also names the options and defaults test "
+                   "files, which have nothing to do with this change",
+             "rest": "approve"}
 # The reading the refusal asks for: line 1 approved, its files on the key.
 S322_MOVED = dict(S322, **{ITEM: "approve", KEY: "contest"})
 REFS = [n[0] for n in NOTES] + [ITEM] + [c for c, _ in CRITERIA]
@@ -214,7 +220,7 @@ def test_the_cue_does_not_read_a_request_correction_as_files():
 # The wall: s322 on m192, bg_3 stamped on the code line
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
     """The reading the refusal asks for lands. bg_3 has a head commit, so the
     code line keeps frame 255's check, and the cue holds it. The item keeps
@@ -231,7 +237,7 @@ def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
                       ).fetchone()["status"] == "running"
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_verdict_on_bg_3_relays_to_annotate(db):
     _page(db, stamp={KEY: {"batch": "bg_3"}})
     vid = _land_ruling(db, M192, S322_MOVED)
@@ -250,24 +256,12 @@ def test_the_verdict_on_bg_3_relays_to_annotate(db):
 # No batch: the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_a_request_correction_still_lands_on_line_1(db):
-    """The cue refuses no (b) reply: 43 of 43 in-sample."""
-    _page(db, batch=None, guess=True)
-    words = ("Line 1 is wrong: the flag should print the Python version on its "
-             "own line instead of appending it to the message.")
-    sb = _landing(db, _reply(db, words))
-    out = sb.call("rulings.rule", rulings={**{r: "approve" for r in REFS},
-                                           ITEM: "contest"}, words=words)
-    assert out["per_item"][ITEM] == "contest"
-
-
 def _guess_verdict(db) -> str:
     _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
     return _land_ruling(db, M192, S322_MOVED)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     vid = _guess_verdict(db)
     assert _verdict(db, vid).get(KEY) == "contest"
@@ -279,7 +273,7 @@ def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     assert cancel(db) == []
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_an_off_page_key_lands_with_no_stamp(db):
     """A page sent before the guess carries no stamp. The key's target is
     then the current guess (design 3.1, point 5)."""
@@ -301,14 +295,14 @@ def _relay(db, vid: str) -> str:
                       "AND to_role = 'architect'", (vid,)).fetchone()["id"]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
     rid = _relay(db, _guess_verdict(db))
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     assert _mode_key(wake, db) == "guess"
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 @pytest.mark.parametrize("key_ruling, disputed", [
     ({"verdict": "contest", "act": "exclude", "target": "tests/test_options.py",
       # A span is a run of whole clauses of his reply (review p7 p1, 3).
@@ -334,7 +328,7 @@ def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
     assert inbound["guess"] == [p for p in shown if p not in disputed]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):
     vid = _guess_verdict(db)
     rid = _relay(db, vid)
@@ -366,9 +360,11 @@ def test_the_ref_door_resolves_a_request_items_key_only(db):
 # The op's review lows
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_send_door_refuses_a_relay_of_a_key_that_names_no_item(db):
-    vid = _guess_verdict(db)
+    # Any verdict with a contest wakes the relay. The menu call keys each
+    # clause of M192 (frame 345, R6).
+    _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
+    vid = _land_ruling(db, M192, MENU_M192)
     (wake,) = [w for w in open_tips(db) if w.message_id == vid]
     out = run_session(db, wake, backend=ScriptedBackend(
         ['TOOL: msg.relay_architect(refs=["guess:nothing_here"])', "done"]),
@@ -396,3 +392,15 @@ def test_the_op_refuses_a_symbol_under_a_directory_the_index_lacks(db):
     with pytest.raises(ValueError, match="nowhere/x.py is under a directory"):
         sb.call("batches.guess", item_id=ITEM, paths=["tests/test_basic.py"],
                 symbols=["nowhere/x.py::y"])
+
+
+def test_a_request_correction_still_lands_on_line_1(db):
+    """The cue refuses no (b) reply: 43 of 43 in-sample."""
+    _page(db, batch=None, guess=True)
+    words = ("Line 1 is wrong: the flag should print the Python version on its "
+             "own line instead of appending it to the message.")
+    sb = _landing(db, _reply(db, words))
+    # The menu form (frame 345, R6b): the request line takes other.
+    out = sb.call("rulings.rule", rulings={"1": "other " + words,
+                                           "rest": "approve"})
+    assert out["per_item"][ITEM] == "contest"

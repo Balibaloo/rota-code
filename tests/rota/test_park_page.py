@@ -283,14 +283,13 @@ def test_the_park_page_renders_word_for_word_through_the_request_block(n132):
     assert ask.rendered.splitlines() == PAGE_132
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_names_it(n132):
     """Night 132, s218: woken on m117, the reply to the park ask, the
     Liaison had no line to rule and sent one sentence back (m118)."""
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, WALK)
-    whole = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole}, words='{WALK}')")
+    whole = json.dumps({str(n): "approve" for n in range(1, 14)})
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole})")
     assert out.committed, out.errors
     assert n132.execute("SELECT status FROM messages WHERE id = ?",
                         (mid,)).fetchone()["status"] == "answered"
@@ -305,7 +304,6 @@ def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_nam
             ) in render_state(n132)
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132):
     """Night 132, s218, the other way: line 3 is cr_2, and its contest goes
     to the criterion's writer through `verdict_signoff`."""
@@ -314,10 +312,10 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
 
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
-    ruling["4"] = "contest"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    ruling = {str(n): "approve" for n in range(1, 14)}
+    ruling["4"] = "rewrite"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id, status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -359,7 +357,6 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     assert len(P.REGISTRY["park_ask"].fn(n132)) == 1
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("call", [
     "done", f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
     'TOOL: msg.relay_vision_keeper(refs=["cr_1_confirm_eof_default", '
@@ -374,10 +371,10 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
 
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
-    ruling["4"] = "contest"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    ruling = {str(n): "approve" for n in range(1, 14)}
+    ruling["4"] = "rewrite"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -400,7 +397,6 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
     assert park_criterion_relay(n132, rows[0]["id"])
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n132):
     """The diff review of 0baacf55, finding 2: `stage_park_relay` widened a
     held relay and kept every criterion in it. One contest and two approves
@@ -411,10 +407,10 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
 
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
-    ruling["4"] = "contest"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    ruling = {str(n): "approve" for n in range(1, 14)}
+    ruling["4"] = "rewrite"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -434,7 +430,6 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
     assert held["body_refs"] == ["cr_2_confirm_eof_behavior"]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 @pytest.mark.parametrize("call", [
     f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
     'TOOL: msg.relay_terminologist(refs=["cr_2_confirm_eof_behavior"])'])
@@ -446,10 +441,12 @@ def test_a_contest_of_the_item_line_relays_the_item_to_the_vision_keeper(n132, c
 
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 1 is wrong: it must not abort")
-    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
-    ruling["1"] = "contest"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 1 is wrong: it must not abort')")
+    ruling = {str(n): "approve" for n in range(1, 14)}
+    # Line 1 is the request line, so its menu holds other, not rewrite
+    # (frame 345, R6).
+    ruling["1"] = "other line 1 is wrong: it must not abort"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -735,7 +732,6 @@ def _touch_reply(conn):
     return sb
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     """Night 133, s313: r_2e20813fbe contested bg_2, landed, and moved
     nothing. The principal's words reached no seat. M198 faults line 2, the
@@ -750,18 +746,10 @@ def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     from rota.roles import prompts
 
     sb = _touch_reply(n133)
-    out = sb.call("rulings.rule", rulings={ITEM_133: "approve", "bg_2": "contest"},
-                  words=M198)
+    # The menu call keys the lines (frame 345, R6). The refusal of the
+    # files cue went with the word form.
+    out = sb.call("rulings.rule", rulings={"1": "approve", "2": "rewrite"})
     assert out["per_item"] == {ITEM_133: "approve", "bg_2": "contest"}
-    sb = build("liaison", n133, mode="normal", session_id="s313",
-               allow=prompts.mode_tools("liaison", "landing"))
-    sb.ctx.trigger = "m198"
-    with pytest.raises(ValueError, match=(
-            r"line 1 is the request, and the words fault only the code it "
-            r"touches\. That code is line 2, the change's plan\. Rule line 2 "
-            r"contest with the words, and approve line 1\.")):
-        sb.call("rulings.rule", rulings={ITEM_133: "contest", "bg_2": "approve"},
-                words=M198)
 
 
 # Night 121's bg_2: five own tests red, cr_2's green.
@@ -770,7 +758,6 @@ N121 = [(f"cr_{n}", f"criterion {n} of confirm on a closed stdin", f"tst_confirm
                "result is True"), n != 2) for n in range(1, 7)]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
     """Night 121, s278: the Liaison sent eight approvals for a park ask with
     no line, was refused, and asked three times."""
@@ -786,11 +773,11 @@ def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
     sb = build("liaison", conn, mode="normal", session_id="s278",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = reply
-    with pytest.raises(ValueError, match="'14' is not a line of the page"):
+    with pytest.raises(ValueError, match="'14' is no clause and no page line"):
         sb.call("rulings.rule", rulings={str(n): "approve" for n in range(1, 15)},
                 words=WALK)
-    seven = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
-    out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={seven}, words='{WALK}')")
+    every_line = json.dumps({str(n): "approve" for n in range(1, 14)})
+    out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={every_line})")
     assert out.committed, out.errors
     (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
