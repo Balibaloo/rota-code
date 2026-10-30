@@ -256,29 +256,22 @@ ONE_LINE = ("1 is fine, go ahead with it. 2 and 3 say the same sentence twice "
             "each; I am not reading those. approve 1 only.")
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_one_word_on_a_line_with_no_words_lands_on_the_whole_reply(db):  # noqa: F811
-    """Finding 2: a one-word drop on a line that shows "no words" lands
-    with his whole reply as its words. The span check refused it before,
-    and the one word has no place for words. "on line 3" is no subject of
-    its clause, so the match names no words for line 3. Pass 2c refuses the
-    drop once with the sentence of the match, and the repeat lands."""
+    """Finding 2, re-pinned in pass R5b: "on line 3" places the note on page
+    line 3, and its clause has no other subject. So the clause names line 3,
+    and the drop on line 3 lands on the first call with no refusal."""
     his = "Line 1 is right. Nobody needs the note on line 3, so drop it."
     ask = _page(db)
     sb, reply = _seat(db, ask, words=his)
-    assert api.line_words(his, 3)[3] is None
-    call = {"1": "approve", "2": "approve", "3": "drop"}
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings=dict(call))
-    assert str(e.value) == (
-        "line 3: no words of his name line 3. Rule the lines his words name, "
-        "and approve or leave out line 3")
-    sb.call("rulings.rule", rulings=dict(call))
+    assert api.line_words(his, 3)[3] == (
+        "Nobody needs the note on line 3, so drop it.")
+    sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                     "3": "drop"})
     rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
     row = rows["l_1"]
     assert (row["verdict"], row["act"], row["target_kind"]) == (
         "contest", "drop", "row")
-    assert row["words"] == his
+    assert row["words"] == "Nobody needs the note on line 3, so drop it."
 
 
 @pytest.mark.parametrize("his, named", [
@@ -331,6 +324,23 @@ def test_a_line_after_with_or_beside_a_subject_names_no_line(clause, named):
     """"with line 2" and "to line 3" name a line as an object (L3R m121,
     m136 and m53). A clause with a subject keeps the subject alone."""
     assert api._subject_lines(clause, 10) == named
+
+
+@pytest.mark.parametrize("clause", [
+    "fix the call in cli.py on line 5",
+    "the fix is in rota/on line 4",
+])
+def test_a_code_place_before_on_names_no_line(clause):
+    """Review p14, low 1: a path before "on", or a path that ends in "on",
+    names a place in code. The clause names no page line."""
+    assert api._subject_lines(clause, 10) == set()
+
+
+def test_a_reference_joined_to_a_placed_line_is_placed_too():
+    """Review p14, low 2: "also line 6" joins the placed line 5, so the
+    clause places lines 3, 5 and 6."""
+    clause = "we put the fix on line 3 and on line 5 and also line 6"
+    assert api._subject_lines(clause, 10) == {3, 5, 6}
 
 
 @pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")

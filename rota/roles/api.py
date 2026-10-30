@@ -13318,8 +13318,14 @@ _NOT_SUBJECT = re.compile(
 # A reference after "on" places a thing on a page line: "change only the
 # docstring in the file on line 9" (pass R5, L3R n175-m121-m122). It names
 # the line of a clause that has no other subject. "with line 2" and "to line
-# 3" stay no subject, because they name a line as an object.
-_ON_LINE = re.compile(r"\bon\s*$", re.I)
+# 3" stay no subject, because they name a line as an object. "on" stands
+# as its own word, so the path "rota/on line 4" places nothing (review p14,
+# low 1).
+_ON_LINE = re.compile(r"(?:^|\s)on\s*$", re.I)
+# A path or a code name with a colon before "on" names a place in code, as
+# "fix the call in cli.py on line 5". These are the shapes of `_NOT_SUBJECT`
+# (review p14, low 1).
+_CODE_PLACE = re.compile(rf"(?:{_PATH_SHAPE.pattern}|\w:)\s*$", re.I)
 # A second reference joined to a subject is a subject too: "Lines 1 to 10
 # and line 12 are fine", "line 3 or line 4".
 _REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
@@ -13380,18 +13386,26 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
                       {size if word == "last" else _ORDINALS.index(word) + 1}))
     named: set[int] = set()
     placed: set[int] = set()
-    last_end = None
+    last_end, last_set = None, named
     for start, end, lines in sorted(found, key=lambda f: f[0]):
         before = clause[:start]
         lead = (len(before.split()) <= _SUBJECT_LEAD
                 and not _NOT_SUBJECT.search(before))
         joined = (last_end is not None
                   and _REF_JOIN.fullmatch(clause[last_end:start]))
-        if lead or joined:
-            named |= lines
-            last_end = end
-        elif _ON_LINE.search(before):
-            placed |= lines
+        on = _ON_LINE.search(before)
+        if lead:
+            last_set = named
+        elif joined:
+            # A joined reference takes the set of the reference before it,
+            # so "on line 3 and also line 6" places both (review p14, low 2).
+            pass
+        elif on and not _CODE_PLACE.search(before[:on.start()]):
+            last_set = placed
+        else:
+            continue
+        last_set |= lines
+        last_end = end
     starts: list[tuple[int, set[int]]] = []
     for m in _BARE_LIST.finditer(clause):
         if not any(s < m.end() and m.start() < e for s, e, _ in found):
