@@ -116,9 +116,9 @@
     calls: [code.write, code.commit]
   forbidden:
     writes: [criteria, tickets, items, tests]
-    # A rota record written as a project file. "criteria.json" names the
-    # night's file, and ".json" names any other output of a load call.
-    text_in_writes: ["criteria.json", ".json"]
+    # A rota record written as a project file: the night's file. A wider
+    # ".json" match would fail a correct decision row that names a .json file.
+    text_in_writes: ["criteria.json"]
 
 - id: L1-DV-log-the-choice-the-criteria-did-not-make
   tier: T1
