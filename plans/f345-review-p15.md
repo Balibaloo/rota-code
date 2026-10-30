@@ -96,3 +96,73 @@ The head of D:/repos/rota is now c49d88be, not f52c2716. Its only commit after f
 ## (e) Usage
 
 The harness shows no exact split. The estimate is about 45k input tokens and 10k output tokens, about 55k in total. That is above the cap of 30k. Sub-agents: none.
+
+# Re-check p15b, pass R6b
+
+Verdict: NOT READY. The fresh sample of 12 deletions holds 2 wrong deletions. The 12 reversals are sound.
+
+- Wrong deletions: `test_words_that_fault_line_1_land_a_contest_on_it` (frame234) and `test_s275s_call_lands_on_his_reply` (f2_rulings_words).
+- Reversed re-pins that fail the rule: none.
+- The replay result is 3 failed, 576 passed, 14 skipped, 8 xfailed. The 3 reds are the 3 reds that p15 found at foundation.
+
+## (a) The points
+
+1. The deletions: 2 of the 12 fresh samples are wrong. By the brief, 2 is NOT READY.
+2. The 12 reversals: each call is a menu call that the seat makes today. Each assertion holds the old claim.
+3. `_rule_m245`: its one test passes for the right reason. The `words=M246` argument changes no row.
+4. The replay: the 23 touched files give the same 3 reds as p15. R6b's report says each touched file passed, and that is not correct.
+
+### Point 1, the 12 fresh deletions
+
+| File | Test | Verdict |
+|---|---|---|
+| f25 | the_offer_of_stray_fields_carries_every_line_of_the_page | Follows. It pins the word-form offer that moves stray act fields. |
+| f2 | s275s_call_lands_on_his_reply | WRONG. It pins the rows of night 172 m132, and the menu lands them (finding 2). |
+| f345_p5 | remove_on_a_line_that_is_no_code_lands_as_a_drop | Follows. It reads the verb "remove" as a drop. |
+| frame193 | a_sentence_that_names_and_agrees_spares_no_contest | Follows. It pins a polarity refusal text. |
+| frame234 | a_negated_match_lands_the_contest | Follows. It pins the polarity of "doesn't match". |
+| frame234 | words_that_fault_line_1_land_a_contest_on_it | WRONG. The menu lands the contest on s1 (finding 1). |
+| frame250 | a_right_approve_of_a_matched_line_lands | Follows. It pins the non-refusal of the match door. |
+| frame258 | a_request_word_no_criterion_holds_lets_line_1_be_contested | Follows. It reads a request word in code. The menu refuses that call. |
+| frame305 | words_with_no_change_are_no_revise | Follows. It pins a word-form refusal of revise. |
+| frame337 | a_later_fault_after_an_earlier_match_lands_the_contest | Follows. It pins the order of polarity across the exchange. |
+| read_back | his_reply_alone_confirms_a_reading | Follows. It pins the guard on `words="ok"`. |
+| seam2 | the_drops_of_a_conjoined_subject_land | Follows. Line 2 is kind request, and its menu offers no drop. |
+
+### Point 2, the 12 reversals
+
+- frame234 a_right_verdict_of_nights_143_and_144: menu keys, row sets per verdict. Holds.
+- frame234 m236: skipped with the `line_menu` reason. Holds.
+- frame234 an_unnumbered_sentence_never_spares_a_note_line: menu refusal on line 6. Holds.
+- read_back only_his_words_confirm_the_line: `"3": "ok"` meets the read-back branch at api.py:14204-14208, which leaves the line out. Holds.
+- guess_route a_request_correction_still_lands_on_line_1: `other <quote>`, contest on the item. Holds.
+- frame258 the_criteria_words_alone_do_not_spare_line_1: menu refusal on line 1. Holds.
+- frame337 s193s: skipped on the `page_clauses` gap. Holds.
+- frame250 s212s: `other <quote>` and rewrite, contests on c1 and l_2. Holds.
+- frame250 the_map_with_line_6_contested: rewrite on line 6, clause keys none. Holds (point 3).
+- night173 s179s: rewrite on line 5, the act is rewrite. Holds.
+- night173 a_revise_on_a_line_with_no_words_is_refused_once: refused on each call. Holds.
+- f25 the_offer_gives_no_approve_to_a_line_his_words_fault: menu refusal, no offer. Holds.
+- frame193 s159s_drop: seven drops, skipped with the binder reason. Holds.
+
+## (b) Findings
+
+1. tests/rota/test_frame234_verdict_lines.py, `test_words_that_fault_line_1_land_a_contest_on_it`, deleted (old line 197). Severity high. CONFIRMED by probe_del.py. `page_clauses` gives the clause "1 is wrong: ..." the line [1]. On `_present`, line 1 is kind other. The call `{"1": "other json, not yaml", "rest": "approve"}` lands s1 contest. The old assertion holds. Fix: restore the test as a re-pin with `other <quote>` on line 1.
+2. tests/rota/test_f2_rulings_words.py, `test_s275s_call_lands_on_his_reply`, deleted (old line 102). Severity high. CONFIRMED by test_probe_s275.py. On night 172 m132, the menu call keys 9 to 15 drop, 18 rewrite and the clauses c1 to c3 none. The call lands reading:m121 rewrite and challenge_constraints_sentinel drop. Both old assertions hold. Its sibling s271s asserts `words`, but s275s asserts only the acts. Fix: restore the test as a re-pin with that menu call.
+3. tests/rota/test_frame250_verdict_faults.py:195, `_rule_m245`, and tests/rota/test_read_back.py:74, `_answer`. Severity low. CONFIRMED by probe_rev.py. The call with `words=M246` and the call without it land the same rows: bg_4 contest, cr_3_show_python_append approve. So the test passes for the right reason. The seat today sends no `words`. Fix: remove the `words` argument from both shared helpers.
+4. Outside the points. The R6b report section (b) says each touched file passed. The replay gives 3 reds in 2 touched files. p15 found that the same 3 fail at foundation. Severity low. CONFIRMED by the replay. Fix: correct the report line.
+
+## (c) Probes
+
+Folder: C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/00ca90d0-18a5-4929-b3d3-aedcb3b99ae5/scratchpad/p15b/
+
+- old_bodies.py and new_bodies.py print a test body at f52c2716 or at r6root.
+- probe_del.py runs `page_clauses` and the menu calls for findings 1 and the seam2 conjoined drop.
+- test_probe_s275.py runs the menu call of finding 2 on the night 172 database.
+- probe_rev.py runs `_rule_m245`'s call with and without `words`.
+- pytest ran the 23 touched files in replay at r6root, with ROTA_MODEL=qwen3:8b and `ROTA_L1` unset.
+- The worktree is C:/Users/roman/rota_p15b, detached at r6root (4f824369). Nothing in it changed.
+
+## (d) Usage
+
+The harness shows no exact split. The estimate is about 40k context tokens and 9k output tokens, about 49k in total. That is above the cap of 20k. Sub-agents: none.
