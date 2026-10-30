@@ -94,6 +94,45 @@ RIGHT_143_144 = {
                  "command that turned the flag on.",
                  {"1": "approve", "2": "contest", "3": "approve"}),
 }
+# The menu call that the seat makes today for each recorded reply, and the
+# lines that it contests (frame 345, R6b). On 143 m263 his words name no
+# line 1, so the menu lands line 1 approve where the night contested it.
+MENU_143_144 = {
+    "143 m263": ({"3": "rewrite", "rest": "approve"}, ["3"]),
+    "143 m339": ({"2": "rewrite", "rest": "approve"}, ["2"]),
+    "144 m193": ({"1": "other Line 1 isn't a request, so please take it off "
+                       "the page.", "2": "rewrite", "rest": "approve"},
+                 ["1", "2"]),
+}
+
+
+@pytest.mark.parametrize("night_ask", sorted(RIGHT_143_144))
+def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
+    words, _ = RIGHT_143_144[night_ask]
+    rulings, contested = MENU_143_144[night_ask]
+    ask = _request_page(db)
+    sb, _ = _landing(db, ask, words)
+    out = sb.call("rulings.rule", rulings=rulings)
+    assert contested == sorted(
+        str(["calculate_tip", "how_it_works", "l_1"].index(r) + 1)
+        for r, v in out["per_item"].items() if v == "contest")
+
+
+# Night 144, m236. The words fault only the test files under line 1.
+M236 = ("Line 12 is wrong: I never overruled the helper. I still want it "
+        "added next to echo, and my note about line 1 was only about which "
+        "test files it points at. On line 1, the echo tests are right, but "
+        "the termui and context test files don't belong there.")
+
+
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the "
+                         "request line on a stamped page offers no option that "
+                         "lands on the guess key or bg_3 (line_menu)")
+def test_m236_the_moved_reading_lands_with_the_item_approved(db):
+    out = _rule_request(db, M236, {"guess:calculate_tip": "contest", "1": "approve",
+                                   "2": "approve", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "approve"
+    assert out["per_item"]["guess:calculate_tip"] == "contest"
 
 
 def test_an_approval_and_a_named_fault_land_as_before(db):

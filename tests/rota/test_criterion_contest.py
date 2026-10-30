@@ -429,8 +429,8 @@ def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noq
     ruling["4"] = "rewrite"
     text = n132.execute("SELECT text FROM criteria WHERE id = "
                         "'cr_2_confirm_eof_behavior'").fetchone()["text"]
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (row,) = n132.execute("SELECT texts FROM rulings WHERE ask_id = ?",
                           (mid,)).fetchall()

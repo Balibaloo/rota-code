@@ -289,7 +289,7 @@ def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_nam
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, WALK)
     whole = json.dumps({str(n): "approve" for n in range(1, 14)})
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole}, words='{WALK}')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole})")
     assert out.committed, out.errors
     assert n132.execute("SELECT status FROM messages WHERE id = ?",
                         (mid,)).fetchone()["status"] == "answered"
@@ -314,8 +314,8 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
     ruling = {str(n): "approve" for n in range(1, 14)}
     ruling["4"] = "rewrite"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id, status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -373,8 +373,8 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
     ruling = {str(n): "approve" for n in range(1, 14)}
     ruling["4"] = "rewrite"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -409,8 +409,8 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
     reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
     ruling = {str(n): "approve" for n in range(1, 14)}
     ruling["4"] = "rewrite"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 4 is wrong: it must not hang')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -445,8 +445,8 @@ def test_a_contest_of_the_item_line_relays_the_item_to_the_vision_keeper(n132, c
     # Line 1 is the request line, so its menu holds other, not rewrite
     # (frame 345, R6).
     ruling["1"] = "other line 1 is wrong: it must not abort"
-    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 1 is wrong: it must not abort')")
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}"
+                                ")")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -777,7 +777,7 @@ def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
         sb.call("rulings.rule", rulings={str(n): "approve" for n in range(1, 15)},
                 words=WALK)
     every_line = json.dumps({str(n): "approve" for n in range(1, 14)})
-    out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={every_line}, words='{WALK}')")
+    out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={every_line})")
     assert out.committed, out.errors
     (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
