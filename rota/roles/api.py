@@ -13834,6 +13834,22 @@ _MENU_BASE = {
     "other": ("approve", "drop", "rewrite"),
 }
 _MENU_OTHER = "other <quote>"
+# When each option of a touch line applies (frame 347, pass 4). The menu
+# gave no "when", so the seat tipped between rewrite and exclude on m92-m93,
+# m76-m77 and m121. The words follow his replies in those cases and in the
+# right cases m61-m62, m53-m55, m74-m75, m44-m45 and m44-m46. No code reads
+# his words with this text. The seat reads it.
+_TOUCH_WHEN = {
+    "approve": "his words keep the shown files, or put the change in one of "
+               "them, as \"change only the docstring in the file on line 9\"",
+    "exclude <path>": "his words say that a shown file is not part of the "
+                      "change, by its path or by its kind, as \"not in a test "
+                      "file\" or \"drop the utils file\", also when he names "
+                      "where the change goes",
+    "rewrite": "his words refuse no shown file and say that the line must "
+               "name a function or a file that it leaves out, as \"that "
+               "function should be named as expected\"",
+}
 # The row that each option lands: the verdict, the act and the target kind.
 _OPTION_ROWS: dict[str, tuple[str, str | None, str | None]] = {
     "approve": ("approve", None, None), "ok": ("approve", None, None),
@@ -13981,7 +13997,10 @@ def page_menus(conn, order: list, page_text: str
         entry = next((m for m in menus if m["kind"] == kind
                       and m["options"] == options), None)
         if entry is None:
-            menus.append({"kind": kind, "lines": [n], "options": options})
+            entry = {"kind": kind, "lines": [n], "options": options}
+            if kind == "touch" and len(options) > 1:
+                entry["when"] = dict(_TOUCH_WHEN)
+            menus.append(entry)
         else:
             entry["lines"].append(n)
     return menus, per_line
