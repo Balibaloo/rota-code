@@ -2290,7 +2290,11 @@ def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
     A refusal names a call only where the doors admit that call (frame 135,
     `plans/operating-facts.md`, rulings on briefs and doors). For the
     Developer, any escalation on the same refs, open or closed, refuses.
+    A mode that lacks the escalation admits none, so its three callers name
+    no escalation there (the review of frame 349's pass 1, finding 1).
     """
+    if not api._holds(ctx, "msg.escalate_architect"):
+        return False
     if _sent_this_session(ctx, "architect", "escalate"):
         return False
     return _same_refs_refusal(ctx, "architect", "escalate", refs) is None
@@ -2353,18 +2357,19 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
             f"the base run at this batch's start found {', '.join(red)} red "
             f"too. The base run said: {quote}. Your diff did not break "
             f"{'it' if len(red) == 1 else 'them'}, and the fix is not yours")
-        # Frame 135's law: developer/answer meets this text on a challenge
-        # and lacks the escalation, so it gets the fact alone.
-        if api._holds(ctx, "msg.escalate_architect"):
-            if _escalation_admitted(ctx, red):
-                said = f"Send msg.escalate_architect(refs={red!r})"
-                if offer:
-                    api._offer(ctx, said, "msg.escalate_architect",
-                               {"refs": red})
-                parts.append(said)
-            else:
-                parts.append("You escalated these refs already. End the "
-                             "session with no call")
+        # Frame 135's law: `_escalation_admitted` asks the mode, so
+        # developer/answer, which lacks the escalation, gets the end.
+        if _escalation_admitted(ctx, red):
+            said = f"Send msg.escalate_architect(refs={red!r})"
+            if offer:
+                api._offer(ctx, said, "msg.escalate_architect",
+                           {"refs": red})
+            parts.append(said)
+        elif api._holds(ctx, "msg.escalate_architect"):
+            parts.append("You escalated these refs already. End the "
+                         "session with no call")
+        else:
+            parts.append("End the session with no call")
     if passed:
         parts.append(f"{', '.join(passed)} passed before this batch. Read "
                      f"code.diff and restore what your change broke")
@@ -3482,8 +3487,11 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
         # rung is the Architect. Another sender has no op to name
         # here: `schedule.unresolved` was renamed and took no refs
         # (the review of ee1ed12, 2026-10-03), so the text names the
-        # answer and the end.
-        if recipient == "tester":
+        # answer and the end. The critic sends to the tester too, and it
+        # holds no escalation and writes no code (the review of frame
+        # 349's pass 1, finding 2).
+        if (ctx.role == "developer" and recipient == "tester"
+                and api._holds(ctx, "msg.escalate_architect")):
             way = ("Send msg.escalate_architect on the same refs, or "
                    "make one real change to the code the test calls.")
         else:
@@ -4075,10 +4083,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # third question has nothing left to change (ruled: Roman,
                 # 2026-10-01: the Critic's doubt about a criterion goes to
                 # the Terminologist, the writer of the criteria).
-                door = ""
                 if ctx.role == "tester":
                     # Frame 135's law: tester/answer and challenge hold the
-                    # questions and lack tests.triage, so they get the fact.
+                    # questions and lack tests.triage, so they get the end.
+                    door = "end the session with no call"
                     if api._holds(ctx, "tests.triage"):
                         door = ("tests.triage(criterion_id=..., "
                                 "verdict='cannot') with the reason: the "
@@ -4087,11 +4095,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     door = "the verdict stands as written: end the session"
                 else:
                     door = "schedule.unresolved"
-                said = (f"{recipient} has answered {answered} questions of "
-                        f"yours on these rows and they did not settle it. A "
-                        f"third question is the same question")
-                raise ValueError(f"{said}. The exit is {door}" if door
-                                 else said)
+                raise ValueError(
+                    f"{recipient} has answered {answered} questions of yours "
+                    f"on these rows and they did not settle it. A third "
+                    f"question is the same question. The exit is {door}")
 
         # law 7: any touch after the first must reframe, never repeat the question
         # The principal said these words before, and a Liaison message

@@ -4695,19 +4695,28 @@ def surveys_attest(ctx: Ctx, outcome: str,
                     if fn == "surveys.attest" and "then attest again" in why)
         if not asked:
             # Frame 135's law: only vision_keeper/orient meets @program, and
-            # it holds problem.assert. The guard keeps a refusal in another
-            # mode from naming the call.
+            # it holds problem.assert, so this guard is true at runtime. The
+            # lint reads its literal as the guard of the text below.
             if area == PROGRAM and _holds(ctx, "problem.assert"):
                 raise ValueError(
                     "you have attested `found` and written no items. The account "
                     "is not the record -- each behaviour in it is one call per "
                     "behaviour: `problem.assert(id=..., text=..., kind='in_scope')` "
                     "on its own line, and then attest again.")
+            # Frame 135's law: the text names the owed call only where the
+            # mode holds it. "then attest again" stays, because `asked`
+            # counts it to bound the refusal to once.
+            if _holds(ctx, owed_fn):
+                raise ValueError(
+                    f"you have attested `found` and written no {owed}. What "
+                    f"you found is not the record until it is written: one "
+                    f"`{owed_fn}` per finding, on its own line, and then "
+                    f"attest again -- or attest `none_found` if, written out, "
+                    f"none of it holds.")
             raise ValueError(
-                f"you have attested `found` and written no {owed}. What you "
-                f"found is not the record until it is written: one `{owed_fn}` "
-                f"per finding, on its own line, and then attest again -- or "
-                f"attest `none_found` if, written out, none of it holds.")
+                f"you have attested `found` and written no {owed}, and this "
+                f"mode writes none. The record is `none_found`: then attest "
+                f"again with that outcome.")
     if outcome == "found" and not mine:
         outcome = "none_found"
         note = (f"recorded as `none_found`: you wrote no {owed} this session, "
@@ -6417,19 +6426,24 @@ def _wake_mode_tools(ctx: Ctx) -> list[str]:
 
 
 def _holds(ctx: Ctx, call: str) -> bool:
-    """True when the wake's mode holds `call`, or when the mode has no
-    `.tools` file and the role keeps every op of its graph.
+    """True when the wake's mode holds `call`. When the mode has no `.tools`
+    file, True when the role's graph holds `call`.
 
     Frame 135's law: a refusal names only a call the doors admit. A call
     outside the mode fails before any door, so a text names its call only
     under `if _holds(ctx, "x.y"):`. The test lint reads that string as a
     guard (frame 349)."""
-    # A context that no sandbox built has no wake and no mode. No `.tools`
-    # file narrows it, so it holds the call as a role with no mode does.
-    if _ctx_wake(ctx) is None and getattr(ctx, "mode", None) is None:
-        return True
-    held = _wake_mode_set(ctx)
-    return held is None or call in held
+    # The stub context of test_glossary_senses has no `mode` attribute,
+    # and `_wake_mode_set` reads it.
+    held = _wake_mode_set(ctx) if hasattr(ctx, "mode") else None
+    if held is not None:
+        return call in held
+    # The role's graph, as `sandbox.build` grants it: `ctx.working_set`.
+    # `sandbox.held_calls` reads the same set as `sb.functions()` (the
+    # review of frame 349's pass 1, finding 3). A context that no sandbox
+    # built has no graph set, so it keeps the call.
+    graph = getattr(ctx, "working_set", None)
+    return graph is None or call in graph
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):

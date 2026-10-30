@@ -1372,7 +1372,9 @@ def test_an_open_newest_challenge_waits_beside_an_older_closed_one(db):
 def test_the_critics_repeat_challenge_keeps_its_sentence(db):
     """Scope: the Developer's challenge only (ruled: the judging session,
     2026-10-05). The Developer's escalation keeps its sentences too, and the
-    escalation tests above hold them to the byte."""
+    escalation tests above hold them to the byte. The critic holds no
+    escalation and writes no code, so its step is the answer and the end
+    (the review of frame 349's pass 1, finding 2)."""
     _msg(db, "m1", "critic", "tester", "challenge", ["c1", "tst1"], 1,
          "answered")
     _msg(db, "m2", "tester", "critic", "answer", ["c1", "tst1"], 2,
@@ -1384,8 +1386,8 @@ def test_the_critics_repeat_challenge_keeps_its_sentence(db):
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs already (m1) and "
         "they answered. Sending it again is the same argument again. Do not "
-        "send this challenge again. Send msg.escalate_architect on the same "
-        "refs, or make one real change to the code the test calls.")
+        "send this challenge again. Act on the answer, or end the session "
+        "with no call.")
 
 
 def test_night119_a_burst_lands_its_first_challenge_and_guards_the_second(db):

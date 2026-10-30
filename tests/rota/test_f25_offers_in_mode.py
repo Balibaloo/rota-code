@@ -380,19 +380,23 @@ def _red_at_base(monkeypatch):
     from rota.core import harness
     monkeypatch.setattr(harness, "base_run", lambda conn, batch: {
         "inh_1": {"result": "fail", "output": "E   assert 1 == 2"}})
-    # The repeat doors admit, so only the mode can drop the call.
-    monkeypatch.setattr(sandbox, "_escalation_admitted", lambda ctx, refs: True)
+    # The repeat doors admit, so only the mode can drop the call. The mode
+    # check sits in `_escalation_admitted` since frame 349's pass 2.
+    monkeypatch.setattr(sandbox, "_same_refs_refusal",
+                        lambda ctx, recipient, verb, refs: None)
 
 
 def test_the_base_run_fact_names_no_escalation_in_answer(db, monkeypatch):
     """Place 7: a challenge in developer/answer meets the base run's fact,
-    and answer lacks `msg.escalate_architect`. The text gives the fact."""
+    and answer lacks `msg.escalate_architect`. The text gives the fact and
+    the end (the review of pass 1, finding 4)."""
     _red_at_base(monkeypatch)
     sb = _narrowed("developer", db, "answer", batch_id="b1")
     sb.ctx.offers = []
     said = sandbox.project_tests_fact(sb.ctx, ["inh_1"]) or ""
-    assert "the fix is not yours" in said, said
+    assert "the fix is not yours. End the session with no call" in said, said
     assert "msg.escalate_architect" not in said, said
+    assert "escalated these refs already" not in said, said
     assert _unheld(sb, "msg.challenge_tester", said) == []
 
 
@@ -432,7 +436,7 @@ def _two_answers(db):
 
 def test_a_third_question_in_answer_names_no_triage(db):
     """Place 8: tester/answer holds the questions and lacks `tests.triage`,
-    so the third question meets the fact alone."""
+    so the third question meets the fact and the end."""
     _two_answers(db)
     sb = _narrowed("tester", db, "answer", batch_id="b1")
     sb.ctx.offers = []
@@ -441,6 +445,7 @@ def test_a_third_question_in_answer_names_no_triage(db):
                 question="but really?")
     said = str(exc.value)
     assert "answered 2 questions of yours" in said, said
+    assert said.endswith("The exit is end the session with no call"), said
     assert "tests.triage" not in said, said
     assert _unheld(sb, "msg.question_terminologist", said) == []
 
@@ -466,6 +471,78 @@ def test_the_decision_step_is_not_met_where_the_challenge_is_not_held(db):
         assert not api._holds(sb.ctx, "msg.challenge_tester"), mode
         with pytest.raises(sandbox.NotInWorkingSet):
             sb.call("msg.challenge_tester", refs=["c1", "t1"], quotes=["a", "b"])
+
+
+def _desk(db):
+    """The rows of test_desk_guards' `db` fixture, which its helpers read."""
+    for sql in (
+            "INSERT INTO items (id, text, kind, approval, approval_ver, "
+            "version) VALUES ('i1','closing keeps invoices','in_scope',"
+            "'approved',1,1)",
+            "INSERT INTO tickets (id, item_id, text) VALUES "
+            "('tk1','i1','close an account')",
+            "INSERT INTO glossary_terms (id, term, sense_short) "
+            "VALUES ('g1','account','the billing entity')",
+            "INSERT INTO criteria (id, ticket_id, text) VALUES "
+            "('c1','tk1','closing an account leaves its invoices in place')",
+            "INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+            "('criteria','c1','term','g1')",
+            "INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+            "('b1','i1','running','abc123')",
+            "INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+            "('b1','tk1')",
+            "INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+            "VALUES ('tst1','b1','c1','test_close.py',"
+            "\"assert close_account('a1') is not None\")"):
+        db.execute(sql)
+    db.commit()
+
+
+def _woken(role: str, db, mode: str):
+    """A seat with a live tick wake, as the runner builds it."""
+    from rota.core.scheduler import Wake
+    from rota.roles import prompts
+    db.commit()
+    return sandbox.build(role, db, batch_id="b1", mode="normal",
+                         allow=prompts.mode_tools(role, mode),
+                         wake=Wake(role, "tick:" + mode))
+
+
+def test_the_challenge_cap_names_no_escalation_in_answer(db):
+    """Finding 1 of the review of frame 349's pass 1: a challenge in
+    developer/answer met the cap, and `_escalation_or_step` named
+    `msg.escalate_architect`, which answer lacks."""
+    from .test_desk_guards import QUOTES, REASON, _chain
+    _desk(db)
+    _chain(db, ("tst1",))
+    db.execute("DELETE FROM test_runs")
+    sb = _woken("developer", db, "answer")
+    sb.ctx.offers = []
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"],
+                quotes=QUOTES)
+    said = str(exc.value)
+    assert "msg.escalate_architect" not in said, said
+    assert _unheld(sb, "msg.challenge_tester", said) == []
+
+
+def test_a_repeated_critic_challenge_names_no_escalation(db):
+    """Finding 2 of the review of frame 349's pass 1: the same-refs door
+    gave critic/review the Developer's rung, an escalation and a code
+    change. The critic holds neither."""
+    from .test_desk_guards import QUOTES, _msg
+    _desk(db)
+    _msg(db, "m1", "critic", "tester", "challenge", ["c1", "tst1"], 1,
+         "answered")
+    _msg(db, "m2", "tester", "critic", "answer", ["c1", "tst1"], 2,
+         "answered", cause="m1")
+    sb = _woken("critic", db, "review")
+    sb.ctx.offers = []
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    said = str(exc.value)
+    assert "Act on the answer, or end the session with no call." in said, said
+    assert _unheld(sb, "msg.challenge_tester", said) == []
 
 
 def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
