@@ -83,3 +83,11 @@ def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     assert (five["line"], five["words_from"]) == (5, "m76")
     assert five["words"] == "Line 5 is wrong: ..."
     assert rows["l_c5331791cf"]["words_from"] == sb.ctx.trigger
+
+
+@pytest.mark.skip(reason="frame 345, R6b: needs a code change. page_clauses reads his reply only, so no clause names line 5 from m76 in the earlier exchange (page_clauses, menu_ruling)")
+def test_s193s_contest_of_line_5_lands_on_m76_in_the_exchange(db):
+    ask = _page6(db, [M76])
+    sb, _ = _landing(db, ask, M78)
+    out = sb.call("rulings.rule", rulings={"5": "rewrite", "rest": "approve"})
+    assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"

@@ -368,3 +368,29 @@ def test_a_refusal_names_a_call_its_modes_hold(key):
 
 def test_the_table_names_only_keys_the_lint_reads():
     assert set(KNOWN_UNHELD) <= set(_keys())
+
+
+def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
+    """Law 6: only his words choose a verdict. His reply faults line 2, and
+    the seat left line 2 out. The refusal names line 2 and offers no call,
+    because no call the door can write is his ruling of line 2 (the review
+    of f4951389, finding 3)."""
+    words = "please drop line 3, and line 2 is wrong too"
+    case = _case("L1-LI-a-dropped-line-is-a-contest")
+    case["inbound"]["body_text"] = words
+    # The menu call of the seat keys line 3 alone (frame 345, R6b).
+    first = 'TOOL: rulings.rule(rulings={"3": "drop"})'
+    seen = []
+
+    def pick(found):
+        seen.append(found)
+        return "Done."
+
+    seat = _Follower(first, pick)
+    _run(case, seat, tmp_path)
+    error = _last_error(seat.users[1])
+    assert "line 2: his words name the line, and the call gives it no " \
+        "option" in error, error
+    # Frame 135's law: the text shows no call that rules line 2 for him.
+    assert _offered_calls(error) == [], error
+    assert seen == [[]], seen

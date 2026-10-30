@@ -392,3 +392,15 @@ def test_the_op_refuses_a_symbol_under_a_directory_the_index_lacks(db):
     with pytest.raises(ValueError, match="nowhere/x.py is under a directory"):
         sb.call("batches.guess", item_id=ITEM, paths=["tests/test_basic.py"],
                 symbols=["nowhere/x.py::y"])
+
+
+def test_a_request_correction_still_lands_on_line_1(db):
+    """The cue refuses no (b) reply: 43 of 43 in-sample."""
+    _page(db, batch=None, guess=True)
+    words = ("Line 1 is wrong: the flag should print the Python version on its "
+             "own line instead of appending it to the message.")
+    sb = _landing(db, _reply(db, words))
+    # The menu form (frame 345, R6b): the request line takes other.
+    out = sb.call("rulings.rule", rulings={"1": "other " + words,
+                                           "rest": "approve"})
+    assert out["per_item"][ITEM] == "contest"

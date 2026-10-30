@@ -133,3 +133,13 @@ def test_m25_keeps_its_path():
     m25 = ("ok, this matches what I asked for. Please keep it to the standard "
            "library json module")
     assert _line_reading(m25)[0] == set()
+
+
+def test_the_criteria_words_alone_do_not_spare_line_1(page):
+    # The menu form (frame 345, R6b) refuses a change of line 1, which no
+    # clause of REST names.
+    said, ruled = _rule(page, REST, {"1": "other The checks on lines 2, 3 "
+                                     "and 4 look wrong", "c1": "rewrite",
+                                     "rest": "approve"})
+    assert "line 1: no clause of his names line 1" in said, said
+    assert ruled.get(ITEM) != "contest", ruled

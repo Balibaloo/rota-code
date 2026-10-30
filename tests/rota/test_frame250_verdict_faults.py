@@ -21,7 +21,8 @@ from rota.core.db import init_db
 from rota.roles.principal import land, parse_reply, pending_asks, render_page
 from rota.testkit.fixtures import seed_provenance
 
-from .test_frame234_verdict_lines import _rule11, _rule_request
+from .test_frame234_verdict_lines import _page11, _rule11, _rule_request
+from .test_principal_reply import _landing
 
 
 @pytest.fixture
@@ -199,3 +200,26 @@ def test_the_m245_page_numbers_bg_4_as_line_6(m245):
         "SELECT body_refs FROM messages WHERE id = 'm245'").fetchone()
         ["body_refs"]), ask_id="m245")
     assert order == [B4_ITEM] + [c for c, _, _ in B4_CRITERIA] + ["bg_4"]
+
+
+def test_s212s_map_with_the_faulted_lines_contested_lands(db):
+    # The menu call for M105 (frame 345, R6b).
+    # Lines 2 and 3 are items of the request, so they take other.
+    rulings = {"2": "other Lines 2, 3, 5, 6 and 7 are also wrong",
+               "3": "other Lines 3 and 5 can be checked simply",
+               **{str(n): "rewrite" for n in (5, 6, 7)}, "rest": "approve"}
+    ask = _page11(db)
+    sb, _ = _landing(db, ask, M105)
+    out = sb.call("rulings.rule", rulings=rulings)
+    assert out["per_item"]["c1"] == "contest"
+    assert out["per_item"]["l_2"] == "contest"
+
+
+def test_the_map_with_line_6_contested_lands(m245):
+    # The menu call (frame 345, R6b).
+    # The binder names no line for "the tests in lines 2 to 4", so the
+    # menu call rules line 6 alone.
+    out = _rule_m245(m245, {"6": "rewrite", "c1": "none", "c3": "none",
+                            "rest": "approve"})
+    assert out["per_item"]["bg_4"] == "contest"
+    assert out["per_item"][B4_ITEM] == "approve"

@@ -320,3 +320,27 @@ def test_the_read_back_line_named_by_the_other_lines_takes_an_approve(night):
 def principal_said(ctx):
     from rota.roles.principal import said
     return said(ctx.conn, ctx.trigger)
+
+
+def test_s179s_call_without_the_act_lands_the_contest(night):
+    """Night 173, m62: the contest of the change's line 5 lands on bg_2. The
+    menu form keys it rewrite, so the row carries that act (frame 345,
+    R6b)."""
+    ctx = night(173, "m62", merged=False)
+    api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": A, "4": A,
+                                   "5": "rewrite", "6": A})
+    row = _rows(ctx)["bg_2"]
+    assert (row["verdict"], row.get("act")) == ("contest", "rewrite")
+
+
+def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
+    """n174-m53-m55: no words of m55 name line 1. The menu form refuses a
+    change of line 1 on every call, not once (frame 345, R6b; review p9c)."""
+    ctx = night(174, "m55", merged=False)
+    assert api.line_words(principal_said(ctx), 9)[1] is None
+    ctx.refusals = []
+    for _ in range(2):
+        with pytest.raises(ValueError) as e:
+            api.rulings_rule(ctx, rulings={"1": "rewrite", "rest": "approve"})
+        assert str(e.value).startswith("line 1: no clause of his names line 1")
+        ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))

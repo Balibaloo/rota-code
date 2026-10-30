@@ -281,3 +281,15 @@ def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
         ("l_1", 3, "contest"), ("s1", 1, "approve"),
         ("calculate_tip", 2, "approve")], rows
     assert rows[0]["act"] == "drop"
+
+
+def test_only_his_words_confirm_the_line(db):
+    """The review of pass 5, finding 2: words that skip line 3 approve
+    lines 1 and 2. The menu form leaves the read-back line out, so the
+    approve of line 3 confirms nothing (frame 345, R6b)."""
+    reply, _ = _first_reply(db)
+    ref = READING_REF + reply
+    ask = _present(db, "m_p2", ["calculate_tip", "s1", ref], 5)
+    _answer(db, ask, "2 is fine, and 1 is fine as well.",
+            {"1": "approve", "2": "approve", "3": "ok"})
+    assert set(_confirmed(db, reply).values()) == {None}

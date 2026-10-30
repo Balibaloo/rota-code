@@ -435,3 +435,16 @@ ECHO_JSON_TESTS = ("echo_json_tests", "Put the new tests in the utils test "
 
 QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
          "anything, and don't write the log.")
+
+
+def test_an_unnumbered_sentence_never_spares_a_note_line(db):
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    # The menu form (frame 345, R6b) still refuses a change of a note
+    # line that no clause of his names.
+    rulings = {"3": "rewrite", "6": "rewrite", "rest": "approve"}
+    with pytest.raises(ValueError) as e:
+        ask = _page11(db)
+        sb, _ = _landing(db, ask, words)
+        sb.call("rulings.rule", rulings=rulings)
+    assert str(e.value).startswith("line 6: no clause of his names line 6")
