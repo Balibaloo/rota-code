@@ -344,9 +344,47 @@ def _brief(name: str) -> str:
             / name).read_text(encoding="utf-8")
 
 
-# The two briefs that offer `rulings.rule` with acts. The clarify brief
-# named `remove` only (the review of pass 4b, P4b-4).
-_RULE_BRIEFS = ["landing.md", "answering.md"]
+# The brief that offers `rulings.rule` with acts. The clarify brief named
+# `remove` only (the review of pass 4b, P4b-4). The landing brief offers
+# the menu options instead (frame 345, pass R2), and the tests below it pin
+# them.
+_RULE_BRIEFS = ["answering.md"]
+
+
+def _menu_names() -> set[str]:
+    """The option names of every menu, and the clause options."""
+    names = {api._menu_option(o)[0] for opts in api._MENU_BASE.values()
+             for o in opts}
+    return names | {api._menu_option(api._MENU_OTHER)[0], "exclude", "none",
+                    "held"}
+
+
+def test_the_landing_brief_names_every_menu_option():
+    """Frame 345, R6: an option that the brief does not name is an option
+    that no live Liaison chooses."""
+    brief = _brief("landing.md")
+    for opts in api._MENU_BASE.values():
+        for option in opts:
+            assert f"`{option}`" in brief, option
+    assert f"`{api._MENU_OTHER}`" in brief
+    assert "`exclude <path>`" in brief
+
+
+def test_every_menu_example_of_the_landing_brief_names_an_option():
+    """Frame 345, R6: each value of a `rulings=` example in the landing
+    brief is a menu option, keyed by a line, a clause or `rest`."""
+    import re
+
+    seen = 0
+    for line in _brief("landing.md").splitlines():
+        for found in re.findall(r"rulings=(\{.*?\})(?:\)|`)", line):
+            for key, value in json.loads(found).items():
+                assert key.isdigit() or re.fullmatch(r"c\d+", key) or (
+                    key == "rest"), found
+                option = value["option"] if isinstance(value, dict) else value
+                assert api._menu_option(option)[0] in _menu_names(), found
+                seen += 1
+    assert seen >= 5, seen
 
 
 @pytest.mark.parametrize("name", _RULE_BRIEFS)
@@ -411,12 +449,10 @@ def test_the_shift_page_reads_that_act_names_are_not_verdicts():
 
     piece = prompts.piece("liaison", "landing")
     # The gate on e3b171e5: the model still read "a separate request" as
-    # the act drop, so the sentence shows that page's verdict with no act.
-    sentence = ("The act names are not verdicts. A page that asks which "
-                "request goes first takes no act and no `acts`: \"it is a "
-                "separate request\" is `rulings={\"1\": \"later\"}`.")
+    # the act drop. The menu brief keeps the point in its own words
+    # (frame 345, R6).
+    sentence = "\"It is a separate request\" is `later`, never `drop`."
     assert sentence in piece
-    assert piece.index(sentence) < piece.index("The acts:")
 
 
 def test_each_recorded_write_ends_one_add_the_oldest_first(db):
