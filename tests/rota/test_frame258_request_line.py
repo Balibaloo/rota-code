@@ -143,3 +143,14 @@ def test_the_criteria_words_alone_do_not_spare_line_1(page):
                                      "rest": "approve"})
     assert "line 1: no clause of his names line 1" in said, said
     assert ruled.get(ITEM) != "contest", ruled
+
+
+def test_a_sentence_that_names_line_1_lets_it_be_contested(page):
+    words = (f"{M67} Line 1 is wrong too, because the flag should be called "
+             "eof_default.")
+    said, ruled = _rule(page, words, {
+        "c3": "rewrite", **{f"c{k}": "none" for k in (1, 2, 4, 5, 6)},
+        "1": "other Line 1 is wrong too, because the flag should be called "
+             "eof_default.", "rest": "approve"})
+    assert not said, said
+    assert ruled.get(ITEM) == "contest", (said, ruled)

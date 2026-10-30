@@ -448,3 +448,64 @@ def test_an_unnumbered_sentence_never_spares_a_note_line(db):
         sb, _ = _landing(db, ask, words)
         sb.call("rulings.rule", rulings=rulings)
     assert str(e.value).startswith("line 6: no clause of his names line 6")
+
+
+# Pass R6c of frame 345: four menu re-pins and one skip, as review p15c rules.
+
+def _menu_request(db, words, rulings):
+    ask = _request_page(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings)
+
+
+def _menu_present(db, words, rulings):
+    ask = _present(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings)
+
+
+def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
+    words = ("Line 2 is wrong because the bill is typed once. Also, take the "
+             "tip in cents.")
+    out = _menu_request(db, words, {"1": "other Also, take the tip in cents.",
+                                    "2": "rewrite", "rest": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+@pytest.mark.skip(reason="menu_ruling: a quote inside a clause that names "
+                         "another line cannot carry a change of an unnamed line")
+def test_the_quote_branch_lands(db):
+    words = "Line 2 is wrong, and the software calculates the tip wrong too."
+    out = _menu_request(db, words, {
+        "1": "other the software calculates the tip wrong too",
+        "2": "rewrite", "rest": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_words_that_fault_line_1_land_a_contest_on_it(db):
+    words = "1 is wrong: the request should say json, not yaml"
+    out = _menu_present(db, words, {"1": "other json, not yaml",
+                                    "rest": "approve"})
+    assert out["per_item"]["s1"] == "contest"
+
+
+def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
+    # Night 143's m263: such a sentence can correct a line it never numbers.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    out = _menu_present(db, words, {"2": "other Also, take the tip in cents.",
+                                    "3": "rewrite", "rest": "approve"})
+    assert out["per_item"]["how_it_works"] == "contest"
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
+    # Lines 3 and 4 are kind request and take no rewrite.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    ask = _page11(db)
+    sb, _ = _landing(db, ask, words)
+    out = sb.call("rulings.rule", rulings={
+        "3": "other Line 3 is wrong because the tip is rounded.",
+        "4": "other Also, take the tip in cents.", "rest": "approve"})
+    assert out["per_item"]["c3"] == "contest"

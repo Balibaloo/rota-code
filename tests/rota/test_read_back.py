@@ -71,7 +71,7 @@ def _answer(db, ask, words, rulings):
     sb = build("liaison", db, mode="normal", session_id=f"s_{reply}",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = reply
-    out = sb.call("rulings.rule", rulings=rulings, words=words)
+    out = sb.call("rulings.rule", rulings=rulings)
     for w in sb.ctx.writes:
         _apply_write(db, _as_write(w), sb.ctx.role)
     db.commit()
@@ -293,3 +293,12 @@ def test_only_his_words_confirm_the_line(db):
     _answer(db, ask, "2 is fine, and 1 is fine as well.",
             {"1": "approve", "2": "approve", "3": "ok"})
     assert set(_confirmed(db, reply).values()) == {None}
+
+
+def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
+    reply, _ = _first_reply(db)
+    ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
+    with pytest.raises(ValueError, match="no clause of his names line 2"):
+        _answer(db, ask, "1 is fine. Keep how_it_works.",
+                {"1": "approve", "2": {"option": "misread", "rows": ["l_1"]},
+                 "rest": "approve"})

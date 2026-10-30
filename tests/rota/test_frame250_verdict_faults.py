@@ -192,7 +192,7 @@ def _rule_m245(db, rulings):
     sb = build("liaison", db, mode="landing",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = reply
-    return sb.call("rulings.rule", rulings=rulings, words=M246)
+    return sb.call("rulings.rule", rulings=rulings)
 
 
 def test_the_m245_page_numbers_bg_4_as_line_6(m245):

@@ -140,3 +140,16 @@ def test_s258s_call_with_line_4_approved_lands(night):
     api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": A,
                                    "12": "misread", "c1": "none", "c2": "none"})
     assert _rows(ctx)["reading:m118"]["verdict"] == "contest"
+
+
+def test_s275s_call_lands_on_his_reply(night):
+    """s275 on m130 with m132: drops and a rewrite, as menu options (frame
+    345, R6c)."""
+    ctx = night("m132", ["m132"])
+    api.rulings_rule(ctx, rulings={
+        **R8, **{str(i): "drop" for i in range(9, 16)}, "16": A, "17": A,
+        "18": "rewrite",
+        "c1": "none", "c2": "none", "c3": "none"})
+    rows = _rows(ctx)
+    assert rows["reading:m121"]["act"] == "rewrite"
+    assert rows["challenge_constraints_sentinel"]["act"] == "drop"

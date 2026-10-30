@@ -344,3 +344,17 @@ def test_a_revise_on_a_line_with_no_words_is_refused_once(night):
             api.rulings_rule(ctx, rulings={"1": "rewrite", "rest": "approve"})
         assert str(e.value).startswith("line 1: no clause of his names line 1")
         ctx.refusals.append(("rulings.rule", str(e.value), "ValueError"))
+
+
+def test_a_revise_on_lines_his_words_name_passes(night):
+    """n174-m53-m55: his words name lines 7 and 9, and their rewrite lands a
+    contest with the act rewrite (frame 345, R6c)."""
+    ctx = night(174, "m55", merged=False)
+    rulings = {"7": "rewrite", "9": "rewrite", "rest": "approve",
+               **{str(n): A for n in (2, 3, 4, 5, 6, 8)}}
+    api.rulings_rule(ctx, rulings=rulings)
+    rows = _rows(ctx)
+    assert sorted(r["line"] for r in rows.values()
+                  if r.get("act") == "rewrite") == [7, 9]
+    assert {r["verdict"] for r in rows.values()
+            if r.get("act") == "rewrite"} == {"contest"}

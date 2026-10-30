@@ -308,3 +308,76 @@ def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
                       "the normal prompt to change?")
     assert out["to"] == "principal"
     assert not any(w[0] == "rulings" for w in sb.ctx.writes)
+
+
+# Night 138's m11, a present of eight lines, and m12, his reply.
+M11_LEDGER = (
+    ("l_125a8d70dc", "docs/arguments.md",
+     "the README says how_it_works; the code shows Click provides a command-line "
+     "interface toolkit"),
+    ("l_12e747e99d", "docs/arguments.md",
+     "the README says defines_commands_and_options; the code shows arguments are "
+     "positional and can take nargs=-1"),
+    ("l_551dc809f0", "parses_and_executes_inputs",
+     "the README says: Click parses command-line arguments and options, then "
+     "executes the corresponding Python functions with the provided inputs; the "
+     "code shows: The API reference includes functions for parsing and executing "
+     "command-line inputs"),
+    ("l_8cac936cd4", "how_it_works",
+     "the README says: The program is a command-line interface toolkit called "
+     "Click. Users write scripts that define commands and options, and Click "
+     "handles parsing and executing them; the code shows: The API reference lists "
+     "classes and functions for building command-line interfaces, including "
+     "commands, options, and utilities"),
+    ("l_a9c0ca7d82", "defines_commands_and_options",
+     "the README says: Users define commands and options using decorators in "
+     "Python functions, which Click then uses to parse and execute command-line "
+     "inputs; the code shows: The API reference lists decorators like command, "
+     "option, and argument which are used to define commands and options in Click"),
+    ("l_ae1ec6ade4", "provides_command_line_interface",
+     "the README says: Click provides a command-line interface that users can "
+     "interact with by running scripts that define commands and options; the code "
+     "shows: The API reference includes classes and functions for building and "
+     "interacting with command-line interfaces"),
+    ("l_d5f508f6e9", "docs/arguments.md",
+     "the README says parses_and_executes_inputs; the code shows Click parses "
+     "command-line arguments and executes Python functions"),
+)
+
+
+M12 = ("Lines 2 and 8 are wrong, because on the README side they show a short label "
+       "instead of what the README actually says. Please put the README's own words "
+       "there. The rest is fine.")
+
+
+def _m11(db):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
+               "version, is_description) VALUES ('how_it_works', ?, 'in_scope', "
+               "'approved', 4, 1, 4, 1)",
+               ("The program is a command-line interface toolkit called Click. "
+                "Users write scripts that define commands and options, and Click "
+                "parses command-line arguments and options, then executes the "
+                "corresponding Python functions with the provided inputs.",))
+    for lid, about, text in M11_LEDGER:
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "kind, status, author) VALUES (?, ?, 'items', ?, 'default', "
+                   "'open', 'vision_keeper')", (lid, about, text))
+    refs = [lid for lid, _, _ in M11_LEDGER] + ["how_it_works"]
+    return _landing(db, "m11", refs, "m12", M12, 11)
+
+
+def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
+    """The menu form keeps the refusal of `words` and `ask` as keys of
+    `rulings` (frame 345, R6c)."""
+    sb = _m11(db)
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={"2": "rewrite", "8": "rewrite",
+                                         "words": M12})
+    assert str(e.value).startswith(
+        "rulings has a key words, and words is its own argument of "
+        "rulings.rule"), str(e.value)
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={"2": "rewrite", "ask": "which words?"})
+    assert str(e.value).startswith(
+        "rulings has a key ask, and ask is its own argument of rulings.rule"), \
+        str(e.value)
