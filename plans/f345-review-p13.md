@@ -31,3 +31,35 @@ Point 1, the binding question. Each key is a set of line numbers in plain words,
 ## (d) Usage
 
 Input about 60k tokens, output about 9k tokens, total about 69k. These are estimates. The brief's cap of 20k was exceeded because the cassette search needed several queries.
+
+# Re-check p13b, passes R4b and R4c at 86493bbb
+
+## (a) Verdict
+
+READY. No finding is high. Two findings are low.
+
+1. The threshold: PASS. Eight lines give eight keys. Nine lines give one range key. The new test asserts both sides of the boundary (test_seam2_word_per_line.py 155 to 157). Lines with "no words" do not keep a separate rule. They follow the same threshold (finding 1).
+2. The order: PASS. The wake writes `clauses`, `his_words`, then `menus` (runner.py 2509 to 2515). The test asserts that order (test_seam2_word_per_line.py 165). No other test reads the key order of the landing. The old test name still states the R4 order (finding 2).
+3. Tests: PASS. The five files ran in replay with `ROTA_L1` unset: 237 passed, 2 failed, 3 skipped. The two fails are the same R3 fails that p13 recorded at 312b7592 and 283f6701.
+4. Outside: the `elif matched` branch keeps the old behaviour for a page with no order and for a shift ask. No other writer or reader of `his_words` changed.
+
+## (b) Findings
+
+1. Low. CONFIRMED. `rota/core/runner.py` 2047. The threshold counts the lines of each words string, and "no words" is one such string. Nine or more lines with no words still share one range key, such as "1 to 9". Eight or fewer get one key each. In n174-m47-m48 the eight "no words" lines now take eight entries in place of one key "1 to 7, 68". Fix: state in the docstring that "no words" follows the same threshold, or give "no words" its own rule if the seat must read it per line.
+2. Low. CONFIRMED. `tests/rota/test_seam2_word_per_line.py` 142. The test name `test_the_clauses_and_menus_come_before_his_words_once_per_range` states the R4 order. The body now asserts the R4c order. Fix: rename the test to name the clauses, his words, then the menus.
+3. Note, carried from p13. Finding 2 of p13 still holds for a clause on nine or more lines. A seat that copies a range key into `rulings` gets the generic refusal.
+
+## (c) Probes
+
+- The worktree is `C:/Users/roman/rota_p13b`, detached at 86493bbb, with `tests/rota/cassettes.db` copied in.
+- A `python -c` probe ran `_words_by_range` on nine and on eight "no words" lines, and on a mix of short words and a nine-line clause. The results were "1 to 9", eight single keys, and "1", "2", "3 to 11", "12" in line order.
+- A grep searched `rota` and `tests` for `his_words`. Only runner.py 2514 and 2517 write the landing key. Only the seam2 test reads it.
+- pytest ran `test_r1_menu_form.py`, `test_seam2_word_per_line.py`, `test_runner.py`, `test_runner_toolerror.py` and `test_f12_runner_reader.py` with `ROTA_MODEL=qwen3:8b`: 237 passed, 2 failed, 3 skipped. The probe did not run `test_l3_rulings.py`.
+
+## (d) Usage
+
+Input about 32k tokens, output about 3k tokens, total about 35k. These are estimates. The cap of 12k was exceeded by the context of the diff and the prior review.
+
+## Note to the session
+
+The brief asks for an append to `plans/f345-review-p13.md`. That file is tracked, and the reviewer's rules forbid an edit to a tracked file. The section is in this scratchpad file. Append it yourself.
