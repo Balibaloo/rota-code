@@ -409,7 +409,7 @@ def test_the_base_run_fact_names_the_escalation_where_held(db, monkeypatch):
     assert [o.op for o in sb.ctx.offers] == ["msg.escalate_architect"]
 
 
-def _two_answers(db):
+def _two_answers(db, role="tester"):
     # The rows of test_desk_guards' fixture that the refs door resolves.
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i1','closing keeps invoices','in_scope',"
@@ -423,13 +423,13 @@ def _two_answers(db):
     m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
          "body_refs, body_text, cause_id, seq, status) "
          "VALUES (?,?,?,?,?,?,?,?,?,?)")
-    db.execute(m, ("q1", "t", "tester", "terminologist", "question", '["c1"]',
+    db.execute(m, ("q1", "t", role, "terminologist", "question", '["c1"]',
                    "what?", None, 1, "answered"))
-    db.execute(m, ("a1", "t", "terminologist", "tester", "answer", '["g1"]',
+    db.execute(m, ("a1", "t", "terminologist", role, "answer", '["g1"]',
                    None, "q1", 2, "answered"))
-    db.execute(m, ("q2", "t", "tester", "terminologist", "question",
+    db.execute(m, ("q2", "t", role, "terminologist", "question",
                    '["c1", "g1"]', "and?", None, 3, "answered"))
-    db.execute(m, ("a2", "t", "terminologist", "tester", "answer", '["g1"]',
+    db.execute(m, ("a2", "t", "terminologist", role, "answer", '["g1"]',
                    None, "q2", 4, "answered"))
     db.commit()
 
@@ -456,6 +456,33 @@ def test_a_third_question_in_tests_missing_names_the_triage(db):
     with pytest.raises(ValueError, match="answered 2 questions.*tests.triage"):
         sb.call("msg.question_terminologist", refs=["c1"],
                 question="but really?")
+
+
+def _architects_third_question(db, mode: str) -> tuple:
+    _two_answers(db, "architect")
+    sb = _narrowed("architect", db, mode, batch_id="b1")
+    sb.ctx.offers = []
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.question_terminologist", refs=["c1"],
+                question="but really?")
+    return sb, str(exc.value)
+
+
+def test_a_third_question_names_the_reask_where_held(db):
+    """The review of frame 349's pass 2, finding 1: the exit named
+    `schedule.unresolved`, which no door admits. The architect's mode
+    with no `.tools` file keeps its graph, which holds `schedule.reask`."""
+    sb, said = _architects_third_question(db, "normal")
+    assert "The exit is schedule.reask(what_is_missing=...)" in said, said
+    assert _unheld(sb, "msg.question_terminologist", said) == []
+
+
+def test_a_third_question_names_no_reask_in_deliver(db):
+    """architect/deliver holds the question and lacks `schedule.reask`."""
+    sb, said = _architects_third_question(db, "deliver")
+    assert said.endswith("The exit is end the session with no call"), said
+    assert "schedule." not in said, said
+    assert _unheld(sb, "msg.question_terminologist", said) == []
 
 
 def test_the_decision_step_is_not_met_where_the_challenge_is_not_held(db):

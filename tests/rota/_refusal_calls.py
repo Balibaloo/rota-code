@@ -35,6 +35,10 @@ from rota import paths
 FILES = ("rota/roles/api.py", "rota/core/sandbox.py")
 CALL = re.compile(r"\b([a-z_]+)\.([a-z_]+)\(")
 DOTTED = re.compile(r"^[a-z_]+\.[a-z_]+$")
+# The bare form, `schedule.verb` with no parenthesis. Frame 349's review p2,
+# finding 1: "The exit is schedule.unresolved" named a renamed op. The
+# bare tier of the other artefacts is a separate frame.
+BARE = re.compile(r"\b(schedule)\.([a-z_]+)\b(?!\()")
 
 # The functions that every op passes through. A text there meets every mode.
 EVERY_OP = frozenset({"validate_args", "_bind", "Sandbox.call"})
@@ -277,8 +281,13 @@ def named_calls() -> list[Named]:
                     and id(node) not in docs
                     and not (chain and isinstance(chain[-1], ast.JoinedStr))):
                 text = _flat(node)
+                # A string that is one dotted name is often an op argument
+                # or a guard, `_offer(ctx, said, "x.y")`. The lint checks
+                # only that its op exists: `door = "schedule.unresolved"`.
+                lone = bool(DOTTED.match(text))
                 calls = sorted({f"{m.group(1)}.{m.group(2)}"
-                                for m in CALL.finditer(text)
+                                for m in (*CALL.finditer(text),
+                                          *BARE.finditer(text))
                                 if m.group(1) in arts})
                 for call in calls:
                     if unit:
@@ -290,7 +299,7 @@ def named_calls() -> list[Named]:
                         op = _table_op(chain, node)
                         ops = frozenset({op} if op else ())
                     out.append(Named(file, node.lineno, unit, call, text,
-                                     call in guards, ops))
+                                     call in guards or lone, ops))
                 if isinstance(node, ast.JoinedStr):
                     return False
             return True
@@ -372,7 +381,7 @@ def findings() -> dict[str, list[str]]:
     for n in named_calls():
         why = []
         if not exists(n.call):
-            why.append("no door admits the name")
+            why.append(f"names `{n.call}`, which no door admits")
         elif not n.guarded and not shared(n):
             lack = sorted(m for m, held in modes().items()
                           if meets(n, held) and n.call not in held)

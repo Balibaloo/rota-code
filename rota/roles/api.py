@@ -23199,8 +23199,9 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
     crits = sorted({r["criterion_id"] for r in ctx.conn.execute(
         f"SELECT criterion_id FROM tests WHERE id IN ({','.join('?' * len(red))})", red)
         if r["criterion_id"]})
-    # `_escalation_admitted` reads the repeat doors and not the mode. Four
-    # developer modes hold code.commit and lack the escalation.
+    # Four developer modes hold code.commit and lack the escalation.
+    # `_escalation_admitted` also asks the mode. The `_holds` test stays,
+    # because the lint reads its literal as the guard of the text.
     if (crits and _holds(ctx, "msg.escalate_architect")
             and _sandbox._escalation_admitted(ctx, crits)):
         said.append(_offer(ctx, f"To dispute the criterion, send "
