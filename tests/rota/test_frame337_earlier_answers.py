@@ -164,18 +164,39 @@ def test_a_bare_mention_in_the_reply_keeps_the_earlier_fault(db):
         sb.call("rulings.rule", rulings=ALL_APPROVE)
 
 
-def test_the_approve_refusal_fires_once_on_a_line(db):
-    """Frame 348, review p1, high 2: the shared reader faults "Line 2 was
-    wrong before, now it is fine." The refusal fires once, so the second
-    approve lands, and a misread cannot hold the seat."""
-    ask = _page6(db, ["Line 2 was wrong before, now it is fine."])
+def test_the_approve_refusal_fires_on_every_call(db):
+    """Frame 348, review p2, high 1: a second approve still rules against
+    his words, so it is refused again (law 6). The ask is the way out. The
+    shared reader also faults "Line 2 was wrong before, now it is fine.",
+    and that misread is a residue of `_line_reading`, not fixed here."""
+    ask = _page6(db, ["Line 2 is wrong."])
     sb, _ = _landing(db, ask, SILENT)
-    with pytest.raises(ValueError, match=r"line 2 takes no approve") as hit:
-        sb.call("rulings.rule", rulings=ALL_APPROVE)
+    for _call in range(2):
+        with pytest.raises(ValueError, match=r"line 2 takes no approve") as hit:
+            sb.call("rulings.rule", rulings=ALL_APPROVE)
     # Review p1, low 4: the menu in the refusal leaves approve out.
     assert "takes approve" not in str(hit.value)
-    out = sb.call("rulings.rule", rulings=ALL_APPROVE)
-    assert out["per_item"]["c1"] == "approve"
+    assert "rulings.rule(ask=" in str(hit.value)
+
+
+@pytest.mark.parametrize("earlier", [
+    "Line 2 is wrong, and tell me where line 3 came from.",
+    # One clause that faults and asks (review p2, high 2).
+    "Line 2 is wrong and tell me where it came from.",
+])
+def test_an_earlier_fault_beside_an_ask_still_binds(db, earlier):
+    """Review p2, high 2: the fault on line 2 binds, though the clause also
+    asks. Line 3 has no verdict word, so the ask keeps it unbound."""
+    ask = _page6(db, [earlier])
+    sb, _ = _landing(db, ask, SILENT)
+    with pytest.raises(ValueError, match=r"line 2 takes no approve"):
+        sb.call("rulings.rule", rulings=ALL_APPROVE)
+    out = sb.call("rulings.rule",
+                  rulings={**ALL_APPROVE, "2": "other Line 2 is wrong"})
+    assert out["per_item"]["c1"] == "contest"
+    # Line 3 binds nothing: its row carries the reply's words.
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    assert rows["c2"]["words"] == SILENT
 
 
 def test_a_line_his_earlier_answer_approves_stays_in_the_fallback(db):

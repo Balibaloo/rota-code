@@ -14255,12 +14255,15 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     bound: dict[int, tuple[str, bool]] = {}
     for text in reversed(earlier):
         for c in page_clauses(text, len(order)):
-            if _is_question(c["words"]):
-                continue
             blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"])
             reading = _line_reading(c["words"], len(order))
-            for n in sorted(set(c["lines"]) & _subject_lines(blank, len(order))
-                            - mentioned):
+            subject = set(c["lines"]) & _subject_lines(blank, len(order))
+            # A clause that faults a line and also asks, as "Line 2 is wrong
+            # and tell me where it came from.", still binds the fault. Only a
+            # pure ask with no verdict word binds nothing (review p2, high 2).
+            if _is_question(c["words"]):
+                subject &= reading.faulted | reading.matched
+            for n in sorted(subject - mentioned):
                 bound.setdefault(n, (c["words"], n in reading.faulted
                                      and n not in reading.matched))
     # The reply's fallback to all lines covers only the lines that no
@@ -14476,18 +14479,18 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             verdict, act, target_kind = _OPTION_ROWS[opt]
             # His earlier answer faults the line, and the reply does not
             # rule it. An approve rules against his words (law 6). An add
-            # changes the line, so it stays. The refusal fires once per line,
-            # as ASK_NOT_OPTION does, so a misread of `_line_reading` cannot
-            # hold the seat (frame 348, review p1, high 2).
+            # changes the line, so it stays. The refusal fires on every call:
+            # a second approve would still rule against his words, and law 6
+            # wins over the misread risk of `_line_reading` (review p2, high
+            # 1). The ask is the way out.
             if opt in ("approve", "ok") and n in bound and bound[n][1]:
                 others = [o for o in options if o not in ("approve", "ok")]
-                text = (f"line {n} takes no approve. His earlier answer to "
-                        f"this page says \"{bound[n][0]}\", and his reply does "
-                        f"not rule line {n}. Line {n}, kind {kind}, takes "
-                        f"{'; '.join(others)}. When no option holds his "
-                        f"words, call rulings.rule(ask=...) with no rulings.")
-                if text not in refused:
-                    raise ValueError(text)
+                raise ValueError(
+                    f"line {n} takes no approve. His earlier answer to this "
+                    f"page says \"{bound[n][0]}\", and his reply does not rule "
+                    f"line {n}. Line {n}, kind {kind}, takes "
+                    f"{'; '.join(others)}. When no option holds his words, "
+                    f"call rulings.rule(ask=...) with no rulings.")
             # A clause's add lands approve with the act on its line. A line
             # key approve on that line says the same verdict, so it keeps
             # the add.
