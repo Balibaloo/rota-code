@@ -388,6 +388,26 @@ def test_a_code_place_or_a_subject_keeps_a_line_after_in_unbound(
     assert api._subject_lines(clause, 10) == named
 
 
+def test_a_code_place_before_the_comma_opens_no_part():
+    """Review p1, low 1: K0 takes the `_CODE_PLACE` guard on the words
+    before the comma."""
+    assert api._subject_lines("src/click/termui.py, line 4 raises", 10) == set()
+
+
+def test_a_comma_part_keeps_the_in_line_of_the_part_before_it():
+    """Review p1, low 2: the first part keeps lines 2 to 4 of F-in, and the
+    comma part takes line 6."""
+    clause = "The tests in lines 2 to 4 are wrong, line 6 too"
+    assert [ls for _, _, ls in api._subject_parts(clause, 10)] == [
+        {2, 3, 4}, {6}]
+
+
+def test_so_after_a_comma_opens_no_part():
+    """Review p1, low 3: "so" starts a result, not a new subject."""
+    clause = "Line 5 is wrong, so line 6 must change too"
+    assert [ls for _, _, ls in api._subject_parts(clause, 10)] == [{5}]
+
+
 def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
     """L3R-n174-m47-m48: the page showed the term `parameter` on lines 8 and
     47, and the landing wrote the row on line 8 alone. The judge read "line

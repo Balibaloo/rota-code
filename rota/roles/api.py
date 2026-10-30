@@ -13336,9 +13336,11 @@ _CODE_AFTER = re.compile(
     rf"\s+(?:of|in)\s+(?:{_PATH_SHAPE.pattern}|\w+:)", re.I)
 # A reference right after a comma opens its own part, as a bare list does
 # (frame 347, rule K0). M63 "Line 5 also brings back the wording, line 6
-# calls the README stale" names line 6. Only "and", "but" or "so" may stand
-# between, so "because lines 3 and 4" in L3R m116-m118 stays unbound.
-_COMMA_REF = re.compile(r",\s*(?:(?:and|but|so)\s+)?$", re.I)
+# calls the README stale" names line 6. Only "and" or "but" may stand
+# between, so "because lines 3 and 4" in L3R m116-m118 stays unbound. "so"
+# starts a result, not a new subject (review p1, low 3). A path or a code
+# name before the comma names a place in code (review p1, low 1).
+_COMMA_REF = re.compile(r",\s*(?:(?:and|but)\s+)?$", re.I)
 # A second reference joined to a subject is a subject too: "Lines 1 to 10
 # and line 12 are fine", "line 3 or line 4".
 _REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
@@ -13399,14 +13401,18 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
         found.append((m.start(), m.end(),
                       {size if word == "last" else _ORDINALS.index(word) + 1}))
     named: set[int] = set()
-    placed: set[int] = set()
-    inside: set[int] = set()
+    placed: list[tuple[int, set[int]]] = []
+    inside: list[tuple[int, set[int]]] = []
     starts: list[tuple[int, set[int]]] = []
     last_end, last_set = None, named
     for start, end, lines in sorted(found, key=lambda f: f[0]):
         before = clause[:start]
+        comma = _COMMA_REF.search(before)
+        # A path before the comma makes the reference a place in code, at
+        # the lead too: "src/click/termui.py, line 4" (review p1, low 1).
+        code_comma = bool(comma and _CODE_PLACE.search(before[:comma.start()]))
         lead = (len(before.split()) <= _SUBJECT_LEAD
-                and not _NOT_SUBJECT.search(before))
+                and not _NOT_SUBJECT.search(before) and not code_comma)
         joined = (last_end is not None
                   and _REF_JOIN.fullmatch(clause[last_end:start]))
         on = _ON_LINE.search(before)
@@ -13417,14 +13423,16 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
             # A joined reference takes the set of the reference before it,
             # so "on line 3 and also line 6" places both (review p14, low 2).
             pass
-        elif _COMMA_REF.search(before) and before.strip(" ,"):
+        elif comma and before.strip(" ,") and not code_comma:
             last_set = set()
             starts.append((start, last_set))
         elif on and not _CODE_PLACE.search(before[:on.start()]):
-            last_set = placed
+            last_set = set()
+            placed.append((start, last_set))
         elif (in_ and not _CODE_PLACE.search(before[:in_.start()])
               and not _CODE_AFTER.match(clause, end)):
-            last_set = inside
+            last_set = set()
+            inside.append((start, last_set))
         else:
             continue
         last_set |= lines
@@ -13436,8 +13444,12 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
                 starts.append((m.start(), lines))
             else:
                 named |= lines
-    if not named and not starts:
-        named = placed or inside
+    # A placed or an "in" reference before the first cut belongs to the first
+    # part, so a comma part does not take it away (review p1, low 2).
+    cut = min((at for at, _ in starts), default=len(clause))
+    if not named:
+        named = (set().union(*(ls for at, ls in placed if at < cut))
+                 or set().union(*(ls for at, ls in inside if at < cut)))
     parts = []
     begin, own = 0, named
     for at, lines in sorted(starts, key=lambda s: s[0]):
