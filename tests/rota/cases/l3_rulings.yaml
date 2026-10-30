@@ -5710,3 +5710,355 @@
   - c_2_format_filename_example
   - c_3_format_filename_example
   forbidden: {}
+
+- id: L3R-n175-m11-m14
+  tier: l3_rulings
+  role: liaison
+  prompt: landing
+  model: gemma4:12b-it-qat
+  profile: local
+  runs: 3
+  pass: 2
+  inbound:
+    id: <m14>
+    from: principal
+    to: liaison
+    verb: converse
+    body_refs:
+    - challenge_items_parses_and_executes_inputs
+    - l_cd03fcf7bd
+    - l_ef290320ed
+    - how_it_works
+    - reading:<m3>
+    - reading:<m7>
+    cause: <m11>
+    body_text: I was asking you that, because line 3 only says the team could not check a claim about
+      an argument and never says which claim. Please tell me what the claim says and where it came from,
+      so I can tell you if it is right.
+  page:
+    header: Here is what I understand you want, on one page.
+    lines:
+    - The program is a command-line interface toolkit called Click. Users write scripts that define commands
+      and options, and Click handles parsing and executing them. The user writes commands and options
+      in Python functions, and Click turns these into a command-line interface that accepts arguments
+      and options. The output is the result of running the command with the provided inputs.
+    - "the Critic falsified items:parses_and_executes_inputs against src/click/core.py: \"for name, value\
+      \ in ctx.params.items():\n            if value is UNSET:\n                ctx.params[name] = None\"\
+      \ -- The claim states Click executes functions with \"the provided inputs\". The code explicitly\
+      \ converts missing inputs (UNSET) to None before execution, meaning the function receives None,\
+      \ not the absent input. Thus, it does not execute with the provided inputs.. The claim stands in\
+      \ the record until ruled."
+    - The team could not check a claim for argument after 3 attempts
+    - 'The README says: The program is a command-line interface toolkit called Click. Users write scripts
+      that define commands and options, and Click handles parsing and executing them. The user writes
+      commands and options in Python functions, and Click turns these into a command-line interface that
+      accepts arguments and options. The output is the result of running the command with the provided
+      inputs. The code shows: The program is a command-line interface toolkit called Click. Users write
+      scripts that define commands and options, and Click handles parsing and executing them.'
+    - 'Your answer "Yes, that''s right: Click is a Python toolkit ...", as the team read it: 4 lines approved.
+      Say ok, or say what we misread.'
+    - 'Your answer "Line 7 is wrong, because that wrapper keeps ...", as the team read it: line 7 is wrong;
+      line 13 is wrong; line 14 is wrong; line 15 is wrong; line 16 is wrong; line 20 is wrong; 11 lines
+      approved. Say ok, or say what we misread.'
+  fixture:
+    items:
+    - id: how_it_works
+      text: The program is a command-line interface toolkit called Click. Users write scripts that define
+        commands and options, and Click handles parsing and executing them. The user writes commands and
+        options in Python functions, and Click turns these into a command-line interface that accepts
+        arguments and options. The output is the result of running the command with the provided inputs.
+      kind: in_scope
+      approval: approved
+      version: 1
+      is_description: 1
+    - id: parses_and_executes_inputs
+      text: Click parses command-line arguments and options, then executes the corresponding Python functions
+        with the provided inputs.
+      kind: in_scope
+      approval: approved
+      version: 1
+      is_description: 0
+    messages:
+    - id: <m3>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: 'Yes, that''s right: Click is a Python toolkit where you write commands and options as
+        decorated functions, and it parses the command line and runs them. Ok, I approve the page.'
+      seq: 1
+    - id: <m7>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: Line 7 is wrong, because that wrapper keeps a file open when a with block ends, and it
+        has nothing to do with buffering. Lines 13 to 20 list groups of users, not words with more than
+        one meaning, and lines 17 to 19 repeat lines 13 to 15. Why are those user lines on this page?
+      seq: 2
+    - id: <m11>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: present
+      body_refs: '["challenge_items_parses_and_executes_inputs", "l_cd03fcf7bd", "l_ef290320ed", "how_it_works",
+        "reading:<m3>", "reading:<m7>"]'
+      seq: 3
+    - id: <m12>
+      thread_id: t1
+      from_role: principal
+      to_role: liaison
+      verb: converse
+      body_refs: '[]'
+      body_text: Line 2 is wrong, because filling a missing option with an empty value is still Click
+        running the function with what the user gave, so the original claim stands. Line 6 misread me,
+        since I said all of lines 13 to 20 are wrong, including 17 to 19, and you still have not said
+        why those user lines were on that page. What claim about an argument does line 3 mean?
+      cause_id: <m11>
+      seq: 4
+    - id: <m13>
+      thread_id: t1
+      from_role: liaison
+      to_role: principal
+      verb: converse
+      body_refs: '[]'
+      body_text: What claim about an argument does line 3 mean?
+      cause_id: <m12>
+      seq: 5
+    ledger:
+    - id: challenge_items_parses_and_executes_inputs
+      about_ref: items:parses_and_executes_inputs
+      about_table: items
+      default_taken: "the Critic falsified items:parses_and_executes_inputs against src/click/core.py:\
+        \ \"for name, value in ctx.params.items():\n            if value is UNSET:\n                ctx.params[name]\
+        \ = None\" -- The claim states Click executes functions with \"the provided inputs\". The code\
+        \ explicitly converts missing inputs (UNSET) to None before execution, meaning the function receives\
+        \ None, not the absent input. Thus, it does not execute with the provided inputs.. The claim stands\
+        \ in the record until ruled."
+      kind: default
+      author: critic
+      status: open
+    - id: l_cd03fcf7bd
+      about_ref: '@blindspots'
+      about_table: model_areas
+      default_taken: The team could not check a claim for argument after 3 attempts
+      kind: gap
+      author: liaison
+      status: open
+    - id: l_ef290320ed
+      about_ref: how_it_works
+      about_table: items
+      default_taken: 'The README says: The program is a command-line interface toolkit called Click. Users
+        write scripts that define commands and options, and Click handles parsing and executing them.
+        The user writes commands and options in Python functions, and Click turns these into a command-line
+        interface that accepts arguments and options. The output is the result of running the command
+        with the provided inputs. The code shows: The program is a command-line interface toolkit called
+        Click. Users write scripts that define commands and options, and Click handles parsing and executing
+        them.'
+      kind: default
+      author: vision_keeper
+      status: open
+    rulings:
+    - id: r_m3
+      ask_id: <m3>
+      reply_id: <m3>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    - id: r_m7
+      ask_id: <m7>
+      reply_id: <m7>
+      per_item: '{}'
+      words: an earlier answer
+      status: landed
+    ruled_refs:
+    - id: rr_m3_0
+      ruling_id: r_m3
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_1
+      ruling_id: r_m3
+      ref: defines_commands_and_options
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_2
+      ruling_id: r_m3
+      ref: parses_and_executes_inputs
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m3_3
+      ruling_id: r_m3
+      ref: provides_command_line_interface
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_0
+      ruling_id: r_m7
+      ref: how_it_works
+      line: 1
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_1
+      ruling_id: r_m7
+      ref: command_collection
+      line: 2
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_2
+      ruling_id: r_m7
+      ref: completion
+      line: 3
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_3
+      ruling_id: r_m7
+      ref: decorator
+      line: 4
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_4
+      ruling_id: r_m7
+      ref: detect_program_name
+      line: 5
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_5
+      ruling_id: r_m7
+      ref: format_filename
+      line: 6
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_6
+      ruling_id: r_m7
+      ref: keepopenfile
+      line: 7
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_7
+      ruling_id: r_m7
+      ref: lazyfile
+      line: 8
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_8
+      ruling_id: r_m7
+      ref: line
+      line: 9
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_9
+      ruling_id: r_m7
+      ref: parameter_source
+      line: 10
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_10
+      ruling_id: r_m7
+      ref: stream
+      line: 11
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_11
+      ruling_id: r_m7
+      ref: usage
+      line: 12
+      verdict: approve
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_12
+      ruling_id: r_m7
+      ref: command
+      line: 13
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_13
+      ruling_id: r_m7
+      ref: context
+      line: 14
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_14
+      ruling_id: r_m7
+      ref: option
+      line: 15
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_15
+      ruling_id: r_m7
+      ref: argument
+      line: 16
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    - id: rr_m7_16
+      ruling_id: r_m7
+      ref: usageerror
+      line: 20
+      verdict: contest
+      act: null
+      target: null
+      source: reading
+    config:
+    - key: order:<m14>
+      value: '["how_it_works", "challenge_items_parses_and_executes_inputs", "l_cd03fcf7bd", "l_ef290320ed",
+        "reading:<m3>", "reading:<m7>"]'
+  expect:
+    writes:
+      rulings:
+        count: 1
+  expect_lines:
+    lines:
+      '2':
+        verdict: contest
+      '3':
+        verdict: absent
+      '6':
+        verdict: contest
+  forbidden: {}
+
+# judge.expect: 2 contest, no act judged, words from m12 'Line 2 is wrong, because filling a missing option with an empty value is still Click running the function with what the user gave, so the original claim stands'; 3 left out, he asks what the claim is 'so I can tell you if it is right'; 6 contest, words from m12 'Line 6 misread me'; 1, 4, 5 unchecked, no words of his name them
+# shape: his earlier answer m12 to the same page names line 2 wrong, the reply m14 only asks about line 3; the live ruling r_m14 approved line 2 against m12
