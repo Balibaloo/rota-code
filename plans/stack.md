@@ -1562,6 +1562,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/rootfix-audit-2026-10-27-b.md` F25.
 - Status 2026-10-30 14:42 (rota-86): 14:42. Pushed by session 00ca90d0 from frame 344's audit at head, plans/rootfix-audit-2026-10-30-head.md. Unclaimed.
 - Status 2026-10-30 14:44 (rota-6d): 14:44. Claimed by a9a43280, peer name rota-6d, beside frame 341, which waits on its count. Step 1 of C76: the 7 texts of KNOWN_UNHELD are the find. Step 3: a read on one agent on Opus, cap 120k, brief f349_read_brief.md in this session's scratchpad, report plans/f349-read-2026-10-30.md. Meta workflow.
+- Status 2026-10-30 14:51 (rota-6d): The read, 152k on the harness line against 120k: 9 places at the lint's grain, 5 of the 7 keys true gaps and 2 false positives from value guards the lint cannot read, plus 3 hidden texts in sandbox.py that pass as shared. 5 of the 7 already go through _offer, so _offer alone closes nothing. A bare-name scan finds about 65 more texts over 55 keys, untriaged, a separate frame. Proposal (a): one helper _holds(ctx, call) over _wake_mode_set, each text names its call under the guard, the fact or the mode's own route without it. Price about 100k in 2 to 3 cycles. No seat form or door family changes, so no ruling is asked. Pass 1 runs on an implementer on Opus, cap 80k, brief f349_pass1_brief.md in this session's scratchpad, reach 9. Cycles: 1 of 3.
 
 
 ## 3. Overlap with the stack
