@@ -119,20 +119,14 @@ def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
 
 
 # Night 144, m236. The words fault only the test files under line 1.
+# Frame 347, pass 2 deleted the test of its moved reading. The page showed
+# the guess files under line 1 before 1869cab4 of 2026-10-18. At head the
+# send door gives the files their own line 2, and test_guess_route pins the
+# reading on that line. The words stay as a record of the old page form.
 M236 = ("Line 12 is wrong: I never overruled the helper. I still want it "
         "added next to echo, and my note about line 1 was only about which "
         "test files it points at. On line 1, the echo tests are right, but "
         "the termui and context test files don't belong there.")
-
-
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the "
-                         "request line on a stamped page offers no option that "
-                         "lands on the guess key or bg_3 (line_menu)")
-def test_m236_the_moved_reading_lands_with_the_item_approved(db):
-    out = _rule_request(db, M236, {"guess:calculate_tip": "contest", "1": "approve",
-                                   "2": "approve", "3": "approve"})
-    assert out["per_item"]["calculate_tip"] == "approve"
-    assert out["per_item"]["guess:calculate_tip"] == "contest"
 
 
 def test_an_approval_and_a_named_fault_land_as_before(db):

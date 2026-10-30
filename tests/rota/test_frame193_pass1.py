@@ -232,10 +232,8 @@ def _m62(db):
     return _landing(db, "m62", refs, "m63", M63, 62)
 
 
-@pytest.mark.skip(reason="binder: line_words puts 'line 6 calls the README "
-                         "stale' inside line 5's clause, so no clause names "
-                         "line 6 of M63")
 def test_s159s_drop_on_lines_2_to_8_lands_as_contest(db):
+    # Frame 347, K0: "line 6" after the comma names line 6 of M63.
     sb = _m62(db)
     # The menu call that the seat makes for M63 (frame 345, R6b).
     rulings = {1: "approve", **{n: "drop" for n in range(2, 9)}}
@@ -295,10 +293,11 @@ def _m161(db):
 
 def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
     sb = _m161(db)
-    # The menu form (frame 345, R6): his question is clause c5, and its one
-    # option is ask.
+    # The menu form (frame 345, R6): his question's one option is ask.
+    # Frame 347, F-in: "the retry in line 8" names line 8, so the question
+    # takes the key of line 8 and no longer a clause key.
     rulings = {"2": "rewrite", "4": "rewrite", "5": "rewrite", "6": "drop",
-               "c5": "ask"}
+               "8": "ask"}
     with pytest.raises(ValueError) as e:
         sb.call("rulings.rule", rulings=rulings)
     assert api.ASK_NOT_OPTION in str(e.value)

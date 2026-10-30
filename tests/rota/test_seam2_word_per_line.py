@@ -343,6 +343,71 @@ def test_a_reference_joined_to_a_placed_line_is_placed_too():
     assert api._subject_lines(clause, 10) == {3, 5, 6}
 
 
+@pytest.mark.parametrize("clause, parts", [
+    ("Line 5 is fine, line 6 calls the README stale", [{5}, {6}]),
+    ("Line 5 is fine, and line 6 calls the README stale", [{5}, {6}]),
+    ("Line 5 also brings back the wording I already corrected, line 6 calls "
+     "the README stale without showing why", [{5}, {6}]),
+])
+def test_a_line_after_a_comma_opens_its_own_part(clause, parts):
+    """Frame 347, K0, M63 of night 137: "line 6" after the comma is the
+    subject of its own part, as a bare list after a comma is."""
+    assert [ls for _, _, ls in api._subject_parts(clause, 10)] == parts
+
+
+@pytest.mark.parametrize("clause", [
+    "the file, see line 3 for the path",
+    "Lines 10 and 11 read me right, because lines 3 and 4 were old",
+])
+def test_a_line_after_a_comma_and_another_word_opens_no_part(clause):
+    """K0 reads a reference right after the comma only. "see line 3" names
+    a place in a text, and "because lines 3 and 4" names an older page."""
+    assert api._subject_lines(clause, 10) - {10, 11} == set()
+
+
+@pytest.mark.parametrize("clause, named", [
+    ("The tests in lines 2 to 4 are wrong", {2, 3, 4}),
+    ("Your reading of my last answer in line 29 is right", {29}),
+])
+def test_a_line_after_in_names_the_line_of_a_clause_with_no_subject(
+        clause, named):
+    """Frame 347, F-in: M246 and L3R n170-m6-m7 name a page line after
+    "in", and the clause names no other line."""
+    assert api._subject_lines(clause, 30) == named
+
+
+@pytest.mark.parametrize("clause, named", [
+    ("fix the call in cli.py in line 5", set()),
+    ("fix the call in get_app_dir: in line 5", set()),
+    ("Line 2 is wrong in line 5 too", {2}),
+])
+def test_a_code_place_or_a_subject_keeps_a_line_after_in_unbound(
+        clause, named):
+    """F-in takes the `_CODE_PLACE` guard of the "on" rule. A clause with a
+    subject keeps the subject alone."""
+    assert api._subject_lines(clause, 10) == named
+
+
+def test_a_code_place_before_the_comma_opens_no_part():
+    """Review p1, low 1: K0 takes the `_CODE_PLACE` guard on the words
+    before the comma."""
+    assert api._subject_lines("src/click/termui.py, line 4 raises", 10) == set()
+
+
+def test_a_comma_part_keeps_the_in_line_of_the_part_before_it():
+    """Review p1, low 2: the first part keeps lines 2 to 4 of F-in, and the
+    comma part takes line 6."""
+    clause = "The tests in lines 2 to 4 are wrong, line 6 too"
+    assert [ls for _, _, ls in api._subject_parts(clause, 10)] == [
+        {2, 3, 4}, {6}]
+
+
+def test_so_after_a_comma_opens_no_part():
+    """Review p1, low 3: "so" starts a result, not a new subject."""
+    clause = "Line 5 is wrong, so line 6 must change too"
+    assert [ls for _, _, ls in api._subject_parts(clause, 10)] == [{5}]
+
+
 def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
     """L3R-n174-m47-m48: the page showed the term `parameter` on lines 8 and
     47, and the landing wrote the row on line 8 alone. The judge read "line

@@ -249,7 +249,8 @@ M192_LINE_1 = M192[M192.index("Line 1 also"):]
 # 8. The seed: the annotate wake reads the guess
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. His words name line 1, the request, and its menu offers no option that lands on the guess key of line 2 (line_menu)")
+@pytest.mark.skip(reason="menu_ruling quote home: a quote in a clause that "
+                         "names another line cannot change an unnumbered line")
 def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     _state(db, guess=True)
     mid = _send(db, [ITEM])
