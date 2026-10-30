@@ -108,6 +108,23 @@ MENU_M192 = {"c1": "rewrite", "c2": "rewrite",
              "rest": "approve"}
 # The reading the refusal asks for: line 1 approved, its files on the key.
 S322_MOVED = dict(S322, **{ITEM: "approve", KEY: "contest"})
+# Frame 347, pass 2: test words, not his. The send door's page shows the
+# code line as line 2 and moves every later line down by one. M192 named
+# the files under line 1, the page form before 1869cab4 of 2026-10-18. These
+# words are M192 with its numbers moved to the page at head.
+M192_HEAD = ("Lines 3 to 5 are still wrong: each check runs with the flag off and "
+             "looks for a hard-coded 3.10.0, but each one should turn the flag on "
+             "and check that the message ends with \"Python\" and major.minor.micro "
+             "taken from the running interpreter's version info. Lines 10 and 12 "
+             "are wrong too, because version option already builds its own "
+             "callback, so show_python only needs to be a normal keyword argument "
+             "with no callback from the caller. Line 2 also names the options and "
+             "defaults test files, which have nothing to do with this change, so "
+             "keep the work to version option and its tests in the basic tests "
+             "file.")
+# The menu call for M192_HEAD: S322_MOVED by page line. Line 2 is the key.
+MENU_HEAD = {"2": "rewrite", **{str(n): "rewrite" for n in (3, 4, 5, 10, 12)},
+             "rest": "approve"}
 REFS = [n[0] for n in NOTES] + [ITEM] + [c for c, _ in CRITERIA]
 
 
@@ -117,8 +134,12 @@ def db(tmp_path):
 
 
 def _page(db, batch: str | None = "running", head: str | None = HEAD,
-          stamp: dict | None = None, guess: bool = False):
-    """m191 open, the item approved at version 1, and bg_3 when `batch`."""
+          stamp: dict | None = None, guess: bool = False, send: bool = False):
+    """m191 open, the item approved at version 1, and bg_3 when `batch`.
+
+    With `send`, the send door writes the page, and the call returns its
+    message id. Frame 347, pass 2: the door stamps the code line as line 2,
+    the page form since 1869cab4 of 2026-10-18."""
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
                "priority) VALUES (?, ?, 'in_scope', 'approved', 1, 1, 1)",
                (ITEM, "Give version_option a show_python flag that appends the "
@@ -151,6 +172,9 @@ def _page(db, batch: str | None = "running", head: str | None = HEAD,
                       "tests/test_defaults.py"):
             db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, "
                        "grain, grain_kind) VALUES (?, 1, '', ?, 'path')", (ITEM, grain))
+    if send:
+        db.commit()
+        return _send(db)
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, status, seq) VALUES ('m191', 'm191', 'liaison', "
                "'principal', 'present', ?, 'open', 1)", (json.dumps(REFS),))
@@ -163,8 +187,19 @@ def _page(db, batch: str | None = "running", head: str | None = HEAD,
     return db
 
 
-def _reply(db, words: str) -> str:
-    (ask,) = [a for a in pending_asks(db) if a.message_id == "m191"]
+def _send(db) -> str:
+    """The Liaison's present of m191's refs, scripted, through the send door."""
+    wake = Wake("liaison", "tick:agenda", refs=(ITEM,), detail="ledger=1")
+    call = f"TOOL: msg.present_principal(refs={json.dumps(REFS)})"
+    out = run_session(db, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=PINS, instructions="present")
+    assert out.committed, out.errors
+    return db.execute("SELECT id FROM messages WHERE verb = 'present' "
+                      "ORDER BY seq DESC LIMIT 1").fetchone()["id"]
+
+
+def _reply(db, words: str, mid: str = "m191") -> str:
+    (ask,) = [a for a in pending_asks(db) if a.message_id == mid]
     reply = land(db, ask, parse_reply(ask, words))
     db.commit()
     return reply
@@ -177,16 +212,16 @@ def _landing(db, trigger: str):
     return sb
 
 
-def _land_ruling(db, words: str, ruling: dict) -> str:
+def _land_ruling(db, words: str, ruling: dict, mid: str = "m191") -> str:
     """The Liaison's session on the reply, scripted, and the verdict it lands."""
-    reply = _reply(db, words)
+    reply = _reply(db, words, mid)
     (wake,) = [w for w in open_tips(db) if w.message_id == reply]
     call = f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, words={words!r})"
     out = run_session(db, wake, backend=ScriptedBackend([call, "done"]),
                       pins=PINS, instructions="land")
     assert out.committed, out.errors
-    return db.execute("SELECT id FROM messages WHERE cause_id = 'm191' "
-                      "AND verb = 'verdict'").fetchone()["id"]
+    return db.execute("SELECT id FROM messages WHERE cause_id = ? "
+                      "AND verb = 'verdict'", (mid,)).fetchone()["id"]
 
 
 def _verdict(db, vid: str) -> dict:
@@ -220,16 +255,17 @@ def test_the_cue_does_not_read_a_request_correction_as_files():
 # The wall: s322 on m192, bg_3 stamped on the code line
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
     """The reading the refusal asks for lands. bg_3 has a head commit, so the
     code line keeps frame 255's check, and the cue holds it. The item keeps
     its approval, `cancel` stays silent, and bg_3 lives."""
-    _page(db, stamp={KEY: {"batch": "bg_3"}})
-    vid = _land_ruling(db, M192, S322_MOVED)
+    mid = _page(db, send=True)
+    vid = _land_ruling(db, M192_HEAD, MENU_HEAD, mid)
     ruled = _verdict(db, vid)
     assert ruled.get("bg_3") == "contest", ruled
-    assert KEY not in ruled and ITEM not in ruled, ruled
+    # Frame 347, pass 2: the menu call rules every page line, so the verdict
+    # names the item as approved. The claim is that no contest reaches it.
+    assert KEY not in ruled and ruled.get(ITEM, "approve") == "approve", ruled
     assert db.execute("SELECT approval FROM items WHERE id = ?",
                       (ITEM,)).fetchone()["approval"] == "approved"
     assert cancel(db) == []
@@ -237,10 +273,9 @@ def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
                       ).fetchone()["status"] == "running"
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_verdict_on_bg_3_relays_to_annotate(db):
-    _page(db, stamp={KEY: {"batch": "bg_3"}})
-    vid = _land_ruling(db, M192, S322_MOVED)
+    mid = _page(db, send=True)
+    vid = _land_ruling(db, M192_HEAD, MENU_HEAD, mid)
     (wake,) = [w for w in open_tips(db) if w.message_id == vid]
     out = run_session(db, wake, backend=ScriptedBackend(
         ['TOOL: msg.relay_architect(refs=["bg_3"])', "done"]), pins=PINS,
@@ -257,11 +292,10 @@ def test_the_verdict_on_bg_3_relays_to_annotate(db):
 # ---------------------------------------------------------------------------
 
 def _guess_verdict(db) -> str:
-    _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
-    return _land_ruling(db, M192, S322_MOVED)
+    mid = _page(db, batch=None, guess=True, send=True)
+    return _land_ruling(db, M192_HEAD, MENU_HEAD, mid)
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     vid = _guess_verdict(db)
     assert _verdict(db, vid).get(KEY) == "contest"
@@ -273,12 +307,17 @@ def test_a_guess_ruling_keeps_the_key_and_the_set_the_principal_read(db):
     assert cancel(db) == []
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
+@pytest.mark.skip(reason="frame 347, pass 2: a page with no stamp has no line "
+                         "for the guess key, and the menu form keys page lines "
+                         "only, so no call can rule the off-page key")
 def test_an_off_page_key_lands_with_no_stamp(db):
     """A page sent before the guess carries no stamp. The key's target is
     then the current guess (design 3.1, point 5)."""
-    _page(db, batch=None, guess=True)
-    vid = _land_ruling(db, M192, S322_MOVED)
+    mid = _page(db, batch=None, guess=True, send=True)
+    # The send door stamps every page, so the test takes the stamp away.
+    db.execute("DELETE FROM config WHERE key = ?", (f"code:{mid}",))
+    db.commit()
+    vid = _land_ruling(db, M192_HEAD, MENU_HEAD, mid)
     assert _verdict(db, vid).get(KEY) == "contest"
     shown = json.loads(db.execute("SELECT value FROM config WHERE key = ?",
                                   (f"guess_target:{vid}",)).fetchone()["value"])
@@ -295,29 +334,25 @@ def _relay(db, vid: str) -> str:
                       "AND to_role = 'architect'", (vid,)).fetchone()["id"]
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
     rid = _relay(db, _guess_verdict(db))
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     assert _mode_key(wake, db) == "guess"
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 @pytest.mark.parametrize("key_ruling, disputed", [
-    ({"verdict": "contest", "act": "exclude", "target": "tests/test_options.py",
-      # A span is a run of whole clauses of his reply (review p7 p1, 3).
-      "words": "Line 1 also names the options and defaults test files, which "
-               "have nothing to do with this change"},
-     ["tests/test_options.py"]),
-    ("contest", []),
+    # Frame 347, pass 2: line 2 is the key, and its menu offers an exclude
+    # per shown path.
+    ("exclude tests/test_options.py", ["tests/test_options.py"]),
+    ("rewrite", []),
 ])
 def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
         db, key_ruling, disputed):
     """Pass 4, P10: the path his ruling removes leaves the guess. The act
     `exclude` and its target say it. A contest with no act disputes no path,
     and the Architect reads his words."""
-    _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
-    vid = _land_ruling(db, M192, dict(S322_MOVED, **{KEY: key_ruling}))
+    mid = _page(db, batch=None, guess=True, send=True)
+    vid = _land_ruling(db, M192_HEAD, dict(MENU_HEAD, **{"2": key_ruling}), mid)
     rid = _relay(db, vid)
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     inbound = resolve_inbound(db, wake)
@@ -328,7 +363,6 @@ def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
     assert inbound["guess"] == [p for p in shown if p not in disputed]
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu of the request line on a stamped page offers no option that lands on the guess key or bg_3 (line_menu)")
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):
     vid = _guess_verdict(db)
     rid = _relay(db, vid)
