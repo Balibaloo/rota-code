@@ -1562,6 +1562,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/criteria-json-write-read-2026-10-29.md`; `plans/night175-read.md` section 2; law 12 in `LAWS.md`; frame 114's history read of 2026-10-17 in `plans/archive/`.
 - Status 2026-10-29 05:33 (rota-21): 05:33. Pushed by this session on the read of 05:4x. The question stands in the terminal reply of 05:33 and here. Nothing else waits on it; the seam work continues. Rota workflow.
 - Status 2026-10-30 00:38 (rota-86): **ruled. Roman, 2026-10-30 00:38, in the terminal: "That's a prompt change to explain that task tracking is part of the harness [to the two options of the criteria.json write, refuse or record]"** (ruled: Roman, in his words). Rota workflow.
+- Status 2026-10-30 00:39 (rota-86): 00:39. Re-cut on the ruling of 00:38: a prompt change, no door. The frame builds on Opus in rota_f346, cap 40k, brief f346_brief.md in this session's scratchpad: one paragraph in the Developer base brief, and in any other seat's base brief that offers code.write, that the criteria, the verdicts, the messages and the glossary are rota's records, part of the harness, read through their load calls and never written into the project; one L1 Developer case from s268's call. Replay only; the case records live after the land, when the model is free. Rota workflow.
 
 ### 345. The Liaison's loss has no test at its scale, so a door or prompt change is measured by a night or not at all (2026-10-28) (Roman) (161c371b) (0ce92518) (68459b4f) (00ca90d0)
 
