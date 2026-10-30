@@ -146,3 +146,40 @@ def test_his_earlier_wrong_binds_a_line_that_the_reply_does_not_name(db):
     rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
     assert (rows["c1"]["words"], rows["c1"]["words_from"]) == (
         "Line 2 is wrong.", "m76")
+
+
+ALL_APPROVE = {str(n): "approve" for n in range(1, 7)}
+SILENT = "Please tell me where the ticket came from."
+
+
+def test_a_bare_mention_in_the_reply_keeps_the_earlier_fault(db):
+    """Frame 348, review p1, high 1: "I looked at line 2 again." has line 2
+    as no subject and carries no verdict, so it does not re-open the line
+    that his earlier answer called wrong."""
+    ask = _page6(db, ["Line 2 is wrong."])
+    sb, _ = _landing(db, ask, "I looked at line 2 again.")
+    with pytest.raises(ValueError, match=r"line 2 takes no approve"):
+        sb.call("rulings.rule", rulings=ALL_APPROVE)
+
+
+def test_the_approve_refusal_fires_once_on_a_line(db):
+    """Frame 348, review p1, high 2: the shared reader faults "Line 2 was
+    wrong before, now it is fine." The refusal fires once, so the second
+    approve lands, and a misread cannot hold the seat."""
+    ask = _page6(db, ["Line 2 was wrong before, now it is fine."])
+    sb, _ = _landing(db, ask, SILENT)
+    with pytest.raises(ValueError, match=r"line 2 takes no approve") as hit:
+        sb.call("rulings.rule", rulings=ALL_APPROVE)
+    # Review p1, low 4: the menu in the refusal leaves approve out.
+    assert "takes approve" not in str(hit.value)
+    out = sb.call("rulings.rule", rulings=ALL_APPROVE)
+    assert out["per_item"]["c1"] == "approve"
+
+
+def test_a_line_his_earlier_answer_approves_stays_in_the_fallback(db):
+    """Frame 348, review p1, low 3: "Line 2 is fine." faults nothing, so the
+    reply's clause still covers line 2, and its clause key approves it."""
+    ask = _page6(db, ["Line 2 is fine."])
+    sb, _ = _landing(db, ask, SILENT)
+    out = sb.call("rulings.rule", rulings={"c1": "approve"})
+    assert out["per_item"]["c1"] == "approve"

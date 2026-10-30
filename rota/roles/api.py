@@ -14213,11 +14213,18 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     menu = page_menus(conn, order, page_text)[1]
     clauses = page_clauses(his, len(order), menu)
     adds = _add_lines(menu)
-    # The lines that the reply mentions itself. On those lines the reply
-    # wins over an earlier answer (frame 337, pass 2: his latest answer).
-    mentioned = set().union(*(set(c["lines"]) & _mentioned_lines(
-        _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"]), len(order))
-        for c in clauses))
+    # The lines that the reply rules itself: a clause has the line as its
+    # subject, and `_line_reading` reads a fault or a match there. On those
+    # lines the reply wins over an earlier answer (frame 337, pass 2: his
+    # latest answer). A bare mention, as "I looked at line 2 again.", rules
+    # nothing, so the earlier answer keeps the line (frame 348, review p1,
+    # high 1).
+    mentioned: set[int] = set()
+    for c in clauses:
+        blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"])
+        reading = _line_reading(c["words"], len(order))
+        mentioned |= (set(c["lines"]) & _subject_lines(blank, len(order))
+                      & (reading.faulted | reading.matched))
     # His earlier answer to the same page names a line too (frame 347, pass
     # 3, test_frame337_earlier_answers). A line counts only as the subject
     # of an earlier clause, so the fallback of a reply that names no line
@@ -14237,19 +14244,25 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 bound.setdefault(n, (c["words"], n in reading.faulted
                                      and n not in reading.matched))
     # The reply's fallback to all lines covers only the lines that no
-    # earlier answer names. Else the silence of the reply approved line 2,
+    # earlier answer faults. Else the silence of the reply approved line 2,
     # the line that his earlier m12 called wrong (frame 348, L3R-n175-m11-m14).
+    # A line that an earlier answer approves stays in the fallback, as
+    # before frame 348 (review p1, low 3).
+    faulted = {n for n, (_w, fault) in bound.items() if fault}
     for c in clauses:
-        if set(c["lines"]) & set(bound):
-            c["lines"] = [n for n in c["lines"] if n not in bound]
+        if set(c["lines"]) & faulted:
+            c["lines"] = [n for n in c["lines"] if n not in faulted]
             # A clause with no lines takes its options, as in page_clauses.
             if not c["lines"]:
                 c.setdefault("options", ["none"])
-    # The words of the first clause that names each line.
-    span_of: dict[int, str] = {n: words for n, (words, _f) in bound.items()}
+    # The words of the first clause that names each line. The reply comes
+    # first, except on a line that an earlier answer faults.
+    span_of: dict[int, str] = {n: bound[n][0] for n in faulted}
     for c in clauses:
         for n in c["lines"]:
             span_of.setdefault(n, c["words"])
+    for n, (words, _f) in bound.items():
+        span_of.setdefault(n, words)
     rest = "approve"
     by_clause: dict[int, object] = {}
     by_line: dict[int, object] = {}
@@ -14442,15 +14455,19 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     f"rulings.rule(ask=...) with no rulings.")
             verdict, act, target_kind = _OPTION_ROWS[opt]
             # His earlier answer faults the line, and the reply does not
-            # mention it. An approve rules against his words (law 6). An add
-            # changes the line, so it stays.
+            # rule it. An approve rules against his words (law 6). An add
+            # changes the line, so it stays. The refusal fires once per line,
+            # as ASK_NOT_OPTION does, so a misread of `_line_reading` cannot
+            # hold the seat (frame 348, review p1, high 2).
             if opt in ("approve", "ok") and n in bound and bound[n][1]:
-                raise ValueError(
-                    f"{label}: line {n} takes no approve. His earlier answer "
-                    f"to this page says \"{bound[n][0]}\", and his reply does "
-                    f"not mention line {n}. Line {n}, kind {kind}, takes "
-                    f"{'; '.join(options)}. When no option holds his words, "
-                    f"call rulings.rule(ask=...) with no rulings.")
+                others = [o for o in options if o not in ("approve", "ok")]
+                text = (f"line {n} takes no approve. His earlier answer to "
+                        f"this page says \"{bound[n][0]}\", and his reply does "
+                        f"not rule line {n}. Line {n}, kind {kind}, takes "
+                        f"{'; '.join(others)}. When no option holds his "
+                        f"words, call rulings.rule(ask=...) with no rulings.")
+                if text not in refused:
+                    raise ValueError(text)
             # A clause's add lands approve with the act on its line. A line
             # key approve on that line says the same verdict, so it keeps
             # the add.
