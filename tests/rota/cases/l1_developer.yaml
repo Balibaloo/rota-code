@@ -49,6 +49,77 @@
     writes: [criteria, tickets, items, tests]
     calls: [msg.question_vision_keeper, msg.question_terminologist]
 
+- id: L1-DV-keep-the-criteria-out-of-the-project
+  # Frame 346, night 175: the Developer s268 called `criteria.load`, then
+  # wrote its output to the project as `criteria.json` and committed it.
+  # Three later sessions spent the batch on that file
+  # (`plans/criteria-json-write-read-2026-10-29.md`). Roman ruled a brief
+  # change on 2026-10-30 00:38, not a door. The prediction and the criterion
+  # keep the night's ids and text. No form forbids a call by its arguments,
+  # so the case forbids the path in a written row: `code.commit` writes a
+  # `touch_strays` row that names each committed path outside the prediction.
+  # The night's model. The case waits on the card for its recording.
+  model: qwen3.5:9b
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 4
+  tick: batch_start
+  tick_unseedable: the wake state is pre-dispatch; the fixture is post-dispatch
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    index_batch: true
+    message: "format_filename"
+    edit:
+      src/click/__init__.py: |
+        from .utils import format_filename
+      src/click/utils.py: |
+        import os
+
+
+        def format_filename(filename, shorten=False):
+            """Format a filename as a string for display.
+
+            :param filename: the filename to format.
+            :param shorten: strip the path and leave only the file name.
+            """
+            if shorten:
+                filename = os.path.basename(filename)
+            return str(filename)
+  fixture:
+    items:
+      - {id: <i1>, text: "give format_filename one example in its docstring:
+           with shorten set to True, the path a/b/c.txt shows as c.txt",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "give format_filename one example in
+           its docstring: with shorten set to True, the path a/b/c.txt shows
+           as c.txt"}
+    criteria:
+      - id: c_1_format_filename_example
+        ticket_id: <tk1>
+        text: "The docstring for format_filename must include an example
+          showing that when shorten=True, the path a/b/c.txt is displayed as
+          c.txt."
+        term_refs: '[]'
+        surface_refs: '["src/click/utils.py::format_filename"]'
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: "src/click/utils.py", grain_kind: path,
+         confidence: expected}
+  expect:
+    calls: [code.write, code.commit]
+  forbidden:
+    writes: [criteria, tickets, items, tests]
+    # A rota record written as a project file. "criteria.json" names the
+    # night's file, and ".json" names any other output of a load call.
+    text_in_writes: ["criteria.json", ".json"]
+
 - id: L1-DV-log-the-choice-the-criteria-did-not-make
   tier: T1
   role: developer
