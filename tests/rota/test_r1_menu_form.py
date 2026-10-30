@@ -90,15 +90,30 @@ def test_a_clause_key_and_a_line_key_that_agree_land_once(db):  # noqa: F811
 
 def test_a_clause_key_and_a_line_key_that_differ_are_refused_once(
         db):  # noqa: F811
-    """The line key wins after the one refusal."""
+    """Pass R3c: the refusal fires once per line, whatever the next call
+    holds, and then the line key wins."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words=DROP)
-    call = {"c1": "drop", "3": "rewrite", "rest": "approve"}
-    with pytest.raises(ValueError, match=r"clause c1 gives drop to line 3, "
-                       r"and the line key \"3\" gives rewrite"):
-        sb.call("rulings.rule", rulings=call)
-    sb.call("rulings.rule", rulings=call)
-    assert _rows(sb)["l_1"]["act"] == "rewrite"
+    with pytest.raises(ValueError, match=r"line 3: two keys give line 3 two "
+                       r"options. Clause c1 gives drop, and the line key "
+                       r"\"3\" gives rewrite"):
+        sb.call("rulings.rule", rulings={"c1": "drop", "3": "rewrite",
+                                         "rest": "approve"})
+    sb.call("rulings.rule", rulings={"c1": "rewrite", "3": "drop",
+                                     "rest": "approve"})
+    assert _rows(sb)["l_1"]["act"] == "drop"
+
+
+@pytest.mark.parametrize("option", ["none", "held"])
+def test_a_clause_key_that_lands_nothing_gives_way_to_a_line_key(
+        db, option):  # noqa: F811
+    """Pass R3c: R3b refused none and held beside a line key 75 times in
+    its top five refusals."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=DROP)
+    sb.call("rulings.rule", rulings={"c1": option, "3": "drop",
+                                     "rest": "approve"})
+    assert _rows(sb)["l_1"]["act"] == "drop"
 
 
 def test_a_clause_that_names_a_page_line_offers_no_add(db):  # noqa: F811

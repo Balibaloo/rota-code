@@ -13791,6 +13791,8 @@ _OPTION_ROWS: dict[str, tuple[str, str | None, str | None]] = {
 _OPTION_SAME = {"read-back": {"approve": "ok", "drop": "misread, drop"},
                 "line": {"ok": "approve"}}
 _MENU_NAMED = ("exclude", "add", "other")
+# The clause options that land no row (pass R3b).
+_LANDS_NOTHING = ("none", "held")
 
 
 def menu_form_text(clauses: int) -> str:
@@ -14058,25 +14060,35 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         if c["lines"] or (isinstance(value, dict) and "lines" in value):
             # One option per clause (design R): the option rules each line
             # the clause names, or the lines of the seat's correction of a
-            # binder miss. A line key that reaches the same line wins, and a
-            # different option there is refused once (pass R3b).
+            # binder miss. A line key that reaches the same line wins. Only
+            # two keys that both land a row, and land different rows, are
+            # refused, once per line (pass R3c). `none` and `held` land
+            # nothing, so they give way: the seat sent them beside line keys
+            # in 75 refusals of R3b's top five.
             rows = (value.get("rows") or []) if isinstance(value, dict) else []
             lines = (_menu_lines(value["lines"], k, len(order))
                      if isinstance(value, dict) and "lines" in value
                      else c["lines"])
             option = value.get("option") if isinstance(value, dict) else value
             mine = _menu_option(option)[0]
+            mine = _OPTION_SAME["line"].get(mine, mine)
             for n in [n for n in lines if n in by_line]:
                 theirs = by_line[n]
                 theirs = _menu_option(theirs.get("option") if isinstance(
                     theirs, dict) else theirs)[0]
-                if _OPTION_SAME["line"].get(theirs, theirs) != (
-                        _OPTION_SAME["line"].get(mine, mine)):
-                    text = (f"clause c{k} gives {mine} to line {n}, and the "
-                            f"line key \"{n}\" gives {theirs}. Give line {n} "
-                            f"one option")
-                    if text not in refused:
-                        raise ValueError(text)
+                theirs = _OPTION_SAME["line"].get(theirs, theirs)
+                if mine in _LANDS_NOTHING or theirs in _LANDS_NOTHING or (
+                        mine == theirs):
+                    continue
+                # The seat changes its call each turn, so a text key let
+                # the refusal fire 33 times on one case in R3b. The line is
+                # the key.
+                once = f"line {n}: two keys give line {n} two options."
+                if any(once in t for t in refused):
+                    continue
+                raise ValueError(
+                    f"{once} Clause c{k} gives {mine}, and the line key "
+                    f"\"{n}\" gives {theirs}. Give line {n} one option")
             lines = [n for n in lines if n not in by_line]
             if lines:
                 choices.append((f"clause c{k}", option, lines,
@@ -14085,7 +14097,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         if isinstance(value, dict):
             value = value.get("option")
         name, _given = _menu_option(value)
-        if name in ("none", "held"):
+        if name in _LANDS_NOTHING:
             continue
         if name == "add" and "add <quote>" in c["options"]:
             # Code finds the line: the one line whose menu holds add. The
@@ -14160,7 +14172,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     shape_of: dict[str, dict] = {}
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
-        if name == "none":
+        if name in _LANDS_NOTHING:
             covered.update(lines)
             continue
         for n in lines:
