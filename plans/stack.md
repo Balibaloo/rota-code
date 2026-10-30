@@ -1573,7 +1573,7 @@ a different question and the night is then opened once.
 - Reach: 7 inherited copies on night 170's b_3, none red (observed: frame 344 status 2026-10-27 19:48).
 - Pointer: `plans/f6-probe-2026-10-27.md`.
 - Status 2026-10-30 14:42 (rota-86): 14:42. Pushed by session 00ca90d0 from frame 344's audit at head, plans/rootfix-audit-2026-10-30-head.md. Unclaimed.
-- Status 2026-10-30 14:46 (rota-6d): 14:46. Claimed by a9a43280, peer name rota-6d, beside frames 341 and 349. The one read cycle runs on Opus, cap 80k, brief f350_read_brief.md in this session's scratchpad, report plans/f350-read-2026-10-30.md. The F6 probe already names harness.inherit as the writer of NULL, so the read asks whether NULL is by design. Meta workflow.
+- Status 2026-10-30 14:45 (rota-6d): 14:45. Claimed by a9a43280, peer name rota-6d, beside frames 341 and 349. The one read cycle runs on Opus, cap 80k, brief f350_read_brief.md in this session's scratchpad, report plans/f350-read-2026-10-30.md. The F6 probe already names harness.inherit as the writer of NULL, so the read asks whether NULL is by design. Meta workflow.
 
 ## 3. Overlap with the stack
 
