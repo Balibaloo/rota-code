@@ -14096,10 +14096,15 @@ def _is_question(words: str) -> bool:
 # wrong" ask nothing. A negated verb states a fault: m400's "it still
 # doesn't say what to build" faults line one (test_request_page, frame 348
 # pass 3c).
-_ASKS_FOR_FACTS = re.compile(
-    r"(?<!n't )(?<!n’t )(?<!not )(?<!never )"
-    r"\b(?:tell|show|explain|say)\b(?:\s+(?:it\s+)?(?:to\s+)?me)?\s+"
-    r"(?:what|which|where|when|why|how|who)\b|\bis unclear\b", re.I)
+_ASK_VERB = (r"(?<!n't )(?<!n’t )(?<!not )(?<!never )"
+             r"\b(?:tell|show|explain|say)\b(?:\s+(?:it\s+)?(?:to\s+)?me)?\s+"
+             r"(?:what|which|where|when|why|how|who)\b")
+_ASKS_FOR_FACTS = re.compile(_ASK_VERB + r"|\bis unclear\b", re.I)
+# The request with its wh-clause to the sentence end. The wh-clause holds a
+# verb, as "what it means", and `_line_reading` faults a line on any verb.
+# So the earlier-answer loop reads a fault with this span removed (frame
+# 348, review p3).
+_REQUEST_SPAN = re.compile(_ASK_VERB + r"[^.!?]*|\bis unclear\b", re.I)
 
 
 # The refusal of an option on his question (pass R3d). Its text is fixed, so
@@ -14261,7 +14266,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # A clause that faults a line and also asks, as "Line 2 is wrong
             # and tell me where it came from.", still binds the fault. Only a
             # pure ask with no verdict word binds nothing (review p2, high 2).
+            # The fault is read with the request removed, because the reader
+            # faults "Line 3 is unclear to me, so please say what it means."
+            # on its request alone (review p3).
             if _is_question(c["words"]):
+                reading = _line_reading(_REQUEST_SPAN.sub(" ", c["words"]),
+                                        len(order))
                 subject &= reading.faulted | reading.matched
             for n in sorted(subject - mentioned):
                 bound.setdefault(n, (c["words"], n in reading.faulted

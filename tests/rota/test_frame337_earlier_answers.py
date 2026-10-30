@@ -206,3 +206,22 @@ def test_a_line_his_earlier_answer_approves_stays_in_the_fallback(db):
     sb, _ = _landing(db, ask, SILENT)
     out = sb.call("rulings.rule", rulings={"c1": "approve"})
     assert out["per_item"]["c1"] == "approve"
+
+
+@pytest.mark.parametrize("earlier, line, faulted", [
+    ("Line 3 is unclear to me, so please say what it means.", "3", False),
+    ("Line 2 is wrong and tell me where it came from.", "2", True),
+])
+def test_a_request_about_a_line_binds_no_fault(db, earlier, line, faulted):
+    """Review p3: the reader faults a line on the verb of his request, as
+    "say what it means". The fault is read with the request removed, so a
+    request about line 3 binds nothing there. A fault beside the request
+    still binds."""
+    ask = _page6(db, [earlier])
+    sb, _ = _landing(db, ask, SILENT)
+    if faulted:
+        with pytest.raises(ValueError, match=rf"line {line} takes no approve"):
+            sb.call("rulings.rule", rulings=ALL_APPROVE)
+    else:
+        out = sb.call("rulings.rule", rulings=ALL_APPROVE)
+        assert set(out["per_item"].values()) == {"approve"}
