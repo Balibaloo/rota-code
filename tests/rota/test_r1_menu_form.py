@@ -88,6 +88,36 @@ def test_a_clause_key_and_a_line_key_that_agree_land_once(db):  # noqa: F811
     assert _rows(sb)["l_1"]["act"] == "drop"
 
 
+def test_two_keys_that_land_one_read_back_row_agree(db):  # noqa: F811
+    """Review p12, low 1: a clause drop on a read-back line lands the row
+    of the line key "misread, drop"."""
+    his = "Line 1 is a misread, so drop it."
+    per_item, shapes = api.menu_ruling(
+        db, {"c1": "drop", "1": "misread, drop", "rest": "approve"}, his,
+        ["reading:m1"], "", set(), {})
+    assert (per_item["reading:m1"], shapes["reading:m1"]["act"]) == (
+        "contest", "drop")
+
+
+def test_a_line_key_on_the_add_line_keeps_or_conflicts_with_the_add(
+        db):  # noqa: F811
+    """Review p12, low 2: an option that lands a row on the add line is
+    refused once, then wins. An approve there lets the add ride, as
+    test_a_clause_key_add_lands_on_the_one_add_line shows."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words="Drop line 3. Line 2 should say per person. "
+                  "The page leaves out the tax.")
+    call = {"3": "drop", "2": "other per person",
+            "c3": "add The page leaves out the tax.", "rest": "approve"}
+    with pytest.raises(ValueError, match=r"line 2: two keys give line 2 two "
+                       r"options. Clause c3 gives add, and the line key \"2\" "
+                       r"gives other"):
+        sb.call("rulings.rule", rulings=call)
+    sb.call("rulings.rule", rulings=call)
+    row = _rows(sb)["calculate_tip"]
+    assert (row["verdict"], row.get("act")) == ("contest", None)
+
+
 def test_a_clause_key_and_a_line_key_that_differ_are_refused_once(
         db):  # noqa: F811
     """Pass R3c: the refusal fires once per line, whatever the next call
@@ -125,6 +155,49 @@ def test_a_clause_that_names_a_page_line_offers_no_add(db):  # noqa: F811
     got = api.page_clauses(his, 3, menu)
     assert got[1] == {"words": "Please finish this change with line 2 "
                       "instead.", "lines": [], "options": ["none"]}
+
+
+QUESTION = "Line 3 is fine. Does each person pay an equal share?"
+
+
+def test_a_question_clause_takes_ask_alone(db):  # noqa: F811
+    """Pass R3d: the question mark, read as a character, gives the clause
+    `ask` and no other option, whatever lines it names."""
+    _page(db)
+    menu = api.page_menus(db, ["s1", "calculate_tip", "l_1"], "")[1]
+    got = api.page_clauses(QUESTION, 3, menu)
+    assert got[1] == {"words": "Does each person pay an equal share?",
+                      "lines": [], "options": ["ask"]}
+    assert "options" not in got[0]
+    named = api.page_clauses("Is line 2 right?", 3, menu)
+    assert [c["options"] for c in named] == [["ask"]]
+    # The L1 case's form: a question, then a statement, in one clause.
+    one = api.page_clauses("Does it split by person? I mean equally.", 3, menu)
+    assert [c["options"] for c in one] == [["ask"]]
+
+
+def test_other_on_his_question_is_refused_once(db):  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=QUESTION)
+    call = {"3": "approve",
+            "1": "other \"Does each person pay an equal share?\"",
+            "rest": "approve"}
+    with pytest.raises(ValueError, match=r"clause c2 is his question, so his "
+                       r"question is answered with rulings\.rule\(ask="):
+        sb.call("rulings.rule", rulings=call)
+    sb.call("rulings.rule", rulings=call)
+    assert _rows(sb)
+
+
+def test_a_question_and_an_approval_take_ask(db):  # noqa: F811
+    """A clause key on his question is refused, and the ask goes out."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=QUESTION)
+    with pytest.raises(ValueError, match=r"clause c2 is his question"):
+        sb.call("rulings.rule", rulings={"3": "approve", "c2": "none",
+                                         "rest": "approve"})
+    sb.call("rulings.rule", ask="Should each person pay an equal share?")
+    assert not _rows(sb)
 
 
 def test_a_clause_key_held_lands_nothing(db):  # noqa: F811

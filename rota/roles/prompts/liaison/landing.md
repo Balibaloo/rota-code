@@ -34,8 +34,9 @@ When his words correct a row of the earlier answer under a read-back line,
 add the row ids from `read_back`: `"6": {"option": "misread", "rows": ["<id>"]}`.
 
 Use `ask` only when the reply is a question about the page, or when you
-cannot tell what his words rule. Call `rulings.rule(ask="...")` with one
-sentence and no `rulings`. The page stays open, and the next reply comes back
-here with this exchange in `earlier_exchange`. Otherwise stop after the one
-call. The ruling lands after this session.
+cannot tell what his words rule. A clause that is a question takes `ask`.
+`other <quote>` never carries a question. Call `rulings.rule(ask="...")` with
+one sentence and no `rulings`. The page stays open, and the next reply comes
+back here with this exchange in `earlier_exchange`. Otherwise stop after the
+one call. The ruling lands after this session.
 A page that asks which request goes first has no `clauses` and no menus. Its line takes `later` or `now`, keyed by line number. "It is a separate request" is `later`, never `drop`. "Do this one first" is `now`.
