@@ -436,6 +436,16 @@ comes first, then the state print, then the sender's note.
      covers the whole reach with a price, and the agent's doubt. The
      agent retrieves and proposes. The session judges. Roman rules a
      departure only. The cap fits the task, about 120k for a read.
+  3b. Design, when the read's proposal changes a seat's form, a prompt's
+     shape or a door family, and never for a fix of one door. One agent,
+     with the cause read and the provenance as its brief, writes what the
+     code holds in four facts, the axes the fix can move on, three to five
+     candidate shapes each with its cost, its failure and its measure, a
+     control, and one recommendation. The session judges the page. Roman
+     rules when the shapes change a law or a page form (ruled: Roman,
+     2026-10-30 00:38, "the meta workflow asks me when problems in rota
+     are structural", on the proposal of 2026-10-29 10:33; the first page
+     is `plans/design-moment-seam-2026-10-29.md`, ruled R at 10:29).
   4. Match by cause, both ways. The issue against unbuilt solutions: one
      that covers it takes the issue as a count, and no frame opens. A
      built or proposed solution against open issues: every frame its one
