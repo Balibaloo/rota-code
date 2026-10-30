@@ -315,6 +315,24 @@ def test_a_number_list_inside_a_clause_names_no_line(his):
     assert set(got.values()) == {his}
 
 
+def test_a_line_after_on_names_the_line_of_a_clause_with_no_subject():
+    """Pass R5, L3R n175-m121-m122: "the file on line 9" places the file on
+    page line 9, and the clause names no other line."""
+    clause = "change only the docstring in the file on line 9, not the code."
+    assert api._subject_lines(clause, 10) == {9}
+
+
+@pytest.mark.parametrize("clause, named", [
+    ("Finish it with line 2 alone", set()),
+    ("that it added to line 3 that clear prints the same output", set()),
+    ("Line 10 misreads me on line 9", {10}),
+])
+def test_a_line_after_with_or_beside_a_subject_names_no_line(clause, named):
+    """"with line 2" and "to line 3" name a line as an object (L3R m121,
+    m136 and m53). A clause with a subject keeps the subject alone."""
+    assert api._subject_lines(clause, 10) == named
+
+
 @pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
     """L1 approve-one-line-only: the seat wrote 1 approve, 2 and 3 drop, and

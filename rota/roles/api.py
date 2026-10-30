@@ -13315,6 +13315,11 @@ _QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
 # a place in code or in a text, never a page line ("get_app_dir:518").
 _NOT_SUBJECT = re.compile(
     rf"(?:\b(?:at|in|see)|{_PATH_SHAPE.pattern}|\w:)\s*$", re.I)
+# A reference after "on" places a thing on a page line: "change only the
+# docstring in the file on line 9" (pass R5, L3R n175-m121-m122). It names
+# the line of a clause that has no other subject. "with line 2" and "to line
+# 3" stay no subject, because they name a line as an object.
+_ON_LINE = re.compile(r"\bon\s*$", re.I)
 # A second reference joined to a subject is a subject too: "Lines 1 to 10
 # and line 12 are fine", "line 3 or line 4".
 _REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
@@ -13374,6 +13379,7 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
         found.append((m.start(), m.end(),
                       {size if word == "last" else _ORDINALS.index(word) + 1}))
     named: set[int] = set()
+    placed: set[int] = set()
     last_end = None
     for start, end, lines in sorted(found, key=lambda f: f[0]):
         before = clause[:start]
@@ -13384,6 +13390,8 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
         if lead or joined:
             named |= lines
             last_end = end
+        elif _ON_LINE.search(before):
+            placed |= lines
     starts: list[tuple[int, set[int]]] = []
     for m in _BARE_LIST.finditer(clause):
         if not any(s < m.end() and m.start() < e for s, e, _ in found):
@@ -13392,6 +13400,8 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
                 starts.append((m.start(), lines))
             else:
                 named |= lines
+    if not named and not starts:
+        named = placed
     parts = []
     begin, own = 0, named
     for at, lines in starts:
