@@ -13791,14 +13791,28 @@ _OPTION_ROWS: dict[str, tuple[str, str | None, str | None]] = {
 _OPTION_SAME = {"read-back": {"approve": "ok", "drop": "misread, drop"},
                 "line": {"ok": "approve"}}
 _MENU_NAMED = ("exclude", "add", "other")
+# The clause options that land no row (pass R3b).
+_LANDS_NOTHING = ("none", "held")
+# The line key options beside which a clause key's add still lands: approve
+# is the add's own verdict (review p12, low 2).
+_RIDES_WITH_ADD = ("approve", "ok", "none", "held")
+
+
+def _key_name(value) -> str | None:
+    """The option name of a key's value, or None when there is no key."""
+    if value is None:
+        return None
+    return _menu_option(value.get("option") if isinstance(value, dict)
+                        else value)[0]
 
 
 def menu_form_text(clauses: int) -> str:
     """The refusal that names the menu form of a page call."""
     return ("rulings.rule takes one option from landing.menus per page line "
-            "number, or per clause key of landing.clauses, c1 to "
-            f"c{clauses}, and rest for the lines that no clause names: "
-            "rulings={\"5\": \"drop\", \"c2\": \"ok\", \"rest\": \"approve\"}")
+            "number or per clause key of landing.clauses, c1 to "
+            f"c{clauses}, and rest for the lines that no clause "
+            "names: rulings={\"5\": \"drop\", \"c2\": \"none\", "
+            "\"rest\": \"approve\"}")
 
 
 def _menu_page(ctx: Ctx, ask, rulings: dict, his: str, order: list,
@@ -13888,7 +13902,41 @@ def page_menus(conn, order: list, page_text: str
     return menus, per_line
 
 
-def page_clauses(his: str, size: int) -> list[dict]:
+def _mentioned_lines(clause: str, size: int) -> set[int]:
+    """The page lines that `clause` mentions anywhere, read as
+    `_subject_parts` reads them, with no test of the subject place."""
+    found = {n for r in _line_reading(clause, size).refs for n in r.lines}
+    for m in _ORDINAL_LINE.finditer(clause):
+        word = m.group(1).lower()
+        found.add(size if word == "last" else _ORDINALS.index(word) + 1)
+    return {n for n in found if 1 <= n <= size}
+
+
+def _is_question(words: str) -> bool:
+    """True when a sentence of the clause ends with a question mark.
+
+    The binder gives a one-line page his whole reply as one clause. The
+    reply of the L1 case "before I say yes: does each person pay ... their
+    own order? I mean ..." ends with a full stop, so the clause end alone
+    misses its question (pass R3d)."""
+    return re.search(r"\?(?=\s|$)", words or "") is not None
+
+
+# The refusal of an option on his question (pass R3d). Its text is fixed, so
+# it fires once in a session.
+ASK_NOT_OPTION = ("his question is answered with rulings.rule(ask=\"...\"), "
+                  "not with an option")
+
+
+def _add_lines(menu: dict[int, tuple[str, list[str]]]) -> list[int]:
+    """The page lines whose menu holds `add <quote>`."""
+    return [n for n, (_kind, options) in sorted(menu.items())
+            if "add <quote>" in options]
+
+
+def page_clauses(his: str, size: int,
+                 menu: dict[int, tuple[str, list[str]]] | None = None
+                 ) -> list[dict]:
     """The clauses of his reply in order, each with its words and the page
     lines that the binder `line_words` gives it.
 
@@ -13896,7 +13944,13 @@ def page_clauses(his: str, size: int) -> list[dict]:
     same words share a clause. A clause of his reply that names no line is
     listed with no lines. The whole reply bound to the lines that no clause
     names is the binder's fallback, so beside other clauses those lines are
-    the rest."""
+    the rest.
+
+    With the page's `menu`, a clause with no lines carries its `options`.
+    The seat answers one option per clause (the design page, option R), and
+    a clause with no lines got none: the seat missed the add 9 runs of 9
+    (`plans/r-wrong-cases-read-2026-10-29.md`, group A). Code finds the
+    line, so the clause offers `add` only when one line holds it."""
     text = his or ""
     groups: dict[str, list[int]] = {}
     for n, said in line_words(text, size).items():
@@ -13925,7 +13979,28 @@ def page_clauses(his: str, size: int) -> list[dict]:
         if piece and not any(piece in w for _, w, _ in found):
             found.append((start, piece, []))
     found.sort(key=lambda f: (f[0], -len(f[1])))
-    return [{"words": w, "lines": ns} for _, w, ns in found]
+    out = [{"words": w, "lines": ns} for _, w, ns in found]
+    if menu is not None:
+        one_add = len(_add_lines(menu)) == 1
+        for c in out:
+            # His question takes `ask` alone, whatever lines it names. R3's
+            # seat keyed it `other <question>` 5 runs of 5 and never asked
+            # (L1-LI-a-question-then-a-statement-at-the-confirm-is-the-
+            # question, pass R3d). The mark is read as a character only.
+            if _is_question(c["words"]):
+                c["options"] = ["ask"]
+                continue
+            if c["lines"]:
+                continue
+            # His words about a line on the page cannot ask for something
+            # the page leaves out. Two of three false adds of pass R3 named
+            # a line inside the clause (pass R3b). `held` lands nothing,
+            # for a constraint that the page already holds.
+            blank = _QUOTED.sub(lambda m: " " * len(m.group(0)), c["words"])
+            c["options"] = (["none", "held", "add <quote>"]
+                            if one_add and not _mentioned_lines(blank, size)
+                            else ["none"])
+    return out
 
 
 def _menu_option(raw) -> tuple[str, str]:
@@ -13959,10 +14034,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 refused: frozenset = frozenset()) -> tuple[dict, dict]:
     """The verdict and the row shape of each ref that a menu call rules.
 
-    A key is a clause, as "c2", a page line, as "7", or "rest". A clause key
-    rules every line that its clause names. A line key rules that line
-    alone, and it wins over a clause key (frame 345, pass R1b: 30 of 101
-    refusals of R1 keyed the call by line). Each option is checked against
+    A key is a page line, as "7", a clause, as "c2", or "rest". A line key
+    rules that line alone (frame 345, pass R1b: 30 of 101 refusals of R1
+    keyed the call by line). A clause key rules each line its clause names,
+    and a line key on the same line wins (pass R3b). A clause with no lines
+    takes its `options`: `none` and `held` land nothing, and `add <quote>`
+    lands on the one line whose menu holds add (pass R3). Each option is checked against
     the menu of each line it rules, and a refusal shows that line's menu.
     The span is the words of the clause that names the line. The verdict,
     the act and the target kind come from the option, and the target of an
@@ -13972,8 +14049,9 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     """
     from .principal import is_test_row
 
-    clauses = page_clauses(his, len(order))
     menu = page_menus(conn, order, page_text)[1]
+    clauses = page_clauses(his, len(order), menu)
+    adds = _add_lines(menu)
     # The words of the first clause that names each line.
     span_of: dict[int, str] = {}
     for c in clauses:
@@ -14008,19 +14086,86 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         else:
             raise ValueError(f"{key!r} is no clause and no page line. "
                              + menu_form_text(len(clauses)))
+    # His question takes `ask`, never an option (pass R3d). A line key hits
+    # it on a line that only his questions name, and `other` hits it when
+    # its quote lies in the question.
+    asks = {k for k, c in enumerate(clauses, 1) if c.get("options") == ["ask"]}
+    ask_lines = ({n for k in asks for n in clauses[k - 1]["lines"]}
+                 - {n for k, c in enumerate(clauses, 1) if k not in asks
+                    for n in c["lines"]})
+    # The refusal fires once per clause and line, so a second question in
+    # the session gets its own (re-check p12b, finding 1). After it, such a
+    # key lands nothing.
+    hits = [f"clause c{k} is his question" for k in sorted(asks & set(by_clause))]
+    for n, value in sorted(by_line.items()):
+        name, given = _menu_option(value.get("option") if isinstance(
+            value, dict) else value)
+        quoted_ask = [k for k in asks if name == "other" and given
+                      and _holds_span(clauses[k - 1]["words"], given)]
+        hits += [f"line {n}: clause c{k} is his question" for k in (
+            quoted_ask or ([k for k in asks if n in clauses[k - 1]["lines"]]
+                           if n in ask_lines else []))]
+    for once in hits:
+        if not any(once in t for t in refused):
+            raise ValueError(f"{once}, so {ASK_NOT_OPTION}")
+    for n in ask_lines & set(by_line):
+        del by_line[n]
     # Each choice: its name in a refusal, the option, the lines it rules,
     # the span of each line, and the read-back rows it also rules.
     choices: list[tuple[str, object, list[int], dict[int, str], list]] = []
     for k in sorted(by_clause):
         value, c = by_clause[k], clauses[k - 1]
-        lines, rows = c["lines"], []
+        # A key on his question lands nothing, whether it names a line or
+        # not (re-check p12b, finding 1).
+        if k in asks:
+            continue
+        if c["lines"] or (isinstance(value, dict) and "lines" in value):
+            # One option per clause (design R): the option rules each line
+            # the clause names, or the lines of the seat's correction of a
+            # binder miss. A line key that reaches the same line wins, with
+            # no refusal (pass R3e): refusals of two keys cost turns, and in
+            # R3d n173-m34-m35 ran out of output budget after two of them.
+            # The tool_calls row keeps the call with both keys.
+            rows = (value.get("rows") or []) if isinstance(value, dict) else []
+            lines = (_menu_lines(value["lines"], k, len(order))
+                     if isinstance(value, dict) and "lines" in value
+                     else c["lines"])
+            option = value.get("option") if isinstance(value, dict) else value
+            lines = [n for n in lines if n not in by_line]
+            if lines:
+                choices.append((f"clause c{k}", option, lines,
+                                {n: c["words"] for n in lines}, rows))
+            continue
         if isinstance(value, dict):
-            if "lines" in value:
-                lines = _menu_lines(value["lines"], k, len(order))
-            rows = value.get("rows") or []
             value = value.get("option")
-        choices.append((f"clause c{k}", value, lines,
-                        {n: c["words"] for n in lines}, rows))
+        name, _given = _menu_option(value)
+        if name in _LANDS_NOTHING:
+            continue
+        if name == "add" and "add <quote>" in c["options"]:
+            # Code finds the line: the one line whose menu holds add. The
+            # row is the row that the line key "1": "add <quote>" lands.
+            # A line key there that lands no row of its own lets the add
+            # ride (review p12, low 2). One that lands a row wins (pass
+            # R3e), and the tool_calls row keeps the call (re-check p12b).
+            theirs = _key_name(by_line.get(adds[0]))
+            if theirs is not None and theirs not in _RIDES_WITH_ADD:
+                continue
+            choices.append((f"clause c{k}", value, [adds[0]],
+                            {adds[0]: c["words"]}, []))
+            continue
+        takes = " or ".join(c["options"])
+        text = (f"clause c{k} names no page line, so it takes {takes}, not "
+                f"{str(value)!r}")
+        if name == "add" and len(adds) > 1:
+            text += (f". Lines {', '.join(map(str, adds))} take add <quote>, "
+                     f"so key the line the add is about by its number")
+        # An approve of a clause that names no line lands nothing, as it
+        # did before pass R3. So the refusal fires once.
+        if name in ("approve", "ok") and text in refused:
+            continue
+        raise ValueError(text)
+    # The clauses with no lines whose quote a line key carries.
+    quoted: set[int] = set()
     for n in sorted(by_line):
         value, rows = by_line[n], []
         if isinstance(value, dict):
@@ -14040,13 +14185,24 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # in R1c, where the seat keyed every line and sent rest none
             # (review p9b-1).
             span = (his or "").strip()
-        if (span is None and name in ("add", "other") and given
-                and any(not c["lines"] and _holds_span(c["words"], given)
-                        for c in clauses)):
-            # His quoted words carry the change, as "This page also leaves
-            # out my request" carries an add on line 1 (n175-m75-m76). The
-            # quote lies in a clause that names no line, so it names no
-            # other line (review p9b-2).
+        home = next((k for k, c in enumerate(clauses, 1) if not c["lines"]
+                     and _holds_span(c["words"], given)), None) if (
+            span is None and name in ("add", "other") and given) else None
+        if home is not None:
+            # The clause key is the place of a quote from a clause that
+            # names no line (pass R3). The line key took it before, and
+            # m121 landed `other <quote>` on line 9 so (review p9b-2). The
+            # refusal fires once. On a page where the clause takes none
+            # only, the line key is the one place of the change.
+            text = (f"line {n}: the quote lies in clause c{home}, and c{home} "
+                    f"names no page line. Key that clause instead: "
+                    f"\"c{home}\": \"none\", or \"c{home}\": \"add <quote>\" "
+                    f"when his words there ask for something that the page "
+                    f"leaves out")
+            if "add <quote>" in clauses[home - 1]["options"] and (
+                    text not in refused):
+                raise ValueError(text)
+            quoted.add(home)
             span = given
         if span is None:
             # A line that no clause names has no words of his to carry a
@@ -14064,16 +14220,9 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     shape_of: dict[str, dict] = {}
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
-        if name == "none":
+        if name in _LANDS_NOTHING:
             covered.update(lines)
             continue
-        if not lines:
-            if _OPTION_ROWS.get(name, ("",))[0] == "approve" and name != "add":
-                continue
-            raise ValueError(
-                f"{label} names no page line, so {value!r} lands nowhere. "
-                f"Give its lines: {{\"option\": {json.dumps(str(value))}, "
-                f"\"lines\": [<line number>]}}")
         for n in lines:
             ref = order[n - 1]
             kind, options = menu[n]
@@ -14093,6 +14242,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     f"{label}: {str(value)!r} is not an option of line {n}. "
                     f"Line {n}, kind {kind}, takes {'; '.join(options)}")
             verdict, act, target_kind = _OPTION_ROWS[opt]
+            # A clause's add lands approve with the act on its line. A line
+            # key approve on that line says the same verdict, so it keeps
+            # the add.
+            if (opt == "approve" and n in ruled and ruled[n].startswith("clause")
+                    and shape_of.get(ref, {}).get("act") == "add"):
+                continue
             # A quote stands as the words only when his reply holds it, so
             # the row carries his words and never the seat's (law 6).
             said = (given if opt in ("add", "other") and given
@@ -14128,8 +14283,22 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     # are the rest's own.
     rest_lines = {n for c in clauses if _REST_LINES.search(c["words"])
                   for n in c["lines"]}
+    # A clause with no lines and two options needs its key: the seat gave
+    # such a clause nothing 9 runs of 9 (pass R3). The refusal fires once.
+    unkeyed = [f"c{k}" for k, c in enumerate(clauses, 1)
+               if len(c.get("options") or []) > 1 and k not in by_clause
+               and k not in quoted]
+    if unkeyed:
+        text = (f"{', '.join(unkeyed)}: the clause names no page line, and the "
+                f"call gives it no key. Key each such clause by its clause "
+                f"key: \"{unkeyed[0]}\": \"none\", or \"{unkeyed[0]}\": "
+                f"\"add <quote>\" when his words there ask for something that "
+                f"the page leaves out")
+        if text not in refused:
+            raise ValueError(text)
     missing = [f"line {n}" for n in sorted(span_of)
-               if n not in ruled and n not in covered and n not in rest_lines]
+               if n not in ruled and n not in covered and n not in rest_lines
+               and n not in ask_lines]
     if missing:
         raise ValueError(
             f"{', '.join(missing)}: his words name the line, and the call "
@@ -14138,7 +14307,10 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     for n, ref in enumerate(order, 1):
         # A read-back line is his alone, so the rest rules it only when a
         # rest clause of his names it (the seam design's review, finding 1).
+        # A line that only his questions name waits for the ask, so the
+        # rest never approves it (re-check p12b, finding 1).
         if (n in ruled or n in covered or ref in per_item or ref in gone
+                or n in ask_lines
                 or rest != "approve"
                 or (menu[n][0] == "read-back" and n not in rest_lines)):
             continue
@@ -14148,6 +14320,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         shape_of[ref] = {"words": span_of.get(n, (his or "").strip())}
     left = [str(n) for n, ref in enumerate(order, 1)
             if ref not in per_item and ref not in gone and n not in ruled
+            and n not in ask_lines
             and menu[n][0] != "read-back" and not is_test_row(conn, ref)]
     if left:
         raise ValueError(
