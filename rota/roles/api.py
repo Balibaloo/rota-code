@@ -13326,6 +13326,19 @@ _ON_LINE = re.compile(r"(?:^|\s)on\s*$", re.I)
 # "fix the call in cli.py on line 5". These are the shapes of `_NOT_SUBJECT`
 # (review p14, low 1).
 _CODE_PLACE = re.compile(rf"(?:{_PATH_SHAPE.pattern}|\w:)\s*$", re.I)
+# A reference after "in" names the line of a clause that binds nothing else
+# (frame 347, rule F-in). M246 "The tests in lines 2 to 4 are wrong" is about
+# lines 2 to 4. The `_CODE_PLACE` guard keeps "in cli.py in line 5" unbound.
+_IN_LINE = re.compile(r"(?:^|\s)in\s*$", re.I)
+# A path or a code name right after the reference names a place in code too:
+# "The bug sits in line 4 of src/click/termui.py" (seam 2, finding 1).
+_CODE_AFTER = re.compile(
+    rf"\s+(?:of|in)\s+(?:{_PATH_SHAPE.pattern}|\w+:)", re.I)
+# A reference right after a comma opens its own part, as a bare list does
+# (frame 347, rule K0). M63 "Line 5 also brings back the wording, line 6
+# calls the README stale" names line 6. Only "and", "but" or "so" may stand
+# between, so "because lines 3 and 4" in L3R m116-m118 stays unbound.
+_COMMA_REF = re.compile(r",\s*(?:(?:and|but|so)\s+)?$", re.I)
 # A second reference joined to a subject is a subject too: "Lines 1 to 10
 # and line 12 are fine", "line 3 or line 4".
 _REF_JOIN = re.compile(r"\s*,?\s*(?:(?:and|or)\s+)?(?:also\s+)?", re.I)
@@ -13377,6 +13390,7 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
     next such list (review p5, finding 4). So "1 is fine, 2 and 3 are wrong"
     binds line 1 to "1 is fine" and lines 2 and 3 to "2 and 3 are wrong".
     The cut is the comma that `_bare_subject` reads, and no word decides it.
+    A line reference right after a comma cuts the same way (frame 347, K0).
     """
     found = [(r.start, r.end, set(r.lines))
              for r in _line_reading(clause, size).refs]
@@ -13386,6 +13400,8 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
                       {size if word == "last" else _ORDINALS.index(word) + 1}))
     named: set[int] = set()
     placed: set[int] = set()
+    inside: set[int] = set()
+    starts: list[tuple[int, set[int]]] = []
     last_end, last_set = None, named
     for start, end, lines in sorted(found, key=lambda f: f[0]):
         before = clause[:start]
@@ -13394,19 +13410,25 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
         joined = (last_end is not None
                   and _REF_JOIN.fullmatch(clause[last_end:start]))
         on = _ON_LINE.search(before)
+        in_ = _IN_LINE.search(before)
         if lead:
             last_set = named
         elif joined:
             # A joined reference takes the set of the reference before it,
             # so "on line 3 and also line 6" places both (review p14, low 2).
             pass
+        elif _COMMA_REF.search(before) and before.strip(" ,"):
+            last_set = set()
+            starts.append((start, last_set))
         elif on and not _CODE_PLACE.search(before[:on.start()]):
             last_set = placed
+        elif (in_ and not _CODE_PLACE.search(before[:in_.start()])
+              and not _CODE_AFTER.match(clause, end)):
+            last_set = inside
         else:
             continue
         last_set |= lines
         last_end = end
-    starts: list[tuple[int, set[int]]] = []
     for m in _BARE_LIST.finditer(clause):
         if not any(s < m.end() and m.start() < e for s, e, _ in found):
             lines = _bare_subject(clause, m)
@@ -13415,12 +13437,12 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
             else:
                 named |= lines
     if not named and not starts:
-        named = placed
+        named = placed or inside
     parts = []
     begin, own = 0, named
-    for at, lines in starts:
-        # The part before the list ends at its comma.
-        stop = len(clause[:at].rstrip()) - 1
+    for at, lines in sorted(starts, key=lambda s: s[0]):
+        # The part before the list or the reference ends at its comma.
+        stop = clause.rfind(",", 0, at)
         parts.append((begin, stop, own))
         begin, own = at, lines
     parts.append((begin, len(clause), own))

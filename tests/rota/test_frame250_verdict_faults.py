@@ -217,9 +217,10 @@ def test_s212s_map_with_the_faulted_lines_contested_lands(db):
 
 def test_the_map_with_line_6_contested_lands(m245):
     # The menu call (frame 345, R6b).
-    # The binder names no line for "the tests in lines 2 to 4", so the
-    # menu call rules line 6 alone.
-    out = _rule_m245(m245, {"6": "rewrite", "c1": "none", "c3": "none",
-                            "rest": "approve"})
+    # Frame 347, F-in: "the tests in lines 2 to 4" names lines 2 to 4, so
+    # the menu call rules them beside line 6.
+    out = _rule_m245(m245, {"2": "rewrite", "3": "rewrite", "4": "rewrite",
+                            "6": "rewrite", "c1": "none", "rest": "approve"})
     assert out["per_item"]["bg_4"] == "contest"
     assert out["per_item"][B4_ITEM] == "approve"
+    assert {out["per_item"][c] for c, _, _ in B4_CRITERIA[:3]} == {"contest"}
