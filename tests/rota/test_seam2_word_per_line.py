@@ -133,9 +133,9 @@ def test_the_landing_block_shows_his_words_beside_each_line(db):  # noqa: F811
     wake = Wake(role="liaison", kind="message", message_id=reply,
                 detail="converse")
     landing = resolve_inbound(db, wake)["landing"]
-    # Pass R4: his words once each, keyed by their line range.
+    # Pass R4b: few lines keep one entry each, in line order.
     assert landing["his_words"] == {
-        "1 to 2": "The rest is fine.",
+        "1": "The rest is fine.", "2": "The rest is fine.",
         "3": "Drop line 3, because nobody types the percentage."}
 
 
@@ -148,8 +148,13 @@ def test_the_clauses_and_menus_come_before_his_words_once_per_range(
     clause = "Lines 8 to 67 are a long repeated list, so please drop them."
     sixty = {n: (clause if 8 <= n <= 67 else None) for n in range(1, 69)}
     got = _words_by_range(sixty)
-    assert got == {"1 to 7, 68": "no words", "8 to 67": clause}
+    assert got == {**{str(n): "no words" for n in (*range(1, 8), 68)},
+                   "8 to 67": clause}
     assert json.dumps(got).count(clause) == 1
+    # Up to eight lines keep one entry each (pass R4b, n172-m92-m93).
+    eight = {n: clause for n in range(1, 9)}
+    assert list(_words_by_range(eight)) == [str(n) for n in range(1, 9)]
+    assert list(_words_by_range({**eight, 9: clause})) == ["1 to 9"]
     ask = _page(db)
     _sb, reply = _seat(db, ask, words=DROP)
     landing = resolve_inbound(db, Wake(

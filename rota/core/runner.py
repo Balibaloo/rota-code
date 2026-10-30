@@ -2031,14 +2031,25 @@ def disputed_paths(conn: sqlite3.Connection, ref: str,
     return [p for p in paths if granted(conn, ref, "exclude", p)]
 
 
+# His words go under a range key only when they name more lines than this.
+# One entry per line keeps the link from each line to its words. R4 keyed
+# three lines of n172-m92-m93 as "1, 3 to 4", and the case fell from 3 of 3
+# to 1 of 3 (pass R4b). n174-m47-m48 needs the range: one clause named 60.
+_WORDS_RANGE_OVER = 8
+
+
 def _words_by_range(matched: dict[int, str | None]) -> dict[str, str]:
-    """His words once each, keyed by the lines they name, as "8 to 67" or
-    "1, 3 to 5". The lines with no words share the key of "no words"."""
+    """His words for each line, in line order. Words that name more than
+    `_WORDS_RANGE_OVER` lines appear once, under their range, as "8 to 67"
+    or "1, 3 to 5". The lines with no words read "no words"."""
     groups: dict[str, list[int]] = {}
     for n, w in sorted(matched.items()):
         groups.setdefault(w or "no words", []).append(n)
-    out: dict[str, str] = {}
+    entries: list[tuple[int, str, str]] = []
     for words, lines in groups.items():
+        if len(lines) <= _WORDS_RANGE_OVER:
+            entries += [(n, str(n), words) for n in lines]
+            continue
         runs: list[list[int]] = []
         for n in lines:
             if runs and n == runs[-1][-1] + 1:
@@ -2047,8 +2058,8 @@ def _words_by_range(matched: dict[int, str | None]) -> dict[str, str]:
                 runs.append([n])
         key = ", ".join(str(r[0]) if len(r) == 1 else f"{r[0]} to {r[-1]}"
                         for r in runs)
-        out[key] = words
-    return out
+        entries.append((lines[0], key, words))
+    return {key: words for _, key, words in sorted(entries)}
 
 
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
