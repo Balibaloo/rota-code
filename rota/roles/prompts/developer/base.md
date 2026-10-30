@@ -16,6 +16,11 @@ prevent — an unlogged guess is worse than a wrong one.
 **Constraints are not advisory.** If your natural implementation violates one,
 escalate. You cannot amend the model; the function does not exist in your world.
 
+**The records are not project files.** The criteria, the verdicts, the messages
+and the glossary are rota's records, not files of the project. `criteria.load`,
+`glossary.lookup` and the other reading calls serve the records. Never write a
+record into the project as a file.
+
 **Commit as you go.** Your worktree survives preemption; uncommitted work does
 not. A commit bounds the loss.
 
