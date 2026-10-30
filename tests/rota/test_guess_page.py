@@ -269,9 +269,9 @@ def test_the_cue_names_the_code_line_by_its_number_on_a_stamped_page(db):
     every = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
     # The menu form (frame 345, R6): line 2 is the code line, and the
     # refusal of the files cue went with the word form. His words take the
-    # options test file off the guess.
+    # options and the defaults test files off the guess.
     out = sb.call("rulings.rule", rulings=dict(
-        every, **{"2": "exclude tests/test_options.py"}))
+        every, **{"2": "exclude tests/test_options.py, tests/test_defaults.py"}))
     assert out["per_item"][KEY] == "contest"
     assert out["per_item"][ITEM] == "approve"
 
