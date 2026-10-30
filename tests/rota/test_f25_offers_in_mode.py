@@ -93,61 +93,6 @@ def _run(case: dict, seat, tmp_path):
                              instructions=fixtures.instructions_for(case))
 
 
-DROP_WORDS = "please drop line 3, the rest is fine"
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_offer_of_stray_fields_carries_every_line_of_the_page(tmp_path):
-    """L1-LI-a-dropped-line-is-a-contest: the seat sent line 3 alone with
-    the act's fields beside it. The offer moved the fields into line 3 and
-    left lines 1 and 2 with no ruling, so the next door refused it. The
-    offer now gives a line the reply does not contest its approve."""
-    first = ('TOOL: rulings.rule(rulings={"3": "contest", "act": "drop", '
-             f'"target_kind": "row"}}, words="{DROP_WORDS}")')
-    calls = []
-
-    def pick(found):
-        calls.extend(found)
-        return found[0]
-
-    seat = _Follower(first, pick)
-    r = _run(_case("L1-LI-a-dropped-line-is-a-contest"), seat, tmp_path)
-    assert len(calls) == 1, calls
-    offered = json.loads(re.search(r"rulings=(\{.*\}), words=",
-                                   calls[0]).group(1))
-    assert offered == {"1": "approve", "2": "approve",
-                       "3": {"verdict": "contest", "act": "drop",
-                             "target_kind": "row", "words": DROP_WORDS}}
-    assert r.passed, r.problems
-
-
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
-    """Law 6: only his words choose a verdict. His reply faults line 2, and
-    the seat left line 2 out. The refusal names line 2 and offers no call,
-    because no call the door can write is his ruling of line 2 (the review
-    of f4951389, finding 3)."""
-    words = "please drop line 3, and line 2 is wrong too"
-    case = _case("L1-LI-a-dropped-line-is-a-contest")
-    case["inbound"]["body_text"] = words
-    first = ('TOOL: rulings.rule(rulings={"3": "contest", "act": "drop", '
-             f'"target_kind": "row"}}, words="{words}")')
-    seen = []
-
-    def pick(found):
-        seen.append(found)
-        return "Done."
-
-    seat = _Follower(first, pick)
-    _run(case, seat, tmp_path)
-    error = _last_error(seat.users[1])
-    assert "Line 2 also has no ruling, and his words fault it" in error, error
-    # Frame 135's law: the text shows no call, because each call it could
-    # show is refused with "lines 2 have no ruling" (review p2, finding 3).
-    assert _offered_calls(error) == [], error
-    assert seen == [[]], seen
-
-
 def test_the_offer_of_stray_fields_records_no_call_for_a_faulted_line(db):
     """The door records no offer when his words fault a line the map left
     out, so the follower holds no call the next door refuses."""

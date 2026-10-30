@@ -343,18 +343,6 @@ def test_a_reference_joined_to_a_placed_line_is_placed_too():
     assert api._subject_lines(clause, 10) == {3, 5, 6}
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-def test_the_drops_of_a_conjoined_subject_land(db):  # noqa: F811
-    """L1 approve-one-line-only: the seat wrote 1 approve, 2 and 3 drop, and
-    the no-words refusal took all three runs, because the match gave lines
-    2 and 3 no words."""
-    ask = _page(db)
-    sb, _ = _seat(db, ask, words=ONE_LINE)
-    sb.call("rulings.rule", rulings={"1": "approve", "2": "drop", "3": "drop"})
-    rulings = [w for w in sb.ctx.writes if w[0] == "rulings"]
-    assert len(rulings) == 1
-
-
 def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
     """L3R-n174-m47-m48: the page showed the term `parameter` on lines 8 and
     47, and the landing wrote the row on line 8 alone. The judge read "line

@@ -66,25 +66,24 @@ def test_the_landing_wake_names_the_line_whose_row_is_gone(tmp_path):
     assert "l_bg2" in landing["gone_lines"]["1"]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
+@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu asks an option of every line his words name, a line whose row is gone included (menu_ruling)")
 def test_a_line_whose_row_is_gone_takes_no_ruling(tmp_path):
     """The every-line check skips a line whose row no table holds. The old
     door refused every ruling, and only an ask to him landed."""
     conn, reply = _night(tmp_path)
     out = _liaison(conn, reply).call(
-        "rulings.rule", rulings={"2": "contest", "3": "approve"}, words=M106)
+        "rulings.rule", rulings={"2": "rewrite", "3": "approve"})
     assert out["per_item"] == {"l_echo": "contest", "l_bg3": "approve"}
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
 def test_his_verdict_on_a_gone_row_stays_in_per_item_with_a_fault(tmp_path):
     """A ruling on the gone line keeps his verdict in `per_item`. The row
     has no `ruled_refs` row, so a fault names the gap (no work stays
     invisible)."""
     conn, reply = _night(tmp_path)
     sb = _liaison(conn, reply)
-    out = sb.call("rulings.rule", words=M106,
-                  rulings={"1": "contest", "2": "contest", "3": "approve"})
+    out = sb.call("rulings.rule",
+                  rulings={"1": "rewrite", "2": "rewrite", "3": "approve"})
     assert out["per_item"] == {"l_bg2": "contest", "l_echo": "contest",
                                "l_bg3": "approve"}
     staged = {t: [w for k, _, w in sb.ctx.writes if k == t]

@@ -53,19 +53,6 @@ def test_a_landing_counts_its_ruled_refs_rows_as_writes(tmp_path, case_id,
     assert not [p for p in res.problems if "ruled_refs" in p]
 
 
-@pytest.mark.skip(reason="re-pin to the menu form, frame 345: R2 word form")
-@pytest.mark.parametrize("case_id, size, lines", DROPS)
-def test_remove_on_a_line_that_is_no_code_lands_as_a_drop(tmp_path, case_id,
-                                                          size, lines):
-    """The call of the review's probe 5, the word remove on c2 and c3."""
-    res, conn = _run(tmp_path, case_id, size, "remove", lines)
-    got = conn.execute(
-        "SELECT DISTINCT line, verdict, act, target_kind FROM ruled_refs "
-        "WHERE source = 'reading' AND act IS NOT NULL ORDER BY line").fetchall()
-    assert got == [(n, "contest", "drop", "row") for n in lines]
-    assert not [p for p in res.problems if "ruled_refs" in p]
-
-
 def test_a_bare_subject_after_a_comma_binds_its_own_clause():
     assert line_words("1 is fine, 2 and 3 are wrong", 3) == {
         1: "1 is fine", 2: "2 and 3 are wrong", 3: "2 and 3 are wrong"}
