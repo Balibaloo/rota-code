@@ -92,3 +92,37 @@ def test_s193s_contest_of_line_5_lands_on_m76_in_the_exchange(db):
     out = sb.call("rulings.rule", rulings={"5": "rewrite", "6": "approve",
                                            "rest": "approve"})
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
+
+
+def test_his_latest_earlier_answer_on_a_line_wins(db):
+    """Frame 347, pass 3b, review p3 probe A2: his later "Line 5 is fine."
+    wins over his first "Line 5 is wrong". Frame 337 pass 2 ruled that his
+    latest answer about a line wins. Line 5 takes the words of m78, the
+    second earlier answer of `_page6`. The menu reads no polarity, so a
+    contest of line 5 is the seat's to refuse, not the door's."""
+    ask = _page6(db, ["Line 5 is wrong.", "Line 5 is fine."])
+    sb, _ = _landing(db, ask, M78)
+    out = sb.call("rulings.rule", rulings={"5": "approve", "6": "approve",
+                                           "rest": "approve"})
+    assert out["per_item"]["challenge_items_clear_returns_status"] == "approve"
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    five = rows["challenge_items_clear_returns_status"]
+    assert (five["words"], five["words_from"]) == ("Line 5 is fine.", "m78")
+
+
+def test_an_answer_to_a_second_page_of_the_thread_names_no_line(db):
+    """Review p3, low 2: his answer to a second page of the Liaison in the
+    same thread is no earlier answer to this page."""
+    from rota.roles.api import _earlier_answers
+
+    ask = _page6(db, [M76])
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, "
+               "to_role, verb, body_refs, seq, status) VALUES ('m90','th',"
+               "'m77','liaison','principal','present','[]',10,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, "
+               "to_role, verb, body_refs, body_text, seq, status) VALUES "
+               "('m91','th','m90','principal','liaison','converse','[]',"
+               "'Line 2 is wrong.',11,'answered')")
+    db.commit()
+    sb, _ = _landing(db, ask, M78)
+    assert _earlier_answers(sb.ctx, ask.message_id) == (M76,)

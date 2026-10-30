@@ -13876,17 +13876,26 @@ def menu_form_text(clauses: int) -> str:
 def _earlier_answers(ctx: Ctx, page_id: str) -> tuple[str, ...]:
     """His earlier answers to the page `page_id`, oldest first: his messages
     of the thread after the page and before the reply. An answer before the
-    page was about another page, so it names none of these lines."""
+    page was about another page, so it names none of these lines.
+
+    An answer counts only when its cause chain leads back to this page. A
+    second page of the Liaison ends the chain, so his answer to that page
+    names none of these lines (review p3, low 2)."""
     if not ctx.trigger:
         return ()
     from .principal import said as his_words
 
     rows = ctx.conn.execute(
+        "WITH RECURSIVE chain(id) AS (SELECT ? UNION "
+        "SELECT c.id FROM messages c JOIN chain ON c.cause_id = chain.id "
+        "WHERE NOT (c.from_role = 'liaison' AND c.verb = "
+        "(SELECT verb FROM messages WHERE id = ?))) "
         "SELECT m.id FROM messages m, messages p, messages r "
         "WHERE p.id = ? AND r.id = ? AND m.thread_id = r.thread_id "
         "AND m.from_role = 'principal' AND m.id != r.id "
+        "AND m.id IN (SELECT id FROM chain) "
         "AND m.seq > p.seq AND m.seq < r.seq ORDER BY m.seq",
-        (page_id, ctx.trigger)).fetchall()
+        (page_id, page_id, page_id, ctx.trigger)).fetchall()
     return tuple(his_words(ctx.conn, row["id"]) for row in rows)
 
 
@@ -14138,7 +14147,9 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     # 3, test_frame337_earlier_answers). The reply comes first. A line counts
     # only as the subject of an earlier clause, so the fallback of a reply
     # that names no line binds nothing. An earlier question was answered.
-    for text in earlier:
+    # His latest answer about a line wins (frame 337, pass 2), so the loop
+    # reads the newest first (review p3, high 1).
+    for text in reversed(earlier):
         for c in page_clauses(text, len(order)):
             if _is_question(c["words"]):
                 continue
