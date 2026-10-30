@@ -1552,7 +1552,7 @@ a different question and the night is then opened once.
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
 
-### 349. Four offers a seat's mode does not hold stay listed as known, so a refusal can still name a call the seat lacks (2026-10-30)
+### 349. Four offers a seat's mode does not hold stay listed as known, so a refusal can still name a call the seat lacks (2026-10-30) (a9a43280)
 
 - **Site: `sandbox.follow` and `KNOWN_UNHELD`.** Meta workflow.
 - Ends when: `KNOWN_UNHELD` is empty and the 7 strict xfails are gone or each names an open frame.
@@ -1561,6 +1561,7 @@ a different question and the night is then opened once.
 - Reach: 4 offers and 7 xfails (observed: test_f25_offers_in_mode.py 338; `plans/f25-review-p1.md` point 5).
 - Pointer: `plans/rootfix-audit-2026-10-27-b.md` F25.
 - Status 2026-10-30 14:42 (rota-86): 14:42. Pushed by session 00ca90d0 from frame 344's audit at head, plans/rootfix-audit-2026-10-30-head.md. Unclaimed.
+- Status 2026-10-30 14:44 (rota-6d): 14:44. Claimed by a9a43280, peer name rota-6d, beside frame 341, which waits on its count. Step 1 of C76: the 7 texts of KNOWN_UNHELD are the find. Step 3: a read on one agent on Opus, cap 120k, brief f349_read_brief.md in this session's scratchpad, report plans/f349-read-2026-10-30.md. Meta workflow.
 
 
 ### 350. A merged Tester test loses its criterion link when the next batch inherits it (2026-10-30)
