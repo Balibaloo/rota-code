@@ -2490,6 +2490,19 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # so a clause number names the same words in both places.
                 from ..roles.principal import SHIFT_ASK
 
+                # Each line with the words of his that name it, verbatim, or
+                # "no words". Code binds the words to the line, and the seat
+                # reads what they rule. The fix belongs where the seat gets
+                # its information (ruled: Roman, 2026-10-26; frame 345, pass
+                # 2). `rulings.rule` copies the same words into an act.
+                # The order is the clauses, his words, then the menus. Once
+                # per line and first, his words on lines 8 to 67 cut a 19,678
+                # character wake to 12,838 before the clauses (n174-m47-m48,
+                # pass R4). After the menus, his words lost n172-m92-m93 its
+                # exclude, 2 runs of 3 (pass R4b). The words before the menus
+                # are the order of head (ruled: the session, pass R4c).
+                matched = api.line_words(his_reply(conn, row["id"]) or "",
+                                         len(order))
                 if order and not clarify["id"].startswith(SHIFT_ASK):
                     # A clause with no lines carries its options (pass R3).
                     menus, per_line = api.page_menus(conn, order, page)
@@ -2497,19 +2510,10 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                         f"c{k}": c for k, c in enumerate(api.page_clauses(
                             his_reply(conn, row["id"]) or "", len(order),
                             per_line), 1)}
+                    if matched:
+                        landing["his_words"] = _words_by_range(matched)
                     landing["menus"] = menus
-                # Each line with the words of his that name it, verbatim, or
-                # "no words". Code binds the words to the line, and the seat
-                # reads what they rule. The fix belongs where the seat gets
-                # its information (ruled: Roman, 2026-10-26; frame 345, pass
-                # 2). `rulings.rule` copies the same words into an act.
-                # The words come after the clauses and the menus, once per
-                # clause under its line range. Once per line, a clause on
-                # lines 8 to 67 cut a 19,678 character wake to 12,838 before
-                # the clauses (n174-m47-m48, pass R4).
-                matched = api.line_words(his_reply(conn, row["id"]) or "",
-                                         len(order))
-                if matched:
+                elif matched:
                     landing["his_words"] = _words_by_range(matched)
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the

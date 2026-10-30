@@ -161,8 +161,9 @@ def test_the_clauses_and_menus_come_before_his_words_once_per_range(
         role="liaison", kind="message", message_id=reply,
         detail="converse"))["landing"]
     keys = list(landing)
-    assert keys.index("clauses") < keys.index("menus") < keys.index(
-        "his_words")
+    # Pass R4c: the clauses, his words, then the menus.
+    assert keys.index("clauses") < keys.index("his_words") < keys.index(
+        "menus")
 
 
 # Pass 2b: the review p3 of 27291602 (`plans/f345-review-p3.md`).
