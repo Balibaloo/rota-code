@@ -14073,13 +14073,33 @@ def _mentioned_lines(clause: str, size: int) -> set[int]:
 
 
 def _is_question(words: str) -> bool:
-    """True when a sentence of the clause ends with a question mark.
+    """True when a sentence of the clause ends with a question mark, or
+    when the clause asks for facts with no mark: "tell me what", "explain
+    why", "is unclear".
 
     The binder gives a one-line page his whole reply as one clause. The
     reply of the L1 case "before I say yes: does each person pay ... their
     own order? I mean ..." ends with a full stop, so the clause end alone
-    misses its question (pass R3d)."""
-    return re.search(r"\?(?=\s|$)", words or "") is not None
+    misses its question (pass R3d).
+
+    A request for facts has no question mark. m14 of L3R-n175-m11-m14,
+    "Please tell me what the claim says ...", and four real requests on
+    nights 170 to 175 landed as a contest. He got no facts (frame 348,
+    `plans/f348-ask-read-2026-10-30.md`)."""
+    text = words or ""
+    return (re.search(r"\?(?=\s|$)", text) is not None
+            or _ASKS_FOR_FACTS.search(text) is not None)
+
+
+# A request for facts with no question mark (frame 348). The verb comes
+# before a wh-word, so "tell the team to go on" and "I say line 4 is
+# wrong" ask nothing. A negated verb states a fault: m400's "it still
+# doesn't say what to build" faults line one (test_request_page, frame 348
+# pass 3c).
+_ASKS_FOR_FACTS = re.compile(
+    r"(?<!n't )(?<!n’t )(?<!not )(?<!never )"
+    r"\b(?:tell|show|explain|say)\b(?:\s+(?:it\s+)?(?:to\s+)?me)?\s+"
+    r"(?:what|which|where|when|why|how|who)\b|\bis unclear\b", re.I)
 
 
 # The refusal of an option on his question (pass R3d). Its text is fixed, so

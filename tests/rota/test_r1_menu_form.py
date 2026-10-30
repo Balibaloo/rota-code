@@ -525,3 +525,21 @@ def test_a_quote_that_names_another_line_carries_no_change(db):  # noqa: F811
         "rest": "approve"})
     assert _rows(sb)["calculate_tip"]["act"] == "add"
 
+
+
+@pytest.mark.parametrize("words, asks", [
+    # m14 of L3R-n175-m11-m14: a request for facts with no question mark.
+    ("Please tell me what the claim says and where it came from, so I can "
+     "tell you if it is right.", True),
+    ("Tell me what the note on line 4 means.", True),
+    # A verb with no wh-word after it asks for nothing.
+    ("Line 2 is fine, tell the team to go on.", False),
+    ("I say line 4 is wrong.", False),
+    # m400 of test_request_page: a negated verb states a fault (pass 3c).
+    ("Line one still talks about my complaint and only mentions the "
+     "approved line, so it still doesn't say what to build.", False),
+])
+def test_a_request_for_facts_is_a_question(words, asks):
+    """Frame 348: m14 and four requests on nights 170 to 175 asked for facts
+    with no question mark, and each landed as a contest."""
+    assert api._is_question(words) is asks

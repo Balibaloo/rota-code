@@ -6049,16 +6049,10 @@
   expect:
     writes:
       rulings:
-        count: 1
+        count: 0
   expect_lines:
-    lines:
-      '2':
-        verdict: contest
-      '3':
-        verdict: absent
-      '6':
-        verdict: contest
+    ask: true
   forbidden: {}
 
-# judge.expect: 2 contest, no act judged, words from m12 'Line 2 is wrong, because filling a missing option with an empty value is still Click running the function with what the user gave, so the original claim stands'; 3 left out, he asks what the claim is 'so I can tell you if it is right'; 6 contest, words from m12 'Line 6 misread me'; 1, 4, 5 unchecked, no words of his name them
-# shape: his earlier answer m12 to the same page names line 2 wrong, the reply m14 only asks about line 3; the live ruling r_m14 approved line 2 against m12
+# judge.expect: an ask to him and no ruling, because m14 asks for facts, 'Please tell me what the claim says and where it came from, so I can tell you if it is right'; m12's contests of line 2, 'Line 2 is wrong, because ...', and line 6, 'Line 6 misread me', land on his next reply through the earlier-answer binding of frame 348
+# shape: his earlier answer m12 to the same page names line 2 wrong, the reply m14 only asks about line 3; the live ruling r_m14 approved line 2 against m12; in frame 348 pass 3, run 1 echoed his own words back as the ask, a residue

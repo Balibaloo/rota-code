@@ -134,7 +134,7 @@ def test_his_earlier_wrong_binds_a_line_that_the_reply_does_not_name(db):
     seat approved it. The earlier answer now binds line 2, so the menu
     refuses approve there, and the row takes the earlier words."""
     ask = _page6(db, ["Line 2 is wrong."])
-    sb, _ = _landing(db, ask, "Please tell me where the ticket came from.")
+    sb, _ = _landing(db, ask, SILENT)
     keys = {"1": "approve", "3": "approve", "4": "approve", "5": "approve",
             "6": "approve"}
     with pytest.raises(ValueError, match=r"line 2 takes no approve"):
@@ -149,7 +149,9 @@ def test_his_earlier_wrong_binds_a_line_that_the_reply_does_not_name(db):
 
 
 ALL_APPROVE = {str(n): "approve" for n in range(1, 7)}
-SILENT = "Please tell me where the ticket came from."
+# A reply that names no line and asks nothing. "Please tell me where ..."
+# is a request for facts since frame 348, pass 3.
+SILENT = "I had another look at the page."
 
 
 def test_a_bare_mention_in_the_reply_keeps_the_earlier_fault(db):
