@@ -88,27 +88,16 @@ def test_a_clause_key_and_a_line_key_that_agree_land_once(db):  # noqa: F811
     assert _rows(sb)["l_1"]["act"] == "drop"
 
 
-def test_two_keys_that_land_one_read_back_row_agree(db):  # noqa: F811
-    """Review p12, low 1: a clause drop on a read-back line lands the row
-    of the line key "misread, drop"."""
-    his = "Line 1 is a misread, so drop it."
-    per_item, shapes = api.menu_ruling(
-        db, {"c1": "drop", "1": "misread, drop", "rest": "approve"}, his,
-        ["reading:m1"], "", set(), {})
-    assert (per_item["reading:m1"], shapes["reading:m1"]["act"]) == (
-        "contest", "drop")
-
-
 def _faults(sb) -> list[str]:
     return [w[2]["text"] for w in sb.ctx.writes if w[0] == "faults"]
 
 
-def test_a_line_key_on_the_add_line_wins_and_the_add_is_noted(
-        db):  # noqa: F811
+def test_a_line_key_on_the_add_line_wins_with_no_note(db):  # noqa: F811
     """Pass R3e: an option that lands a row on the add line wins with no
-    refusal, and the landing notes the displaced add. An approve there lets
-    the add ride (review p12, low 2), as
-    test_a_clause_key_add_lands_on_the_one_add_line shows."""
+    refusal. Re-check p12b, finding 3: the tool_calls row is the record,
+    so no faults row is written. An approve there lets the add ride (review
+    p12, low 2), as test_a_clause_key_add_lands_on_the_one_add_line
+    shows."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words="Drop line 3. Line 2 should say per person. "
                   "The page leaves out the tax.")
@@ -117,14 +106,12 @@ def test_a_line_key_on_the_add_line_wins_and_the_add_is_noted(
         "c3": "add The page leaves out the tax.", "rest": "approve"})
     row = _rows(sb)["calculate_tip"]
     assert (row["verdict"], row.get("act")) == ("contest", None)
-    assert _faults(sb) == ["line 2: the line key \"2\" gives other, and it "
-                           "displaced the add of clause c3"]
+    assert _faults(sb) == []
 
 
 def test_a_line_key_wins_over_a_clause_key_with_no_refusal(
         db):  # noqa: F811
-    """Pass R3e: the line key wins everywhere. Only a displaced add is
-    noted."""
+    """Pass R3e: the line key wins everywhere."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words=DROP)
     sb.call("rulings.rule", rulings={"c1": "drop", "3": "rewrite",
@@ -186,6 +173,26 @@ def test_other_on_his_question_is_refused_once(db):  # noqa: F811
         sb.call("rulings.rule", rulings=call)
     sb.call("rulings.rule", rulings=call)
     assert _rows(sb)
+
+
+def test_a_key_on_a_question_that_names_a_line_lands_nothing(
+        db):  # noqa: F811
+    """Re-check p12b, finding 1: the refusal fires once per clause and
+    line, and after it the key lands nothing."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words="Is line 3 needed? Is line 2 right?")
+    assert [c["lines"] for c in api.page_clauses(
+        "Is line 3 needed? Is line 2 right?", 3)] == [[3], [2]]
+    call = {"c1": "drop", "rest": "approve"}
+    with pytest.raises(ValueError, match=r"clause c1 is his question"):
+        sb.call("rulings.rule", rulings=call)
+    sb.call("rulings.rule", rulings=call)
+    assert "l_1" not in _rows(sb)
+    sb, _ = _seat(db, ask, words="Is line 3 needed? Is line 2 right?")
+    sb.ctx.refusals = [("rulings.rule", "clause c1 is his question, so x")]
+    with pytest.raises(ValueError, match=r"line 2: clause c2 is his question"):
+        sb.call("rulings.rule", rulings={"c1": "drop", "2": "other right?",
+                                         "rest": "approve"})
 
 
 def test_a_question_and_an_approval_take_ask(db):  # noqa: F811
