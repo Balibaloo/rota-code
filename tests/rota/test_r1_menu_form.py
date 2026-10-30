@@ -99,39 +99,38 @@ def test_two_keys_that_land_one_read_back_row_agree(db):  # noqa: F811
         "contest", "drop")
 
 
-def test_a_line_key_on_the_add_line_keeps_or_conflicts_with_the_add(
+def _faults(sb) -> list[str]:
+    return [w[2]["text"] for w in sb.ctx.writes if w[0] == "faults"]
+
+
+def test_a_line_key_on_the_add_line_wins_and_the_add_is_noted(
         db):  # noqa: F811
-    """Review p12, low 2: an option that lands a row on the add line is
-    refused once, then wins. An approve there lets the add ride, as
+    """Pass R3e: an option that lands a row on the add line wins with no
+    refusal, and the landing notes the displaced add. An approve there lets
+    the add ride (review p12, low 2), as
     test_a_clause_key_add_lands_on_the_one_add_line shows."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words="Drop line 3. Line 2 should say per person. "
                   "The page leaves out the tax.")
-    call = {"3": "drop", "2": "other per person",
-            "c3": "add The page leaves out the tax.", "rest": "approve"}
-    with pytest.raises(ValueError, match=r"line 2: two keys give line 2 two "
-                       r"options. Clause c3 gives add, and the line key \"2\" "
-                       r"gives other"):
-        sb.call("rulings.rule", rulings=call)
-    sb.call("rulings.rule", rulings=call)
+    sb.call("rulings.rule", rulings={
+        "3": "drop", "2": "other per person",
+        "c3": "add The page leaves out the tax.", "rest": "approve"})
     row = _rows(sb)["calculate_tip"]
     assert (row["verdict"], row.get("act")) == ("contest", None)
+    assert _faults(sb) == ["line 2: the line key \"2\" gives other, and it "
+                           "displaced the add of clause c3"]
 
 
-def test_a_clause_key_and_a_line_key_that_differ_are_refused_once(
+def test_a_line_key_wins_over_a_clause_key_with_no_refusal(
         db):  # noqa: F811
-    """Pass R3c: the refusal fires once per line, whatever the next call
-    holds, and then the line key wins."""
+    """Pass R3e: the line key wins everywhere. Only a displaced add is
+    noted."""
     ask = _page(db)
     sb, _ = _seat(db, ask, words=DROP)
-    with pytest.raises(ValueError, match=r"line 3: two keys give line 3 two "
-                       r"options. Clause c1 gives drop, and the line key "
-                       r"\"3\" gives rewrite"):
-        sb.call("rulings.rule", rulings={"c1": "drop", "3": "rewrite",
-                                         "rest": "approve"})
-    sb.call("rulings.rule", rulings={"c1": "rewrite", "3": "drop",
+    sb.call("rulings.rule", rulings={"c1": "drop", "3": "rewrite",
                                      "rest": "approve"})
-    assert _rows(sb)["l_1"]["act"] == "drop"
+    assert _rows(sb)["l_1"]["act"] == "rewrite"
+    assert _faults(sb) == []
 
 
 @pytest.mark.parametrize("option", ["none", "held"])

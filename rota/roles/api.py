@@ -13806,18 +13806,13 @@ def _key_name(value) -> str | None:
                         else value)[0]
 
 
-def _key_conflict(n: int, k: int, mine: str, theirs: str,
-                  refused: frozenset) -> None:
-    """Refuse clause c`k` and the line key on line `n` once per line.
+def _displaced_text(n: int, k: int, mine: str, theirs: str) -> str:
+    """The landing's note of a clause add that a line key displaced.
 
-    The seat changes its call each turn, so a text key let the refusal fire
-    33 times on one case in R3b (pass R3c). The line is the key, and after
-    the one refusal the line key wins."""
-    once = f"line {n}: two keys give line {n} two options."
-    if any(once in t for t in refused):
-        return
-    raise ValueError(f"{once} Clause c{k} gives {mine}, and the line key "
-                     f"\"{n}\" gives {theirs}. Give line {n} one option")
+    The line key wins with no refusal (pass R3e). The refusal cost turns,
+    and in R3d n173-m34-m35 ran out of output budget after two of them."""
+    return (f"line {n}: the line key \"{n}\" gives {theirs}, and it displaced "
+            f"the {mine} of clause c{k}")
 
 
 def menu_form_text(clauses: int) -> str:
@@ -13846,8 +13841,13 @@ def _menu_page(ctx: Ctx, ask, rulings: dict, his: str, order: list,
                  if not str(row["ref"]).startswith(READING_REF)}
     refused = frozenset(why for fn, why, *_ in (
         getattr(ctx, "refusals", None) or []) if fn == "rulings.rule")
+    displaced: list[str] = []
     per_item, shape_of = menu_ruling(ctx.conn, rulings, his, order, page_text,
-                                     gone, read_keys, refused)
+                                     gone, read_keys, refused, displaced)
+    # A displaced add goes to the landing's fault rows, the note this
+    # landing already keeps, so a reader sees it (pass R3e).
+    for text in displaced:
+        _stage_fault(ctx, "rulings.rule", text, "fault")
     rid = _ruling_id(ctx, ask["id"])
     words = (his or "").strip()
     rows = _ruled_rows(ctx, rid, order,
@@ -14045,8 +14045,12 @@ def _menu_lines(given, clause: int, size: int) -> list[int]:
 
 def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 gone: set, read_keys: dict,
-                refused: frozenset = frozenset()) -> tuple[dict, dict]:
+                refused: frozenset = frozenset(),
+                displaced: list | None = None) -> tuple[dict, dict]:
     """The verdict and the row shape of each ref that a menu call rules.
+
+    `displaced`, when given, receives one note per clause add that a line
+    key on the same line displaced.
 
     A key is a page line, as "7", a clause, as "c2", or "rest". A line key
     rules that line alone (frame 345, pass R1b: 30 of 101 refusals of R1
@@ -14149,7 +14153,9 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                         == _OPTION_ROWS.get(_OPTION_SAME[group].get(
                             theirs, theirs))):
                     continue
-                _key_conflict(n, k, mine, theirs, refused)
+                # The line key wins (pass R3e). A displaced add is noted.
+                if mine == "add" and displaced is not None:
+                    displaced.append(_displaced_text(n, k, mine, theirs))
             lines = [n for n in lines if n not in by_line]
             if lines:
                 choices.append((f"clause c{k}", option, lines,
@@ -14165,11 +14171,13 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # Code finds the line: the one line whose menu holds add. The
             # row is the row that the line key "1": "add <quote>" lands.
             # A line key there that lands no row of its own lets the add
-            # ride. One that lands a row is a conflict, and after the one
-            # refusal the line key wins (review p12, low 2).
+            # ride (review p12, low 2). One that lands a row wins, and the
+            # landing notes the displaced add (pass R3e).
             theirs = _key_name(by_line.get(adds[0]))
             if theirs is not None and theirs not in _RIDES_WITH_ADD:
-                _key_conflict(adds[0], k, name, theirs, refused)
+                if displaced is not None:
+                    displaced.append(
+                        _displaced_text(adds[0], k, name, theirs))
                 continue
             choices.append((f"clause c{k}", value, [adds[0]],
                             {adds[0]: c["words"]}, []))
