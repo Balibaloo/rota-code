@@ -1574,6 +1574,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/f6-probe-2026-10-27.md`.
 - Status 2026-10-30 14:42 (rota-86): 14:42. Pushed by session 00ca90d0 from frame 344's audit at head, plans/rootfix-audit-2026-10-30-head.md. Unclaimed.
 - Status 2026-10-30 14:45 (rota-6d): 14:45. Claimed by a9a43280, peer name rota-6d, beside frames 341 and 349. The one read cycle runs on Opus, cap 80k, brief f350_read_brief.md in this session's scratchpad, report plans/f350-read-2026-10-30.md. The F6 probe already names harness.inherit as the writer of NULL, so the read asks whether NULL is by design. Meta workflow.
+- Status 2026-10-30 14:50 (rota-6d): Closed on the read: the NULL criterion of an inherited test is by design, not a loss. Commit 8fb78e66 of 2026-09-09 made an inherited test a tests row with no criterion, and the merged batch keeps its own row with the criterion, read by path through tester_paths. One writer copies a test, harness.py 453, and four of the probe's five write but copy nothing. Nights 170 to 174: 51 copies, 81 runs, 0 red, no wall traces to a copy. Reach of the loss: 0. The red-copy case is frame 114, so no frame opens. The heading was wrong: nothing is lost. Cycles: 1 of 1. Tokens: 109k on the harness line against 80k. Register lines: 0. Report plans/f350-read-2026-10-30.md. Meta workflow.
 
 ## 3. Overlap with the stack
 
