@@ -70,14 +70,15 @@ def _page6(db, earlier):
     return ask
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. page_clauses reads his reply only, so no clause names line 5 from m76 in the earlier exchange (page_clauses, menu_ruling)")
 def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     """The seam design, pass 2: the row on line 5 records m76 as the source
     of its words, and the row on line 6 keeps the reply m78."""
     ask = _page6(db, [M76])
     sb, _ = _landing(db, ask, M78)
-    # The menu form (frame 345, R6).
-    sb.call("rulings.rule", rulings={"5": "rewrite", "rest": "approve"})
+    # The menu form (frame 345, R6). Frame 347, pass 3: m76 names line 5,
+    # and the reply m78 names line 6, so the call keys both.
+    sb.call("rulings.rule", rulings={"5": "rewrite", "6": "approve",
+                                     "rest": "approve"})
     rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
     five = rows["challenge_items_clear_returns_status"]
     assert (five["line"], five["words_from"]) == (5, "m76")
@@ -85,9 +86,9 @@ def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
     assert rows["l_c5331791cf"]["words_from"] == sb.ctx.trigger
 
 
-@pytest.mark.skip(reason="frame 345, R6b: needs a code change. page_clauses reads his reply only, so no clause names line 5 from m76 in the earlier exchange (page_clauses, menu_ruling)")
 def test_s193s_contest_of_line_5_lands_on_m76_in_the_exchange(db):
     ask = _page6(db, [M76])
     sb, _ = _landing(db, ask, M78)
-    out = sb.call("rulings.rule", rulings={"5": "rewrite", "rest": "approve"})
+    out = sb.call("rulings.rule", rulings={"5": "rewrite", "6": "approve",
+                                           "rest": "approve"})
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"

@@ -66,7 +66,6 @@ def test_the_landing_wake_names_the_line_whose_row_is_gone(tmp_path):
     assert "l_bg2" in landing["gone_lines"]["1"]
 
 
-@pytest.mark.skip(reason="frame 345, R6: needs a code change. The menu asks an option of every line his words name, a line whose row is gone included (menu_ruling)")
 def test_a_line_whose_row_is_gone_takes_no_ruling(tmp_path):
     """The every-line check skips a line whose row no table holds. The old
     door refused every ruling, and only an ask to him landed."""
