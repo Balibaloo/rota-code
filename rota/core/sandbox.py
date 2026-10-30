@@ -2353,14 +2353,18 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
             f"the base run at this batch's start found {', '.join(red)} red "
             f"too. The base run said: {quote}. Your diff did not break "
             f"{'it' if len(red) == 1 else 'them'}, and the fix is not yours")
-        if _escalation_admitted(ctx, red):
-            said = f"Send msg.escalate_architect(refs={red!r})"
-            if offer:
-                api._offer(ctx, said, "msg.escalate_architect", {"refs": red})
-            parts.append(said)
-        else:
-            parts.append("You escalated these refs already. End the session "
-                         "with no call")
+        # Frame 135's law: developer/answer meets this text on a challenge
+        # and lacks the escalation, so it gets the fact alone.
+        if api._holds(ctx, "msg.escalate_architect"):
+            if _escalation_admitted(ctx, red):
+                said = f"Send msg.escalate_architect(refs={red!r})"
+                if offer:
+                    api._offer(ctx, said, "msg.escalate_architect",
+                               {"refs": red})
+                parts.append(said)
+            else:
+                parts.append("You escalated these refs already. End the "
+                             "session with no call")
     if passed:
         parts.append(f"{', '.join(passed)} passed before this batch. Read "
                      f"code.diff and restore what your change broke")
@@ -4071,17 +4075,23 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # third question has nothing left to change (ruled: Roman,
                 # 2026-10-01: the Critic's doubt about a criterion goes to
                 # the Terminologist, the writer of the criteria).
+                door = ""
                 if ctx.role == "tester":
-                    door = ("tests.triage(criterion_id=..., verdict='cannot') "
-                            "with the reason: the criterion goes to repair")
+                    # Frame 135's law: tester/answer and challenge hold the
+                    # questions and lack tests.triage, so they get the fact.
+                    if api._holds(ctx, "tests.triage"):
+                        door = ("tests.triage(criterion_id=..., "
+                                "verdict='cannot') with the reason: the "
+                                "criterion goes to repair")
                 elif ctx.role == "critic":
                     door = "the verdict stands as written: end the session"
                 else:
                     door = "schedule.unresolved"
-                raise ValueError(
-                    f"{recipient} has answered {answered} questions of yours "
-                    f"on these rows and they did not settle it. A third "
-                    f"question is the same question. The exit is {door}")
+                said = (f"{recipient} has answered {answered} questions of "
+                        f"yours on these rows and they did not settle it. A "
+                        f"third question is the same question")
+                raise ValueError(f"{said}. The exit is {door}" if door
+                                 else said)
 
         # law 7: any touch after the first must reframe, never repeat the question
         # The principal said these words before, and a Liaison message

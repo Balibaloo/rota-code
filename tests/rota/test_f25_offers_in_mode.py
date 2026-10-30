@@ -328,29 +328,14 @@ from . import _refusal_calls as lint  # noqa: E402
 
 # The named calls that break frame 135's law today, by the static reading.
 # One line each: the door, the call, and the modes that meet the text and
-# do not hold the call. The lint reads the three guard forms of
+# do not hold the call. Frame 349 guarded each text with `api._holds`, so
+# the table is empty. The lint reads the three guard forms of
 # `_refusal_calls`. Its limits: it does not read a guard inside a helper,
-# for example `_escalation_admitted`, or a flag that the code arms outside
-# `sandbox.build`. It reads `if "x.y" not in held:` around a text as a
-# guard, which is the wrong polarity. The two cases of `_stray_act_fields` name
-# `rulings.rule`, which their mode holds, so the lint passes them, and the
-# follower caught their arguments.
-KNOWN_UNHELD = {
-    "glossary_amend:surveys.attest":
-        "terminologist/answer and deliver hold glossary.amend, not surveys.attest",
-    "surveys_attest:problem.assert":
-        "seven survey modes hold surveys.attest, not problem.assert",
-    "tests_encode:schedule.reask":
-        "tester/challenge and tests_missing hold tests.encode, not schedule.reask",
-    "tests_encode:ledger.log":
-        "tester/challenge holds tests.encode, not ledger.log",
-    "ledger_log:surveys.attest":
-        "22 modes hold ledger.log, not surveys.attest",
-    "_revert_refusal:msg.challenge_tester":
-        "5 developer modes hold code.commit, not msg.challenge_tester",
-    "_revert_refusal:msg.escalate_architect":
-        "4 developer modes hold code.commit, not msg.escalate_architect",
-}
+# or a flag that the code arms outside `sandbox.build`. It reads
+# `if "x.y" not in held:` around a text as a guard, which is the wrong
+# polarity. It checks only the name of a text that a shared door reaches,
+# so the follower tests below hold those texts.
+KNOWN_UNHELD: dict[str, str] = {}
 
 
 def _keys() -> list[str]:
@@ -368,6 +353,119 @@ def test_a_refusal_names_a_call_its_modes_hold(key):
 
 def test_the_table_names_only_keys_the_lint_reads():
     assert set(KNOWN_UNHELD) <= set(_keys())
+
+
+# --- the texts that a shared door reaches ----------------------------------
+# The lint checks only the name of such a text (frame 349's read, places 7
+# to 9). So each test builds the narrowed mode, raises the text, and holds
+# its calls and its record to the mode.
+
+def _narrowed(role: str, db, mode: str, **kw):
+    from rota.roles import prompts
+    return sandbox.build(role, db, mode=mode,
+                         allow=prompts.mode_tools(role, mode), **kw)
+
+
+def _unheld(sb, dotted: str, said: str) -> list[str]:
+    """The calls that the text or its record names and the mode lacks."""
+    _mode, held = sandbox.held_calls(sb)
+    named = {c for c in re.findall(r"\b[a-z_]+\.[a-z_]+\b", said)
+             if lint.exists(c)}
+    recs = sandbox.follow(sb, dotted, {}, ValueError(said),
+                          list(getattr(sb.ctx, "offers", None) or []))
+    return sorted(named - held) + [c for r in recs for c in r["not_in_mode"]]
+
+
+def _red_at_base(monkeypatch):
+    from rota.core import harness
+    monkeypatch.setattr(harness, "base_run", lambda conn, batch: {
+        "inh_1": {"result": "fail", "output": "E   assert 1 == 2"}})
+    # The repeat doors admit, so only the mode can drop the call.
+    monkeypatch.setattr(sandbox, "_escalation_admitted", lambda ctx, refs: True)
+
+
+def test_the_base_run_fact_names_no_escalation_in_answer(db, monkeypatch):
+    """Place 7: a challenge in developer/answer meets the base run's fact,
+    and answer lacks `msg.escalate_architect`. The text gives the fact."""
+    _red_at_base(monkeypatch)
+    sb = _narrowed("developer", db, "answer", batch_id="b1")
+    sb.ctx.offers = []
+    said = sandbox.project_tests_fact(sb.ctx, ["inh_1"]) or ""
+    assert "the fix is not yours" in said, said
+    assert "msg.escalate_architect" not in said, said
+    assert _unheld(sb, "msg.challenge_tester", said) == []
+
+
+def test_the_base_run_fact_names_the_escalation_where_held(db, monkeypatch):
+    _red_at_base(monkeypatch)
+    sb = _narrowed("developer", db, "tests_failing", batch_id="b1")
+    sb.ctx.offers = []
+    said = sandbox.project_tests_fact(sb.ctx, ["inh_1"]) or ""
+    assert "Send msg.escalate_architect(refs=['inh_1'])" in said, said
+    assert [o.op for o in sb.ctx.offers] == ["msg.escalate_architect"]
+
+
+def _two_answers(db):
+    # The rows of test_desk_guards' fixture that the refs door resolves.
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','closing keeps invoices','in_scope',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk1','i1','close an account')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','closing an account leaves its invoices in place')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+               "('b1','i1','running','abc123')")
+    m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+         "body_refs, body_text, cause_id, seq, status) "
+         "VALUES (?,?,?,?,?,?,?,?,?,?)")
+    db.execute(m, ("q1", "t", "tester", "terminologist", "question", '["c1"]',
+                   "what?", None, 1, "answered"))
+    db.execute(m, ("a1", "t", "terminologist", "tester", "answer", '["g1"]',
+                   None, "q1", 2, "answered"))
+    db.execute(m, ("q2", "t", "tester", "terminologist", "question",
+                   '["c1", "g1"]', "and?", None, 3, "answered"))
+    db.execute(m, ("a2", "t", "terminologist", "tester", "answer", '["g1"]',
+                   None, "q2", 4, "answered"))
+    db.commit()
+
+
+def test_a_third_question_in_answer_names_no_triage(db):
+    """Place 8: tester/answer holds the questions and lacks `tests.triage`,
+    so the third question meets the fact alone."""
+    _two_answers(db)
+    sb = _narrowed("tester", db, "answer", batch_id="b1")
+    sb.ctx.offers = []
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.question_terminologist", refs=["c1"],
+                question="but really?")
+    said = str(exc.value)
+    assert "answered 2 questions of yours" in said, said
+    assert "tests.triage" not in said, said
+    assert _unheld(sb, "msg.question_terminologist", said) == []
+
+
+def test_a_third_question_in_tests_missing_names_the_triage(db):
+    _two_answers(db)
+    sb = _narrowed("tester", db, "tests_missing", batch_id="b1")
+    with pytest.raises(ValueError, match="answered 2 questions.*tests.triage"):
+        sb.call("msg.question_terminologist", refs=["c1"],
+                question="but really?")
+
+
+def test_the_decision_step_is_not_met_where_the_challenge_is_not_held(db):
+    """Place 9: `_escalation_or_step` offers the challenge on the step toward
+    the code. Only a `msg.challenge_tester` send and the two admitted asks
+    reach it. developer/finding_violated and touch_mistaken lack that call,
+    so the runtime refuses it before any door, and the revert door asks
+    `_holds` first."""
+    for mode in ("finding_violated", "touch_mistaken"):
+        sb = _narrowed("developer", db, mode, batch_id="b1")
+        _mode, held = sandbox.held_calls(sb)
+        assert "msg.challenge_tester" not in held, (mode, sorted(held))
+        assert not api._holds(sb.ctx, "msg.challenge_tester"), mode
+        with pytest.raises(sandbox.NotInWorkingSet):
+            sb.call("msg.challenge_tester", refs=["c1", "t1"], quotes=["a", "b"])
 
 
 def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):

@@ -2899,13 +2899,17 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                 or (set(_words_in(term)) and
                     set(_words_in(term)) == set(_words_in(subject))))
         if not same:
-            raise ValueError(_offer(
-                ctx,
-                f"this session is about {subject!r} and nothing else; "
-                f"{term!r} is not that word. Define {subject!r} from the "
-                f"concordance, or `surveys.attest(outcome='none_found')` if "
-                f"this project means nothing of its own by it.",
-                "surveys.attest", {"outcome": "none_found"}))
+            said = (f"this session is about {subject!r} and nothing else; "
+                    f"{term!r} is not that word. Define {subject!r} from the "
+                    f"concordance")
+            # Frame 135's law: a refusal names only a call the doors admit.
+            if _holds(ctx, "surveys.attest"):
+                raise ValueError(_offer(
+                    ctx,
+                    f"{said}, or `surveys.attest(outcome='none_found')` if "
+                    f"this project means nothing of its own by it.",
+                    "surveys.attest", {"outcome": "none_found"}))
+            raise ValueError(f"{said}.")
         if slug != _slug_of(subject):
             filed_under = subject
             term, slug = subject, _slug_of(subject)
@@ -2993,15 +2997,20 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
         unkinded = False
 
     if slug in _FRAME_WORDS:
-        raise ValueError(_offer(
-            ctx,
-            f"{term!r} is the frame you were woken in, not something this "
-            f"project means by it — every repository would have the same entry, "
-            f"which is the test a definition has to fail. Define what the code "
-            f"calls its own things, and if this area names none, "
-            f"`surveys.attest(outcome='none_found')` is a real answer and often "
-            f"the right one.",
-            "surveys.attest", {"outcome": "none_found"}))
+        said = (f"{term!r} is the frame you were woken in, not something this "
+                f"project means by it — every repository would have the same "
+                f"entry, which is the test a definition has to fail. Define "
+                f"what the code calls its own things")
+        # Frame 135's law: terminologist/answer and deliver hold
+        # glossary.amend and lack surveys.attest.
+        if _holds(ctx, "surveys.attest"):
+            raise ValueError(_offer(
+                ctx,
+                f"{said}, and if this area names none, "
+                f"`surveys.attest(outcome='none_found')` is a real answer and "
+                f"often the right one.",
+                "surveys.attest", {"outcome": "none_found"}))
+        raise ValueError(f"{said}.")
 
     # Only where there is code to have read. The gate was built for survey mode
     # -- "against the words actually read rather than against reading in
@@ -4685,7 +4694,10 @@ def surveys_attest(ctx: Ctx, outcome: str,
         asked = sum(1 for fn, why, *_ in (getattr(ctx, "refusals", None) or [])
                     if fn == "surveys.attest" and "then attest again" in why)
         if not asked:
-            if area == PROGRAM:
+            # Frame 135's law: only vision_keeper/orient meets @program, and
+            # it holds problem.assert. The guard keeps a refusal in another
+            # mode from naming the call.
+            if area == PROGRAM and _holds(ctx, "problem.assert"):
                 raise ValueError(
                     "you have attested `found` and written no items. The account "
                     "is not the record -- each behaviour in it is one call per "
@@ -6402,6 +6414,22 @@ def _wake_mode_set(ctx: Ctx) -> list[str] | None:
 def _wake_mode_tools(ctx: Ctx) -> list[str]:
     """The ops that the wake's prompt mode offers, as the runner reads them."""
     return _wake_mode_set(ctx) or []
+
+
+def _holds(ctx: Ctx, call: str) -> bool:
+    """True when the wake's mode holds `call`, or when the mode has no
+    `.tools` file and the role keeps every op of its graph.
+
+    Frame 135's law: a refusal names only a call the doors admit. A call
+    outside the mode fails before any door, so a text names its call only
+    under `if _holds(ctx, "x.y"):`. The test lint reads that string as a
+    guard (frame 349)."""
+    # A context that no sandbox built has no wake and no mode. No `.tools`
+    # file narrows it, so it holds the call as a role with no mode does.
+    if _ctx_wake(ctx) is None and getattr(ctx, "mode", None) is None:
+        return True
+    held = _wake_mode_set(ctx)
+    return held is None or call in held
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
@@ -10883,10 +10911,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                "msg.question_vision_keeper",
                {"refs": [criterion_id],
                 "question": "what observable behaviour is promised here?"})
-        _offer(ctx, "schedule.reask(what_is_missing='words a test can assert')",
-               "schedule.reask",
-               {"what_is_missing": "words a test can assert"})
-        raise Wall(
+        said = (
             f"that is {criterion_id}'s own sentence written back, so nothing has "
             f"been encoded and a test that reports as coverage would exist. If "
             f"there is nothing you can add to it, the criterion is what is "
@@ -10896,11 +10921,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"be turned into an assertion, "
             f"msg.question_vision_keeper(refs=['{criterion_id}'], "
             f"question='what observable behaviour is promised here?') if no "
-            f"machine could check what it promises. And if you already asked "
-            f"and the answer changed nothing, schedule.reask(what_is_missing="
-            f"'words a test can assert') -- that is what routes the criterion "
-            f"to its writer for repair. Retrying the same sentence is the one "
-            f"move that cannot land")
+            f"machine could check what it promises")
+        # Frame 135's law: tester/challenge and tests_missing hold
+        # tests.encode and lack schedule.reask. The two questions stay.
+        if _holds(ctx, "schedule.reask"):
+            _offer(ctx,
+                   "schedule.reask(what_is_missing='words a test can assert')",
+                   "schedule.reask",
+                   {"what_is_missing": "words a test can assert"})
+            said += (". And if you already asked and the answer changed "
+                     "nothing, schedule.reask(what_is_missing='words a test "
+                     "can assert') -- that is what routes the criterion to its "
+                     "writer for repair")
+        raise Wall(f"{said}. Retrying the same sentence is the one move that "
+                   f"cannot land")
 
     # law 8: a lineage's open assumptions are presented at its gates
     # The first assumptions detector (ruled 2026-08-30: introspection is
@@ -11078,20 +11112,28 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"the test uses what {uses_return} returns, and the criterion "
                 f"{criterion_id} says it prints{_kind()}")
         if says_prints and not says_returns:
-            raise ValueError(_offer(
-                ctx,
-                f"the test uses what {uses_return} returns, and the criterion, "
-                f"its ticket or the principal's words say it prints{_kind()}; nothing "
-                f"says it returns anything. That is an assumption, and it is "
-                f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
-                f"about_table='criteria', assumption=\"the test assumes "
-                f"{uses_return} returns what it prints\", kind='default') -- then "
-                f"send this encode again unchanged. Or assert on what it prints",
-                "ledger.log", {"about_ref": criterion_id, "about_table": "criteria",
-                               "assumption": f"the test assumes {uses_return} "
-                                             f"returns what it prints",
-                               "kind": "default"},
-                then=(AGAIN,)))
+            said = (f"the test uses what {uses_return} returns, and the "
+                    f"criterion, its ticket or the principal's words say it "
+                    f"prints{_kind()}; nothing says it returns anything")
+            # Frame 135's law: tester/challenge holds tests.encode and lacks
+            # ledger.log, so its text keeps the fact and the print route.
+            if _holds(ctx, "ledger.log"):
+                raise ValueError(_offer(
+                    ctx,
+                    f"{said}. That is an assumption, and it is logged where "
+                    f"it is made: ledger.log(about_ref={criterion_id!r}, "
+                    f"about_table='criteria', assumption=\"the test assumes "
+                    f"{uses_return} returns what it prints\", kind='default') "
+                    f"-- then send this encode again unchanged. Or assert on "
+                    f"what it prints",
+                    "ledger.log", {"about_ref": criterion_id,
+                                   "about_table": "criteria",
+                                   "assumption": f"the test assumes "
+                                                 f"{uses_return} returns what "
+                                                 f"it prints",
+                                   "kind": "default"},
+                    then=(AGAIN,)))
+            raise ValueError(f"{said}. Assert on what it prints")
 
     invented = _invented_literals(ctx, criterion_id, tree)
     invented_note = None
@@ -15404,14 +15446,20 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         frame = {"the", "readme", "says", "code", "shows", "that", "documentation", "docs"}
         a, b = (set(_prose_words(h)) - frame for h in halves)
         if a and b and len(a & b) >= 0.8 * len(a | b):
-            raise ValueError(
-                "the two halves of this assumption say the same words: what "
-                "the README says and what the code shows are the same "
-                "sentence. A disagreement names what differs; a README that "
-                "matches the code is nothing to log. Log only where the two "
-                "sides differ, in the words each source uses. If every claim "
-                "agrees, that is the answer: surveys.attest(outcome='none_found', "
-                "citations=[the file]), and no ledger row")
+            said = ("the two halves of this assumption say the same words: "
+                    "what the README says and what the code shows are the "
+                    "same sentence. A disagreement names what differs; a "
+                    "README that matches the code is nothing to log. Log only "
+                    "where the two sides differ, in the words each source uses")
+            # Frame 135's law: 22 modes hold ledger.log and lack
+            # surveys.attest, so only a survey mode hears the attest.
+            if _holds(ctx, "surveys.attest"):
+                raise ValueError(
+                    f"{said}. If every claim agrees, that is the answer: "
+                    "surveys.attest(outcome='none_found', citations=[the "
+                    "file]), and no ledger row")
+            raise ValueError(f"{said}. If every claim agrees, write no "
+                             "ledger row")
 
     # A conflict goes to the owner of the row, never to a page first
     # (ruled: Roman, 2026-10-11 15:00, the two builders story). The door
@@ -23119,7 +23167,10 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
             if row is None:
                 continue
             refs, quotes = [row["crit"], t], [row["text"] or "", row["body"] or ""]
-            if _sandbox._challenge_admitted(ctx, refs, quotes):
+            # `_challenge_admitted` reads the doors and not the mode. Five
+            # developer modes hold code.commit and lack the challenge.
+            if (_holds(ctx, "msg.challenge_tester")
+                    and _sandbox._challenge_admitted(ctx, refs, quotes)):
                 # Frame 200, pass 5, fix 2: reason= is a slot the seat fills.
                 args, slot = {"refs": refs, "quotes": quotes}, ""
                 if _sandbox._takes_reason(ctx.role, "tester", "challenge"):
@@ -23134,7 +23185,10 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
     crits = sorted({r["criterion_id"] for r in ctx.conn.execute(
         f"SELECT criterion_id FROM tests WHERE id IN ({','.join('?' * len(red))})", red)
         if r["criterion_id"]})
-    if crits and _sandbox._escalation_admitted(ctx, crits):
+    # `_escalation_admitted` reads the repeat doors and not the mode. Four
+    # developer modes hold code.commit and lack the escalation.
+    if (crits and _holds(ctx, "msg.escalate_architect")
+            and _sandbox._escalation_admitted(ctx, crits)):
         said.append(_offer(ctx, f"To dispute the criterion, send "
                                 f"msg.escalate_architect(refs={crits!r}).",
                            "msg.escalate_architect", {"refs": crits}))
