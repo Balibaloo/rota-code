@@ -2031,6 +2031,37 @@ def disputed_paths(conn: sqlite3.Connection, ref: str,
     return [p for p in paths if granted(conn, ref, "exclude", p)]
 
 
+# His words go under a range key only when they name more lines than this.
+# One entry per line keeps the link from each line to its words. R4 keyed
+# three lines of n172-m92-m93 as "1, 3 to 4", and the case fell from 3 of 3
+# to 1 of 3 (pass R4b). n174-m47-m48 needs the range: one clause named 60.
+_WORDS_RANGE_OVER = 8
+
+
+def _words_by_range(matched: dict[int, str | None]) -> dict[str, str]:
+    """His words for each line, in line order. Words that name more than
+    `_WORDS_RANGE_OVER` lines appear once, under their range, as "8 to 67"
+    or "1, 3 to 5". The lines with no words read "no words"."""
+    groups: dict[str, list[int]] = {}
+    for n, w in sorted(matched.items()):
+        groups.setdefault(w or "no words", []).append(n)
+    entries: list[tuple[int, str, str]] = []
+    for words, lines in groups.items():
+        if len(lines) <= _WORDS_RANGE_OVER:
+            entries += [(n, str(n), words) for n in lines]
+            continue
+        runs: list[list[int]] = []
+        for n in lines:
+            if runs and n == runs[-1][-1] + 1:
+                runs[-1].append(n)
+            else:
+                runs.append([n])
+        key = ", ".join(str(r[0]) if len(r) == 1 else f"{r[0]} to {r[-1]}"
+                        for r in runs)
+        entries.append((lines[0], key, words))
+    return {key: words for _, key, words in sorted(entries)}
+
+
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     The content of the triggering message, resolved one hop.
@@ -2451,24 +2482,27 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
-                # Each line with the words of his that name it, verbatim, or
-                # "no words". Code binds the words to the line, and the seat
-                # reads what they rule. The fix belongs where the seat gets
-                # its information (ruled: Roman, 2026-10-26; frame 345, pass
-                # 2). `rulings.rule` copies the same words into an act.
                 from ..roles.principal import said as his_reply
 
-                matched = api.line_words(his_reply(conn, row["id"]) or "",
-                                         len(order))
-                if matched:
-                    landing["his_words"] = {
-                        str(n): w or "no words" for n, w in matched.items()}
                 # The menu form (frame 345, pass R1): the clauses of his
                 # reply with the lines that each names, and per row kind the
                 # options that it takes. `rulings.rule` reads the same two,
                 # so a clause number names the same words in both places.
                 from ..roles.principal import SHIFT_ASK
 
+                # Each line with the words of his that name it, verbatim, or
+                # "no words". Code binds the words to the line, and the seat
+                # reads what they rule. The fix belongs where the seat gets
+                # its information (ruled: Roman, 2026-10-26; frame 345, pass
+                # 2). `rulings.rule` copies the same words into an act.
+                # The order is the clauses, his words, then the menus. Once
+                # per line and first, his words on lines 8 to 67 cut a 19,678
+                # character wake to 12,838 before the clauses (n174-m47-m48,
+                # pass R4). After the menus, his words lost n172-m92-m93 its
+                # exclude, 2 runs of 3 (pass R4b). The words before the menus
+                # are the order of head (ruled: the session, pass R4c).
+                matched = api.line_words(his_reply(conn, row["id"]) or "",
+                                         len(order))
                 if order and not clarify["id"].startswith(SHIFT_ASK):
                     # A clause with no lines carries its options (pass R3).
                     menus, per_line = api.page_menus(conn, order, page)
@@ -2476,7 +2510,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                         f"c{k}": c for k, c in enumerate(api.page_clauses(
                             his_reply(conn, row["id"]) or "", len(order),
                             per_line), 1)}
+                    if matched:
+                        landing["his_words"] = _words_by_range(matched)
                     landing["menus"] = menus
+                elif matched:
+                    landing["his_words"] = _words_by_range(matched)
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a

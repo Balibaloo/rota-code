@@ -14105,8 +14105,10 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         hits += [f"line {n}: clause c{k} is his question" for k in (
             quoted_ask or ([k for k in asks if n in clauses[k - 1]["lines"]]
                            if n in ask_lines else []))]
+    # The exact text is the key. A substring let "line 3: clause c1 is his
+    # question" mute "clause c1 is his question" (review p12c, low 2).
     for once in hits:
-        if not any(once in t for t in refused):
+        if f"{once}, so {ASK_NOT_OPTION}" not in refused:
             raise ValueError(f"{once}, so {ASK_NOT_OPTION}")
     for n in ask_lines & set(by_line):
         del by_line[n]
@@ -14240,7 +14242,11 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             if not fits:
                 raise ValueError(
                     f"{label}: {str(value)!r} is not an option of line {n}. "
-                    f"Line {n}, kind {kind}, takes {'; '.join(options)}")
+                    f"Line {n}, kind {kind}, takes {'; '.join(options)}. "
+                    # The refusal listed options only, and n174-m53-m58
+                    # never reached the ask it expects (group D, pass R4).
+                    f"When no option holds his words, call "
+                    f"rulings.rule(ask=...) with no rulings.")
             verdict, act, target_kind = _OPTION_ROWS[opt]
             # A clause's add lands approve with the act on its line. A line
             # key approve on that line says the same verdict, so it keeps
