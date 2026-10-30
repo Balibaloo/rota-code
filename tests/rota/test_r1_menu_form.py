@@ -189,10 +189,18 @@ def test_a_key_on_a_question_that_names_a_line_lands_nothing(
     sb.call("rulings.rule", rulings=call)
     assert "l_1" not in _rows(sb)
     sb, _ = _seat(db, ask, words="Is line 3 needed? Is line 2 right?")
-    sb.ctx.refusals = [("rulings.rule", "clause c1 is his question, so x")]
+    sb.ctx.refusals = [("rulings.rule", "clause c1 is his question, so "
+                        + api.ASK_NOT_OPTION)]
     with pytest.raises(ValueError, match=r"line 2: clause c2 is his question"):
         sb.call("rulings.rule", rulings={"c1": "drop", "2": "other right?",
                                          "rest": "approve"})
+    # Review p12c, low 2: the once-check reads the exact text, so a line's
+    # refusal does not mute the clause's own.
+    sb, _ = _seat(db, ask, words="Is line 3 needed? Is line 2 right?")
+    sb.ctx.refusals = [("rulings.rule", "line 3: clause c1 is his question, "
+                        "so " + api.ASK_NOT_OPTION)]
+    with pytest.raises(ValueError, match=r"^clause c1 is his question"):
+        sb.call("rulings.rule", rulings={"c1": "drop", "rest": "approve"})
 
 
 def test_a_question_and_an_approval_take_ask(db):  # noqa: F811
@@ -268,7 +276,9 @@ def test_an_option_off_the_menu_is_refused_with_the_lines_menu(db):  # noqa: F81
     sb, _ = _seat(db, ask, words=DROP)
     with pytest.raises(ValueError, match=r"line 3: 'misread' is not an "
                        r"option of line 3. Line 3, kind other, takes "
-                       r"approve; drop; rewrite; other <quote>"):
+                       r"approve; drop; rewrite; other <quote>\. When no "
+                       r"option holds his words, call rulings\.rule\(ask=\.\.\.\) "
+                       r"with no rulings\.$"):
         sb.call("rulings.rule", rulings={"3": "misread", "rest": "approve"})
     assert not [w for w in sb.ctx.writes if w[0] == "rulings"]
 

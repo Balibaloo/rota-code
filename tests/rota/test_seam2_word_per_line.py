@@ -10,6 +10,7 @@ which words name a line, never what they rule.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -132,9 +133,31 @@ def test_the_landing_block_shows_his_words_beside_each_line(db):  # noqa: F811
     wake = Wake(role="liaison", kind="message", message_id=reply,
                 detail="converse")
     landing = resolve_inbound(db, wake)["landing"]
+    # Pass R4: his words once each, keyed by their line range.
     assert landing["his_words"] == {
-        "1": "The rest is fine.", "2": "The rest is fine.",
+        "1 to 2": "The rest is fine.",
         "3": "Drop line 3, because nobody types the percentage."}
+
+
+def test_the_clauses_and_menus_come_before_his_words_once_per_range(
+        db):  # noqa: F811
+    """Pass R4, group E: n174-m47-m48 gave one clause lines 8 to 67, and
+    his words once per line cut the wake before the clauses and menus."""
+    from rota.core.runner import _words_by_range
+
+    clause = "Lines 8 to 67 are a long repeated list, so please drop them."
+    sixty = {n: (clause if 8 <= n <= 67 else None) for n in range(1, 69)}
+    got = _words_by_range(sixty)
+    assert got == {"1 to 7, 68": "no words", "8 to 67": clause}
+    assert json.dumps(got).count(clause) == 1
+    ask = _page(db)
+    _sb, reply = _seat(db, ask, words=DROP)
+    landing = resolve_inbound(db, Wake(
+        role="liaison", kind="message", message_id=reply,
+        detail="converse"))["landing"]
+    keys = list(landing)
+    assert keys.index("clauses") < keys.index("menus") < keys.index(
+        "his_words")
 
 
 # Pass 2b: the review p3 of 27291602 (`plans/f345-review-p3.md`).

@@ -2031,6 +2031,26 @@ def disputed_paths(conn: sqlite3.Connection, ref: str,
     return [p for p in paths if granted(conn, ref, "exclude", p)]
 
 
+def _words_by_range(matched: dict[int, str | None]) -> dict[str, str]:
+    """His words once each, keyed by the lines they name, as "8 to 67" or
+    "1, 3 to 5". The lines with no words share the key of "no words"."""
+    groups: dict[str, list[int]] = {}
+    for n, w in sorted(matched.items()):
+        groups.setdefault(w or "no words", []).append(n)
+    out: dict[str, str] = {}
+    for words, lines in groups.items():
+        runs: list[list[int]] = []
+        for n in lines:
+            if runs and n == runs[-1][-1] + 1:
+                runs[-1].append(n)
+            else:
+                runs.append([n])
+        key = ", ".join(str(r[0]) if len(r) == 1 else f"{r[0]} to {r[-1]}"
+                        for r in runs)
+        out[key] = words
+    return out
+
+
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     The content of the triggering message, resolved one hop.
@@ -2451,18 +2471,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
-                # Each line with the words of his that name it, verbatim, or
-                # "no words". Code binds the words to the line, and the seat
-                # reads what they rule. The fix belongs where the seat gets
-                # its information (ruled: Roman, 2026-10-26; frame 345, pass
-                # 2). `rulings.rule` copies the same words into an act.
                 from ..roles.principal import said as his_reply
 
-                matched = api.line_words(his_reply(conn, row["id"]) or "",
-                                         len(order))
-                if matched:
-                    landing["his_words"] = {
-                        str(n): w or "no words" for n, w in matched.items()}
                 # The menu form (frame 345, pass R1): the clauses of his
                 # reply with the lines that each names, and per row kind the
                 # options that it takes. `rulings.rule` reads the same two,
@@ -2477,6 +2487,19 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                             his_reply(conn, row["id"]) or "", len(order),
                             per_line), 1)}
                     landing["menus"] = menus
+                # Each line with the words of his that name it, verbatim, or
+                # "no words". Code binds the words to the line, and the seat
+                # reads what they rule. The fix belongs where the seat gets
+                # its information (ruled: Roman, 2026-10-26; frame 345, pass
+                # 2). `rulings.rule` copies the same words into an act.
+                # The words come after the clauses and the menus, once per
+                # clause under its line range. Once per line, a clause on
+                # lines 8 to 67 cut a 19,678 character wake to 12,838 before
+                # the clauses (n174-m47-m48, pass R4).
+                matched = api.line_words(his_reply(conn, row["id"]) or "",
+                                         len(order))
+                if matched:
+                    landing["his_words"] = _words_by_range(matched)
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a
