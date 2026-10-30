@@ -126,3 +126,23 @@ def test_an_answer_to_a_second_page_of_the_thread_names_no_line(db):
     db.commit()
     sb, _ = _landing(db, ask, M78)
     assert _earlier_answers(sb.ctx, ask.message_id) == (M76,)
+
+
+def test_his_earlier_wrong_binds_a_line_that_the_reply_does_not_name(db):
+    """Frame 348, L3R-n175-m11-m14: m12 said "Line 2 is wrong", and the
+    reply m14 named no line. The reply's fallback covered line 2, and the
+    seat approved it. The earlier answer now binds line 2, so the menu
+    refuses approve there, and the row takes the earlier words."""
+    ask = _page6(db, ["Line 2 is wrong."])
+    sb, _ = _landing(db, ask, "Please tell me where the ticket came from.")
+    keys = {"1": "approve", "3": "approve", "4": "approve", "5": "approve",
+            "6": "approve"}
+    with pytest.raises(ValueError, match=r"line 2 takes no approve"):
+        sb.call("rulings.rule", rulings={**keys, "2": "approve"})
+    out = sb.call("rulings.rule",
+                  rulings={**keys, "2": "other Line 2 is wrong."})
+    assert out["per_item"]["c1"] == "contest"
+    assert out["per_item"]["calculate_tip"] == "approve"
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    assert (rows["c1"]["words"], rows["c1"]["words_from"]) == (
+        "Line 2 is wrong.", "m76")
