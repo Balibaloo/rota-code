@@ -373,6 +373,7 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 - Two approaches failed. `merge_gate=review` waits on a page that nothing presents. The grouping brief's "declare a dependency fact" has no tool (`batch_dep_facts` has no writer).
 - Treat the plan as the frame for pre-build work. The plan amends ruling 2 of 2026-09-12 (hold at intent only) and R7 (touch note never blocks) on the plan and full paths.
 - The build order is deterministic pieces first, then one brief sentence at a time on the register.
+- The seat's baseline, 2026-10-31, the first dry run with the build session as Principal, `dry1` on clickI at 2c8cd3a, rota at 5bf28154, profile local (ruled: Roman, 2026-10-31 00:58, "Use it yourelf"; frame 353). Changes merged 0. Repositories 1. Runs 3, sessions 115, 103 minutes of GPU. Pages answered 7, each in the turn it arrived; nothing answers during a run, so a turn is one `rota run`. Walls: the cold start's 39 prose sessions (frame 354) and his answer quarantined by an Ollama timeout with the approved page re-presented (frame 355). His seat returns at multiple changes on multiple repositories and a responsive loop (observed: frame 353's close line).
 
 ## The build session's peers
 
