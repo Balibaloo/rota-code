@@ -2132,9 +2132,10 @@ def test_a_claim_that_cites_nothing_is_read_by_loading_it(tmp_path):
 
 def test_reconcile_reads_each_docs_file_as_its_own_area(project):
     """A5, conflicting sources (2026-09-12): the phase read only the README,
-    so a project's real prose went unchecked. One wake per prose file now,
-    `@prose` for the README and `@prose:<path>` under docs/; `code.prose`
-    reads the wake's file, and the attest closes that area alone."""
+    so a project's real prose went unchecked. Each prose file is its own
+    area, `@prose` for the README and `@prose:<path>` under docs/. Frame 354:
+    one wake holds a group of them, `code.prose` shows each file of the
+    group, and each attest closes the files its citations name."""
     from rota.core.runner import run_session
     from rota.core.scheduler import PROSE, frontier, prose_areas, tick_reconcile
     from rota.llm.llm import ScriptedBackend
@@ -2148,19 +2149,61 @@ def test_reconcile_reads_each_docs_file_as_its_own_area(project):
     boot.onboard(db, repo.root)
     _oriented(db)
     db.commit()
-    assert prose_areas(db) == [PROSE, PROSE + ":docs/guide.md"]
-    assert [w.refs for w in tick_reconcile(db)] == [(PROSE,), (PROSE + ":docs/guide.md",)]
-    got = code_prose(Ctx(conn=db, role="vision_keeper", area=PROSE + ":docs/guide.md"))
+    guide = PROSE + ":docs/guide.md"
+    assert prose_areas(db) == [PROSE, guide]
+    assert [w.refs for w in tick_reconcile(db)] == [(PROSE, guide)]
+    got = code_prose(Ctx(conn=db, role="vision_keeper", area=guide))
     assert got["path"] == "docs/guide.md" and "merged" in got["text"]
-    wake = next(w for w in frontier(db)
-                if w.kind == "tick:reconcile" and w.refs == (PROSE + ":docs/guide.md",))
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROSE,
+              wake_refs=(PROSE, guide), wake_kind="tick:reconcile")
+    got = code_prose(ctx)
+    assert got["files"] == "README.md, docs/guide.md"
+    assert "----- docs/guide.md -----" in got["text"] and "merged" in got["text"]
+    assert {"README.md", "docs/guide.md"} <= ctx.opened
+    wake = next(w for w in frontier(db) if w.kind == "tick:reconcile")
     out = run_session(db, wake, backend=ScriptedBackend([
         'TOOL: ledger.log(about_ref="docs/guide.md", about_table="items", '
         'assumption="docs/guide.md says accounts can be merged; the code shows no merge path", kind="conflict")'
         + chr(10) + 'TOOL: surveys.attest(outcome="found", citations=["docs/guide.md"])',
+        'TOOL: surveys.attest(outcome="none_found", citations=["README.md"])',
         "done", "done",
     ]))
     assert out.committed, out.errors
-    areas = {r["area"] for r in db.execute("SELECT area FROM survey_records")}
-    assert PROSE + ":docs/guide.md" in areas and PROSE not in areas
-    assert [w.refs for w in tick_reconcile(db)] == [(PROSE,)], "the README is still owed"
+    rows = {r["area"]: r["outcome"] for r in db.execute(
+        "SELECT area, outcome FROM survey_records WHERE area LIKE '@prose%'")}
+    assert rows == {guide: "found", PROSE: "none_found"}, \
+        "one row per file, and the guide's conflict does not make the README found"
+    assert tick_reconcile(db) == []
+
+
+def test_reconcile_groups_the_open_prose_by_size(project):
+    """Frame 354: one session per prose file cost clickI 39 sessions a night.
+    The open files form groups in order up to PROSE_GROUP_CHARS, and a file
+    over the budget is a group of one. The sizes are clickI's at 2c8cd3a."""
+    from rota.core.scheduler import (PROSE, PROSE_GROUP_CHARS, prose_areas,
+                                     prose_groups, tick_reconcile)
+
+    sizes = [14172, 4323, 4994, 42, 2866, 1194, 11635, 14697, 12875, 3948,
+             1195, 906, 10036, 2214, 4248, 3752, 3896, 3574, 2578, 86, 2424,
+             25713, 6388, 2021, 4575, 6818, 78, 10147, 3838, 2122, 7875, 4281,
+             1596, 11920, 1251, 6948, 3025, 1778]
+    db, repo = project
+    docs = repo.root / "docs"
+    docs.mkdir()
+    for i, n in enumerate(sizes):
+        (docs / f"f{i:02d}.md").write_bytes(b"x" * n)
+    boot.onboard(db, repo.root)
+    _oriented(db)
+    db.commit()
+    areas = prose_areas(db)
+    assert len(areas) == 39
+    groups = prose_groups(db, areas)
+    assert [a for g in groups for a in g] == areas, "every file once, in order"
+    big = PROSE + ":docs/f21.md"
+    assert (big,) in groups, "a file over the budget is a group of one"
+    for g in groups:
+        if len(g) > 1:
+            assert sum((repo.root / ("README.md" if a == PROSE else a.split(":", 1)[1])
+                        ).stat().st_size for a in g) <= PROSE_GROUP_CHARS
+    assert 10 <= len(groups) <= 16, len(groups)
+    assert [w.refs for w in tick_reconcile(db)] == groups

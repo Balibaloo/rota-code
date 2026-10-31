@@ -786,22 +786,83 @@ def _reconcile_wakes(conn: sqlite3.Connection) -> list[Wake]:
     if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
                         (PROGRAM,)).fetchone():
         return []
-    # One wake per prose file, the README first as `@prose`, then each file
+    # One area per prose file, the README first as `@prose`, then each file
     # under docs/ as `@prose:<path>`. clickI (2026-09-12): 37 prose files
     # under docs/ went unread because the phase read only the README, and a
     # conflict between two sources is a page the principal always sees
-    # (DECISIONS.md, "The seat's four pages are one surface"). One file a
-    # session, so an 8B reader has the whole file and the account in view.
-    abandoned = _abandoned(conn, "tick:reconcile")
+    # (DECISIONS.md, "The seat's four pages are one surface").
+    # One wake per group of open files, not per file (frame 354). One file a
+    # session spent 39 or 40 sessions a night on clickI, nights 170 to 175,
+    # and a 40-step run ended inside the phase. A quarantined group abandons
+    # every file it held, because each one was attempted.
+    abandoned = {r for k in quarantined_keys(conn, kind="tick:reconcile")
+                 for r in key_parts(k)[2]}
     done = {r["area"] for r in conn.execute(
         "SELECT area FROM survey_records WHERE area = ? OR area LIKE ?",
         (PROSE, PROSE + ":%"))}
-    wakes = []
-    for area in prose_areas(conn):
-        if area in abandoned or area in done:
+    open_areas = [a for a in prose_areas(conn)
+                  if a not in abandoned and a not in done]
+    return [Wake("vision_keeper", "tick:reconcile", refs=group)
+            for group in prose_groups(conn, open_areas)]
+
+
+# The characters of prose one reconcile session holds (frame 354). The runner
+# cuts a pushed read at PUSH_CHARS, 20,000, so a group stays below that with
+# room for one header line per file. The seat then sees each file whole.
+PROSE_GROUP_CHARS = 18000
+
+
+def prose_path(conn: sqlite3.Connection, area: str) -> str | None:
+    """The file a prose area names: the root README for `@prose`, the path
+    after the colon for `@prose:<path>`."""
+    if area.startswith(PROSE + ":"):
+        return area[len(PROSE) + 1:]
+    if area != PROSE:
+        return None
+    return next((r["grain"] for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")
+        if re.match(r"(?i)readme(\.|$)", r["grain"])), None)
+
+
+def prose_groups(conn: sqlite3.Connection,
+                 areas: list[str]) -> list[tuple[str, ...]]:
+    """
+    The open prose areas, in their order, cut into the groups one session reads.
+
+    A group takes files until the next one would pass PROSE_GROUP_CHARS. A
+    file at or over the budget is a group of one. So is a file whose size
+    cannot be read, which keeps the one-file wake where no tree is known.
+    """
+    try:
+        from .worktrees import project_root
+        root = project_root(conn)
+    except Exception:
+        root = None
+    groups: list[tuple[str, ...]] = []
+    group: list[str] = []
+    used = 0
+    for area in areas:
+        size = None
+        path = prose_path(conn, area)
+        if root is not None and path:
+            try:
+                size = (root / path).stat().st_size
+            except OSError:
+                size = None
+        if size is None or size >= PROSE_GROUP_CHARS:
+            if group:
+                groups.append(tuple(group))
+            groups.append((area,))
+            group, used = [], 0
             continue
-        wakes.append(Wake("vision_keeper", "tick:reconcile", refs=(area,)))
-    return wakes
+        if group and used + size > PROSE_GROUP_CHARS:
+            groups.append(tuple(group))
+            group, used = [], 0
+        group.append(area)
+        used += size
+    if group:
+        groups.append(tuple(group))
+    return groups
 
 
 def prose_areas(conn: sqlite3.Connection) -> list[str]:

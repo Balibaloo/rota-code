@@ -4637,6 +4637,14 @@ def surveys_attest(ctx: Ctx, outcome: str,
                "items": "problem.assert", "ledger": "ledger.log",
                "frame_rulings": "frame.assign"}.get(owed or "", "")
     mine = [v for t, _id, v in ctx.writes if t == owed]
+    group = _prose_group(ctx)
+    if len(group) > 1:
+        # A reconcile group closes one file at a time (frame 354). The
+        # entries logged since the last attest belong to the file this one
+        # closes, so an earlier file's conflicts do not make it `found`.
+        last = max((i for i, w in enumerate(ctx.writes)
+                    if w[0] == "survey_records"), default=-1)
+        mine = [v for t, _id, v in ctx.writes[last + 1:] if t == owed]
     note = ""
     # The outcome follows what the session did, not what it says.
     #
@@ -4938,31 +4946,80 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # index it read was built at this commit, so this is the commit surveyed.
     at = ctx.conn.execute(
         "SELECT value FROM config WHERE key = 'project_commit'").fetchone()
-    ctx.writes.append(("survey_records", id, {
-        "area": area, "outcome": outcome,
-        "commit_sha": (at["value"] if at else "") or "",
-        # What the area held, as the index the session read describes it. The
-        # freshness view compares this against the same aggregate later; a
-        # record whose view is gone counts as no record, and the survey
-        # machinery re-fires unchanged.
-        "area_hash": getattr(ctx, "area_hash_at_wake", None)
-                       or area_content_hash(ctx.conn, area)}))
-    # The record stores what the citation *resolved to*, not what was typed.
-    # Storing the bare symbol with `resolves=1` would assert that a grain named
-    # `TokenStore` is in the index, and none is -- a citation nobody can follow
-    # back, which is the whole thing citations exist to prevent.
-    for cited in citations or []:
-        grain = _resolve(cited) or cited
-        ctx.writes.append(("survey_citations", f"{id}:{grain}", {
-            "survey_id": id, "grain": grain,
-            "resolves": 1 if cited not in unknown else 0}))
+    # One row per file this attest closes. That is the wake's area, or the
+    # cited files of a reconcile group (frame 354). The row keeps its shape.
+    targets, still_open = [area], []
+    if len(group) > 1:
+        targets, still_open = _group_targets(ctx, group, citations or [],
+                                             _resolve)
+    for subject in targets:
+        id = f"{ctx.role}:{subject}"
+        ctx.writes.append(("survey_records", id, {
+            "area": subject, "outcome": outcome,
+            "commit_sha": (at["value"] if at else "") or "",
+            # What the area held, as the index the session read describes it. The
+            # freshness view compares this against the same aggregate later; a
+            # record whose view is gone counts as no record, and the survey
+            # machinery re-fires unchanged.
+            "area_hash": (getattr(ctx, "area_hash_at_wake", None)
+                          if subject == area else None)
+                         or area_content_hash(ctx.conn, subject)}))
+        # The record stores what the citation *resolved to*, not what was typed.
+        # Storing the bare symbol with `resolves=1` would assert that a grain named
+        # `TokenStore` is in the index, and none is -- a citation nobody can follow
+        # back, which is the whole thing citations exist to prevent.
+        for cited in citations or []:
+            grain = _resolve(cited) or cited
+            ctx.writes.append(("survey_citations", f"{id}:{grain}", {
+                "survey_id": id, "grain": grain,
+                "resolves": 1 if cited not in unknown else 0}))
     # Unresolved ones are still reported rather than fatal. The bar is showing
     # what you read, not spelling every path correctly, and a session that can
     # see what it got wrong can fix it.
-    out = {"id": id, "outcome": outcome, "unresolved_citations": unknown}
+    out = {"id": f"{ctx.role}:{targets[0]}", "outcome": outcome,
+           "unresolved_citations": unknown}
+    if len(group) > 1:
+        out["closed"] = [_prose_path_of(ctx, t) for t in targets]
+        if still_open:
+            out["still_open"] = [_prose_path_of(ctx, t) for t in still_open]
+            note = (note + " " if note else "") + (
+                "Each file closes on its own attest. Check each file still "
+                "open, then attest it with its path in citations.")
     if note:
         out["note"] = note
     return out
+
+
+def _prose_path_of(ctx: Ctx, area: str) -> str:
+    """The file a prose area names, or the area when it names none."""
+    from ..core.scheduler import prose_path
+    return prose_path(ctx.conn, area) or area
+
+
+def _group_targets(ctx: Ctx, group: tuple[str, ...], citations: list[str],
+                   resolve) -> tuple[list[str], list[str]]:
+    """
+    The files of a reconcile group that one attest closes, and the files
+    still open after it.
+
+    The scheduler chose the group, and a citation names a file inside it, so
+    the area stays the scheduler's to choose. The last open file closes on
+    any citation, as the one-file wake did.
+    """
+    closed = {(w[2] or {}).get("area") for w in ctx.writes
+              if w[0] == "survey_records"}
+    open_now = [a for a in group if a not in closed]
+    cited = {_grain_path(resolve(c) or c) for c in citations}
+    targets = [a for a in open_now if _prose_path_of(ctx, a) in cited]
+    if not targets and len(open_now) == 1:
+        targets = open_now
+    if not targets:
+        raise ValueError(
+            "one attest closes the files of your group that its citations "
+            "name, and these citations name no open file. Put the path of the "
+            "file you checked in citations. Still open: "
+            + ", ".join(_prose_path_of(ctx, a) for a in open_now) + ".")
+    return targets, [a for a in open_now if a not in targets]
 
 
 @op("surveys", "consult")
@@ -18003,6 +18060,9 @@ def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
                         "to reconcile. `surveys.attest(outcome='none_found', "
                         "citations=[])` is the answer."}
     from ..core.scheduler import PROSE as _PROSE
+    group = _prose_group(ctx)
+    if not path and len(group) > 1:
+        return _prose_group_text(ctx, group, limit)
     if path:
         # Asked by path: the file the session wants beside its own. clickI
         # night 38 (2026-09-13): `code.prose(path=...)` refused as an
@@ -18029,6 +18089,52 @@ def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
     ctx.read_words.update(_words_in(body))
     return {"path": readme, "text": body[:limit],
             **({"cut": f"first {limit} of {len(body)} characters"} if cut else {})}
+
+
+def _prose_group(ctx: Ctx) -> tuple[str, ...]:
+    """The prose areas a reconcile wake holds, or () on any other wake."""
+    from ..core.scheduler import PROSE as _PROSE
+
+    refs = tuple(getattr(ctx, "wake_refs", ()) or ())
+    if getattr(ctx, "wake_kind", "") != "tick:reconcile":
+        return ()
+    return tuple(r for r in refs
+                 if r == _PROSE or str(r).startswith(_PROSE + ":"))
+
+
+def _prose_group_text(ctx: Ctx, group: tuple[str, ...], limit: int) -> dict:
+    """
+    Every file of a reconcile group, each under a header line with its path.
+
+    The scheduler sized the group to PROSE_GROUP_CHARS, so the budget is the
+    cap here (frame 354). The default `limit` of 6,000 would cut the second
+    file of most groups.
+    """
+    import re as _re
+
+    from ..core.scheduler import PROSE_GROUP_CHARS, prose_path
+
+    cap = max(limit, PROSE_GROUP_CHARS)
+    root = _worktree_of(ctx)
+    paths, parts = [], []
+    for area in group:
+        rel = prose_path(ctx.conn, area)
+        if not rel:
+            continue
+        try:
+            body = (root / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            parts.append(f"----- {rel} -----{chr(10)}(could not be read)")
+            continue
+        body = _re.sub(r"<[^>]+>", "", body)
+        paths.append(rel)
+        ctx.opened.add(_grain_path(rel))
+        ctx.read_words.update(_words_in(body))
+        parts.append(f"----- {rel} -----{chr(10)}{body}")
+    text = (chr(10) * 2).join(parts)
+    cut = len(text) > cap
+    return {"files": ", ".join(paths), "text": text[:cap],
+            **({"cut": f"first {cap} of {len(text)} characters"} if cut else {})}
 
 
 @op("code", "front")

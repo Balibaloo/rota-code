@@ -6266,7 +6266,12 @@ def run_session(
             # -- and a session that kept going past it attested a second time
             # under a second invented id. That was the top mechanism in the run:
             # "expected writes to survey_records (1), got 2", three cases.
-            if any(w[0] == "survey_records" for w in sb.ctx.writes):
+            # A reconcile group ends when each of its files has its row
+            # (frame 354). One file's attest leaves the rest of the group open.
+            closed = {(w[2] or {}).get("area") for w in sb.ctx.writes
+                      if w[0] == "survey_records"}
+            if closed and (wake.kind != "tick:reconcile"
+                           or set(wake.refs) <= closed):
                 break
 
             # A frame session ends when the tree is classified. The attest
