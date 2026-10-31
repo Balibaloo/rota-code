@@ -1666,6 +1666,8 @@ No draft duplicates a heading on the stack, so none is dropped. Three overlap:
 
 1. F19's `_escape_note`, F20's three deletes and `i6`, and F22's literal chains were not re-read at head.
 2. Nights per row are the audit's nights 160 to 170. Nights 171 to 174 were not read.
+- Status 2026-10-31 03:07 (rota-7b): 03:07. Pass 1 committed at 321ccef4, 178k on the harness line against 40k plus 15k on one implementer: the two walls fixed in place, 12 tests re-pinned with their frame or ruling named, 2 retired, `rota interrupt` fixed. Gate alone against 676ebde: new reds 0, reds gone 15, stale 0, suite 34 failed 6465 passed; the 34 are the 29 L1 cases, 2 L3R, 2 L3 chains and 1 G1 segment, the measure of where the small model stops. Part 1 holds except the fresh baseline, which runs now with `gate --baseline` so the known reds are the behaviour cases alone. Then part 2, the cold walk on click from the recipe f353_dryrun.sh in this session's scratchpad. Cycles: 4 of 6. Step 1 of the long term plan. Meta workflow.
+
 
 ### 352. The reader of his earlier answers meets seven edges with no recorded text, and two of his rulings are one-case shapes with no second case (2026-10-31)
 
