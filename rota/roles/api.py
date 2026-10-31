@@ -13149,21 +13149,23 @@ def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
     return cues[0]
 
 
-def _verb_has_subject(head: str, verb: str, after_ref: bool) -> bool:
-    """True when the head verb `verb` of `head` has a subject before it.
+def _verb_has_line_subject(head: str, verb: str, after_ref: bool) -> bool:
+    """True when the head verb `verb` of `head` has a line reference as subject.
 
-    The subject is a subject pronoun or, with `after_ref`, the line
-    reference that ends directly before `head`. Only adverbs stand between.
-    An imperative has no subject, as "Delete line 3" or ", so drop line 3".
+    The subject is the line reference that ends directly before `head`, so
+    `after_ref` must hold. Only adverbs stand between. A pronoun subject
+    gives False: "I think line 2 is wrong" is his verdict, not a description
+    (law 6, frame 348, review p6, finding 1). An imperative has no subject,
+    as "Delete line 3" or ", so drop line 3".
     """
     toks = [t.group(0).lower() for t in _TOKEN.finditer(head)]
-    if verb.lower() not in toks:
+    if not after_ref or verb.lower() not in toks:
         return False
     k = len(toks) - 1 - toks[::-1].index(verb.lower()) - 1
     # "please" marks an imperative, so it ends the walk with no subject.
     while k >= 0 and toks[k] in _ADVERBS and toks[k] != "please":
         k -= 1
-    return toks[k] in _SUBJECTS if k >= 0 else after_ref
+    return k < 0
 
 
 def _line_cues(words: str, size: int | None = None, asks: bool = False
@@ -13209,11 +13211,12 @@ def _line_cues(words: str, size: int | None = None, asks: bool = False
             head_verb, head = (None, "") if i in subject else _head_verb(
                 sentence[begin:ref.start()])
             if (asks and head_verb and _is_question(sentence)
-                    and _verb_has_subject(sentence[begin:ref.start()],
-                                          head_verb,
-                                          bool(i) and begin == refs[i - 1].end())):
-                # A head verb with a subject relates and asks nothing, as
-                # "Tell me why line 3 says line 2 is wrong." So the object
+                    and _verb_has_line_subject(
+                        sentence[begin:ref.start()], head_verb,
+                        bool(i) and begin == refs[i - 1].end())):
+                # A head verb with a line as subject relates and asks
+                # nothing, as "Tell me why line 3 says line 2 is wrong." A
+                # pronoun subject keeps his verdict words. So the object
                 # takes no direction, as with `_head_verb`'s "none" (frame
                 # 348, review p5, finding 2). An imperative still instructs.
                 head = "none"

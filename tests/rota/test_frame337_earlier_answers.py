@@ -249,21 +249,32 @@ def test_a_fault_after_a_request_in_the_same_sentence_binds(db, earlier,
     assert {r for r, v in out["per_item"].items() if v != "approve"} == {ref}
 
 
-@pytest.mark.parametrize("earlier", [
+@pytest.mark.parametrize("earlier, refused", [
     # L3R-n175-m11-m14's reply: "not" describes line 3, and "so I can tell
     # you if it is right" defers the verdict (review p5, finding 1).
-    "I was asking you that, because line 3 only says the team could not "
-    "check a claim about an argument and never says which claim. Please "
-    "tell me what the claim says and where it came from, so I can tell you "
-    "if it is right.",
+    ("I was asking you that, because line 3 only says the team could not "
+     "check a claim about an argument and never says which claim. Please "
+     "tell me what the claim says and where it came from, so I can tell you "
+     "if it is right.", None),
     # He asks about a claim of line 3 and rules no line (review p5, finding 2).
-    "Tell me why line 3 says line 2 is wrong.",
+    ("Tell me why line 3 says line 2 is wrong.", None),
+    # A pronoun subject does not make his verdict a description (review p6,
+    # finding 1). "Wrong" is his verdict on line 2 (law 6).
+    ("I think line 2 is wrong, so tell me why it is there.", "2"),
+    ("Could you remove line 4 and tell me why it was there.", "4"),
 ])
-def test_a_line_a_request_names_in_passing_binds_no_fault(db, earlier):
+def test_a_line_a_request_names_in_passing_binds_no_fault(db, earlier,
+                                                          refused):
     """Review p5: a question clause bound every faulted line it listed, so a
     negation cue or a relating verb bound a line he only described. Now a
-    line that is no subject binds on a fault word only."""
+    line that is no subject binds on a fault word only. Review p6: only a
+    line reference as the subject makes the head verb relate."""
     ask = _page6(db, [earlier])
     sb, _ = _landing(db, ask, SILENT)
+    if refused:
+        with pytest.raises(ValueError,
+                           match=rf"line {refused} takes no approve"):
+            sb.call("rulings.rule", rulings=ALL_APPROVE)
+        return
     out = sb.call("rulings.rule", rulings=ALL_APPROVE)
     assert set(out["per_item"].values()) == {"approve"}
