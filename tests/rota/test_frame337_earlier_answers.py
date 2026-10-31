@@ -225,3 +225,25 @@ def test_a_request_about_a_line_binds_no_fault(db, earlier, line, faulted):
     else:
         out = sb.call("rulings.rule", rulings=ALL_APPROVE)
         assert set(out["per_item"].values()) == {"approve"}
+
+
+@pytest.mark.parametrize("earlier, line, ref", [
+    ("Tell me what line 2 means, because it is wrong.", "2", "c1"),
+    # The fault names line 4, so the request keeps line 2 unbound.
+    ("Tell me what line 2 means, line 4 is wrong.", "4", "c3"),
+    ("Please explain why line 2 is wrong.", "2", "c1"),
+])
+def test_a_fault_after_a_request_in_the_same_sentence_binds(db, earlier,
+                                                           line, ref):
+    """Review p4, finding 1: the request span ran to the sentence end and
+    removed the fault after the request. Now a question clause faults a
+    line on a fault word only, so the request binds nothing and the fault
+    binds its line. Each other line still takes approve."""
+    ask = _page6(db, [earlier])
+    sb, _ = _landing(db, ask, SILENT)
+    with pytest.raises(ValueError, match=rf"line {line} takes no approve"):
+        sb.call("rulings.rule", rulings=ALL_APPROVE)
+    out = sb.call("rulings.rule",
+                  rulings={**ALL_APPROVE, line: f"other Line {line} is wrong."})
+    assert out["per_item"][ref] == "contest"
+    assert {r for r, v in out["per_item"].items() if v != "approve"} == {ref}

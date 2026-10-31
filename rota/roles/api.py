@@ -12403,8 +12403,13 @@ def _ref_lines(ref: re.Match, size: int | None = None) -> set[int]:
     return lines
 
 
-def _line_reading(words: str, size: int | None = None) -> LineReading:
+def _line_reading(words: str, size: int | None = None,
+                  asks: bool = False) -> LineReading:
     """The lines the principal's words fault, and the lines they say match.
+
+    With `asks`, a sentence that asks for facts with no question mark reads
+    as a question, so only a fault word faults a line there. The
+    earlier-answer loop of `menu_ruling` sets it (frame 348).
 
     Each line reference reads the clause after it, up to the next reference.
     An agreement first in the clause, within two words, matches the lines.
@@ -12415,7 +12420,7 @@ def _line_reading(words: str, size: int | None = None) -> LineReading:
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
-    return LineReading(words, size)
+    return LineReading(words, size, asks)
 
 
 # The page parser of fact F2 (rule C76). `_line_reading` is the one reader of
@@ -12560,9 +12565,11 @@ class LineReading:
     the page cues, so no door keeps a line rule of its own.
     """
 
-    def __init__(self, words: str, size: int | None = None):
+    def __init__(self, words: str, size: int | None = None,
+                 asks: bool = False):
         self.words = words or ""
         self.size = size
+        self.asks = asks
 
     @functools.cached_property
     def refs(self) -> list[LineRef]:
@@ -12570,7 +12577,7 @@ class LineReading:
 
     @functools.cached_property
     def _cued(self) -> tuple[dict[int, tuple[str, str]], set[int]]:
-        return _line_cues(self.words, self.size)
+        return _line_cues(self.words, self.size, self.asks)
 
     @property
     def cues(self) -> dict[int, tuple[str, str]]:
@@ -13131,7 +13138,7 @@ def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
     return cues[0]
 
 
-def _line_cues(words: str, size: int | None = None
+def _line_cues(words: str, size: int | None = None, asks: bool = False
                ) -> tuple[dict[int, tuple[str, str]], set[int]]:
     """`_line_reading`, with the fault cue and the clause of each faulted line.
 
@@ -13180,10 +13187,15 @@ def _line_cues(words: str, size: int | None = None
                     matched |= _ref_lines(ref, size)
                     continue
                 head = ""
-            if sentence.rstrip().endswith("?"):
+            if (sentence.rstrip().endswith("?")
+                    or asks and head_verb is None and _is_question(sentence)):
                 # A question asks and does not instruct: night 149's m57,
                 # "And what does line 3 mean by "assumes name"?". It keeps
-                # the fault words of the old reader.
+                # the fault words of the old reader. With `asks`, a request
+                # with no mark asks too, as "tell me what line 2 means"
+                # (frame 348, review p4, finding 1). A verb before the
+                # reference still instructs there: "Delete line 3 and tell
+                # me why it was there." faults line 3.
                 head_verb, head = None, "reason"
             agrees, cue = _agreement(window, i + 1 < len(refs))
             if head == "keep" and not agrees:
@@ -14100,11 +14112,6 @@ _ASK_VERB = (r"(?<!n't )(?<!n’t )(?<!not )(?<!never )"
              r"\b(?:tell|show|explain|say)\b(?:\s+(?:it\s+)?(?:to\s+)?me)?\s+"
              r"(?:what|which|where|when|why|how|who)\b")
 _ASKS_FOR_FACTS = re.compile(_ASK_VERB + r"|\bis unclear\b", re.I)
-# The request with its wh-clause to the sentence end. The wh-clause holds a
-# verb, as "what it means", and `_line_reading` faults a line on any verb.
-# So the earlier-answer loop reads a fault with this span removed (frame
-# 348, review p3).
-_REQUEST_SPAN = re.compile(_ASK_VERB + r"[^.!?]*|\bis unclear\b", re.I)
 
 
 # The refusal of an option on his question (pass R3d). Its text is fixed, so
@@ -14266,13 +14273,17 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # A clause that faults a line and also asks, as "Line 2 is wrong
             # and tell me where it came from.", still binds the fault. Only a
             # pure ask with no verdict word binds nothing (review p2, high 2).
-            # The fault is read with the request removed, because the reader
-            # faults "Line 3 is unclear to me, so please say what it means."
-            # on its request alone (review p3).
+            # The reader faults a line on any verb, as "say what it means"
+            # (review p3). So a request is read as a question, and only a
+            # fault word binds. A fault after the request in the same
+            # sentence still binds (review p4, finding 1). The fault word
+            # binds its line where the request holds the reference, as in
+            # "Please explain why line 2 is wrong.": "line 2" there is no
+            # subject.
             if _is_question(c["words"]):
-                reading = _line_reading(_REQUEST_SPAN.sub(" ", c["words"]),
-                                        len(order))
-                subject &= reading.faulted | reading.matched
+                reading = _line_reading(c["words"], len(order), asks=True)
+                subject = ((subject & reading.matched)
+                           | (set(c["lines"]) & reading.faulted))
             for n in sorted(subject - mentioned):
                 bound.setdefault(n, (c["words"], n in reading.faulted
                                      and n not in reading.matched))
