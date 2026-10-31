@@ -1740,7 +1740,7 @@ def quarantined(conn) -> list[Wake]:
     # Untold only, as the tick keys below are unreported only. A committed
     # report marks the message told in `loop.step` (frame 355).
     dead = conn.execute(
-        "SELECT body_refs FROM messages WHERE status = 'quarantined' "
+        "SELECT id, body_refs FROM messages WHERE status = 'quarantined' "
         "AND told = 0").fetchall()
     # Ordered, deduplicated, and never the message ids: one dead delivery can
     # carry several items, and two can carry the same one.
@@ -1807,7 +1807,8 @@ def quarantined(conn) -> list[Wake]:
         pass
     detail = f"{n} abandoned" + (": " + "; ".join(stalled) if stalled else "")
     return [Wake("liaison", "tick:quarantined", refs=tuple(refs),
-                 detail=detail)] if n else []
+                 detail=detail,
+                 message_ids=tuple(r["id"] for r in dead))] if n else []
 
 
 @predicate("park_ask", wakes="liaison", band="fix")

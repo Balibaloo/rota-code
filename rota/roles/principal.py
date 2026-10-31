@@ -313,6 +313,17 @@ def render_state(conn: sqlite3.Connection) -> str:
     stuck and what would move it. Read from the rows, so it is true of a
     database opened cold.
     """
+    # A run that stopped because the model does not answer says so first.
+    # Nothing else moves until the model answers (frame 355, pass 2).
+    from ..core.db import get_config
+
+    down = get_config(conn, "model_down")
+    state = _render_state(conn)
+    return f"{down}{chr(10)}{state}" if down else state
+
+
+def _render_state(conn: sqlite3.Connection) -> str:
+    """The state lines of `render_state`, without a stop of the run."""
     asks = pending_asks(conn)
     if asks:
         head = ("Waiting on you." if len(asks) == 1

@@ -936,7 +936,10 @@ CREATE TABLE IF NOT EXISTS messages (
     -- 1 once a committed quarantine report has said this quarantined
     -- message to the principal. The tick keys have `reported` for the same
     -- reason: a dead message reaches him once, not on every lift (frame 355).
-    told        INTEGER NOT NULL DEFAULT 0
+    told        INTEGER NOT NULL DEFAULT 0,
+    -- The refs of a quarantined message that moved after its ruling
+    -- landed. The message closes when every ref has moved (frame 355).
+    moved_refs  TEXT NOT NULL DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS ix_messages_cause  ON messages(cause_id);
 CREATE INDEX IF NOT EXISTS ix_messages_status ON messages(status);

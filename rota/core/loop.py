@@ -87,6 +87,8 @@ class Stuck(Exception):
 class Trace:
     steps: list[Step] = field(default_factory=list)
     stuck: Stuck | None = None
+    # The stop line of `model_stop`, or "" when the model answered.
+    down: str = ""
 
     def render(self) -> str:
         return "\n".join(f"{i:3d}. {s}" for i, s in enumerate(self.steps, 1))
@@ -301,6 +303,9 @@ def step(
     from .scheduler import note_dispatch
 
     n = note_dispatch(conn, result.wake)
+    if n:
+        # The token of this dispatch's own count, for `undo_dispatch`.
+        result.wake = replace(result.wake, counted=n)
     if n >= 2:
         # A re-fire at temperature zero with the same prompt is the same
         # session again. Night 88 (2026-09-23): four tick wakes ran three
@@ -337,8 +342,11 @@ def step(
                          "WHERE quarantined = 1 AND reported = 0")
             # A quarantined message is said once too. Dry1's m4 and m5 woke
             # the Liaison again after each lift of the wake's key (frame 355).
-            conn.execute("UPDATE messages SET told = 1 "
-                         "WHERE status = 'quarantined'")
+            # Only the messages this wake counted are said. A message
+            # quarantined after the wake was built waits for its own report.
+            for mid in result.wake.message_ids:
+                conn.execute("UPDATE messages SET told = 1 WHERE id = ? "
+                             "AND status = 'quarantined'", (mid,))
         result.cascaded = [str(w) for w in cascade_wakes(conn, result.outcome.session_id)]
         # Night 92 repeated one session nineteen times and no count saw it
         # (observed: night 92, 2026-09-24). The alert reads rows and writes none.
@@ -536,6 +544,42 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
     return f"unknown action {action!r}"
 
 
+MODEL_DOWN = "model_down"
+DOWN_AFTER = 3
+
+
+def model_stop(conn: sqlite3.Connection, ends: int, s: Step) -> tuple[int, str]:
+    """Count the instrument's ends in a row for one run. Return the count,
+    and the stop line when the count reaches `DOWN_AFTER`.
+
+    `rota run` and `run` both call this after each step. The stop line goes
+    to the `config` row `model_down`, so `rota agenda` shows it. A
+    committed session removes the row."""
+    # A model that never answers looped for the 40-session limit, and the
+    # Principal heard nothing (frame 355, review 1, finding 1).
+    if s.outcome is None:
+        return ends, ""
+    if not getattr(s.outcome, "unavailable", False):
+        if getattr(s.outcome, "committed", False):
+            conn.execute("DELETE FROM config WHERE key = ?", (MODEL_DOWN,))
+        return 0, ""
+    ends += 1
+    if ends < DOWN_AFTER:
+        return ends, ""
+    from .db import set_config
+
+    row = conn.execute("SELECT model FROM sessions WHERE id = ?",
+                       (s.outcome.session_id,)).fetchone()
+    model = row["model"] if row and row["model"] else "the model"
+    line = (f"Stopped: the model {model} does not answer. {ends} sessions in "
+            f"a row ended with no answer, {config.get(conn, 'model_wait_s')}s "
+            f"apart. The last wake was {s.wake}. Start the model server, then "
+            f"run again.")
+    set_config(conn, MODEL_DOWN, line)
+    conn.commit()
+    return ends, line
+
+
 def run(
     conn: sqlite3.Connection,
     *,
@@ -557,14 +601,19 @@ def run(
     """
     trace = Trace()
     barren: dict[str, int] = {}
+    ends = 0
 
     for _ in range(max_steps):
         s = step(conn, backend=backend, pins=pins, principal=principal,
                  principal_present=principal_present, on_completion=on_completion)
         trace.steps.append(s)
+        ends, down = model_stop(conn, ends, s)
+        if down:
+            s.note = down
+            trace.down = down
         if on_step:
             on_step(s)
-        if s.quiescent:
+        if s.quiescent or down:
             break
         if stop_on_failure and s.outcome and not s.outcome.committed:
             break

@@ -54,6 +54,7 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True,
     else:
         backend, pins = default_backend(), Pins(model=model, temperature=0.0)
     started = time.time()
+    ends = 0
 
     for n in range(1, limit + 1):
         # Peek before stepping, so a non-survey wake can be reported rather than
@@ -101,6 +102,12 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True,
               f"surveys={counts['survey_records']:3d} "
               f"refs={counts['references_']:3d}"
               + (f"  [{step.note}]" if step.note else ""))
+        # The model gave no answer three times in a row (frame 355).
+        ends, down = loop_mod.model_stop(conn, ends, step)
+        if down:
+            # `render_state` says the stop first, so the line prints once.
+            _say_where_we_are(conn)
+            return
         if not step.productive and not step.wake:
             print(f"       idle: {step.note}")
             _say_where_we_are(conn)

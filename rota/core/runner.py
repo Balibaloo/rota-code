@@ -6433,7 +6433,8 @@ def run_session(
 
             outcome.system = UNBUILT
         release(conn, wake.role)
-        if isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss:
+        if (isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss
+                and instrument_end(conn, wake)):
             _give_back_attempt(conn, wake)
             outcome.unavailable = True
         sandbox_mod.drain_calls(sb.ctx)
@@ -6473,6 +6474,46 @@ def run_session(
         except Exception as gone_exc:  # noqa: BLE001 -- the record must not hide the failure
             outcome.errors.append(f"and the discard at the end failed: {gone_exc!r}")
         return outcome
+
+
+# A session had an answer from the model when it committed or kept a model
+# turn. The runner keeps a turn only after `backend.complete` returns, and
+# the turns that the runner writes itself have an empty system text.
+_ANSWERED = ("(s.committed = 1 OR EXISTS (SELECT 1 FROM turns t "
+             "WHERE t.session_id = s.id AND t.system != ''))")
+_THIS_WAKE = ("s.role = ? AND s.wake_kind = ? AND COALESCE(s.trigger_msg, '') = ? "
+              "AND s.wake_refs = ?")
+
+
+def instrument_end(conn: sqlite3.Connection, wake: Wake) -> bool:
+    """Whether a session of `wake` that ended with no answer from the model
+    is the instrument's end, and not the wake's own.
+
+    The end is the instrument's when no session has had an answer since the
+    wake's first no-answer end. It is the wake's own when another session
+    has. Call it before `session_fail` writes the row of this end."""
+    # LiteLLM wraps every error in `LLMUnavailable`, so a prompt too large
+    # for the window ends the same way on every retry. Only another session's
+    # answer tells it from a server that is down (frame 355, review 1,
+    # finding 1).
+    this = (wake.role, wake.kind, wake.message_id or "",
+            json.dumps(list(wake.refs or [])))
+    # The wake's ends start after its own last answer, so an old outage is
+    # not this wake's first end.
+    last = conn.execute(
+        f"SELECT COALESCE(MAX(s.seq), 0) FROM sessions s WHERE {_THIS_WAKE} "
+        f"AND {_ANSWERED}", this).fetchone()[0]
+    first = conn.execute(
+        f"SELECT MIN(s.seq) FROM sessions s WHERE {_THIS_WAKE} AND s.seq > ? "
+        f"AND s.committed = 0 AND NOT {_ANSWERED} AND EXISTS (SELECT 1 FROM "
+        f"turns t WHERE t.session_id = s.id "
+        f"AND t.completion LIKE 'SESSION FAILED: LLMUnavailable(%')",
+        (*this, last)).fetchone()[0]
+    if first is None:
+        return True
+    return conn.execute(
+        f"SELECT 1 FROM sessions s WHERE s.seq > ? AND {_ANSWERED} LIMIT 1",
+        (first,)).fetchone() is None
 
 
 def _give_back_attempt(conn: sqlite3.Connection, wake: Wake) -> None:

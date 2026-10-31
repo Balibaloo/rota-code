@@ -146,7 +146,28 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode = WAL")
     # A file that no `init_db` of fact F4 opened has no `latest_runs` view.
     latest_runs_view(conn)
+    message_columns(conn)
     return conn
+
+
+def message_columns(conn: sqlite3.Connection) -> None:
+    """Give an older `messages` table the columns of frame 355.
+
+    `connect` calls this, and `init_db` opens through `connect`, so every
+    writer of a run gets the columns. A file with no `messages` table yet
+    gets them from the schema. 0 and '[]' are every older message's truth,
+    since no report marked a message and no move was kept before."""
+    # A run opened with `connect` alone raised `no such column: told` in
+    # `predicates.quarantined` (frame 355, review 1, finding 3).
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'messages'").fetchone():
+        return
+    if not _has_column(conn, "messages", "told"):
+        conn.execute("ALTER TABLE messages ADD COLUMN told "
+                     "INTEGER NOT NULL DEFAULT 0")
+    if not _has_column(conn, "messages", "moved_refs"):
+        conn.execute("ALTER TABLE messages ADD COLUMN moved_refs "
+                     "TEXT NOT NULL DEFAULT '[]'")
 
 
 def connect_readonly(path: str | Path) -> sqlite3.Connection:
@@ -436,11 +457,6 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # test's truth, since no ruling retired a test before the column.
         if not _has_column(conn, "tests", "retired_by"):
             conn.execute("ALTER TABLE tests ADD COLUMN retired_by TEXT")
-        # The same for the told mark of a message (frame 355): 0 is every
-        # older message's truth, since no report marked a message before.
-        if not _has_column(conn, "messages", "told"):
-            conn.execute("ALTER TABLE messages ADD COLUMN told "
-                         "INTEGER NOT NULL DEFAULT 0")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
@@ -933,6 +949,15 @@ def _subject_moved(conn: sqlite3.Connection, w: Write, before) -> bool:
     return _subject_state(conn, w) != before
 
 
+def _ref_list(text: str | None) -> list:
+    """The string refs of a JSON list column, or [] when the text is no list."""
+    try:
+        refs = json.loads(text or "[]")
+    except ValueError:
+        return []
+    return [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
+
+
 def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     """
     A quarantine holds while its subject is unchanged. A write that moves
@@ -970,14 +995,22 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # row it names moves. The landing is not the close event: dry1's
         # r_m4 landed before s38 to s40 failed on m4 (frame 355). The
         # landed ruling is the fact, and `mark_answered` is the one writer
-        # of the mark (fact F16).
+        # of the mark (fact F16). A message on two rows closes only when
+        # both moved, so `moved_refs` keeps the rows that moved until then
+        # (frame 355, review 1, finding 2).
         for r in conn.execute(
-                "SELECT id FROM messages WHERE status = 'quarantined' "
+                "SELECT id, body_refs, moved_refs FROM messages "
+                "WHERE status = 'quarantined' "
                 "AND id IN (SELECT verdict_id FROM rulings WHERE status = 'landed') "
                 "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN "
                 "json_valid(messages.body_refs) THEN messages.body_refs "
                 "ELSE '[]' END) WHERE value = ?)", (w.row_id,)).fetchall():
-            mark_answered(conn, r["id"])
+            moved_refs = set(_ref_list(r["moved_refs"])) | {w.row_id}
+            if set(_ref_list(r["body_refs"])) <= moved_refs:
+                mark_answered(conn, r["id"])
+            else:
+                conn.execute("UPDATE messages SET moved_refs = ? WHERE id = ?",
+                             (json.dumps(sorted(moved_refs)), r["id"]))
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red

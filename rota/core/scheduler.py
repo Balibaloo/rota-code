@@ -41,6 +41,15 @@ class Wake:
     # `tick_attempts`, so the number the role reads is the number the
     # quarantine counts. Out of `__str__`, so no log line moves.
     attempt: int = 1
+    # The tick key's count that this dispatch made, 0 when it made none.
+    # `undo_dispatch` gives back against it only, so a direct `run_session`
+    # never undoes an earlier dispatch (frame 355, review 1, finding 4).
+    counted: int = field(default=0, compare=False, repr=False)
+    # The quarantined messages a `tick:quarantined` wake counted. A report
+    # marks these told and no others. Dry1's m5 names no row, so no ref
+    # can name it (frame 355, review 1, finding 5).
+    message_ids: tuple[str, ...] = field(default=(), compare=False,
+                                       repr=False)
 
     def __str__(self) -> str:
         src = self.message_id or self.detail or ""
@@ -2569,11 +2578,13 @@ def undo_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
     """Give back the one count `note_dispatch` spent on this wake."""
     # Law 4 bounds the role's failure, and a model with no answer is the
     # instrument's failure. Dry1's m4 and m5 spent their caps on an Ollama
-    # timeout (frame 355). The floor keeps a direct `run_session` at zero.
-    if not wake.kind.startswith(("tick:", "do:")) or wake.kind == "do:harness":
+    # timeout (frame 355). The token binds the give-back to this dispatch's
+    # own increment, so a wake that no dispatch counted gives back nothing.
+    if not wake.counted:
         return
-    conn.execute("UPDATE tick_attempts SET attempts = MAX(attempts - 1, 0) "
-                 "WHERE tick_key = ?", (tick_key(wake),))
+    conn.execute("UPDATE tick_attempts SET attempts = attempts - 1 "
+                 "WHERE tick_key = ? AND attempts = ?",
+                 (tick_key(wake), wake.counted))
 
 
 def clear_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
