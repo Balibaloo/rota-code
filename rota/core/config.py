@@ -89,6 +89,12 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "dead streams, and without a bound the same message is retried "
             "across restarts forever."),
 
+    Setting("model_wait_s", 60,
+            "Seconds the loop waits after a session ends with no answer from "
+            "the model, before it sends the same wake again. Such a session "
+            "spends no attempt, because the instrument failed and not the role "
+            "(frame 355). The next dispatch is the probe of the model."),
+
     Setting("research_cap", 6,
             "Fetches in one Researcher session before it must answer with what "
             "it has. A third scarcity, and deliberately not `loop_cap`: that one "

@@ -932,7 +932,11 @@ CREATE TABLE IF NOT EXISTS messages (
                 -- its own state rather than a flag on either.
                 -- A Tester's triage can create a question unresolved, with the
                 -- note, and nobody owes that question a reply.
-                CHECK (status IN ('open','answered','unresolved','quarantined'))
+                CHECK (status IN ('open','answered','unresolved','quarantined')),
+    -- 1 once a committed quarantine report has said this quarantined
+    -- message to the principal. The tick keys have `reported` for the same
+    -- reason: a dead message reaches him once, not on every lift (frame 355).
+    told        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_messages_cause  ON messages(cause_id);
 CREATE INDEX IF NOT EXISTS ix_messages_status ON messages(status);

@@ -1671,25 +1671,37 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
     return out
 
 
+def _approved_now(conn: sqlite3.Connection, ref: str) -> bool:
+    """Whether the principal approved the item `ref` at its current version."""
+    # His approve at this version is the page's answer, so the row is not
+    # owed again. Dry1's m17 re-sent how_it_works after r_m10 (frame 355).
+    return conn.execute(
+        "SELECT 1 FROM items WHERE id = ? AND approval = 'approved' "
+        "AND approval_ver = version", (ref,)).fetchone() is not None
+
+
 def account_rows(conn: sqlite3.Connection, refs: list) -> list[str]:
     """The refs that are the account's own rows: a row that no request
-    owns, a read-back line and an inherited test apart."""
+    owns, a read-back line, an inherited test and an approved row apart."""
     return [r for r in refs or [] if isinstance(r, str) and not _is_reading(r)
-            and row_items(conn, r) is not None and not _owners(conn, r)]
+            and row_items(conn, r) is not None and not _owners(conn, r)
+            and not _approved_now(conn, r)]
 
 
 def account_page_refs(conn: sqlite3.Connection, rows: list[str]) -> list[str]:
     """The refs of the account's page for `rows`, how_it_works first when
-    the row exists, or [] when an open page to him shows every row."""
+    the row exists and is not approved at its version, or [] when an open
+    page to him shows every row or he approved it."""
     shown = {r for m in conn.execute(
         "SELECT body_refs FROM messages WHERE to_role = 'principal' "
         "AND status = 'open'") for r in json.loads(m["body_refs"] or "[]")}
-    owed = [r for r in rows if r not in shown]
+    owed = [r for r in rows if r not in shown and not _approved_now(conn, r)]
     if not owed:
         return []
     account = conn.execute(
         "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
-    head = ["how_it_works"] if account and "how_it_works" not in owed else []
+    head = (["how_it_works"] if account and "how_it_works" not in owed
+            and not _approved_now(conn, "how_it_works") else [])
     return head + sorted(owed, key=lambda r: r != "how_it_works")
 
 

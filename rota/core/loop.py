@@ -334,6 +334,10 @@ def step(
             # bounded by the mechanism it exists to report.
             conn.execute("UPDATE tick_attempts SET reported = 1 "
                          "WHERE quarantined = 1")
+            # A quarantined message is said once too. Dry1's m4 and m5 woke
+            # the Liaison again after each lift of the wake's key (frame 355).
+            conn.execute("UPDATE messages SET told = 1 "
+                         "WHERE status = 'quarantined'")
         result.cascaded = [str(w) for w in cascade_wakes(conn, result.outcome.session_id)]
         # Night 92 repeated one session nineteen times and no count saw it
         # (observed: night 92, 2026-09-24). The alert reads rows and writes none.
@@ -355,6 +359,16 @@ def step(
             result.note = (result.note + " " if result.note else "") + \
                 f"quarantined past the attempt cap: {', '.join(gone)}"
         conn.commit()
+        if result.outcome.unavailable:
+            # The model gave no answer, so the session spent no attempt and
+            # the wake stays on the frontier. The wait keeps the retry off a
+            # server that is down (frame 355).
+            import time
+
+            wait = config.get(conn, "model_wait_s")
+            result.note = (result.note + " " if result.note else "") + \
+                f"no answer from the model, waited {wait}s"
+            time.sleep(wait)
 
     # One reading of the card per session, taken here and nowhere else. A
     # failed session loaded the model too, so it is read either way.

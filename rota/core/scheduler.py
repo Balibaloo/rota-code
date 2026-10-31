@@ -2546,6 +2546,17 @@ def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
         (key,)).fetchone()["attempts"])
 
 
+def undo_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
+    """Give back the one count `note_dispatch` spent on this wake."""
+    # Law 4 bounds the role's failure, and a model with no answer is the
+    # instrument's failure. Dry1's m4 and m5 spent their caps on an Ollama
+    # timeout (frame 355). The floor keeps a direct `run_session` at zero.
+    if not wake.kind.startswith(("tick:", "do:")) or wake.kind == "do:harness":
+        return
+    conn.execute("UPDATE tick_attempts SET attempts = MAX(attempts - 1, 0) "
+                 "WHERE tick_key = ?", (tick_key(wake),))
+
+
 def clear_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
     """The wake is gone, so whatever it was owed got paid. Forget the count."""
     conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?", (tick_key(wake),))

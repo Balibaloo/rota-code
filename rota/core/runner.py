@@ -64,6 +64,9 @@ class RunOutcome:
     # native call is not in the text (frame 323).
     native: list[list] = field(default_factory=list)
     offered: list[str] = field(default_factory=list)
+    # The session ended with no answer from the model, so it spent no
+    # attempt and the loop waits before it sends the wake again (frame 355).
+    unavailable: bool = False
 
 
 _COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
@@ -6430,6 +6433,9 @@ def run_session(
 
             outcome.system = UNBUILT
         release(conn, wake.role)
+        if isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss:
+            _give_back_attempt(conn, wake)
+            outcome.unavailable = True
         sandbox_mod.drain_calls(sb.ctx)
         # The row a failed session leaves. Night 31 (2026-09-13): 69 deaths
         # on one error and nothing in the database to read.
@@ -6467,6 +6473,20 @@ def run_session(
         except Exception as gone_exc:  # noqa: BLE001 -- the record must not hide the failure
             outcome.errors.append(f"and the discard at the end failed: {gone_exc!r}")
         return outcome
+
+
+def _give_back_attempt(conn: sqlite3.Connection, wake: Wake) -> None:
+    """Undo the attempt this wake spent before its session ran: the
+    message's count above and the tick key's count in `loop.step`."""
+    # The Principal's words are never lost to the instrument. Dry1's s38 to
+    # s45 ended with no answer in 300 s, and m4 and m5 were quarantined
+    # (frame 355). This catch is the one place that sees every such end.
+    from .scheduler import undo_dispatch
+
+    if wake.message_id:
+        conn.execute("UPDATE messages SET attempts = MAX(attempts - 1, 0) "
+                     "WHERE id = ?", (wake.message_id,))
+    undo_dispatch(conn, wake)
 
 
 def _discard_at_end(conn: sqlite3.Connection, wake: Wake, ctx, *,

@@ -667,7 +667,14 @@ class ScriptedBackend:
 
 
 class LLMUnavailable(RuntimeError):
-    """Infrastructure failure, not a semantic one — the caller counts an attempt."""
+    """Infrastructure failure, not a semantic one. The runner gives back the
+    attempt of a session that ends here, and the loop waits and sends the
+    wake again (frame 355). A replay miss is the exception. The same key
+    misses on every retry, so `replay_miss` marks it and the attempt counts."""
+
+    def __init__(self, *args, replay_miss: bool = False):
+        super().__init__(*args)
+        self.replay_miss = replay_miss
 
 
 class RoutedBackend:

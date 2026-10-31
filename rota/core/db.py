@@ -436,6 +436,11 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # test's truth, since no ruling retired a test before the column.
         if not _has_column(conn, "tests", "retired_by"):
             conn.execute("ALTER TABLE tests ADD COLUMN retired_by TEXT")
+        # The same for the told mark of a message (frame 355): 0 is every
+        # older message's truth, since no report marked a message before.
+        if not _has_column(conn, "messages", "told"):
+            conn.execute("ALTER TABLE messages ADD COLUMN told "
+                         "INTEGER NOT NULL DEFAULT 0")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
@@ -961,6 +966,18 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 | ({"tick:tests_failing"} if failing else set()))
         lift_keys(conn, [k for k in quarantined_keys(conn, w.row_id, pairs=True)
                          if key_parts(k)[1] not in kept])
+        # A quarantined message whose ruling landed is answered once the
+        # row it names moves. The landing is not the close event: dry1's
+        # r_m4 landed before s38 to s40 failed on m4 (frame 355). The
+        # landed ruling is the fact, and `mark_answered` is the one writer
+        # of the mark (fact F16).
+        for r in conn.execute(
+                "SELECT id FROM messages WHERE status = 'quarantined' "
+                "AND id IN (SELECT verdict_id FROM rulings WHERE status = 'landed') "
+                "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN "
+                "json_valid(messages.body_refs) THEN messages.body_refs "
+                "ELSE '[]' END) WHERE value = ?)", (w.row_id,)).fetchall():
+            mark_answered(conn, r["id"])
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red

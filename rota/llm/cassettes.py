@@ -479,7 +479,8 @@ class ReplayOnlyBackend:
         if not row:
             raise LLMUnavailable(
                 f"no cassette for {pins.model} key={key[:12]}… — record one with "
-                f"RecordingBackend, or the prompt changed since it was made"
+                f"RecordingBackend, or the prompt changed since it was made",
+                replay_miss=True,
             )
         return _replayed(row, pins)
 
