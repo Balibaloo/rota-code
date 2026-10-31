@@ -14,6 +14,59 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## The long term plan, 2026-10-31 03:04, from the completion line to the destination
+
+Roman, 2026-10-31 03:0x, after the audit `plans/forgotten-read-2026-10-31.md`:
+"Ok then long term plan and execute" (ruled: T d5c14419). The plan is
+read from `rota/COMPLETION.md`, "Core, by capability" and "The order from
+here" (ruled: 2026-09-12 and 2026-09-14), and from the audit's state of
+each entry. The destination is the composition's: a careful person runs
+rota alone on a small Python repository and gets a merged change they
+can read. The completion line: every partial built, click and two more
+lineage repositories merge cold, the register green or attributed. His
+seat returns when rota delivers multiple changes on multiple repositories
+and is responsive (ruled: 2026-10-31 00:58). The steps are in order, each with
+its measure, and each frame's Sprint line names the step it serves.
+
+1. **The instrument is clean.** Frame 353, part 1: the gate prints 0 new
+   reds and 0 known unit reds on a clean tree, with a fresh baseline. Then
+   frame 203's recurring flaky set, so a gate run is one number.
+2. **The cold walk with the session in the seat, on click.** Frame 353,
+   parts 2 and 3: capability 9, the seat as an exchange, and A1, the
+   interview. Measure: a merged change the session can read, each page
+   answered in one turn, and the first wall of the chain named and placed
+   before any other fix. The baseline for his seat is written.
+3. **Breadth, order step 5.** The same cold walk on the two other lineage
+   repositories, tips and icalendar (observed: no tips walk since
+   2026-09-14, no icalendar walk at all, `walks.jsonl`). Measure: a merge on
+   each. This is "multiple repos".
+4. **Multiple changes.** Three sentences per repository with the session
+   in the seat, as the nights ran on click. Measure: merges per repository,
+   and every residue placed by capability. This is "multiple changes" and
+   "responsive", and it is the measure that returns his seat.
+5. **The partials of the core list,** each a frame placed when a walk of
+   steps 2 to 4 shows its wall, in the capability's name: A1's brief
+   re-record and Researcher route; E1's pinned test for the merged half; A5's
+   walk on a repository seeded with one conflict; D3 on the gemma-critic
+   profile; 10, the principal's flow, stage 1 after click's cold merge. The
+   24 L3R cases and frame 352 stay the Liaison's loop inside A1.
+6. **Order step 4, the language seam, and G1, dynamic stacks.** The largest
+   unbuilt piece. It starts after step 3 shows whether click-only doors
+   fit one repository (ruled: 2026-10-15 01:54, "I want to prevent over
+   fitting").
+7. **Order steps 6 and 7.** The long-run noise test, then ship the loop.
+   Frame 4 at the foot of the stack is the record of the order and closes
+   with step 7.
+
+The records' debts, from the audit, one frame after frame 353 moves:
+41 "Waits on: Roman's order" lines against his ruling of 2026-10-18 02:35
+that nothing blocks on him, each re-placed or closed; the unheaded parked
+list under frame 314; the questions never asked, the `_rota_record` door
+and frame 326's clause 3; frame 341's open line that waits on a night;
+the seven read recommendations with no frame, the Critic loop build
+first; and the method pages name `ROLES.md`, `principal-flow.md` and
+`MAP.md` or retire them.
+
 ## Sprint 35, amended 2026-10-31 00:58 on Roman's ruling: the session sits in the Principal seat
 
 Roman, 2026-10-31 00:58, asked what a dry run of the destination is and told that
