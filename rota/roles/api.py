@@ -4952,10 +4952,21 @@ def surveys_attest(ctx: Ctx, outcome: str,
     if len(group) > 1:
         targets, still_open = _group_targets(ctx, group, citations or [],
                                              _resolve)
+    # One attest over several files once stamped one outcome and every
+    # citation on each row, so a `found` from file A marked file B (review
+    # of frame 354, finding 5). A file is `found` only when a ledger row of
+    # this attest names it, and its row keeps only the citations naming it.
+    several = len(targets) > 1
+    named = {_prose_path_of(ctx, a) for a in targets
+             if any(_ledger_names(ctx, v, a) for v in mine)}
     for subject in targets:
         id = f"{ctx.role}:{subject}"
+        own = _prose_path_of(ctx, subject)
+        row_outcome = outcome
+        if several and outcome == "found" and own not in named:
+            row_outcome = "none_found"
         ctx.writes.append(("survey_records", id, {
-            "area": subject, "outcome": outcome,
+            "area": subject, "outcome": row_outcome,
             "commit_sha": (at["value"] if at else "") or "",
             # What the area held, as the index the session read describes it. The
             # freshness view compares this against the same aggregate later; a
@@ -4970,6 +4981,8 @@ def surveys_attest(ctx: Ctx, outcome: str,
         # back, which is the whole thing citations exist to prevent.
         for cited in citations or []:
             grain = _resolve(cited) or cited
+            if several and _grain_path(grain) != own:
+                continue
             ctx.writes.append(("survey_citations", f"{id}:{grain}", {
                 "survey_id": id, "grain": grain,
                 "resolves": 1 if cited not in unknown else 0}))
@@ -4994,6 +5007,17 @@ def _prose_path_of(ctx: Ctx, area: str) -> str:
     """The file a prose area names, or the area when it names none."""
     from ..core.scheduler import prose_path
     return prose_path(ctx.conn, area) or area
+
+
+def _ledger_names(ctx: Ctx, row: dict, area: str) -> bool:
+    """Whether a ledger row is about the file of a prose area: its
+    about_table is the file's path, or its about_ref is the area id or the
+    file's path."""
+    row = row or {}
+    path = _prose_path_of(ctx, area)
+    ref = str(row.get("about_ref") or "")
+    return (_grain_path(str(row.get("about_table") or "")) == path
+            or ref == area or _grain_path(ref) == path)
 
 
 def _group_targets(ctx: Ctx, group: tuple[str, ...], citations: list[str],
@@ -15580,7 +15604,16 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         # Other seats got README advice for a code ref (review 1f, L5).
         # The night gives the reconcile seat mode "normal", so the wake
         # kind names the seat (review 1g, H1).
-        if _declares_an_area(ctx):
+        group = _prose_group(ctx)
+        if len(group) > 1:
+            # A seat in a group cannot see the area id of each file, so the
+            # area advice sent it to 'about_ref=@prose' (review of frame
+            # 354, finding 4). The refusal names the ids.
+            ids = ", ".join(f"{a!r} for {_prose_path_of(ctx, a)}"
+                            for a in group)
+            whole = (f"a row about one of your files takes that file's area "
+                     f"id: {ids}")
+        elif _declares_an_area(ctx):
             whole = "if it is about the whole area, use the @-prefixed area name"
         elif (getattr(ctx, "wake_kind", "") == "tick:reconcile"
               or _is_prose_ref(about_ref)):
@@ -18133,7 +18166,15 @@ def _prose_group_text(ctx: Ctx, group: tuple[str, ...], limit: int) -> dict:
         parts.append(f"----- {rel} -----{chr(10)}{body}")
     text = (chr(10) * 2).join(parts)
     cut = len(text) > cap
-    return {"files": ", ".join(paths), "text": text[:cap],
+    # The group instruction lives here and not in reconcile.md, so a
+    # one-file wake keeps the brief its case recorded green. Pass 1 put it
+    # in the brief, and the one-file case went from 1/1 to 0/1 (frame 354).
+    lead = (f"This wake holds these {len(paths)} files: {', '.join(paths)}. "
+            f"Check each file against the account, one file at a time. "
+            f"Close each file with its own `surveys.attest`, with that "
+            f"file's path in citations. The session ends when every file "
+            f"has its row.")
+    return {"files": ", ".join(paths), "text": lead + chr(10) * 2 + text[:cap],
             **({"cut": f"first {cap} of {len(text)} characters"} if cut else {})}
 
 

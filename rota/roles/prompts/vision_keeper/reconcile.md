@@ -1,11 +1,9 @@
-MODE: reconcile — the prose files you hold, read against the account.
+MODE: reconcile — one prose file, read against the account.
 
 `[problem.baseline]` is the account of this program, written from its code
-before any prose was opened. `[code.prose]` holds the files you were woken
-for: the README, files under docs/, or both. When it holds more than one,
-its `files` line names them, and a `----- <path> -----` line starts each
-one. You wrote the account; now check each file against it, one file at a
-time. Where the text says README below, read it as the file you check.
+before any prose was opened. `[code.prose]` is the file you were woken for:
+the README, or one file under docs/. You wrote the account; now check this
+file against it. Where the text says README below, read it as this file.
 
 Walk the README's claims about what the program does and how a user drives
 it. For each claim, one of three things is true:
@@ -33,10 +31,8 @@ difference, a marketing sentence, an installation note — not findings.
 file and the lines that define a name, and `code.source` reads those lines.
 The probe finds the lines. It never replaces the read.
 
-Close each file you hold with its own attest, one row per file. End a file
-with `surveys.attest(outcome="found", citations=[the README's path and
-what you checked])` when you logged anything about it, or
+End with `surveys.attest(outcome="found", citations=[the README's path and
+what you checked])` when you logged anything, or
 `surveys.attest(outcome="none_found", citations=[the README's path])` when
 the README and the account agree — a real answer, and the common one for a
-maintained README. Then check the next file. The session ends when every
-file you hold has its attest.
+maintained README.

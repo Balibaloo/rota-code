@@ -793,17 +793,25 @@ def _reconcile_wakes(conn: sqlite3.Connection) -> list[Wake]:
     # (DECISIONS.md, "The seat's four pages are one surface").
     # One wake per group of open files, not per file (frame 354). One file a
     # session spent 39 or 40 sessions a night on clickI, nights 170 to 175,
-    # and a 40-step run ended inside the phase. A quarantined group abandons
-    # every file it held, because each one was attempted.
-    abandoned = {r for k in quarantined_keys(conn, kind="tick:reconcile")
-                 for r in key_parts(k)[2]}
+    # and a 40-step run ended inside the phase.
+    # Only a quarantined group of one abandons its file. A group of several
+    # at the bound wakes each file alone, because one hard file broke the
+    # group and lost its neighbours (review of frame 354, finding 1). Each
+    # key of tick_attempts counts its own wakes, so a file alone gets the
+    # full bound after its group spent one.
+    abandoned, alone = set(), set()
+    for k in quarantined_keys(conn, kind="tick:reconcile"):
+        refs = key_parts(k)[2]
+        (abandoned if len(refs) == 1 else alone).update(refs)
     done = {r["area"] for r in conn.execute(
         "SELECT area FROM survey_records WHERE area = ? OR area LIKE ?",
         (PROSE, PROSE + ":%"))}
     open_areas = [a for a in prose_areas(conn)
                   if a not in abandoned and a not in done]
+    groups = [(a,) for a in open_areas if a in alone]
+    groups += prose_groups(conn, [a for a in open_areas if a not in alone])
     return [Wake("vision_keeper", "tick:reconcile", refs=group)
-            for group in prose_groups(conn, open_areas)]
+            for group in groups]
 
 
 # The characters of prose one reconcile session holds (frame 354). The runner

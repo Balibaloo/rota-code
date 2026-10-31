@@ -2207,3 +2207,107 @@ def test_reconcile_groups_the_open_prose_by_size(project):
                         ).stat().st_size for a in g) <= PROSE_GROUP_CHARS
     assert 10 <= len(groups) <= 16, len(groups)
     assert [w.refs for w in tick_reconcile(db)] == groups
+
+
+def _prose_group_of_three(project):
+    """A README and two small docs files, which form one reconcile group."""
+    from rota.core.scheduler import PROSE
+
+    db, repo = project
+    docs = repo.root / "docs"
+    docs.mkdir()
+    for name, line in (("a.md", "Accounts can be merged."),
+                       ("b.md", "Exports are CSV.")):
+        (docs / name).write_text("# " + name + chr(10) + line + chr(10),
+                                 encoding="utf-8")
+    boot.onboard(db, repo.root)
+    _oriented(db)
+    db.commit()
+    return db, (PROSE, PROSE + ":docs/a.md", PROSE + ":docs/b.md")
+
+
+def test_reconcile_group_at_the_bound_wakes_each_file_alone(project):
+    """Review of frame 354, finding 1: a group of 4 files reached the attempt
+    bound on clickI and all 4 lost their survey row. A group of several at
+    the bound wakes each file alone. Only a file alone at the bound is lost."""
+    from rota.core.scheduler import Wake, tick_key, tick_reconcile
+
+    db, group = _prose_group_of_three(project)
+    assert [w.refs for w in tick_reconcile(db)] == [group]
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 3, 1)",
+               (tick_key(Wake("vision_keeper", "tick:reconcile", refs=group)),))
+    assert sorted(w.refs for w in tick_reconcile(db)) == sorted(
+        (a,) for a in group), "each file of the group wakes alone"
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 3, 1)",
+               (tick_key(Wake("vision_keeper", "tick:reconcile",
+                              refs=(group[1],))),))
+    assert sorted(w.refs for w in tick_reconcile(db)) == sorted(
+        [(group[0],), (group[2],)]), "a file alone at the bound is abandoned"
+
+
+def test_reconcile_group_refusal_lists_the_area_ids(project):
+    """Review of frame 354, finding 4: the refusal told a group seat to use
+    the area name, and the seat cannot see the area id of each file."""
+    import pytest
+
+    from rota.roles.api import Ctx, ledger_log
+
+    db, group = _prose_group_of_three(project)
+    ctx = Ctx(conn=db, role="vision_keeper", area=group[0],
+              wake_refs=group, wake_kind="tick:reconcile")
+    with pytest.raises(ValueError) as err:
+        ledger_log(ctx, about_ref="account", about_table="docs/a.md",
+                   assumption="docs/a.md says accounts can be merged; the "
+                              "code shows no merge path", kind="conflict")
+    for area in group:
+        assert repr(area) in str(err.value), str(err.value)
+
+
+def test_reconcile_found_over_two_files_marks_only_the_named_file(project):
+    """Review of frame 354, finding 5: one attest over several files stamped
+    one outcome on each, so a conflict in file A marked file B `found`."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import frontier
+    from rota.llm.llm import ScriptedBackend
+
+    db, group = _prose_group_of_three(project)
+    wake = next(w for w in frontier(db) if w.kind == "tick:reconcile")
+    out = run_session(db, wake, backend=ScriptedBackend([
+        'TOOL: ledger.log(about_ref="@prose", about_table="docs/a.md", '
+        'assumption="docs/a.md says accounts can be merged; the code shows '
+        'no merge path", kind="conflict")' + chr(10)
+        + 'TOOL: surveys.attest(outcome="found", '
+        'citations=["docs/a.md", "docs/b.md"])',
+        'TOOL: surveys.attest(outcome="none_found", citations=["README.md"])',
+        "done", "done",
+    ]))
+    assert out.committed, out.errors
+    rows = {r["area"]: r["outcome"] for r in db.execute(
+        "SELECT area, outcome FROM survey_records WHERE area LIKE '@prose%'")}
+    assert rows == {group[0]: "none_found", group[1]: "found",
+                    group[2]: "none_found"}, rows
+    cites = {(r["survey_id"], r["grain"]) for r in db.execute(
+        "SELECT survey_id, grain FROM survey_citations "
+        "WHERE survey_id LIKE '%docs/%'")}
+    assert cites == {("vision_keeper:" + group[1], "docs/a.md"),
+                     ("vision_keeper:" + group[2], "docs/b.md")}, cites
+
+
+def test_reconcile_group_text_opens_with_the_group_paragraph(project):
+    """Frame 354, pass 2: the group instruction moved out of reconcile.md
+    into the pushed text, so a one-file wake keeps its recorded brief."""
+    from rota.roles.api import Ctx, code_prose
+
+    db, group = _prose_group_of_three(project)
+    got = code_prose(Ctx(conn=db, role="vision_keeper", area=group[0],
+                         wake_refs=group, wake_kind="tick:reconcile"))
+    lead, _, rest = got["text"].partition("----- ")
+    assert lead.startswith("This wake holds these 3 files: README.md, "
+                           "docs/a.md, docs/b.md."), lead
+    assert "surveys.attest" in lead and rest.startswith("README.md -----")
+    one = code_prose(Ctx(conn=db, role="vision_keeper", area=group[1],
+                         wake_refs=(group[1],), wake_kind="tick:reconcile"))
+    assert "This wake holds" not in one["text"]
+    assert "----- " not in one["text"]
