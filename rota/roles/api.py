@@ -12589,6 +12589,17 @@ class LineReading:
         return set(self._cued[0])
 
     @property
+    def strong(self) -> set[int]:
+        """The faulted lines whose cue is a fault word and not a weak cue.
+
+        A verb or a negation cue only describes a line that is no subject
+        of a question (frame 348, review p5, finding 1).
+        """
+        return {n for n, (cue, _c) in self._cued[0].items()
+                if _LINE_FAULT.fullmatch(cue)
+                and cue.lower() not in _WEAK_CUES}
+
+    @property
     def matched(self) -> set[int]:
         return set(self._cued[1])
 
@@ -13138,6 +13149,23 @@ def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
     return cues[0]
 
 
+def _verb_has_subject(head: str, verb: str, after_ref: bool) -> bool:
+    """True when the head verb `verb` of `head` has a subject before it.
+
+    The subject is a subject pronoun or, with `after_ref`, the line
+    reference that ends directly before `head`. Only adverbs stand between.
+    An imperative has no subject, as "Delete line 3" or ", so drop line 3".
+    """
+    toks = [t.group(0).lower() for t in _TOKEN.finditer(head)]
+    if verb.lower() not in toks:
+        return False
+    k = len(toks) - 1 - toks[::-1].index(verb.lower()) - 1
+    # "please" marks an imperative, so it ends the walk with no subject.
+    while k >= 0 and toks[k] in _ADVERBS and toks[k] != "please":
+        k -= 1
+    return toks[k] in _SUBJECTS if k >= 0 else after_ref
+
+
 def _line_cues(words: str, size: int | None = None, asks: bool = False
                ) -> tuple[dict[int, tuple[str, str]], set[int]]:
     """`_line_reading`, with the fault cue and the clause of each faulted line.
@@ -13180,6 +13208,15 @@ def _line_cues(words: str, size: int | None = None, asks: bool = False
             # object of a relating verb has the relating verb there.
             head_verb, head = (None, "") if i in subject else _head_verb(
                 sentence[begin:ref.start()])
+            if (asks and head_verb and _is_question(sentence)
+                    and _verb_has_subject(sentence[begin:ref.start()],
+                                          head_verb,
+                                          bool(i) and begin == refs[i - 1].end())):
+                # A head verb with a subject relates and asks nothing, as
+                # "Tell me why line 3 says line 2 is wrong." So the object
+                # takes no direction, as with `_head_verb`'s "none" (frame
+                # 348, review p5, finding 2). An imperative still instructs.
+                head = "none"
             if head == "none":
                 continue
             if head == "own":
@@ -14279,11 +14316,14 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # sentence still binds (review p4, finding 1). The fault word
             # binds its line where the request holds the reference, as in
             # "Please explain why line 2 is wrong.": "line 2" there is no
-            # subject.
+            # subject. A line that is no subject binds on a strong fault
+            # word of the reader only. A negation cue or a verb describes
+            # it: "line 3 only says the team could not check" (review p5,
+            # finding 1). Law 6: only his words choose a verdict.
             if _is_question(c["words"]):
                 reading = _line_reading(c["words"], len(order), asks=True)
-                subject = ((subject & reading.matched)
-                           | (set(c["lines"]) & reading.faulted))
+                subject = ((subject & (reading.matched | reading.faulted))
+                           | (set(c["lines"]) & reading.strong))
             for n in sorted(subject - mentioned):
                 bound.setdefault(n, (c["words"], n in reading.faulted
                                      and n not in reading.matched))

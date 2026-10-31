@@ -247,3 +247,23 @@ def test_a_fault_after_a_request_in_the_same_sentence_binds(db, earlier,
                   rulings={**ALL_APPROVE, line: f"other Line {line} is wrong."})
     assert out["per_item"][ref] == "contest"
     assert {r for r, v in out["per_item"].items() if v != "approve"} == {ref}
+
+
+@pytest.mark.parametrize("earlier", [
+    # L3R-n175-m11-m14's reply: "not" describes line 3, and "so I can tell
+    # you if it is right" defers the verdict (review p5, finding 1).
+    "I was asking you that, because line 3 only says the team could not "
+    "check a claim about an argument and never says which claim. Please "
+    "tell me what the claim says and where it came from, so I can tell you "
+    "if it is right.",
+    # He asks about a claim of line 3 and rules no line (review p5, finding 2).
+    "Tell me why line 3 says line 2 is wrong.",
+])
+def test_a_line_a_request_names_in_passing_binds_no_fault(db, earlier):
+    """Review p5: a question clause bound every faulted line it listed, so a
+    negation cue or a relating verb bound a line he only described. Now a
+    line that is no subject binds on a fault word only."""
+    ask = _page6(db, [earlier])
+    sb, _ = _landing(db, ask, SILENT)
+    out = sb.call("rulings.rule", rulings=ALL_APPROVE)
+    assert set(out["per_item"].values()) == {"approve"}
