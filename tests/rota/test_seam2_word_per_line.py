@@ -420,6 +420,9 @@ def test_a_row_on_two_lines_of_the_page_lands_a_word_on_each(db):  # noqa: F811
     sb, _ = _seat(db, ask, words="Drop the note, both times. The rest is fine.")
     call = {str(n): "approve" for n in range(1, len(order) + 1)}
     call.update({str(n): "drop" for n in lines})
+    # Frame 345 pass R3 (dba54e57) refuses an unkeyed clause with no page
+    # line. "Drop the note, both times" names no line, so it is keyed.
+    call["c1"] = "none"
     sb.call("rulings.rule", rulings=call)
     rows = [w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"
             and w[2]["ref"] == "l_1"]
@@ -528,6 +531,9 @@ def test_two_words_on_one_ref_of_another_act_keep_one_row(db):  # noqa: F811
     sb, _ = _seat(db, ask, words="Drop the note, both times. The rest is fine.")
     call = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
     call.update({str(n): "drop" for n in lines})
+    # Frame 345 pass R3 (dba54e57) refuses an unkeyed clause with no page
+    # line. "Drop the note, both times" names no line, so it is keyed.
+    call["c1"] = "none"
     sb.call("rulings.rule", rulings=call)
     _commit(db, sb)
     apply_rulings(db)

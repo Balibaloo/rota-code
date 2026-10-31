@@ -578,16 +578,21 @@ def test_the_same_constraint_written_twice_is_one_gate(project):
     boot.onboard(db, repo.root)
 
     headline = "Tokens expire after the issued lifetime"
-    for i, area in enumerate(("src/billing", "src/api")):
+    # The survey spike of 2026-09-15 (eff78e0c): a survey constraint binds a
+    # grain the session opened. The sample repository has no `src/api`.
+    for i, (area, grain) in enumerate((("src/billing", "src/billing/charges.py"),
+                                       ("src/auth", "src/auth/sessions.py"))):
         sb = sandbox_mod.build("architect", db, session_id=f"s{i}", area=area)
-        sb.call("model.amend", headline=headline, text=f"seen from {area}")
+        sb.call("code.source", path=grain)
+        sb.call("model.amend", headline=headline, text=f"seen from {area}",
+                bindings=[grain])
         for staged in sb.ctx.writes:
             _apply_write(db, _as_write(staged), sb.ctx.role)
 
     rows = db.execute("SELECT id, text FROM constraints WHERE headline=?",
                       (headline,)).fetchall()
     assert len(rows) == 1, f"one commitment, {len(rows)} gates: {[r['id'] for r in rows]}"
-    assert rows[0]["text"] == "seen from src/api", "the second session did not amend"
+    assert rows[0]["text"] == "seen from src/auth", "the second session did not amend"
 
 
 def test_a_constraint_cannot_bind_a_file_the_session_never_opened(project):

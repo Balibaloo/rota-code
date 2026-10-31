@@ -23,8 +23,10 @@ def test_with_prompt_keeps_every_pin():
     q = p.with_prompt("hello")
     assert q.prompt_hash and q.prompt_hash != p.prompt_hash
     assert (q.max_tokens, q.top_p, q.seed, q.repeat_penalty) == (300, 0.9, 7, 1.1)
+    # The think pin of 2026-09-15 (c81d41c4) is in the key since frame 65.
     assert set(q.as_dict()) == {"model", "temperature", "num_ctx", "prompt_hash",
-                                "max_tokens", "top_p", "seed", "repeat_penalty"}
+                                "max_tokens", "top_p", "seed", "repeat_penalty",
+                                "think"}
     json.dumps(q.as_dict())
 
 

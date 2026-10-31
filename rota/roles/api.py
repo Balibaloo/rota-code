@@ -11688,7 +11688,10 @@ def _excluded_paths(given: str, shown: list[str],
         path = raw.strip("`'\".;:")
         if not path or path.lower() == "and":
             continue
-        path, sep, name = path.partition("::")
+        # F11 (rule C76): the path half goes through the one reader, so a
+        # seat's `./x.py` or backslash path matches the shown path.
+        _, sep, name = path.partition("::")
+        path = _grain_path(path)
         ends = [p for p in shown if p.endswith("/" + path)]
         if path in shown:
             found = path

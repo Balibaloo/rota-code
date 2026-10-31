@@ -1408,17 +1408,14 @@ def sweep() -> list[Call]:
     t2 = _w("tester", "tick:tests_missing", "b2")
     d2 = _w("developer", "tick:batch_start", "b2")
     from .samplerepo import FILES
-    # The literals that a project test chooses and the criterion does not
-    # say. A right session logs them first, as the literal door names.
-    owed = {"tests/test_templates.py": "Welcome, Ada. and welcome and Ada"}
+    # No ledger call comes first. Frame 204 pass 1 (b00aaa59): the literal
+    # door logs the literals a test chooses by itself, and `ledger.log`
+    # needs a `kind` that this call never gave.
     for n, path in enumerate(sorted(p for p in FILES if p.startswith("tests/"))):
-        log = (("ledger.log", (("about_ref", "c2"), ("about_table", "criteria"),
-                               ("assumption", f"the test assumes {owed[path]} where "
-                                              f"the material is silent"))),) if path in owed else ()
         out.append(Call("two_batches", f"the project test {path} as an encode", t2,
                         "tests.encode", _encode(f"sw{n}", "c2",
                                                 path.replace("tests/test_", "tests/test_sw_"),
-                                                DISK + path), before=_triage("c2") + log))
+                                                DISK + path), before=_triage("c2")))
     # A module that does not parse in the sample, such as the planted
     # `src/auth/accounts.py`, has no right write that keeps it.
     for path in sorted(p for p in FILES if p.endswith(".py") and p.startswith("src/")

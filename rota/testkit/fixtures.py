@@ -1103,10 +1103,19 @@ def _delivery_index(conn, root: Path, tree: Path, batch_id: str, *,
 
 _HOLE = re.compile(r"<([A-Za-z0-9_]+)>")
 
+# CPython's own angle names. Case text quotes them from tracebacks and
+# docstrings, and they name no row. A filled `option.<locals>.decorator()`
+# showed the model a traceback that Python never printed (frame 353, wall 2).
+NOT_HOLES = frozenset({
+    "locals", "module", "lambda", "listcomp", "dictcomp", "setcomp",
+    "genexpr", "string", "stdin", "stdout", "stderr",
+})
+
 
 def fill(text: str, case_id: str, run_no: int = 1) -> str:
     """
-    Replace every `<name>` with an id the model cannot guess.
+    Replace every `<name>` with an id the model cannot guess. A name of
+    `NOT_HOLES` is Python's own text, and it stays as the case wrote it.
 
     Cases are written with `i1`, `tk1`, `b1` because they have to be readable
     and diffable. The cost is that they are also *predictable*: in a fixture
@@ -1147,6 +1156,8 @@ def fill(text: str, case_id: str, run_no: int = 1) -> str:
 
     def one(match: re.Match) -> str:
         name = match.group(1)
+        if name in NOT_HOLES:
+            return match.group(0)
         prefix = name.rstrip("0123456789") or "x"
         seed = f"{case_id}:{name}" if run_no == 1 else f"{case_id}:{name}:{run_no}"
         digest = hashlib.sha1(seed.encode()).hexdigest()[:6]
@@ -1156,7 +1167,7 @@ def fill(text: str, case_id: str, run_no: int = 1) -> str:
 
 
 def holes(text: str) -> set[str]:
-    return set(_HOLE.findall(text))
+    return set(_HOLE.findall(text)) - NOT_HOLES
 
 
 def mode_of(case: dict) -> str:

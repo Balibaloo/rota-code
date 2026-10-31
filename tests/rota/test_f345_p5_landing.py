@@ -25,6 +25,8 @@ DROPS = [
     ("L1-LI-drop-both-examples-is-a-drop-of-both-rows", 2, (1, 2)),
     ("L1-LI-removing-lines-is-right-is-a-drop", 9, (7, 8)),
 ]
+# The clause keys of a case whose reply has a clause that names no line.
+KEYED = {"L1-LI-remove-lines-on-a-criteria-page-is-a-drop": {"c1": "none"}}
 
 
 def _run(tmp_path, case_id: str, size: int, word: str, lines: tuple):
@@ -32,6 +34,9 @@ def _run(tmp_path, case_id: str, size: int, word: str, lines: tuple):
         next(c for c in fixtures.load_case(CASES) if c["id"] == case_id), 1)
     rulings = {str(n): (word if n in lines else "approve")
                for n in range(1, size + 1)}
+    # Frame 345 pass R3 (dba54e57) refuses an unkeyed clause with no page
+    # line. The remove-lines reply opens with such a clause, c1.
+    rulings.update(KEYED.get(case_id, {}))
     call = f"TOOL: rulings.rule(rulings={json.dumps(rulings)})"
     db = tmp_path / "case.db"
     res = fixtures.run_case(case, db, ScriptedBackend([call, "done"]),

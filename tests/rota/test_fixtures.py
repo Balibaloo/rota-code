@@ -52,12 +52,20 @@ def test_no_case_leaves_a_reference_unwrapped():
     blamed for a situation that never existed. Twenty-two cases were in exactly
     that state after the first migration, because the regex doing it refused to
     match an id immediately before a `}`.
+
+    A comment line and a `- id:` line hold no foreign key. The YAML parse
+    drops a comment, and the case id is a name, so `m53` in
+    `L3R-n174-m53-m55` is no reference (frame 353, wall 2).
     """
     bare = []
     for path in _files():
-        text = path.read_text(encoding="utf-8")
-        for name in set(re.findall(r"<([A-Za-z0-9_]+)>", text)):
-            for n, line in enumerate(text.splitlines(), 1):
+        lines = [(n, line) for n, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1)
+            if not line.lstrip().startswith("#")
+            and not line.startswith("- id:")]
+        names = fixtures.holes(chr(10).join(line for _, line in lines))
+        for name in names:
+            for n, line in lines:
                 if re.search(rf"(?<![\w<]){re.escape(name)}(?![\w>])", line):
                     bare.append(f"{path.name}:{n} {name}")
     assert not bare, bare

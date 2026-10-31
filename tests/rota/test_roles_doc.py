@@ -214,7 +214,10 @@ def test_a_verb_carries_words_or_does_not_regardless_of_recipient():
     g = graph_mod.load()
     by_verb = collections.defaultdict(set)
     for e in g.of_type("messages"):
-        by_verb[e.v].add(bool(getattr(e, "prose", "")))
+        # Roman's call of 2026-09-15 (e3cbfbb0): `prose: quotes` cites a
+        # span of a row, such as the Tester's answer quoting the criterion.
+        prose = getattr(e, "prose", "")
+        by_verb[e.v].add(bool(prose) and prose != "quotes")
 
     split = {v: "some channels carry words and some do not"
              for v, kinds in by_verb.items() if len(kinds) > 1}

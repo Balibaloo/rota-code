@@ -985,7 +985,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("interrupt",
                        help="stop the running batch; it resumes when scheduled")
     p.add_argument("name")
-    p.set_defaults(fn=cmd_interrupt)
+    p.set_defaults(func=cmd_interrupt)
 
     p = sub.add_parser("adopt", aliases=["elect"],
                    help="adopt the onboarded understanding as the baseline")

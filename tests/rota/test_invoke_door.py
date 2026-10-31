@@ -192,10 +192,11 @@ def _encode(db, test_id, path, body, batch_id="b1"):
                    path=path, body=body)
 
 
-def _not_this_door(db, body, test_id="tst_new", path="tests/test_new.py"):
+def _not_this_door(db, body, test_id="tst_new", path="tests/test_new.py",
+                   batch_id="b1"):
     """The encode lands, or another door refuses it. This door stays shut."""
     try:
-        _encode(db, test_id, path, body)
+        _encode(db, test_id, path, body, batch_id=batch_id)
     except ValueError as exc:
         assert DOOR not in str(exc), str(exc)
 
@@ -378,8 +379,9 @@ def test_an_uncommitted_write_in_the_worktree_is_read(db):
 def test_a_session_with_no_batch_reads_the_root(db):
     db.execute("UPDATE batches SET worktree = NULL")
     db.commit()
-    with pytest.raises(ValueError):
-        _encode(db, *S139[0], batch_id=None)
+    # Frame 204 pass 1 (b00aaa59): the literal door stages its row and
+    # refuses no encode. The root has no `echo_json`, so the body is admitted.
+    _not_this_door(db, S139[0][2], batch_id=None)
     _utils(_root(db)).write_bytes(UTILS.encode())
     with pytest.raises(ValueError) as exc:
         _encode(db, *S139[0], batch_id=None)
