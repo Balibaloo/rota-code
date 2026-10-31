@@ -468,8 +468,11 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # seat said "Building" because nothing else was pending.
     from ..core.scheduler import quarantined_keys
 
+    # A step he dropped is no stall to him, so "Stuck" does not stay for
+    # ever (review p4 of frame 354, finding 2).
     gave_up = [k for k in quarantined_keys(conn, constraint_zero=False,
-                                           first_come=True, groups=False)
+                                           first_come=True, groups=False,
+                                           ruled=False)
                if k not in parked_keys]
     if gave_up:
         # The words of a kind name who failed, so the line does not say the
@@ -1053,9 +1056,15 @@ def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
     batch, a ledger row and a code line, and the read-back line names a
     reply. A row of any other table is no line of a page."""
     from .api import LEDGER_HOMES
+    from ..core.scheduler import rowless_key
 
     if not isinstance(ref, str):
         return None
+    # A stopped step that names no row is a line he rules on. Its home is
+    # its quarantine row, so his ruling stages no false fault (review p4 of
+    # frame 354, finding 4).
+    if rowless_key(conn, ref):
+        return "tick_attempts"
     if ref.startswith(READING_REF) or guess_item(ref) is not None:
         return table_of(conn, ref)
     return table_of(conn, ref, among=LEDGER_HOMES + RULED_HOMES)
@@ -2046,6 +2055,22 @@ def _stalled_parts(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
             for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys))]
 
 
+def _retries_said(conn: sqlite3.Connection, key: str) -> str:
+    """The words that say he asked to run the step `key` again before, or
+    "" when his newest landed ruling on it is no retry."""
+    # A lift deletes the quarantine row, so `ruled_refs` is the one record
+    # of his earlier tries. Without it he can loop on 'try again' and the
+    # page shows no earlier try (review p4 of frame 354, finding 5).
+    rows = [r["verdict"] for r in conn.execute(
+        "SELECT verdict FROM ruled_refs WHERE ref = ? AND source = 'landed' "
+        "ORDER BY rowid", (key,))]
+    if not rows or rows[-1] not in ("contest", "revise"):
+        return ""
+    n = sum(v in ("contest", "revise") for v in rows)
+    return (". You asked me to try it again "
+            + ("once" if n == 1 else f"{n} times") + " before")
+
+
 def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
     """'the team could not write the tests after 3 attempts', one part per
     key, with what the key is about."""
@@ -2812,7 +2837,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             else door_rows(conn, ask_id, "stalled")) if verb == "present" else []
     # A key the page carries as its own ref reaches no row, so no batch
     # line says it. It gets its own numbered line (frame 354: m3 had none).
-    gave_up = [(k, _gave_up_words(conn, [k])[0]) for k in keys if k in refs]
+    gave_up = [(k, _gave_up_words(conn, [k])[0] + _retries_said(conn, k))
+               for k in keys if k in refs]
     batch_keys = [k for k in keys if k not in refs]
 
     def gave_up_lines() -> None:
@@ -2820,8 +2846,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("The team gave up on a step:")
             numbered(gave_up)
             # `land` reads his ruling on the line (review p3, finding 1).
+            # The menu of the line offers the same two words (review p4,
+            # finding 1).
             out.append("Reply 'try again' on a step to run it again. Reply "
-                       "'ok' on it to drop it.")
+                       "'drop' on it to stop it.")
 
     if verb == "present" and batch_keys and touches:
         # A quarantined batch is no plan any more. Night 136's m96 opened

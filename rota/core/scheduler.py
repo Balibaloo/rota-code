@@ -810,8 +810,8 @@ def _reconcile_wakes(conn: sqlite3.Connection) -> list[Wake]:
     # full bound after its group spent one.
     abandoned, alone = set(), set()
     for k in quarantined_keys(conn, kind="tick:reconcile"):
-        refs = key_parts(k)[2]
-        (abandoned if len(refs) == 1 else alone).update(refs)
+        # `regrouped_key` is the one test (review p4 of frame 354, finding 6).
+        (alone if regrouped_key(k) else abandoned).update(key_parts(k)[2])
     done = {r["area"] for r in conn.execute(
         "SELECT area FROM survey_records WHERE area = ? OR area LIKE ?",
         (PROSE, PROSE + ":%"))}

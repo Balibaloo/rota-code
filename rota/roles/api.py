@@ -14040,8 +14040,15 @@ _MENU_BASE = {
     "read-back": ("ok", "misread", "misread, drop", "slightly off", "rewrite"),
     "request": ("approve", "add <quote>"),
     "other": ("approve", "drop", "rewrite"),
+    # A stopped step that names no row. The page says the same two words,
+    # and no other option moves the step (review p4 of frame 354, finding 1).
+    "step": ("try again", "drop"),
 }
 _MENU_OTHER = "other <quote>"
+# The row that each option of a stopped step lands. A contest lifts the
+# quarantine, and an approve marks the key ruled, as `land` reads them.
+_STEP_ROWS: dict[str, tuple[str, str | None, str | None]] = {
+    "try again": ("contest", None, None), "drop": ("approve", None, None)}
 # When each option of a touch line applies (frame 347, pass 4). The menu
 # gave no "when", so the seat tipped between rewrite and exclude on m92-m93,
 # m76-m77 and m121. The words follow his replies in those cases and in the
@@ -14161,9 +14168,12 @@ def menu_kind(conn, ref: str) -> str:
     """The menu kind of the row behind a page line. The kinds are the rows
     that the mechanical readers act on (the design page, fact 2)."""
     from .principal import _is_request_item
+    from ..core.scheduler import rowless_key
 
     if str(ref).startswith(READING_REF):
         return "read-back"
+    if rowless_key(conn, ref):
+        return "step"
     if _is_touch_line(conn, ref):
         return "touch"
     if _is_request_item(conn, ref):
@@ -14177,6 +14187,8 @@ def line_menu(conn, ref: str, order: list, page_text: str) -> tuple[str, list[st
     """The menu kind of one page line and the options that it takes."""
     kind = menu_kind(conn, ref)
     options = list(_MENU_BASE[kind])
+    if kind == "step":
+        return kind, options
     if kind == "touch":
         # A ruling on a closed change moves nothing, as the batch door says.
         batch = conn.execute("SELECT status FROM batches WHERE id = ?",
@@ -14640,7 +14652,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     # never reached the ask it expects (group D, pass R4).
                     f"When no option holds his words, call "
                     f"rulings.rule(ask=...) with no rulings.")
-            verdict, act, target_kind = _OPTION_ROWS[opt]
+            verdict, act, target_kind = (_STEP_ROWS if kind == "step"
+                                         else _OPTION_ROWS)[opt]
             # His earlier answer faults the line, and the reply does not
             # rule it. An approve rules against his words (law 6). An add
             # changes the line, so it stays. The refusal fires on every call:
@@ -18954,9 +18967,10 @@ def code_gaps(ctx: Ctx) -> dict:
 
     # The order is first come, so the six-row cut favours no seat by its
     # name (review 1 of frame 246, finding 3).
-    # A group key stops nothing, so it is no gap (review p3, finding 2).
+    # A group key stops nothing, so it is no gap (review p3, finding 2). A
+    # step he dropped is no gap either (review p4, finding 3).
     keys = quarantined_keys(ctx.conn, constraint_zero=False, first_come=True,
-                            groups=False)[:6]
+                            groups=False, ruled=False)[:6]
     lines.extend(_capital(w) for w in _gave_up_words(ctx.conn, keys))
     checked = ctx.conn.execute(
         "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]

@@ -42,4 +42,4 @@ cannot tell what his words rule. A clause that is a question takes `ask`.
 one sentence and no `rulings`. The page stays open, and the next reply comes
 back here with this exchange in `earlier_exchange`. Otherwise stop after the
 one call. The ruling lands after this session.
-A page that asks which request goes first has no `clauses` and no menus. Its line takes `later` or `now`, keyed by line number. "It is a separate request" is `later`, never `drop`. "Do this one first" is `now`.
+A page that asks which request goes first has no `clauses` and no menus. Its line takes `later` or `now`, keyed by line number. "It is a separate request" is `later`, never `drop`. "Do this one first" is `now`. On a stopped step, `try again` runs the step again and `drop` stops it.

@@ -249,5 +249,69 @@ def test_a_page_of_stalled_steps_only_says_what_a_reply_does(db):
     page, order = render_page(db, "present", json.loads(row["body_refs"]),
                               None, ask_id=row["id"])
     assert order == [CRITIC_KEY]
-    assert "'try again'" in page and "'ok' on it to drop it" in page
+    assert "'try again'" in page and "'drop' on it to stop it" in page
     assert "starts building" not in page
+
+
+def _rule_on_line(db, option, text="1 try again"):
+    """Pass 6: the Liaison path. The menu call of `rulings.rule` stages the
+    ruling and its rows, and `apply_rulings` lands them."""
+    from tests.rota.test_principal_reply import _landing
+    from rota.roles.principal import apply_rulings, page_ask
+
+    row = _present_critic(db)
+    sb, _ = _landing(db, page_ask(row), text)
+    out = sb.call("rulings.rule", rulings={"1": option})
+    for table, _op, values, *_ in sb.ctx.writes:
+        if table in ("rulings", "ruled_refs"):
+            cols = [c for c in values
+                    if c in {r[1] for r in db.execute(
+                        f"PRAGMA table_info({table})")}]
+            db.execute(f"INSERT INTO {table} ({', '.join(cols)}) VALUES "
+                       f"({', '.join('?' * len(cols))})",
+                       [values[c] for c in cols])
+    apply_rulings(db)
+    return out, sb.ctx.writes
+
+
+def test_drop_on_the_stalled_line_marks_the_step_ruled(db):
+    """Review p4, findings 1 to 4: 'drop' ran the step again, 'Stuck' stayed
+    for ever, and every ruling staged a false fault."""
+    from rota.roles import api
+    from rota.roles.principal import render_state
+
+    out, writes = _rule_on_line(db, "drop", "1 drop it")
+    assert out["per_item"] == {CRITIC_KEY: "approve"}
+    att = _attempts(db)
+    assert (att["quarantined"], att["reported"]) == (1, 2)
+    assert not [w for w in writes if w[0] in ("faults", "fault")]
+    assert db.execute("SELECT COUNT(*) FROM ruled_refs WHERE ref = ? AND "
+                      "source = 'landed'", (CRITIC_KEY,)).fetchone()[0] == 1
+    assert "Stuck" not in render_state(db)
+    facts = api.code_gaps(api.Ctx(conn=db, role="liaison"))["facts"]
+    assert "could not check" not in json.dumps(facts)
+
+
+def test_try_again_on_the_stalled_line_lifts_the_step(db):
+    out, writes = _rule_on_line(db, "try again")
+    assert out["per_item"] == {CRITIC_KEY: "contest"}
+    assert _attempts(db) is None
+    assert not [w for w in writes if w[0] in ("faults", "fault")]
+
+
+@pytest.mark.parametrize("option", ["contest", "approve"])
+def test_the_stalled_line_takes_only_its_two_words(db, option):
+    with pytest.raises(ValueError) as err:
+        _rule_on_line(db, option)
+    assert "takes try again; drop." in str(err.value)
+
+
+def test_the_next_page_of_a_retried_step_says_he_asked_before(db):
+    _rule_on_line(db, "try again")
+    # The step stalls again after his retry.
+    _quarantine(db, CRITIC_KEY)
+    page, order = render_page(db, "present", [CRITIC_KEY], None,
+                              stalled=[CRITIC_KEY])
+    assert order == [CRITIC_KEY]
+    assert "You asked me to try it again once before" in page
+    assert "'drop' on it to stop it" in page
