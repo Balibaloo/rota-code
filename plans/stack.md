@@ -14,6 +14,27 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 35, amended 2026-10-31 00:58 on Roman's ruling: the session sits in the Principal seat
+
+Roman, 2026-10-31 00:58, asked what a dry run of the destination is and told that
+nobody sat in the seat this period: "I will not sit in the seat untill
+it delivers multiple changes on multiple repos and is responsive. Use it
+yourelf" (ruled: T d5c14419). The Principal seat of every dry run is the
+build session's, or an agent's on a strong model, until rota meets his
+three conditions: more than one change, on more than one repository, and
+a responsive loop. The destination sentence of 2026-09-10 stands. The
+test of his seat is these three conditions, not one merged change.
+
+What it changes: a night with the session as Principal is the dry run,
+and it needs no window of his. His earlier thought of 00:58, "at some
+point we should clear all reds before the next night", is a thought and
+not a go. The baseline of 2026-10-30 11:27 holds 49 known reds: 29 L1
+cases and 5 L3R and L3 cases, which are the measure of where the small
+model stops, and 15 unit tests in 13 files, which no frame holds.
+Recommended, not ruled: after frame 348 closes, one frame names each of
+the 15 as stale or as a wall, then the gate's flaky set is stamped, then
+the first dry run with the session in the seat.
+
 ## Sprint 35, amended 2026-10-29 01:58 on Roman's ruling
 
 Roman, 2026-10-29 01:5x: "instead of faffing with nights try to develop

@@ -96,6 +96,10 @@ are encoding in the doors" (ruled: 2026-10-15 01:54, W).
   edit made on a request to review is that work: "what you made
   changes?!?" (reasoned: 2026-09-17 15:47, W, his words, the reading is
   the session's).
+- To sit in the Principal seat before rota earns it: "I will not sit
+  in the seat untill it delivers multiple changes on multiple repos and
+  is responsive. Use it yourelf" (ruled: 2026-10-31 00:58, T d5c14419). The
+  session is the Principal of every dry run until then.
 - Narration in place of a result (reasoned: design.md section 2, no words
   of his found).
 
