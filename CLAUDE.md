@@ -105,6 +105,10 @@ are encoding in the doors" (ruled: 2026-10-15 01:54, W).
 
 ## Where things are
 
+The target capabilities and the completion line are `rota/COMPLETION.md`,
+"Core, by capability" (ruled: 2026-09-12). No frame cited the page
+between 2026-09-17 and 2026-10-31, and Roman asked on 2026-10-31 whether
+it was forgotten. A frame's Sprint line names the capability it serves.
 Run `python -m rota.tools.state --sid <sid>` for the state: the held
 frames, the live agents and nights, and the open decisions. The rules are
 in `plans/method/reference.md`, keyed by the moment they fire at. Read the

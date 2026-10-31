@@ -183,6 +183,10 @@ comes first, then the state print, then the sender's note.
   site and costs under three cycles. Otherwise write `next sprint, rank
   <k>` among the parked, by the wall it closes and the cycles it costs. The
   placement is (reasoned) until Roman rules it at the sprint boundary.
+  Amended 2026-10-31: the Sprint line also names the capability of
+  `rota/COMPLETION.md` the frame serves, because no frame cited that page
+  for 44 days and the walls were ranked by nights, not by the list
+  (reasoned: Roman's question of 2026-10-31 02:53, "was it forgotten?").
   "Waits on: Roman's order" is not a line a frame carries.
 - [C49] Two features wait on a night: implementers on branches with one
   merge queue, after frame 200's night shows whether the one-checkout rule

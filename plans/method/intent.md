@@ -17,6 +17,11 @@ fix must generalise: "I want to prevent over fitting" (ruled: 2026-10-15
 01:54, W) and "a workflow transfer, not a scope extension" (ruled:
 2026-09-18 19:00, W).
 
+The target capabilities and the completion line are `rota/COMPLETION.md`,
+"Core, by capability" (ruled: 2026-09-12). No frame cited the page
+between 2026-09-17 and 2026-10-31, and Roman asked on 2026-10-31 whether
+it was forgotten. A frame's Sprint line names the capability it serves.
+
 ## What the build session is for
 
 The session builds rota as a second instance of the same composition
