@@ -221,6 +221,21 @@ def repin(conn: sqlite3.Connection, root: str | Path) -> int:
     return count
 
 
+def coded_areas(conn: sqlite3.Connection) -> list[str]:
+    """The areas that hold code, sorted. An area holds code when it holds a
+    symbol grain.
+
+    The one definition of "an area with code" for constraint zero. The
+    refresh binds these areas, and the predicate and the coverage compare
+    against them. Frame 354 measured the cost of two copies: the predicate
+    read every area, a prose area such as `docs` stayed in its want set, and
+    the step fired with no refs until quarantine, 7 of 7 runs.
+    """
+    return [r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index "
+        "WHERE area IS NOT NULL AND grain_kind = 'symbol' ORDER BY area")]
+
+
 def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
     """
     Bind constraint zero to exactly the areas nobody has surveyed.
@@ -243,9 +258,7 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
     of internal doctrine on a repository with no code. Symbol grains are the
     test. `_EXPECTED_UNPARSED` already uses the same signal.
     """
-    coded = [r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM code_index "
-        "WHERE area IS NOT NULL AND grain_kind = 'symbol' ORDER BY area")]
+    coded = coded_areas(conn)
     if not coded:
         conn.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?", (ZERO,))
         conn.execute("DELETE FROM refs WHERE src_table = 'constraints' AND src_id = ?",

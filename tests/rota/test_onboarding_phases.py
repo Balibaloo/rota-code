@@ -2295,6 +2295,61 @@ def test_reconcile_found_over_two_files_marks_only_the_named_file(project):
                      ("vision_keeper:" + group[2], "docs/b.md")}, cites
 
 
+def test_a_quarantined_group_key_wakes_no_liaison_and_shows_on_no_page(project):
+    """Review p2 of frame 354, finding 1: the scheduler wakes each file of a
+    quarantined group alone, and the Liaison still reported the group as
+    abandoned after every file closed."""
+    from rota.core import predicates as P
+    from rota.core.scheduler import Wake, tick_key
+    from rota.roles.principal import render_state
+
+    db, group = _prose_group_of_three(project)
+    key = tick_key(Wake("vision_keeper", "tick:reconcile", refs=group[1:]))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES (?, 3, 1, 0)", (key,))
+    assert P.quarantined(db) == []
+    assert "gave up" not in render_state(db)
+    assert "could not" not in render_state(db)
+
+
+def test_a_docs_conflict_on_prose_does_not_mark_the_readme_found(project):
+    """Review p2 of frame 354, finding 2: a row with about_ref "@prose"
+    names the file in its about_table, not the README."""
+    from rota.core.scheduler import PROSE
+    from rota.roles.api import Ctx, _ledger_names
+
+    db, group = _prose_group_of_three(project)
+    ctx = Ctx(conn=db, role="vision_keeper", area=group[0],
+              wake_refs=group, wake_kind="tick:reconcile")
+    row = {"about_ref": "@prose", "about_table": "docs/a.md"}
+    assert not _ledger_names(ctx, row, PROSE)
+    assert _ledger_names(ctx, row, group[1])
+    assert _ledger_names(ctx, {"about_ref": "@prose", "about_table": ""}, PROSE)
+
+
+def test_a_group_attest_of_one_file_is_found_only_when_a_row_names_it(project):
+    """Review p2 of frame 354, finding 3: an attest that closed one file of
+    a group kept the old stamp, so a conflict on docs/b.md marked docs/a.md
+    `found`."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import frontier
+    from rota.llm.llm import ScriptedBackend
+
+    db, group = _prose_group_of_three(project)
+    wake = next(w for w in frontier(db) if w.kind == "tick:reconcile")
+    out = run_session(db, wake, backend=ScriptedBackend([
+        'TOOL: ledger.log(about_ref="@prose", about_table="docs/b.md", '
+        'assumption="docs/b.md says exports are CSV; the code writes JSON", '
+        'kind="conflict")' + chr(10)
+        + 'TOOL: surveys.attest(outcome="found", citations=["docs/a.md"])',
+        "done", "done",
+    ]))
+    assert out.committed, out.errors
+    rows = {r["area"]: r["outcome"] for r in db.execute(
+        "SELECT area, outcome FROM survey_records WHERE area LIKE '@prose%'")}
+    assert rows.get(group[1]) == "none_found", rows
+
+
 def test_reconcile_group_text_opens_with_the_group_paragraph(project):
     """Frame 354, pass 2: the group instruction moved out of reconcile.md
     into the pushed text, so a one-file wake keeps its recorded brief."""

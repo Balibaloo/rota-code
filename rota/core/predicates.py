@@ -1757,12 +1757,12 @@ def quarantined(conn) -> list[Wake]:
     stalled: list[str] = []
     from ..roles.principal import _items_reached
     from .scheduler import (aside_items, given_up, key_parts, park_owns,
-                            quarantined_keys)
+                            quarantined_keys, rowless_key)
 
     aside = aside_items(conn)
 
     try:
-        for key in quarantined_keys(conn, unreported=True):
+        for key in quarantined_keys(conn, unreported=True, groups=False):
             # law 6: a wake past its cap is quarantined and said out loud
             # A key that a park owns is said by the park page or the note.
             # Night 133's s319 and s325 presented the batch alone, and the
@@ -1792,6 +1792,11 @@ def quarantined(conn) -> list[Wake]:
                 if ref not in refs and table_of(
                         conn, ref, among=("batches", "items", "tickets")):
                     refs.append(ref)
+            # A key that reaches no row travels as its own ref. Nothing stops
+            # quietly (composition), and frame 354 measured the cost: m3 was a
+            # page with no line for the constraint zero key.
+            if key not in refs and rowless_key(conn, key):
+                refs.append(key)
             stalled.append(f"{kind} for {', '.join(keyed) or 'the run'}"
                            f"{f' ({role})' if role and role != '-' else ''}, "
                            f"{attempts} attempts")
@@ -1901,8 +1906,8 @@ def constraint_zero(conn) -> list[Wake]:
 
     surveyed = {r["area"] for r in conn.execute(
         "SELECT DISTINCT area FROM survey_records")}
-    want = {r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")} - surveyed
+    # The refresh binds only areas with code, so want reads the same set.
+    want = set(boot.coded_areas(conn)) - surveyed
 
     return [] if bound == want else [
         Wake(SCHEDULER, "tick:constraint_zero", refs=tuple(sorted(bound - want)))]

@@ -1798,7 +1798,7 @@ def quarantined_keys(conn: sqlite3.Connection,
                      subject: str | Iterable[str] | None = None, *,
                      pairs: bool = False, kind: str | None = None,
                      unreported: bool = False, constraint_zero: bool = True,
-                     first_come: bool = False) -> list[str]:
+                     first_come: bool = False, groups: bool = True) -> list[str]:
     """
     The quarantined tick keys, by key or in the order they came.
 
@@ -1806,7 +1806,10 @@ def quarantined_keys(conn: sqlite3.Connection,
     about a subject when its refs are that subject alone. With `pairs`, a key
     whose refs hold the subject beside another ref is about it too. `kind`
     keeps one kind. `constraint_zero=False` drops the scheduler's own
-    onboarding key, which no page shows.
+    onboarding key. The status line and the batch pages drop it. The
+    quarantine page shows it as one line, because nothing stops quietly
+    (frame 354). `groups=False` drops a reconcile key of several files,
+    which the scheduler wakes alone, so no report calls them abandoned.
     """
     # One reader of `tick_attempts.quarantined`, so "the keys of a batch" has
     # one rule. A key with two refs is about a pair, such as a touch note and
@@ -1827,12 +1830,37 @@ def quarantined_keys(conn: sqlite3.Connection,
             continue
         if not constraint_zero and k == CONSTRAINT_ZERO:
             continue
+        # The scheduler wakes each file of a quarantined reconcile group
+        # alone, so the group key abandons nothing. Its report said
+        # "1 abandoned" after every file closed (review p2 of frame 354,
+        # finding 1).
+        if not groups and k == "tick:reconcile" and len(refs) > 1:
+            continue
         if subjects is not None and not (
                 set(refs) & subjects if pairs
                 else len(refs) == 1 and refs[0] in subjects):
             continue
         out.append(r["tick_key"])
     return out
+
+
+def rowless_key(conn: sqlite3.Connection, key: str) -> bool:
+    """The key is a quarantined tick key, and none of its refs is a batch,
+    an item or a ticket. Such a key is its own ref on the quarantine page."""
+    # Frame 354: the quarantine wake passed on only the refs a page names
+    # (F22), so the constraint zero key gave the Liaison an empty wake.
+    from .db import table_of
+
+    if not isinstance(key, str) or "|tick:" not in key:
+        return False
+    # `quarantined_keys` is the one reader of the flag (fact F20).
+    try:
+        if key not in quarantined_keys(conn, kind=key_parts(key)[1]):
+            return False
+    except sqlite3.OperationalError:  # a database older than the table
+        return False
+    return not any(table_of(conn, ref, among=("batches", "items", "tickets"))
+                   for ref in key_parts(key)[2])
 
 
 def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
@@ -2903,8 +2931,8 @@ def constraints_for_grains(conn: sqlite3.Connection, grains: Iterable[str]) -> l
 
 def constraint_zero_area_coverage(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
     """Areas surveyed (including none_found) vs areas still under constraint zero."""
-    all_areas = {r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL"
-    )}
+    from ..onboarding.boot import coded_areas
+
+    all_areas = set(coded_areas(conn))
     surveyed = {r["area"] for r in conn.execute("SELECT DISTINCT area FROM survey_records")}
     return surveyed, all_areas - surveyed

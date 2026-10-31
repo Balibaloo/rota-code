@@ -4956,7 +4956,10 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # citation on each row, so a `found` from file A marked file B (review
     # of frame 354, finding 5). A file is `found` only when a ledger row of
     # this attest names it, and its row keeps only the citations naming it.
-    several = len(targets) > 1
+    # The group decides, not the count of files closed. An attest that closed
+    # one file of a group kept the old stamp (review p2 of frame 354,
+    # finding 3).
+    several = len(group) > 1
     named = {_prose_path_of(ctx, a) for a in targets
              if any(_ledger_names(ctx, v, a) for v in mine)}
     for subject in targets:
@@ -5016,8 +5019,15 @@ def _ledger_names(ctx: Ctx, row: dict, area: str) -> bool:
     row = row or {}
     path = _prose_path_of(ctx, area)
     ref = str(row.get("about_ref") or "")
-    return (_grain_path(str(row.get("about_table") or "")) == path
-            or ref == area or _grain_path(ref) == path)
+    table = _grain_path(str(row.get("about_table") or ""))
+    # The brief logs a docs conflict as about_ref "@prose" with the file in
+    # about_table. That row names its file, not the README, whose area id
+    # is "@prose" (review p2 of frame 354, finding 2).
+    other_file = bool(table) and table != path and ctx.conn.execute(
+        "SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
+        (table,)).fetchone() is not None
+    return (table == path or (ref == area and not other_file)
+            or _grain_path(ref) == path)
 
 
 def _group_targets(ctx: Ctx, group: tuple[str, ...], citations: list[str],
@@ -5334,6 +5344,12 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
         return True
     if ctx.conn.execute("SELECT 1 FROM glossary_terms WHERE term = ?",
                         (ref,)).fetchone():
+        return True
+    # A quarantined tick key that reaches no other row is the quarantine
+    # wake's ref, and the page numbers it (frame 354).
+    from ..core.scheduler import rowless_key
+
+    if rowless_key(ctx.conn, ref):
         return True
     # Grains are rows too: constraint bindings, surface_refs and the
     # reconcile ledger all point at what the index holds, by its own key.

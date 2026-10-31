@@ -325,9 +325,12 @@ def test_s5_unresolvable_bindings_promote_to_global(db):
 # ---------------------------------------------------------------------------
 
 def test_s6_none_found_counts_as_surveyed(db):
+    # An area holds code when it holds a symbol (`boot.coded_areas`, frame 354).
     for grain, area in [("a/x.py", "auth"), ("b/y.py", "billing")]:
         db.execute("INSERT INTO code_index (grain, grain_kind, area) VALUES (?,?,?)",
                    (grain, "path", area))
+        db.execute("INSERT INTO code_index (grain, grain_kind, area) VALUES (?,?,?)",
+                   (grain + "::f", "symbol", area))
     surveyed, residue = constraint_zero_area_coverage(db)
     assert residue == {"auth", "billing"}
 

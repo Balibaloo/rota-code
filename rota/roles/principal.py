@@ -458,7 +458,7 @@ def render_state(conn: sqlite3.Connection) -> str:
     from ..core.scheduler import quarantined_keys
 
     gave_up = [k for k in quarantined_keys(conn, constraint_zero=False,
-                                           first_come=True)
+                                           first_come=True, groups=False)
                if k not in parked_keys]
     if gave_up:
         # The words of a kind name who failed, so the line does not say the
@@ -1605,7 +1605,7 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
     and its numbered rows are one set. `confirm` keeps every statement,
     because a confirm page can take his words as separate requests.
     """
-    from ..core.scheduler import aside_items
+    from ..core.scheduler import aside_items, rowless_key
 
     aside = aside_items(conn)
     # Requests are told apart by their boundaries. A run with no request
@@ -1621,6 +1621,10 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
         if _is_reading(ref):
             if ref not in page_readings(conn, refs, [ref]):
                 out.add(ref)
+            continue
+        # A quarantined key with no row is a numbered line of the page, so
+        # it stays (frame 354).
+        if rowless_key(conn, ref):
             continue
         # The intake door refuses a statement of another entry, so the
         # Liaison learns to say it again (frame 193, pass 3, finding 4).
@@ -2003,7 +2007,8 @@ def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
     """The quarantined tick keys that name a batch of the page."""
     from ..core.scheduler import quarantined_keys
 
-    return quarantined_keys(conn, batches, pairs=True, constraint_zero=False)
+    return quarantined_keys(conn, batches, pairs=True, constraint_zero=False,
+                            groups=False)
 
 
 def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
@@ -2782,7 +2787,17 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     # came later (the diff review of 358fed11, finding 4).
     keys = (list(stalled) if stalled is not None
             else door_rows(conn, ask_id, "stalled")) if verb == "present" else []
-    if verb == "present" and keys and touches:
+    # A key the page carries as its own ref reaches no row, so no batch
+    # line says it. It gets its own numbered line (frame 354: m3 had none).
+    gave_up = [(k, _gave_up_words(conn, [k])[0]) for k in keys if k in refs]
+    batch_keys = [k for k in keys if k not in refs]
+
+    def gave_up_lines() -> None:
+        if gave_up:
+            out.append("The team gave up on a step:")
+            numbered(gave_up)
+
+    if verb == "present" and batch_keys and touches:
         # A quarantined batch is no plan any more. Night 136's m96 opened
         # "Before I build this" on a batch the Tester had given up on
         # (frame 190's design, 2.F, amendment 6). A review with no verdict
@@ -2802,9 +2817,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         # One sentence per key: m127's two keys in one sentence made 32
         # words (review of P12 pass 1, finding 1).
         out.append(" ".join(f"The team gave up: {p}."
-                            for p in _stalled_parts(conn, keys)))
+                            for p in _stalled_parts(conn, batch_keys)))
         out.append("The team expects to touch:")
         numbered(touches)
+        gave_up_lines()
         out.append("Reply 'ok' if every line says what you want. Name a line "
                    "to correct only that line. Ask, if something here is "
                    "unclear." + _name_request(asked))
@@ -2819,11 +2835,13 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         if zero:
             out.append("  Some of that code has not been read yet. I cannot say "
                        "what a change there might break.")
+        gave_up_lines()
         out.append("This is a prediction, not a promise. Reply 'ok' to go "
                    "ahead. Reply with words if something concerns you."
                    + _name_request(asked))
     elif verb == "present" and zero and not (said or account or described
-                                             or does or does_not or in_block):
+                                             or does or does_not or in_block
+                                             or gave_up):
         out.append("Nothing here has been read yet, so I cannot say what a "
                    "change might break. That is normal for a new or unread "
                    "project.")
@@ -2866,6 +2884,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         if zero:
             out.append("Some of this code has not been read yet. I will flag "
                        "anything I touch there.")
+        gave_up_lines()
         out.append("Reply in your own words. 'ok' approves all of this and "
                    "starts building. Name a line to correct only that line. "
                    "Ask, if something here is unclear." + _name_request(asked)

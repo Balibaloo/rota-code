@@ -3561,6 +3561,28 @@ def _refuse_confirm_off_entry(ctx: api.Ctx, refs: list, staged: set) -> None:
         f"nothing, call no confirm.")
 
 
+def _wake_key_parts(ctx: api.Ctx) -> dict[str, str]:
+    """Each `|` part of a rowless quarantined key in the wake's refs, mapped
+    to its key. The first key keeps a part that two keys share."""
+    from .scheduler import rowless_key
+
+    out: dict[str, str] = {}
+    for key in getattr(ctx, "wake_refs", None) or ():
+        if isinstance(key, str) and rowless_key(ctx.conn, key):
+            for part in _key_pieces(key):
+                out.setdefault(part, key)
+    return out
+
+
+def _key_pieces(key: str) -> list[str]:
+    """The role, the kind and each ref of a tick key, the empty ones left out."""
+    # `key_parts` is the one splitter of a tick key (fact F20).
+    from .scheduler import key_parts
+
+    role, kind, refs = key_parts(key)
+    return [p for p in (role, kind, *refs) if p]
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "", reason_row: str = "") -> Callable:
     """
@@ -3713,7 +3735,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Legal is: a row that exists, a row this session staged, an entry,
         # or an @-prefixed non-row subject. Refused here it costs a turn and
         # the sender can trade the label for the id it actually holds.
-        dangling = [r for r in (refs or []) if not api.ref_resolves(ctx, r)]
+        # A part of a quarantined key in the wake waits for the merge below,
+        # which reads it as the key (frame 354, pass 4).
+        key_parts_woke = (_wake_key_parts(ctx)
+                          if verb == "present" and recipient == "principal"
+                          else {})
+        dangling = [r for r in (refs or []) if not api.ref_resolves(ctx, r)
+                    and r not in key_parts_woke]
         if dangling:
             raise ValueError(
                 f"{dangling[0][:40]!r} names no row -- not in any table, not "
@@ -4292,6 +4320,37 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 and not shift):
             refs += [r for r in ctx.wake_refs
                      if isinstance(r, str) and r and r not in refs]
+        # A small model split the key `critic|tick:challenge|@claim:...` on
+        # its bars, and the door refused 'critic' (frame 354, the cold run of
+        # pass 3, s58). Ruled for pass 4: the key stays the ref the seat
+        # sees, and the door reads a part with no row as the key, once.
+        if key_parts_woke:
+            matched = {key_parts_woke[r] for r in refs if r in key_parts_woke
+                       and not api.ref_resolves(ctx, r)}
+            parts = {p for k in matched for p in _key_pieces(k)}
+            mapped: list[str] = []
+            for r in refs:
+                r = r if r not in parts else key_parts_woke.get(r, r)
+                if r in parts:
+                    continue            # another part of a matched key
+                if r not in mapped:
+                    mapped.append(r)
+            refs = mapped
+        # A page with no ref numbers no line. All three wake merges have
+        # landed here, so an empty list is the session's and the wake's both.
+        # Frame 354: the Principal saw m3, a page with no lines.
+        if verb == "present" and recipient == "principal" and not refs:
+            held = [f"wake refs {list(ctx.wake_refs)}" if getattr(
+                        ctx, "wake_refs", None) else "no wake refs"]
+            if getattr(ctx, "trigger", None):
+                held.append(f"the trigger {ctx.trigger}")
+            if getattr(ctx, "batch_id", None):
+                held.append(f"the batch {ctx.batch_id}")
+            raise ValueError(
+                "a present shows the principal numbered lines, and its refs "
+                "are the lines. You sent no refs. Your seat holds "
+                + ", ".join(held) + ". Put the ids of the rows you present "
+                "in refs")
         # A submit's present carries the uncovered statements by the same
         # rule: which ratified statements no item reflects is a fact about
         # the state, computed by the system, never the session's to trim.
@@ -4396,6 +4455,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             batches = [r for r in refs if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone()]
             keys = _stalled_keys(ctx.conn, batches) if batches else []
+            # A quarantined key with no row rides as its own ref, and no
+            # batch names it. The page numbers it from this record (frame 354).
+            from ..core.scheduler import rowless_key
+
+            keys += [r for r in refs if r not in keys and rowless_key(ctx.conn, r)]
             if keys:
                 notes["stalled"] = _json.dumps(keys)
             # No ref rides a page unnumbered. A row the page does not number
