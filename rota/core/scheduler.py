@@ -1793,12 +1793,27 @@ def key_parts(key: str) -> tuple[str, str, tuple[str, ...]]:
 
 CONSTRAINT_ZERO = "tick:constraint_zero"
 
+# `tick_attempts.reported` after the principal ruled on a stopped step that
+# names no row. 1 means the Liaison said the step. 2 means he answered it,
+# so no later page numbers the step again (frame 354, pass 5).
+RULED = 2
+
+
+def regrouped_key(key: str) -> bool:
+    """A reconcile key of several files. The scheduler wakes each file alone,
+    so the key stops nothing and no reader calls it given up."""
+    # Review p2 of frame 354, finding 1, and review p3, findings 2 and 5:
+    # three readers kept the group key as a stall. This is the one test.
+    _, kind, refs = key_parts(key)
+    return kind == "tick:reconcile" and len(refs) > 1
+
 
 def quarantined_keys(conn: sqlite3.Connection,
                      subject: str | Iterable[str] | None = None, *,
                      pairs: bool = False, kind: str | None = None,
                      unreported: bool = False, constraint_zero: bool = True,
-                     first_come: bool = False, groups: bool = True) -> list[str]:
+                     first_come: bool = False, groups: bool = True,
+                     ruled: bool = True) -> list[str]:
     """
     The quarantined tick keys, by key or in the order they came.
 
@@ -1810,6 +1825,7 @@ def quarantined_keys(conn: sqlite3.Connection,
     quarantine page shows it as one line, because nothing stops quietly
     (frame 354). `groups=False` drops a reconcile key of several files,
     which the scheduler wakes alone, so no report calls them abandoned.
+    `ruled=False` drops a key the principal answered (`RULED`).
     """
     # One reader of `tick_attempts.quarantined`, so "the keys of a batch" has
     # one rule. A key with two refs is about a pair, such as a touch note and
@@ -1824,6 +1840,7 @@ def quarantined_keys(conn: sqlite3.Connection,
     for r in conn.execute(
             "SELECT tick_key FROM tick_attempts WHERE quarantined = 1"
             + (" AND reported = 0" if unreported else "")
+            + ("" if ruled else f" AND reported != {RULED}")
             + (" ORDER BY rowid" if first_come else " ORDER BY tick_key")):
         _, k, refs = key_parts(r["tick_key"])
         if kind is not None and k != kind:
@@ -1834,7 +1851,7 @@ def quarantined_keys(conn: sqlite3.Connection,
         # alone, so the group key abandons nothing. Its report said
         # "1 abandoned" after every file closed (review p2 of frame 354,
         # finding 1).
-        if not groups and k == "tick:reconcile" and len(refs) > 1:
+        if not groups and regrouped_key(r["tick_key"]):
             continue
         if subjects is not None and not (
                 set(refs) & subjects if pairs
@@ -1853,9 +1870,11 @@ def rowless_key(conn: sqlite3.Connection, key: str) -> bool:
 
     if not isinstance(key, str) or "|tick:" not in key:
         return False
-    # `quarantined_keys` is the one reader of the flag (fact F20).
+    # `quarantined_keys` is the one reader of the flag (fact F20). A group
+    # key stops nothing, and a key he answered is no line any more.
     try:
-        if key not in quarantined_keys(conn, kind=key_parts(key)[1]):
+        if key not in quarantined_keys(conn, kind=key_parts(key)[1],
+                                       groups=False, ruled=False):
             return False
     except sqlite3.OperationalError:  # a database older than the table
         return False

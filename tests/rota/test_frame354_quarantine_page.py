@@ -160,3 +160,94 @@ def test_a_key_split_on_its_bars_lands_as_the_key(db, sent):
                               ask_id=row["id"])
     assert order == [CRITIC_KEY]
     assert f"  1. {_gave_up_words(db, [CRITIC_KEY])[0]}" in page
+
+
+GROUP_KEY = "reconciler|tick:reconcile|docs/a.md,docs/b.md"
+
+
+def _quarantine(db, key) -> None:
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES (?, 3, 1, 0)", (key,))
+
+
+def test_a_regrouped_reconcile_key_is_a_stall_to_no_reader(db):
+    """Pass 5: the group's files wake alone, so the group key stops nothing.
+    Review p3, findings 2 and 5, found three readers that said otherwise."""
+    from rota.core.scheduler import regrouped_key, rowless_key
+    from rota.roles import api
+
+    _quarantine(db, GROUP_KEY)
+    assert regrouped_key(GROUP_KEY)
+    assert P.quarantined(db) == []
+    facts = api.code_gaps(api.Ctx(conn=db, role="liaison"))["facts"]
+    assert "docs/a.md" not in json.dumps(facts)
+    assert not rowless_key(db, GROUP_KEY)
+    assert not api.ref_resolves(api.Ctx(conn=db, role="liaison"), GROUP_KEY)
+
+
+def _present_critic(db, sent=None):
+    from rota.core.scheduler import Wake
+
+    _quarantine(db, CRITIC_KEY)
+    wake = Wake("liaison", "tick:quarantined", refs=(CRITIC_KEY,),
+                detail="1 abandoned")
+    out = _sessions(db, wake, "TOOL: msg.present_principal(refs=%s)"
+                    % json.dumps(sent or [CRITIC_KEY]))
+    assert out.committed, out.errors
+    return db.execute("SELECT * FROM messages WHERE verb = 'present'").fetchone()
+
+
+def test_a_key_part_that_names_a_row_lands_as_the_key_once(db):
+    row = _present_critic(db, ["@claim:constraints:command"])
+    assert json.loads(row["body_refs"]) == [CRITIC_KEY]
+
+
+def _attempts(db):
+    return db.execute("SELECT attempts, quarantined, reported FROM tick_attempts "
+                      "WHERE tick_key = ?", (CRITIC_KEY,)).fetchone()
+
+
+def test_a_contest_on_the_stalled_line_runs_the_step_again(db):
+    from rota.roles.principal import Answer, land, page_ask
+
+    row = _present_critic(db)
+    mid = land(db, page_ask(row), Answer(
+        verb="verdict", text="1 contest: try again",
+        per_item={CRITIC_KEY: "contest"}))
+    assert mid
+    # The lift deletes the quarantined row: no attempts, no `reported` mark.
+    assert _attempts(db) is None
+    ruled = db.execute("SELECT verdict FROM ruled_refs WHERE ref = ? AND "
+                       "source = 'landed'", (CRITIC_KEY,)).fetchall()
+    assert [r["verdict"] for r in ruled] == ["contest"]
+
+
+def test_ok_on_a_page_of_one_stalled_step_drops_it(db):
+    from rota.core.scheduler import rowless_key
+    from rota.roles.principal import Answer, land, page_ask
+
+    row = _present_critic(db)
+    mid = land(db, page_ask(row), Answer(verb="verdict", text="ok"))
+    assert mid
+    att = _attempts(db)
+    assert (att["quarantined"], att["reported"]) == (1, 2)
+    assert db.execute("SELECT status FROM messages WHERE id = ?",
+                      (mid,)).fetchone()["status"] == "answered"
+    assert db.execute("SELECT 1 FROM ruled_refs WHERE ref = ? AND "
+                      "source = 'landed'", (CRITIC_KEY,)).fetchone()
+    # The next page numbers no line for the dropped step.
+    assert not rowless_key(db, CRITIC_KEY)
+    assert P.quarantined(db) == []
+    page, order = render_page(db, "present", [CRITIC_KEY], None,
+                              stalled=[k for k in [CRITIC_KEY]
+                                       if rowless_key(db, k)])
+    assert CRITIC_KEY not in order
+
+
+def test_a_page_of_stalled_steps_only_says_what_a_reply_does(db):
+    row = _present_critic(db)
+    page, order = render_page(db, "present", json.loads(row["body_refs"]),
+                              None, ask_id=row["id"])
+    assert order == [CRITIC_KEY]
+    assert "'try again'" in page and "'ok' on it to drop it" in page
+    assert "starts building" not in page

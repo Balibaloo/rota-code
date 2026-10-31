@@ -18954,7 +18954,9 @@ def code_gaps(ctx: Ctx) -> dict:
 
     # The order is first come, so the six-row cut favours no seat by its
     # name (review 1 of frame 246, finding 3).
-    keys = quarantined_keys(ctx.conn, constraint_zero=False, first_come=True)[:6]
+    # A group key stops nothing, so it is no gap (review p3, finding 2).
+    keys = quarantined_keys(ctx.conn, constraint_zero=False, first_come=True,
+                            groups=False)[:6]
     lines.extend(_capital(w) for w in _gave_up_words(ctx.conn, keys))
     checked = ctx.conn.execute(
         "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]

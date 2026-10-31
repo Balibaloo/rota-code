@@ -1040,6 +1040,17 @@ def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
                      "AND quarantined = 1", [(k,) for k in keys])
 
 
+def mark_ruled(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
+    """Mark each quarantined key as answered by the principal. The key stays
+    quarantined, so the step does not run again, and no page shows it."""
+    # Frame 354, pass 5: his 'ok' on a stopped step drops the step. Law 6
+    # keeps the quarantine, and `scheduler.RULED` keeps the page quiet.
+    from .scheduler import RULED
+
+    conn.executemany("UPDATE tick_attempts SET reported = ? WHERE tick_key = ? "
+                     "AND quarantined = 1", [(RULED, k) for k in keys])
+
+
 def forget_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
     """Lift each key's quarantine and forget its live count."""
     keys = list(keys)

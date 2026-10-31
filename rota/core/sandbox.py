@@ -4323,10 +4323,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A small model split the key `critic|tick:challenge|@claim:...` on
         # its bars, and the door refused 'critic' (frame 354, the cold run of
         # pass 3, s58). Ruled for pass 4: the key stays the ref the seat
-        # sees, and the door reads a part with no row as the key, once.
+        # sees, and the door reads a part as the key, once. A part that
+        # names a row is read so too: `@claim:...` alone landed two refs for
+        # one stopped step (review p3 of frame 354, finding 3).
         if key_parts_woke:
-            matched = {key_parts_woke[r] for r in refs if r in key_parts_woke
-                       and not api.ref_resolves(ctx, r)}
+            matched = {key_parts_woke[r] for r in refs if r in key_parts_woke}
             parts = {p for k in matched for p in _key_pieces(k)}
             mapped: list[str] = []
             for r in refs:

@@ -332,8 +332,9 @@ def step(
             # Said out loud, so stop saying it. The alternative is an alarm that
             # cannot be switched off, which is how this predicate ended up
             # bounded by the mechanism it exists to report.
+            # A key he answered keeps its mark (`scheduler.RULED`).
             conn.execute("UPDATE tick_attempts SET reported = 1 "
-                         "WHERE quarantined = 1")
+                         "WHERE quarantined = 1 AND reported = 0")
             # A quarantined message is said once too. Dry1's m4 and m5 woke
             # the Liaison again after each lift of the wake's key (frame 355).
             conn.execute("UPDATE messages SET told = 1 "

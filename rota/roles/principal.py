@@ -2808,6 +2808,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         if gave_up:
             out.append("The team gave up on a step:")
             numbered(gave_up)
+            # `land` reads his ruling on the line (review p3, finding 1).
+            out.append("Reply 'try again' on a step to run it again. Reply "
+                       "'ok' on it to drop it.")
 
     if verb == "present" and batch_keys and touches:
         # A quarantined batch is no plan any more. Night 136's m96 opened
@@ -2897,10 +2900,13 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("Some of this code has not been read yet. I will flag "
                        "anything I touch there.")
         gave_up_lines()
-        out.append("Reply in your own words. 'ok' approves all of this and "
-                   "starts building. Name a line to correct only that line. "
-                   "Ask, if something here is unclear." + _name_request(asked)
-                   + _name_guess(guessed))
+        # A page of stopped steps only has nothing to build, so its 'ok'
+        # starts nothing (review p3 of frame 354, finding 4).
+        if not (gave_up and set(order) <= {k for k, _ in gave_up}):
+            out.append("Reply in your own words. 'ok' approves all of this "
+                       "and starts building. Name a line to correct only "
+                       "that line. Ask, if something here is unclear."
+                       + _name_request(asked) + _name_guess(guessed))
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
         if question:
@@ -3200,6 +3206,25 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # design, 2.3).
     readings = {k: v for k, v in per_item.items() if _is_reading(k)}
     per_item = {k: v for k, v in per_item.items() if not _is_reading(k)}
+    # A stopped step that names no row is a line he rules on. A contest or a
+    # revise runs the step again, and an approve drops it. Review p3 of frame
+    # 354, finding 1: his '1 contest: try again' lifted nothing. The lift is
+    # `lift_keys`, the one delete of a quarantine (fact F20). No park owns
+    # such a key, because `park_owns` reads a batch and the key names none
+    # (frame 142's design, 2.D).
+    from ..core.db import mark_ruled
+    from ..core.scheduler import rowless_key
+
+    steps = ([k for k in door_rows(conn, ask.message_id, "stalled")
+              if rowless_key(conn, k)]
+             if ask.verb == "present" and answer.verb == "verdict" else [])
+    # 'ok' over a page of stopped steps only names no line, and it drops them.
+    if steps and not per_item and set(ask.refs) <= set(steps):
+        per_item = {k: "approve" for k in steps}
+    ruled_steps = {k: v for k, v in per_item.items()
+                   if k in steps and v in ("approve", "contest", "revise")}
+    lift_keys(conn, [k for k, v in ruled_steps.items() if v != "approve"])
+    mark_ruled(conn, [k for k, v in ruled_steps.items() if v == "approve"])
     # The answer as given names the item, whatever a filter or a resume drops.
     ruled = set(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
@@ -3333,7 +3358,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             for item in _items_reached(conn, ref):
                 _write_park(conn, item, "resume", "shift", msg_id, seq_now)
             per_item.pop(ref)
-    closed_here: list[str] = []
+    # A ruled step closed above. No owner has a row to apply it to.
+    closed_here: list[str] = [k for k in ruled_steps if k in per_item]
     # The page's request, read once and only when a note's contest needs it.
     unread = object()
     page_req: object = unread
@@ -3457,9 +3483,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # the agenda put that row to the principal: 36 rounds (tipsQ,
     # 2026-09-09). A ruling whose every line was a request approve off the
     # sign-off page leaves nothing either.
-    approved_here = [r for r in closed_here if per_item.get(r) == "approve"]
-    settled = (bool(answer.per_item) and not refs
-               and len(approved_here) == len(closed_here))
+    # A ruled step is settled either way, and it keeps its landed row, so
+    # the reader of earlier answers finds his ruling (frame 354, pass 5).
+    approved_here = [r for r in closed_here if per_item.get(r) == "approve"
+                     and r not in ruled_steps]
+    settled = (bool(answer.per_item or ruled_steps) and not refs
+               and len(approved_here) + len(ruled_steps) == len(closed_here))
     # A park page approved whole is the ceiling. The team stops here and the
     # parked line says so, so no Liaison session wakes on the verdict
     # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 5).

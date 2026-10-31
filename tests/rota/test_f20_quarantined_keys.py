@@ -232,6 +232,7 @@ _PKG = Path(__file__).resolve().parents[2] / "rota"
 # A write of the flag is not a read of the fact. Each site names its write.
 _QUARANTINE_WRITES = {
     ("rota/core/db.py", "lift_keys"): "the one delete of a quarantined key",
+    ("rota/core/db.py", "mark_ruled"): "marks the keys the principal answered",
     ("rota/core/loop.py", "step"): "marks the reported keys",
     ("rota/core/scheduler.py", "quarantine_overrun"): "sets the flag",
     ("rota/core/scheduler.py", "quarantine_stalled"): "sets the flag",
