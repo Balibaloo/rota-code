@@ -1739,9 +1739,15 @@ def quarantined(conn) -> list[Wake]:
     only part of this the principal has a name for."""
     # Untold only, as the tick keys below are unreported only. A committed
     # report marks the message told in `loop.step` (frame 355).
+    # A read-only open adds no column, so an old database has no `told`.
+    # Then no message was told yet. The cockpit's overlay and `rota ls`
+    # raised there (frame 355, review 2, finding 5).
+    from .db import _has_column
+
+    untold = " AND told = 0" if _has_column(conn, "messages", "told") else ""
     dead = conn.execute(
-        "SELECT id, body_refs FROM messages WHERE status = 'quarantined' "
-        "AND told = 0").fetchall()
+        "SELECT id, body_refs FROM messages WHERE status = 'quarantined'"
+        + untold).fetchall()
     # Ordered, deduplicated, and never the message ids: one dead delivery can
     # carry several items, and two can carry the same one.
     refs: list[str] = []

@@ -553,14 +553,20 @@ def model_stop(conn: sqlite3.Connection, ends: int, s: Step) -> tuple[int, str]:
     and the stop line when the count reaches `DOWN_AFTER`.
 
     `rota run` and `run` both call this after each step. The stop line goes
-    to the `config` row `model_down`, so `rota agenda` shows it. A
-    committed session removes the row."""
+    to the `config` row `model_down`, so `rota agenda` shows it. A session
+    that commits or keeps a model turn removes the row."""
     # A model that never answers looped for the 40-session limit, and the
     # Principal heard nothing (frame 355, review 1, finding 1).
     if s.outcome is None:
         return ends, ""
     if not getattr(s.outcome, "unavailable", False):
-        if getattr(s.outcome, "committed", False):
+        # A kept model turn is an answer from the model, so the stop is old.
+        # A session that answers and then fails on its own kept the stop
+        # line (frame 355, review 2, finding 6). The runner writes its own
+        # turns with an empty system text.
+        if getattr(s.outcome, "committed", False) or conn.execute(
+                "SELECT 1 FROM turns WHERE session_id = ? AND system != '' "
+                "LIMIT 1", (s.outcome.session_id,)).fetchone():
             conn.execute("DELETE FROM config WHERE key = ?", (MODEL_DOWN,))
         return 0, ""
     ends += 1
@@ -571,8 +577,10 @@ def model_stop(conn: sqlite3.Connection, ends: int, s: Step) -> tuple[int, str]:
     row = conn.execute("SELECT model FROM sessions WHERE id = ?",
                        (s.outcome.session_id,)).fetchone()
     model = row["model"] if row and row["model"] else "the model"
-    line = (f"Stopped: the model {model} does not answer. {ends} sessions in "
-            f"a row ended with no answer, {config.get(conn, 'model_wait_s')}s "
+    at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (f"Stopped at {at}: the model {model} does not answer. {ends} "
+            f"sessions in a row ended with no answer, and a probe of the "
+            f"model failed after each, {config.get(conn, 'model_wait_s')}s "
             f"apart. The last wake was {s.wake}. Start the model server, then "
             f"run again.")
     set_config(conn, MODEL_DOWN, line)

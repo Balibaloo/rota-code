@@ -725,12 +725,23 @@ def cmd_agenda(args: argparse.Namespace) -> int:
     if stale:
         conn.close()
         raise SystemExit(f"{args.name}: {stale}")
+    # A run stopped by a down model says so first, before any ask. Dry1's
+    # copy with five asks printed no stop line (frame 355, review 2,
+    # finding 3).
+    from .core.db import get_config
+    from .core.loop import MODEL_DOWN
+    from .roles.principal import _render_state
+
+    down = get_config(conn, MODEL_DOWN)
+    if down:
+        print(down)
     asks = pending_asks(conn)
     if not asks:
         # "nothing is waiting on you" was the whole answer. A finished run, a
         # run stuck with red tests, and a run nobody started printed the same
         # line. The agenda is where a person looks to learn what happened.
-        print(render_state(conn))
+        # The stop line printed above, so it does not print twice.
+        print(_render_state(conn) if down else render_state(conn))
     for a in asks:
         print(f"[{a.message_id}] {a.verb} · rule by id: {', '.join(a.refs)}")
         if a.rendered:

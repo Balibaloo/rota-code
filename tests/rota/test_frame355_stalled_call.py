@@ -10,6 +10,7 @@ import time
 
 from rota.core import db as db_mod
 from rota.core import loop, predicates
+from rota.core import runner as runner_mod
 from rota.core.db import init_db
 from rota.core.runner import RunOutcome
 from rota.core.scheduler import Wake, tick_key
@@ -76,8 +77,11 @@ def test_a_tick_session_with_no_answer_leaves_its_key_count_where_it_was(
     assert (row["attempts"], row["quarantined"]) == (0, 0), dict(row)
 
 
-def test_a_replay_miss_still_spends_its_attempt(tmp_path):
-    """A cassette miss repeats on every retry, so it is not an outage."""
+def test_a_replay_miss_still_spends_its_attempt(tmp_path, monkeypatch):
+    """A cassette miss repeats on every retry, so it is not an outage.
+    No probe runs under replay."""
+    calls = _probe(monkeypatch, False)
+
     class Miss:
         name = "replay"
 
@@ -91,8 +95,38 @@ def test_a_replay_miss_still_spends_its_attempt(tmp_path):
     db.commit()
     s = loop.step(db, backend=Miss(), pins=Pins(model="scripted"))
     assert not s.outcome.unavailable
+    assert calls == [], "a probe ran under replay"
     assert db.execute("SELECT attempts FROM messages WHERE id = 'm1'"
                       ).fetchone()["attempts"] == 1
+
+
+def test_the_probe_goes_past_a_recorder_with_the_smallest_call(tmp_path):
+    """The probe writes no cassette, and it asks the session's model for one
+    token at the session's window, in 30 s."""
+    from rota.llm.cassettes import RecordingBackend, ReplayOnlyBackend
+
+    class Live:
+        name = "live"
+        timeout = 300.0
+
+        def __init__(self):
+            self.seen = []
+
+        def complete(self, system, user, pins, tools=None):
+            self.seen.append((self.timeout, pins))
+            from rota.llm.llm import Completion
+            return Completion(text="OK", pins=pins, backend=self.name)
+
+    live = Live()
+    rec = RecordingBackend(live, dev_conn=None)
+    assert runner_mod.probe_model(rec, Pins(model="qwen3:8b", num_ctx=16384))
+    (timeout, pins), = [(t, p) for t, p in live.seen]
+    assert timeout == runner_mod.PROBE_TIMEOUT_S == 30.0
+    # The session's own window, so the server keeps the model loaded.
+    assert (pins.model, pins.max_tokens, pins.num_ctx) == ("qwen3:8b", 1, 16384)
+    assert live.timeout == 300.0, "the session's backend keeps its timeout"
+    assert not runner_mod.probe_model(Stalled(), Pins(model="qwen3:8b"))
+    assert runner_mod.probe_model(ReplayOnlyBackend(None), Pins())
 
 
 def _quarantined_pair(db):
@@ -180,66 +214,111 @@ def _seed_message(db):
     db.commit()
 
 
-def _answered_session(db, sid="s_ok"):
-    """A session of another wake that had an answer from the model."""
-    seq = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM sessions").fetchone()[0]
-    db.execute("INSERT INTO sessions (id, role, committed, seq, wake_kind) "
-               "VALUES (?, 'architect', 1, ?, 'tick:survey')", (sid, seq))
-    db.commit()
-
-
 def _m1(db):
     return dict(db.execute("SELECT status, attempts FROM messages WHERE id = 'm1'"
                            ).fetchone())
 
 
-def test_a_wake_that_fails_while_another_session_answers_reaches_quarantine(
+def _probe(monkeypatch, answers):
+    """The probe call, mocked. Return the list of the probe's pins."""
+    calls = []
+
+    def probe(backend, pins):
+        calls.append(pins)
+        return answers
+
+    monkeypatch.setattr(runner_mod, "probe_model", probe)
+    return calls
+
+
+def test_a_no_answer_end_whose_probe_answers_spends_the_attempt(
         tmp_path, monkeypatch):
     """A prompt too large for the window fails the same way every time,
-    and other sessions answer. Such a wake spends its attempts."""
+    and the model answers a probe. Such a wake reaches quarantine."""
     monkeypatch.setattr(time, "sleep", lambda s: None)
+    calls = _probe(monkeypatch, True)
     db = init_db(tmp_path / "rota.db")
     _seed_message(db)
 
-    first = loop.step(db, backend=Stalled(), pins=Pins(model="scripted"))
-    assert first.outcome.unavailable, "the first end has no answer to compare"
-    assert _m1(db) == {"status": "open", "attempts": 0}
-
-    _answered_session(db)
     for n in (1, 2, 3):
         s = loop.step(db, backend=Stalled(), pins=Pins(model="scripted"))
         assert s.wake.message_id == "m1", str(s)
         assert not s.outcome.unavailable, f"end {n} is the wake's own"
+        assert runner_mod.PROBE_ANSWERED in s.outcome.errors[-1], s.outcome.errors
+    assert len(calls) == 3 and calls[0].model == "scripted", calls
     assert _m1(db) == {"status": "quarantined", "attempts": 3}, _m1(db)
+    text = db.execute("SELECT completion FROM turns WHERE completion LIKE "
+                      "'SESSION FAILED:%' ORDER BY rowid DESC LIMIT 1"
+                      ).fetchone()["completion"]
+    assert runner_mod.PROBE_ANSWERED in text, text
 
 
-def test_a_wake_that_fails_while_no_session_answers_gives_its_attempt_back(
+def test_a_no_answer_end_whose_probe_fails_gives_its_attempt_back(
         tmp_path, monkeypatch):
-    """An answer before the wake's first end does not make the end its own."""
     monkeypatch.setattr(time, "sleep", lambda s: None)
+    _probe(monkeypatch, False)
     db = init_db(tmp_path / "rota.db")
     _seed_message(db)
-    _answered_session(db)
 
     for _ in range(2):
         s = loop.step(db, backend=Stalled(), pins=Pins(model="scripted"))
         assert s.outcome.unavailable, s.outcome.errors
+        assert runner_mod.PROBE_ANSWERED not in s.outcome.errors[-1]
     assert _m1(db) == {"status": "open", "attempts": 0}, _m1(db)
 
 
-def test_three_ends_with_no_answer_stop_the_run_with_the_model_name(
+class AnswersThenStalls:
+    """A model that answers turns 1 and 2, then stalls on turn 3."""
+    name = "stalls-late"
+
+    def __init__(self):
+        self.n = 0
+
+    def complete(self, system, user, pins, tools=None):
+        from rota.llm.llm import Completion
+
+        self.n += 1
+        if self.n >= 3:
+            raise LLMUnavailable("ollama at test: no answer in 300s")
+        # A refused call keeps the session in its loop for another turn.
+        return Completion(text="TOOL: no.such_call()", pins=pins,
+                          backend=self.name)
+
+
+def test_a_session_that_answered_then_stalled_spends_the_attempt(
+        tmp_path, monkeypatch):
+    """Review 2, finding 1: the turn the session kept gave its attempt back
+    on every retry. The probe answers, so the end is the wake's own."""
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    calls = _probe(monkeypatch, True)
+    db = init_db(tmp_path / "rota.db")
+    _seed_message(db)
+
+    backend = AnswersThenStalls()
+    s = loop.step(db, backend=backend, pins=Pins(model="scripted"))
+    assert backend.n == 3, f"the session stalled on turn {backend.n}"
+    assert not s.outcome.unavailable and len(calls) == 1, s.outcome.errors
+    kept = db.execute("SELECT COUNT(*) FROM turns WHERE session_id = ? "
+                      "AND system != ''", (s.outcome.session_id,)).fetchone()[0]
+    assert kept >= 1, "the session kept its model turns"
+    assert _m1(db)["attempts"] == 1, _m1(db)
+
+
+def test_three_failed_probes_stop_the_run_with_the_model_name(
         tmp_path, monkeypatch):
     waits = []
     monkeypatch.setattr(time, "sleep", waits.append)
+    calls = _probe(monkeypatch, False)
     db = init_db(tmp_path / "rota.db")
     _seed_message(db)
 
     trace = loop.run(db, backend=Stalled(), pins=Pins(model="stalled-8b"),
                      principal_present=False, max_steps=10)
-    assert len(trace.steps) == 3, trace.render()
+    assert len(trace.steps) == 3 and len(calls) == 3, trace.render()
     model = db.execute("SELECT model FROM sessions ORDER BY seq DESC LIMIT 1"
                        ).fetchone()["model"]
     assert model and f"the model {model} does not answer" in trace.down, trace.down
+    assert trace.down.startswith("Stopped at "), trace.down
     assert "60s apart" in trace.down, trace.down
     assert db_mod.get_config(db, loop.MODEL_DOWN) == trace.down
     assert principal.render_state(db).startswith(trace.down), "agenda says the stop"
@@ -248,6 +327,21 @@ def test_three_ends_with_no_answer_stop_the_run_with_the_model_name(
                                             iterations=1))
     assert loop.model_stop(db, 3, answered) == (0, "")
     assert db_mod.get_config(db, loop.MODEL_DOWN) is None, "an answer clears it"
+
+
+def test_a_session_that_keeps_a_model_turn_clears_the_stop(tmp_path):
+    """Review 2, finding 6: a session that answers and fails on its own
+    shows the model is back."""
+    db = init_db(tmp_path / "rota.db")
+    db_mod.set_config(db, loop.MODEL_DOWN, "Stopped at then: old")
+    db.execute("INSERT INTO sessions (id, role, committed, seq) "
+               "VALUES ('s7', 'liaison', 0, 1)")
+    db.execute("INSERT INTO turns (session_id, seq, system, user, completion) "
+               "VALUES ('s7', 0, 'the brief', 'the wake', 'a reply')")
+    failed = loop.Step(outcome=RunOutcome(session_id="s7", committed=False,
+                                          iterations=1))
+    assert loop.model_stop(db, 2, failed) == (0, "")
+    assert db_mod.get_config(db, loop.MODEL_DOWN) is None
 
 
 def test_a_message_on_two_rows_closes_only_when_both_moved(tmp_path):
@@ -332,3 +426,74 @@ def test_a_direct_session_gives_back_no_count_it_did_not_make(
     assert out.unavailable, out.errors
     assert db.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                       (tick_key(tick),)).fetchone()["attempts"] == 2
+
+
+def test_a_move_before_the_quarantine_counts_from_the_landing_on(tmp_path):
+    """Review 2, finding 4: m97's s1 moved while m97 was unresolved, and
+    the move was lost."""
+    db = init_db(tmp_path / "rota.db")
+    _quarantined_pair(db)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, "
+               "body_refs, attempts, status) VALUES ('m97','t1','principal','liaison',"
+               "'verdict',5,'[\"s1\", \"s2\"]',1,'unresolved')")
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, status, verdict_id) "
+               "VALUES ('r_m97','m2','{\"s1\": \"approve\"}','landed','m97')")
+
+    def move(ref):
+        db_mod._lift_quarantines(db, db_mod.Write(
+            table="statements", row_id=ref, values={"status": "ratified"}),
+            moved=True)
+        return dict(db.execute("SELECT status, moved_refs FROM messages "
+                               "WHERE id = 'm97'").fetchone())
+
+    assert move("s1") == {"status": "unresolved", "moved_refs": '["s1"]'}
+    db.execute("UPDATE messages SET status = 'quarantined' WHERE id = 'm97'")
+    assert move("s2")["status"] == "answered"
+
+
+def _dry1(tmp_path):
+    import shutil
+
+    import pytest
+
+    from rota import paths
+
+    src = paths.REPO / ".rota" / "dry1.db"
+    if not src.exists():
+        pytest.skip("dry1.db is a local run file")
+    shutil.copy(src, tmp_path / "dry1.db")
+    return tmp_path / "dry1.db"
+
+
+def test_a_read_only_open_of_an_old_database_reads_the_quarantined(tmp_path):
+    """Review 2, finding 5: `rota ls` and the cockpit's overlay open with
+    `connect_readonly`, which adds no `told` column."""
+    path = _dry1(tmp_path)
+    db = db_mod.connect_readonly(path)
+    assert not db_mod._has_column(db, "messages", "told"), "dry1 is old"
+    assert predicates.quarantined(db), "m4 and m5 are quarantined"
+    db.close()
+
+
+def test_the_agenda_says_the_stop_first_with_five_questions_waiting(
+        tmp_path, capsys):
+    """Review 2, finding 3: the agenda printed the five asks of dry1 and no
+    stop line."""
+    import argparse
+
+    from rota import cli
+
+    path = _dry1(tmp_path)
+    db = db_mod.connect(path)
+    line = "Stopped at 2026-10-31 20:00: the model qwen3:8b does not answer."
+    db_mod.set_config(db, loop.MODEL_DOWN, line)
+    db.commit()
+    asks = len(principal.pending_asks(db))
+    db.close()
+    assert asks == 5, asks
+
+    cli.cmd_agenda(argparse.Namespace(name=str(path), limit=3))
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == line, out[:3]
+    assert out.count(line) == 1, "the stop prints once"
+    assert sum(1 for x in out if x.startswith("[")) == 5, out

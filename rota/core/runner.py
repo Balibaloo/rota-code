@@ -6433,10 +6433,16 @@ def run_session(
 
             outcome.system = UNBUILT
         release(conn, wake.role)
-        if (isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss
-                and instrument_end(conn, wake)):
-            _give_back_attempt(conn, wake)
-            outcome.unavailable = True
+        error = f"{exc!r}"
+        # A replay miss repeats on every retry and has no model to probe, so
+        # the end is the wake's own.
+        if isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss:
+            if instrument_end(backend, pins):
+                _give_back_attempt(conn, wake)
+                outcome.unavailable = True
+            else:
+                error = f"{error} {PROBE_ANSWERED}"
+                outcome.errors[-1] = f"{outcome.errors[-1]} {PROBE_ANSWERED}"
         sandbox_mod.drain_calls(sb.ctx)
         # The row a failed session leaves. Night 31 (2026-09-13): 69 deaths
         # on one error and nothing in the database to read.
@@ -6447,7 +6453,7 @@ def run_session(
                 wake_detail=wake.detail or "", wake_refs=list(wake.refs or []),
                 pins={"model": pins.model, "temperature": pins.temperature,
                       "num_ctx": pins.num_ctx},
-                turns=turns, error=f"{exc!r}")
+                turns=turns, error=error)
         except Exception as row_exc:  # noqa: BLE001 -- the record must not hide the failure
             outcome.errors.append(f"and the failure row was not written: {row_exc!r}")
         # A failed session ends as surely as a normal one, so law 4's
@@ -6476,44 +6482,61 @@ def run_session(
         return outcome
 
 
-# A session had an answer from the model when it committed or kept a model
-# turn. The runner keeps a turn only after `backend.complete` returns, and
-# the turns that the runner writes itself have an empty system text.
-_ANSWERED = ("(s.committed = 1 OR EXISTS (SELECT 1 FROM turns t "
-             "WHERE t.session_id = s.id AND t.system != ''))")
-_THIS_WAKE = ("s.role = ? AND s.wake_kind = ? AND COALESCE(s.trigger_msg, '') = ? "
-              "AND s.wake_refs = ?")
+#: The probe's limit. A server that cannot answer one token in this time
+#: cannot run a session either.
+PROBE_TIMEOUT_S = 30.0
+#: The note on the error of an end whose probe answered.
+PROBE_ANSWERED = "The model answered a probe, so the failure is the wake's own."
 
 
-def instrument_end(conn: sqlite3.Connection, wake: Wake) -> bool:
-    """Whether a session of `wake` that ended with no answer from the model
-    is the instrument's end, and not the wake's own.
+def probe_model(backend: llm.Backend, pins: llm.Pins) -> bool:
+    """Whether the model of `pins` answers one call with the smallest
+    prompt and one token, in `PROBE_TIMEOUT_S`, at the session's window.
 
-    The end is the instrument's when no session has had an answer since the
-    wake's first no-answer end. It is the wake's own when another session
-    has. Call it before `session_fail` writes the row of this end."""
-    # LiteLLM wraps every error in `LLMUnavailable`, so a prompt too large
-    # for the window ends the same way on every retry. Only another session's
-    # answer tells it from a server that is down (frame 355, review 1,
-    # finding 1).
-    this = (wake.role, wake.kind, wake.message_id or "",
-            json.dumps(list(wake.refs or [])))
-    # The wake's ends start after its own last answer, so an old outage is
-    # not this wake's first end.
-    last = conn.execute(
-        f"SELECT COALESCE(MAX(s.seq), 0) FROM sessions s WHERE {_THIS_WAKE} "
-        f"AND {_ANSWERED}", this).fetchone()[0]
-    first = conn.execute(
-        f"SELECT MIN(s.seq) FROM sessions s WHERE {_THIS_WAKE} AND s.seq > ? "
-        f"AND s.committed = 0 AND NOT {_ANSWERED} AND EXISTS (SELECT 1 FROM "
-        f"turns t WHERE t.session_id = s.id "
-        f"AND t.completion LIKE 'SESSION FAILED: LLMUnavailable(%')",
-        (*this, last)).fetchone()[0]
-    if first is None:
+    The probe goes past a recorder, so it writes no cassette. A replay
+    backend has no model to ask, so the probe returns True."""
+    from ..llm.cassettes import RecordingBackend, ReplayOnlyBackend
+
+    inner = backend
+    while True:
+        if isinstance(inner, RecordingBackend):
+            inner = inner.inner
+        elif isinstance(inner, llm.RoutedBackend):
+            inner = inner.for_model(pins.model)
+        else:
+            break
+    if isinstance(inner, ReplayOnlyBackend):
         return True
-    return conn.execute(
-        f"SELECT 1 FROM sessions s WHERE s.seq > ? AND {_ANSWERED} LIMIT 1",
-        (first,)).fetchone() is None
+    if hasattr(inner, "timeout"):
+        import copy
+
+        # A copy, so the session's own backend keeps its timeout.
+        inner = copy.copy(inner)
+        inner.timeout = PROBE_TIMEOUT_S
+    # The window of the failed call. Ollama reloads a model when `num_ctx`
+    # changes, and a reload on a slow card can pass the timeout. Then the
+    # probe measures the reload and not the model (frame 355, pass 3).
+    small = llm.Pins(model=pins.model, temperature=0.0, num_ctx=pins.num_ctx,
+                     max_tokens=1, think=False)
+    try:
+        inner.complete("", "Say OK.", small)
+    except Exception:  # noqa: BLE001 -- any failure of the probe is the fact
+        return False
+    return True
+
+
+def instrument_end(backend: llm.Backend, pins: llm.Pins) -> bool:
+    """Whether a session that ended with no answer from the model is the
+    instrument's end, and not the wake's own. The probe decides.
+
+    A probe that answers makes the end the wake's own, and the attempt
+    counts. A probe that fails makes the end the instrument's."""
+    # LiteLLM wraps every error in `LLMUnavailable`, so a prompt too large
+    # for the window ends like a server that is down. An inference from
+    # other sessions' answers failed both ways (frame 355, review 2,
+    # findings 1 and 2). The composition's rule: only a fact gates, so a
+    # call to the model decides.
+    return not probe_model(backend, pins)
 
 
 def _give_back_attempt(conn: sqlite3.Connection, wake: Wake) -> None:

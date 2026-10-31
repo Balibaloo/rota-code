@@ -997,16 +997,19 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # landed ruling is the fact, and `mark_answered` is the one writer
         # of the mark (fact F16). A message on two rows closes only when
         # both moved, so `moved_refs` keeps the rows that moved until then
-        # (frame 355, review 1, finding 2).
+        # (frame 355, review 1, finding 2). A move counts from the landing on,
+        # whatever the message's status. A move before the quarantine was
+        # lost, and m97 never closed (frame 355, review 2, finding 4).
         for r in conn.execute(
-                "SELECT id, body_refs, moved_refs FROM messages "
-                "WHERE status = 'quarantined' "
+                "SELECT id, status, body_refs, moved_refs FROM messages "
+                "WHERE status != 'answered' "
                 "AND id IN (SELECT verdict_id FROM rulings WHERE status = 'landed') "
                 "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN "
                 "json_valid(messages.body_refs) THEN messages.body_refs "
                 "ELSE '[]' END) WHERE value = ?)", (w.row_id,)).fetchall():
             moved_refs = set(_ref_list(r["moved_refs"])) | {w.row_id}
-            if set(_ref_list(r["body_refs"])) <= moved_refs:
+            if (r["status"] == "quarantined"
+                    and set(_ref_list(r["body_refs"])) <= moved_refs):
                 mark_answered(conn, r["id"])
             else:
                 conn.execute("UPDATE messages SET moved_refs = ? WHERE id = ?",
