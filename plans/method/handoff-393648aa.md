@@ -1,6 +1,6 @@
 # Handover from session 393648aa (rota-40), 2026-11-01
 
-Result first: the chain of walls that the dry run with the session in the seat found moves in order. Frame 355, the second wall, closed on the rerun and is in the archive. Frame 354, the first wall, has ten passes and nine reviews, and its close waits on review p9 of pass 10 with no high. Frame 356, the third wall, has pass 1 committed at cb758ccd, review p1 with two highs, and pass 2 briefed in this session's scratchpad, `f356_pass2_brief.md`, not started, because it edits `api.py` and frame 354's pass 10 held the checkout. Frame 341 waits on its count to 2026-11-10. The taker takes all three by the claim.
+Result first: the chain of walls that the dry run with the session in the seat found moves in order. Frame 355, the second wall, closed on the rerun and is in the archive. Frame 354, the first wall, has eleven passes and nine reviews; pass 11 is built in the checkout and its gate runs or is read, then review p10 from `f354_review_p10_brief.md`, and the frame closes with no high. Frame 356, the third wall, has passes 1 and 2 committed, the last at eeed30cc, and review p2 runs or is in `plans/f356-review-p2.md`. Frame 341 waits on its count to 2026-11-10. The taker takes all three by the claim.
 
 ## The reading at altitude
 
@@ -13,6 +13,10 @@ Pass 10 is built and corrected twice in the checkout, uncommitted: the F22 reade
 ## Frame 356, where it stands
 
 The vet resolves `click.pause` at specify time, cb758ccd. Pass 2's brief carries the review's two highs: a method ref has no grain, because the indexer never descends into a class, and a dotted ref the vet keeps blocks every body with a refusal that names no step. It also carries the read-time resolve: the three criteria of dry1's tk_1 still hold `click.pause`, so a retry on the batch is refused until the doors read a stored ref through the vet's resolver. Then the gate, a review, and part 2: the dry1 worktree `C:/Users/roman/rota_dry1` is at cb758ccd with the six pages answered and no run; move it to the pass 2 commit and run `rota run dry1 --all` from it with `ROTA_RUNS=D:/repos/rota/.rota`, `PATH` to the main venv and `ROTA_MAX_ITERATIONS=24`. The quarantine wake on the Tester's key ran once and is not reported, so the turn should show its step page with try again. Measure: the Tester's never-calls refusals from about 50 toward 0, three criteria each with a test.
+
+## The fourth wall, found at the end
+
+Turns 6 to 8 of dry1 at eeed30cc: the six answers landed, the batch bg_1 stays exhausted, and the status line says Stuck and tells the seat to say what to change, with no page open. The seat's words through `rota.tools.talk` were read as a new request, and the shift page offers later, now or drop, none a restart; "1 now" landed nothing twice. So an exhausted batch has no restart from the seat. Read `exhausted` and `preempt` in `rota/core/predicates.py`, `request_shift`, and the quarantine wake's reported flag on `tester|tick:tests_missing|bg_1` before any fix, then push the wall as a frame after 356. Frame 356's pass 2 is not measured live until that restart exists.
 
 ## Doubts the taker should hold
 
