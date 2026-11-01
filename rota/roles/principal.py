@@ -1728,6 +1728,13 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     return best[0] if best else None
 
 
+def _statement_status(conn: sqlite3.Connection, sid: str) -> str | None:
+    """The status of statement `sid`, or None when no statement has the id."""
+    row = conn.execute("SELECT status FROM statements WHERE id = ?",
+                       (sid,)).fetchone()
+    return row["status"] if row is not None else None
+
+
 def off_page(conn: sqlite3.Connection, refs: list, *,
              confirm: bool = False) -> set[str]:
     """
@@ -1762,15 +1769,16 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
         # it stays (frame 354).
         if rowless_key(conn, ref):
             continue
+        # One scoped read finds a statement (F22).
+        is_statement = bool(tables_of(conn, ref, among=["statements"]))
         # A dropped statement is no line on any page, so no "ok" approves
         # it again (frame 357, dry1's m77).
-        if conn.execute("SELECT 1 FROM statements WHERE id = ? AND "
-                        "status = 'dropped'", (ref,)).fetchone():
+        if is_statement and _statement_status(conn, ref) == "dropped":
             out.add(ref)
             continue
         # The intake door refuses a statement of another entry, so the
         # Liaison learns to say it again (frame 193, pass 3, finding 4).
-        if confirm and tables_of(conn, ref, among=["statements"]):
+        if confirm and is_statement:
             continue
         # One row walk with `land`: a note about a test of another
         # request's item leaves the page, and his answer on it contests
