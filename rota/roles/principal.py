@@ -1081,7 +1081,7 @@ RULED_HOMES = ("batches", "ledger", "entries", "decisions", "rulings",
 def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
                 reading: dict, *, words: str = "", source: str = "reading",
                 words_from: str | None = None,
-                unheld: str = "refuse") -> list[dict]:
+                unheld: str = "refuse", held: tuple = ()) -> list[dict]:
     """
     The `ruled_refs` rows of one ruling: one row per ref of `reading`.
 
@@ -1099,6 +1099,8 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
     `unheld="keep"` builds the row. Only `land` asks it, for the verdict it
     computed: a contest of a note's `about_ref` carries to the desk that
     assumed it, as the config map carried it before fact F1.
+    `held` names the stopped steps that `land` read before it lifted or
+    marked them, so their home is their quarantine row.
     """
     from ..core.db import ruled_ref_id
     from .api import guess_item
@@ -1114,7 +1116,9 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             raise ValueError(
                 f"{ref}: {verdict!r} is not a stored verdict. A row takes "
                 f"{', '.join(RULED_VERDICTS)}")
-        table = ruled_ref_home(conn, ref)
+        # Review p6 of frame 354, finding 2: the lift runs before the rows,
+        # so `ruled_ref_home` found no home and staged a false fault.
+        table = "tick_attempts" if ref in held else ruled_ref_home(conn, ref)
         if table is None and unheld == "skip":
             continue
         if table is None and unheld != "keep":
@@ -1204,9 +1208,12 @@ _READ_BACK_VERDICT = {"approve": "is approved", "contest": "is wrong",
                       "now": "comes first", "drop": "is dropped",
                       "resume": "resumes",
                       # A stopped step takes the words of its own menu. Its
-                      # approve is his 'drop' (review p5 of frame 354,
-                      # finding 1). A retry has no line, see `_step_retry`.
-                      "step approve": "is dropped"}
+                      # approve is his 'drop', and its contest or revise is
+                      # his 'try again' (review p5 of frame 354, finding 1).
+                      # A retry is never "is wrong" (review p6, finding 1).
+                      "step approve": "is dropped",
+                      "step contest": "runs again",
+                      "step revise": "runs again"}
 # The read-back line quotes the start of his answer. A clock time in the
 # page changes the prompt of every recorded case on each run.
 READ_BACK_WORDS = 8
@@ -1217,14 +1224,6 @@ READ_BACK_ASK = " Say ok, or say what we misread."
 def _step_key(ref) -> bool:
     """The ref is a tick key, so its page line is a stopped step."""
     return isinstance(ref, str) and "|tick:" in ref
-
-
-def _step_retry(ref, verdict) -> bool:
-    """His ruling runs the stopped step `ref` again. The step's next page
-    says so with `_retries_said`, so no read-back line says it again."""
-    # Review p5 of frame 354, finding 1: the read-back line called his
-    # retry "line 1 is wrong", and every retry added a line to answer.
-    return _step_key(ref) and verdict in ("contest", "revise")
 
 
 def _is_reading(ref) -> bool:
@@ -1244,18 +1243,16 @@ def readings_owed(conn: sqlite3.Connection,
     (the seam design, 2.3; ruled: Roman, 2026-10-26 22:5x, "every time").
     """
     out: list[str] = []
-    replies: dict[str, None] = {}
+    # A step retry is read back too, so `read_back_rows`, the line and the
+    # landing wake agree (ruled: Roman, 2026-10-26 22:5x, "every time").
     for r in conn.execute(
-            "SELECT reply_id, ref, verdict FROM ruled_refs_live "
-            "WHERE source = 'reading' "
+            "SELECT reply_id FROM ruled_refs_live WHERE source = 'reading' "
             "AND reply_id IS NOT NULL AND ruling_status = 'landed' "
             "AND status != 'superseded' AND confirmed_by IS NULL "
-            "AND substr(ref, 1, ?) != ? ORDER BY ruling_seq",
+            "AND substr(ref, 1, ?) != ? GROUP BY reply_id "
+            "ORDER BY MIN(ruling_seq)",
             (len(READING_REF), READING_REF)).fetchall():
-        if not _step_retry(r["ref"], r["verdict"]):
-            replies.setdefault(r["reply_id"], None)
-    for reply_id in replies:
-        ref = READING_REF + reply_id
+        ref = READING_REF + r["reply_id"]
         if not conn.execute(
                 "SELECT 1 FROM ruled_refs_live WHERE ref = ? "
                 "AND ruling_status = 'landed'", (ref,)).fetchone():
@@ -1307,8 +1304,7 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     No model writes the line. A row on a `reading:` ref is never read back,
     so the chain ends at his approve (the seam design, 2.3)."""
     reply = ref[len(READING_REF):]
-    rows = [r for r in read_back_rows(conn, reply)
-            if not _step_retry(r["ref"], r["verdict"])]
+    rows = read_back_rows(conn, reply)
     if not rows:
         return None
     words = said(conn, reply).split()
@@ -1317,8 +1313,9 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     clauses: list[str] = []
     approves = 0
     for r in rows:
-        verdict = ("step approve" if _step_key(r["ref"])
-                   and r["verdict"] == "approve" else r["verdict"])
+        step = f"step {r['verdict']}"
+        verdict = (step if _step_key(r["ref"]) and step in _READ_BACK_VERDICT
+                   else r["verdict"])
         if verdict == "approve" and not r["act"]:
             approves += 1
             continue
@@ -3629,14 +3626,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         # over his own earlier contest is lost (fact F1, review 1, finding 1).
         if not opened:
             _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
-                                    (answer.text or "").strip())
+                                    (answer.text or "").strip(),
+                                    held=tuple(steps))
         # His keypress is his verdict, and the Liaison's reading is a
         # reading. So the keypress gets its own rows under the landed
         # ruling, beside the reading's rows (law 11; fact F1).
         for rid in opened:
             _insert_keypress_rows(conn, rid, ask, msg_id,
                                   {**per_item, **readings},
-                                  (answer.text or "").strip(), shared=True)
+                                  (answer.text or "").strip(), shared=True,
+                                  held=tuple(steps))
     # The verdict that the relays read is the one this door computed: a
     # stamped approve is gone, a code key is on its batch, and an approve
     # that closed a ledger row needs no relay. It lands as `landed` rows on
@@ -3669,7 +3668,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
 
 
 def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,
-                            per_item: dict, said: str) -> None:
+                            per_item: dict, said: str, *,
+                            held: tuple = ()) -> None:
     """The landed `rulings` row of a verdict from the seat, and its
     `ruled_refs` rows. The verdict is his own act and not a reading, so the
     rows carry the source `keypress` (the seam design, 1.3, caller 2).
@@ -3683,12 +3683,12 @@ def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,
         "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
         (rid, ask.message_id, json.dumps(per_item), said, msg_id,
          json.dumps(contested_texts(conn, per_item))))
-    _insert_keypress_rows(conn, rid, ask, msg_id, per_item, said)
+    _insert_keypress_rows(conn, rid, ask, msg_id, per_item, said, held=held)
 
 
 def _insert_keypress_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
                           msg_id: str, per_item: dict, said: str, *,
-                          shared: bool = False) -> None:
+                          shared: bool = False, held: tuple = ()) -> None:
     """The `ruled_refs` rows of a verdict from the seat, under ruling `rid`.
 
     `shared` says that the Liaison's reading has rows under `rid` too. A
@@ -3698,7 +3698,8 @@ def _insert_keypress_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
 
     rows = ruling_rows(conn, rid, getattr(ask, "order", None), per_item,
                        words=said, source="keypress",
-                       words_from=msg_id if said else None, unheld="skip")
+                       words_from=msg_id if said else None, unheld="skip",
+                       held=held)
     if shared:
         for row in rows:
             row["id"] = ruled_ref_id(rid, f"keypress:{row['ref']}")

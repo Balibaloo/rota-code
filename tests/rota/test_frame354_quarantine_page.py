@@ -256,7 +256,7 @@ def test_a_page_of_stalled_steps_only_says_what_a_reply_does(db):
     assert "starts building" not in page
 
 
-def _rule_on_line(db, option, text="1 try again", row=None):
+def _rule_on_line(db, option, text="1 try again", row=None, rulings=None):
     """Pass 6: the Liaison path. The menu call of `rulings.rule` stages the
     ruling and its rows, and `apply_rulings` lands them."""
     from tests.rota.test_principal_reply import _landing
@@ -264,7 +264,7 @@ def _rule_on_line(db, option, text="1 try again", row=None):
 
     row = row or _present_critic(db)
     sb, _ = _landing(db, page_ask(row), text)
-    out = sb.call("rulings.rule", rulings={"1": option})
+    out = sb.call("rulings.rule", rulings=rulings or {"1": option})
     for table, _op, values, *_ in sb.ctx.writes:
         if table in ("rulings", "ruled_refs"):
             cols = [c for c in values
@@ -309,21 +309,119 @@ def test_the_stalled_line_takes_only_its_two_words(db, option):
     assert "takes try again; drop." in str(err.value)
 
 
-def test_the_next_page_of_a_retried_step_says_he_asked_before(db):
+def test_the_next_page_of_a_retried_step_reads_the_retry_back(db):
     """Review p5, findings 1, 3 and 4: the second page read his retry back
-    as 'line 1 is wrong', and his repeat named that line too."""
+    as 'line 1 is wrong'. Review p6, finding 1: pass 7 then read it back
+    nowhere, against the ruling of 2026-10-26 that every reply is read
+    back. The read-back line says the step runs again."""
     _rule_on_line(db, "try again")
     # The step stalls again after his retry, and the Liaison presents it.
     row = _present_critic(db)
     page, order = render_page(db, "present", json.loads(row["body_refs"]),
                               None, ask_id=row["id"])
-    assert order == [CRITIC_KEY]
-    assert page.count("  1. ") == 1 and "  2. " not in page
+    assert order[0] == CRITIC_KEY and len(order) == 2
+    assert order[1].startswith("reading:")
     assert "You asked me to try it again once before" in page
-    assert "as the team read it" not in page
+    assert ('  2. Your answer "1 try again", as the team read it: line 1 '
+            'runs again.') in page
+    assert "is wrong" not in page
     assert "'drop' on it to stop it" in page
-    out, _ = _rule_on_line(db, "try again", row=row)
+    # His repeat names the step alone. The read-back line takes approve, so
+    # it changes no row and is owed no more.
+    from rota.roles.principal import readings_owed
+
+    out, writes = _rule_on_line(db, "try again", row=row)
     assert out["per_item"] == {CRITIC_KEY: "contest"}
+    assert not [w for w in writes if w[0] == "ruled_refs"
+                and w[2]["ref"] == order[1]]
+    assert order[1] not in readings_owed(db)
+
+
+def _seed_item(db, iid="I1", text="the tool prints json"):
+    db.execute("INSERT INTO items (id, text, kind) VALUES (?, ?, 'in_scope')",
+               (iid, text))
+
+
+def test_a_stalled_again_step_after_a_mixed_reply_reads_its_retry_back(db):
+    """Review p6, finding 1, probe p1: after '1 ok 2 try again' the next
+    page read back '1 line approved' only."""
+    from rota.roles.principal import read_back_rows, reading_line
+
+    _seed_item(db)
+    row = _present_critic(db, [CRITIC_KEY, "I1"])
+    _, order = render_page(db, "present", json.loads(row["body_refs"]), None,
+                           ask_id=row["id"])
+    assert order == ["I1", CRITIC_KEY]
+    out, _ = _rule_on_line(db, None, "1 ok 2 try again", row=row,
+                           rulings={"1": "ok", "2": "try again"})
+    assert out["per_item"] == {"I1": "approve", CRITIC_KEY: "contest"}
+    row = _present_critic(db)
+    page, order = render_page(db, "present", json.loads(row["body_refs"]),
+                              None, ask_id=row["id"])
+    assert order[0] == CRITIC_KEY and len(order) == 2
+    line = reading_line(db, order[1])
+    assert "line 2 runs again; 1 line approved." in line
+    assert line in page and page.count("as the team read it") == 1
+    # The landing wake and the line read the same rows (review p6, finding 3).
+    reply = order[1][len("reading:"):]
+    assert {r["ref"] for r in read_back_rows(db, reply)} == {"I1", CRITIC_KEY}
+
+
+@pytest.mark.parametrize("verdict", ["drop", "try again"])
+def test_a_scripted_step_verdict_stages_no_fault(db, verdict):
+    """Review p6, finding 2: the lift ran before the keypress rows, so the
+    rows found no home and a fault said no table holds the step."""
+    assert _land_script(db, verdict)
+    assert db.execute("SELECT COUNT(*) FROM faults").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM ruled_refs WHERE ref = ? AND "
+                      "source = 'keypress'", (CRITIC_KEY,)).fetchone()[0] == 1
+
+
+def test_a_ruling_on_a_page_with_no_line_closes_the_ask(db):
+    """dry1's rerun, turn 3: the present m3 had no line, and the door
+    refused 'rest' three times. So the page never closed."""
+    from tests.rota.test_principal_reply import _landing
+    from rota.roles.principal import apply_rulings, page_ask
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m3', 'th', 'liaison', "
+               "'principal', 'present', '[]', 1, 'open')")
+    row = db.execute("SELECT * FROM messages WHERE id = 'm3'").fetchone()
+    sb, _ = _landing(db, page_ask(row), "ok")
+    out = sb.call("rulings.rule", rulings={"rest": "approve"})
+    assert out["per_item"] == {}
+    assert "no line" in out["note"] and "nothing is ruled" in out["note"]
+    for table, _op, values, *_ in sb.ctx.writes:
+        if table == "rulings":
+            cols = [c for c in values if c in {r[1] for r in db.execute(
+                "PRAGMA table_info(rulings)")}]
+            db.execute(f"INSERT INTO rulings ({', '.join(cols)}) VALUES "
+                       f"({', '.join('?' * len(cols))})",
+                       [values[c] for c in cols])
+    apply_rulings(db)
+    assert db.execute("SELECT status FROM messages WHERE id = 'm3'"
+                      ).fetchone()["status"] == "answered"
+    assert db.execute("SELECT COUNT(*) FROM ruled_refs").fetchone()[0] == 0
+
+
+def test_a_bare_number_on_a_step_beside_a_criterion_names_the_step(db):
+    """Review p6, finding 4: 'N try again' named every line of the page, so
+    the door asked for an option on the criterion too."""
+    _seed_item(db)
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('T1', 'I1', 'print json')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('C1', 'T1', 'the output parses as json')")
+    row = _present_critic(db, [CRITIC_KEY, "C1"])
+    _, order = render_page(db, "present", json.loads(row["body_refs"]), None,
+                           ask_id=row["id"])
+    assert "C1" in order
+    n = order.index(CRITIC_KEY) + 1
+    out, _ = _rule_on_line(db, None, f"{n} try again", row=row,
+                           rulings={str(n): "try again"})
+    assert out["per_item"][CRITIC_KEY] == "contest"
+    assert {v for k, v in out["per_item"].items() if k != CRITIC_KEY} == {
+        "approve"}
 
 
 def _land_script(db, verdict):

@@ -12138,8 +12138,13 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
     white space, so a seat's added quotes or a curly apostrophe match."""
     tokens: list[str] = []
     cuts = {0}
-    for m in re.finditer(r"\w+|[.!?,;:]", (text or "").casefold()):
+    folded = (text or "").casefold()
+    for m in re.finditer(r"\w+|[.!?,;:]", folded):
         s = m.group()
+        # "1 ok 2 drop" is two clauses, as the binder cuts it (review p6 of
+        # frame 354, finding 4). So the span check holds "2 drop".
+        if s.isdigit() and _pair_cut(folded, m.start(), m.end()):
+            cuts.add(len(tokens))
         if s in _CLAUSE_MARK:
             cuts.add(len(tokens))
             continue
@@ -13561,21 +13566,47 @@ _BARE_LIST = re.compile(
     re.I)
 _BARE_SEP = re.compile(r"\s*(,\s*(?:and\s+)?|and\s+|to\s+)", re.I)
 _BARE_VERB = re.compile(r"\s+(?:is|are)\b", re.I)
+# A word of a page's menu or of an agreement after one bare number: "1 try
+# again", "2 drop", "1 ok". Review p6 of frame 354, finding 4: "1 try again"
+# named no line, so every line of the page took the whole reply. The list
+# is closed, so "3 at most" and "2 examples are too many" name no line.
+_PAIR_WORD = re.compile(
+    r"\s*:?\s+(?:ok(?:ay)?|yes|fine|good|right|correct|wrong|approved?|"
+    r"drop|try\s+again|contest|revise|rewrite|misread|park|now|resume)\b",
+    re.I)
+# A menu word right before the number of a pair, as the "ok" of "1 ok 2
+# drop". The pair then opens a new clause with no comma.
+_PAIR_END = re.compile(
+    r"\b(?:ok(?:ay)?|yes|fine|good|right|correct|wrong|approved?|drop|"
+    r"again|contest|revise|rewrite|misread|park|now|resume)\s+$", re.I)
 
 
-def _bare_subject(clause: str, m: re.Match) -> set[int]:
+def _pair_cut(text: str, start: int, end: int) -> bool:
+    """The one number at `text[start:end]` opens a clause with no comma: a
+    menu word stands before it and after it, as in "1 ok 2 drop"."""
+    return bool(_PAIR_WORD.match(text, end)
+                and _PAIR_END.search(text[:start]))
+
+
+def _bare_subject(clause: str, m: re.Match, after_name: bool = False
+                  ) -> set[int]:
     """The lines of the bare number list `m` when it stands as the subject
     of `clause`, or no lines.
 
     The list opens the clause or follows a comma, as in "1 is fine, 2 and 3
-    are wrong". It holds two numbers or more, or one number before "is" or
-    "are". So "3 at most" and "I want 2 examples" name no line.
+    are wrong". It holds two numbers or more, or one number before "is",
+    "are" or a word of `_PAIR_WORD`. So "3 at most" and "I want 2 examples"
+    name no line. One number before such a word also stands after an
+    earlier name in the clause (`after_name`), as the 2 in "1 ok 2 drop".
     """
     before = clause[:m.start()]
-    if before.strip() and not before.rstrip().endswith(","):
-        return set()
     nums = [int(n) for n in re.findall(r"\d+", m.group(0))]
-    if len(nums) < 2 and not _BARE_VERB.match(clause, m.end()):
+    pair = len(nums) == 1 and bool(_PAIR_WORD.match(clause, m.end()))
+    if (before.strip() and not before.rstrip().endswith(",")
+            and not (pair and after_name
+                     and _pair_cut(clause, m.start(), m.end()))):
+        return set()
+    if len(nums) < 2 and not _BARE_VERB.match(clause, m.end()) and not pair:
         return set()
     seps = [s.group(1).strip().lower() for s in
             _BARE_SEP.finditer(m.group(0))]
@@ -13601,6 +13632,8 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
     binds line 1 to "1 is fine" and lines 2 and 3 to "2 and 3 are wrong".
     The cut is the comma that `_bare_subject` reads, and no word decides it.
     A line reference right after a comma cuts the same way (frame 347, K0).
+    One number before a menu word after an earlier name cuts too, so "line
+    1 ok 2 drop" binds line 2 to "2 drop".
     """
     found = [(r.start, r.end, set(r.lines))
              for r in _line_reading(clause, size).refs]
@@ -13612,6 +13645,7 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
     placed: list[tuple[int, set[int]]] = []
     inside: list[tuple[int, set[int]]] = []
     starts: list[tuple[int, set[int]]] = []
+    taken: list[int] = []
     last_end, last_set = None, named
     for start, end, lines in sorted(found, key=lambda f: f[0]):
         before = clause[:start]
@@ -13645,9 +13679,13 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
             continue
         last_set |= lines
         last_end = end
+        taken.append(start)
     for m in _BARE_LIST.finditer(clause):
         if not any(s < m.end() and m.start() < e for s, e, _ in found):
-            lines = _bare_subject(clause, m)
+            after = any(at < m.start() for at in taken)
+            lines = _bare_subject(clause, m, after)
+            if lines:
+                taken.append(m.start())
             if lines and clause[:m.start()].strip():
                 starts.append((m.start(), lines))
             else:
@@ -13661,9 +13699,11 @@ def _subject_parts(clause: str, size: int) -> list[tuple[int, int, set[int]]]:
     parts = []
     begin, own = 0, named
     for at, lines in sorted(starts, key=lambda s: s[0]):
-        # The part before the list or the reference ends at its comma.
-        stop = clause.rfind(",", 0, at)
-        parts.append((begin, stop, own))
+        # The part before the list or the reference ends at its comma. An
+        # "N word" pair cuts with no comma, as in "1 ok 2 drop" (review p6
+        # of frame 354, finding 4), so that part ends at the pair.
+        stop = clause.rfind(",", begin, at)
+        parts.append((begin, stop if stop >= 0 else at, own))
         begin, own = at, lines
     parts.append((begin, len(clause), own))
     parts = [(a, b, {n for n in ls if 1 <= n <= size}) for a, b, ls in parts]
@@ -14318,9 +14358,17 @@ def page_clauses(his: str, size: int,
                           sorted(set(ns) - named)))
             continue
         found.append((text.find(w), w, sorted(ns)))
+    # The parts of a clause that a cut splits cover the clause, so the clause
+    # is no clause of its own. "1 ok, 2 drop" was refused for its c1 (review
+    # p6 of frame 354, finding 4).
+    held = {i for at, w, _ in found if at >= 0
+            for i in range(at, at + len(w))}
     for start, end, _sent in _clause_spans(text):
         piece = text[start:end].strip()
-        if piece and not any(piece in w for _, w, _ in found):
+        at = text.find(piece, start)
+        if piece and not any(piece in w for _, w, _ in found) and not all(
+                i in held for i in range(at, at + len(piece))
+                if text[i].isalnum()):
             found.append((start, piece, []))
     found.sort(key=lambda f: (f[0], -len(f[1])))
     out = [{"words": w, "lines": ns} for _, w, ns in found]
@@ -14892,6 +14940,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if (order or refs) and isinstance(rulings, dict) and rulings:
             return _menu_page(ctx, ask, rulings, his, order or refs, keys,
                               page_text)
+        # A page with no line and no ref offers no clause, so any map rules
+        # nothing. dry1's rerun, turn 3: the door refused 'rest' on m3 three
+        # times, and the page never closed. The present door refuses such a
+        # page at creation since pass 3, and this closes one already open.
+        if not (order or refs) and isinstance(rulings, dict) and rulings:
+            rulings = {}
         # An empty ruling of a page with no numbered line acknowledges the
         # page below. Any other ruling is no menu call, a map on a page with
         # no line and no ref included (review p9, outside the points; review
@@ -14967,7 +15021,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "per_item": json.dumps({r: "approve" for r in row_refs}),
             "words": (words or "").strip(), "status": "open"}, rows)
         return {"id": rid, "per_item": {r: "approve" for r in row_refs},
-                "note": "the page had no line to rule on; acknowledged"}
+                "note": "the page had no line to rule on; acknowledged"
+                        + ("" if refs else ". The ask closes, and nothing is "
+                           "ruled")}
     if not isinstance(rulings, dict) or not rulings:
         raise ValueError(
             "rulings is a map of page line number (or row id) to approve, "

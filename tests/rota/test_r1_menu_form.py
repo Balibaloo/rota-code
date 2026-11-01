@@ -543,3 +543,35 @@ def test_a_request_for_facts_is_a_question(words, asks):
     """Frame 348: m14 and four requests on nights 170 to 175 asked for facts
     with no question mark, and each landed as a contest."""
     assert api._is_question(words) is asks
+
+
+@pytest.mark.parametrize("words, first", [
+    ("1 ok 2 drop", "1 ok"), ("line 1 ok 2 drop", "line 1 ok")])
+def test_a_bare_number_and_a_menu_word_name_one_line(db, words, first):  # noqa: F811
+    """Frame 354, review p6, finding 4: a bare number named no line, so
+    every line took his whole reply. "N word" opens a clause, as a comma
+    does (frame 347, rule K0)."""
+    ask = _page(db, refs=("calculate_tip", "l_1"))
+    sb, _ = _seat(db, ask, words=words)
+    sb.call("rulings.rule", rulings={"1": "ok", "2": "drop"})
+    rows = _rows(sb)
+    assert (rows["calculate_tip"]["verdict"], rows["calculate_tip"]["words"]
+            ) == ("approve", first)
+    assert (rows["l_1"]["act"], rows["l_1"]["words"]) == ("drop", "2 drop")
+
+
+@pytest.mark.parametrize("words, size", [
+    ("I want 2 examples", 2), ("3 at most", 3),
+    ("2 examples are too many", 3), ('"1 ok" is what I said', 2)])
+def test_a_number_that_is_no_subject_names_no_line(words, size):
+    """The guards of `_bare_subject` hold beside the "N word" pair: a count
+    and a number in his quoted words name no line."""
+    blank = api._QUOTED.sub(lambda m: " " * len(m.group(0)), words)
+    assert api._subject_lines(blank, size) == set()
+    assert set(api.line_words(words, size).values()) == {words}
+
+
+def test_one_bare_number_and_a_step_word_names_its_line_alone():
+    assert api.line_words("1 try again", 2) == {1: "1 try again", 2: None}
+    assert api.line_words("1 try again 2 drop", 2) == {
+        1: "1 try again", 2: "2 drop"}
