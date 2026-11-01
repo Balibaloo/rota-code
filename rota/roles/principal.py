@@ -1236,9 +1236,45 @@ def _step_name(conn: sqlite3.Connection, key: str) -> str:
     from ..core.scheduler import key_parts
 
     kind = key_parts(key)[1].replace("tick:", "")
-    what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
-                     if w)
+    what = _key_about(conn, key)
     return f"{_tick_words(kind)}{f' for {what}' if what else ''}"
+
+
+def _key_about(conn: sqlite3.Connection, key: str) -> str:
+    """The words of what the tick key `key` is about, or ''."""
+    from ..core.scheduler import key_parts
+
+    refs = key_parts(key)[2]
+    # A key of kind `quarantined` holds another tick key as its ref. The
+    # comma split cut that key raw, so the page said "for critic|tick:..."
+    # (review p8 of frame 354, finding 5). The inner step is read by its
+    # own words, in quotes.
+    inner = ",".join(refs)
+    if _step_key(inner):
+        return f'"{_step_name(conn, inner)}"'
+    return ", ".join(w for w in (_ref_words(conn, r) for r in refs) if w)
+
+
+def _row_name(conn: sqlite3.Connection, ref) -> str:
+    """A row of an earlier page by its words, in quotes, or '' when the row
+    has none: a step by `_step_name`, an item or a criterion by its text."""
+    # Review p8 of frame 354, finding 3: the step words are a clause, so
+    # they go in quotes and the sentence keeps one verb.
+    if _step_key(ref):
+        return f'the step "{_step_name(conn, ref)}"'
+    # `tables_of` is the one reader of an id's table (fact F22).
+    from ..core.db import table_of
+
+    table = table_of(conn, ref, among=("items", "criteria"))
+    if table is None:
+        return ""
+    # `table_of` reads `guess:<item>` as its item, and that line is the
+    # guess, not the item. No row has the ref as its id, so the caller
+    # names the line by its number.
+    row = conn.execute(f"SELECT text FROM {table} WHERE id = ?",
+                       (ref,)).fetchone()
+    text = ((row["text"] or "") if row is not None else "").strip()
+    return f'"{text}"' if text else ""
 
 
 def _is_reading(ref) -> bool:
@@ -1340,9 +1376,11 @@ def reading_line(conn: sqlite3.Connection, ref: str,
         # A ruling on a page with no line has one row on the page itself.
         # His word is read back, so he learns that it ruled nothing (review
         # p7 of frame 354, finding 5; ruled: Roman, 2026-10-26 22:5x).
+        # The line rides a later page, and that page has lines. So the line
+        # names the earlier page (review p8 of frame 354, finding 4).
         if r["ref"] == r["ask_id"]:
-            clauses.append("the page had no line, so your answer landed on "
-                           "no line")
+            clauses.append("the earlier page had no line, so your answer "
+                           "landed on no line")
             continue
         step = f"step {r['verdict']}"
         verdict = (step if _step_key(r["ref"]) and step in _READ_BACK_VERDICT
@@ -1351,10 +1389,13 @@ def reading_line(conn: sqlite3.Connection, ref: str,
             approves += 1
             continue
         where = f"line {r['line']}" if r["line"] else "a row"
-        # The page of this line does not show the step, so the line number
-        # of the earlier page names nothing here (review p7, finding 1).
-        if _step_retry(r["ref"], r["verdict"]):
-            where = f"the step for {_step_name(conn, r['ref'])}"
+        # The page of this line does not show the row, so the line number
+        # of the earlier page names nothing here (review p7, finding 1). A
+        # drop and an approve name the row by its words too (review p8,
+        # finding 1).
+        if r["ref"] not in shown:
+            where = _row_name(conn, r["ref"]) or (
+                f"line {r['line']} of the earlier page" if r["line"] else "a row")
         clause = f"{where} {_READ_BACK_VERDICT.get(verdict, verdict)}"
         if r["act"]:
             clause += f": {r['act']} {r['target'] or ''}".rstrip()
@@ -2138,8 +2179,7 @@ def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
 
     out = []
     for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
-        what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
-                         if w)
+        what = _key_about(conn, key)
         refs = key_parts(key)[2]
         batch = bool(refs) and all(tables_of(conn, r, among=("batches",)) for r in refs)
         out.append((_key_words(conn, key, kind, n, what), batch))

@@ -13632,12 +13632,30 @@ def _pair_cut(text: str, start: int, end: int,
     # Review p7 of frame 354, finding 4: the cut dropped his "never" from
     # the span check. `_NEGATED` is the one negation reader (the seam
     # review, p5-3), and it reads the words right before a cut.
-    if any(_NEGATED.search(before[:w.end()])
-           for w in re.finditer(r"\s+", before)):
+    # Review p8, finding 2: the words after an earlier line name are that
+    # line's words. So "not" in "1 is not right 2 ok" contests line 1 and
+    # keeps the cut. Only the words before the first name, or a negation
+    # right before the number, keep the clause whole.
+    head = (re.split(r"(?<![\w.])\d+(?![\w.])", before, maxsplit=1)[0]
+            if after_name else before)
+    if _NEGATED.search(before) or any(
+            _NEGATED.search(head[:w.end()]) for w in re.finditer(r"\s+", head)):
         return False
     # Review p7, finding 3: "it" is no menu word, so "1 drop it 2 ok" gave
     # line 2 no words. An earlier line name in the clause cuts too.
     return after_name or bool(_PAIR_END.search(text[:start]))
+
+
+def _later_pair(clause: str, end: int) -> bool:
+    """A later "N word" pair in `clause` cuts after an earlier line name, as
+    the "2 drop" of "1 does not work 2 drop"."""
+    # Review p8 of frame 354, finding 2: "does" is no verb of `_BARE_VERB`,
+    # so line 1 had no subject and every line took the whole reply.
+    for m in re.finditer(r"(?<![\w.,])\d+(?!\w|\.\d)", clause[end:]):
+        at = end + m.start()
+        if _pair_cut(clause, at, end + m.end(), True):
+            return True
+    return False
 
 
 def _bare_subject(clause: str, m: re.Match, after_name: bool = False
@@ -13650,6 +13668,8 @@ def _bare_subject(clause: str, m: re.Match, after_name: bool = False
     "are" or a word of `_PAIR_WORD`. So "3 at most" and "I want 2 examples"
     name no line. One number before such a word also stands after an
     earlier name in the clause (`after_name`), as the 2 in "1 ok 2 drop".
+    One number at the clause start names its line when such a later pair
+    cuts the clause (`_later_pair`), as the 1 in "1 does not work 2 drop".
     """
     before = clause[:m.start()]
     nums = [int(n) for n in re.findall(r"\d+", m.group(0))]
@@ -13658,7 +13678,8 @@ def _bare_subject(clause: str, m: re.Match, after_name: bool = False
             and not (pair and after_name
                      and _pair_cut(clause, m.start(), m.end(), True))):
         return set()
-    if len(nums) < 2 and not _BARE_VERB.match(clause, m.end()) and not pair:
+    if (len(nums) < 2 and not _BARE_VERB.match(clause, m.end()) and not pair
+            and not (not before.strip() and _later_pair(clause, m.end()))):
         return set()
     seps = [s.group(1).strip().lower() for s in
             _BARE_SEP.finditer(m.group(0))]

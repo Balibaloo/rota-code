@@ -597,3 +597,19 @@ def test_a_negated_pair_is_no_clause_of_his():
     from the span check."""
     assert api._words_outside("2 drop", "I never said ok 2 drop") is not None
     assert api._words_outside("2 drop", "1 ok 2 drop") is None
+
+
+@pytest.mark.parametrize("his, one, two", [
+    ("1 is not right 2 ok", "1 is not right", "2 ok"),
+    ("1 does not work 2 drop", "1 does not work", "2 drop"),
+    ("1 isn't what I asked 2 drop", "1 isn't what I asked", "2 drop")])
+def test_a_negation_after_a_line_name_is_that_lines_words(his, one, two):
+    """Frame 354, review p8, finding 2: the negation guard read the words of
+    line 1, so a negated contest of line 1 kept line 2 from its words."""
+    assert api.line_words(his, 2) == {1: one, 2: two}
+    assert api._words_outside(one, his) is None
+    assert api._words_outside(two, his) is None
+    # A negation before any line name still keeps the clause whole.
+    assert api._words_outside("2 drop", "I never said ok 2 drop") is not None
+    assert set(api.line_words("I never said ok 2 drop", 2).values()) == {
+        "I never said ok 2 drop"}

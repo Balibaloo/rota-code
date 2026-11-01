@@ -106,7 +106,10 @@ def test_a_reply_that_rules_three_refs_gives_one_line_last_with_three_clauses(db
     told = last.split("as the team read it: ")[1]
     clauses = told[:-len(". Say ok, or say what we misread.")].split("; ")
     # The menu's drop lands on the row of line 3 itself (frame 345, R6).
-    assert clauses == ["line 3 is wrong: drop",
+    # This page does not show the row, and its own line 3 is the read-back
+    # line. So the clause names the earlier page (review p8 of frame 354,
+    # finding 1).
+    assert clauses == ["line 3 of the earlier page is wrong: drop",
                        "2 lines approved"], clauses
     assert len(clauses) <= 3
     assert sum(1 for l in lines if "as the team read it" in l) == 1

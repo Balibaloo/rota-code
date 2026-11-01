@@ -344,8 +344,9 @@ def test_a_retry_that_runs_through_reads_back_by_the_steps_words(db):
     _seed_item(db, "I2", "the tool reads yaml")
     page, order = render_page(db, "present", ["I2", owed], None)
     assert order == ["I2", owed]
+    # Review p8, finding 3: the step words are a clause, so they are quoted.
     assert ('  2. Your answer "1 try again", as the team read it: the step '
-            'for the team could not check a claim for command runs '
+            '"the team could not check a claim for command" runs '
             'again.') in page
     assert "line 1 runs again" not in page
 
@@ -383,6 +384,43 @@ def test_a_stalled_again_step_after_a_mixed_reply_reads_its_retry_back(db):
     reply = order[1][len("reading:"):]
     assert {r["ref"] for r in read_back_rows(db, reply, order)} == {"I1"}
     assert {r["ref"] for r in read_back_rows(db, reply)} == {"I1", CRITIC_KEY}
+
+
+def test_a_drop_on_a_row_the_next_page_does_not_show_reads_back_its_words(db):
+    """Review p8, finding 1, probe p1b: after "1 ok 2 drop" the next page
+    said "line 2 is dropped", and its line 2 was another request."""
+    from rota.roles.principal import readings_owed
+
+    _seed_item(db)
+    row = _present_critic(db, [CRITIC_KEY, "I1"])
+    _, order = render_page(db, "present", json.loads(row["body_refs"]), None,
+                           ask_id=row["id"])
+    assert order == ["I1", CRITIC_KEY]
+    out, _ = _rule_on_line(db, None, "1 ok 2 drop", row=row,
+                           rulings={"1": "ok", "2": "drop"})
+    assert out["per_item"] == {"I1": "approve", CRITIC_KEY: "approve"}
+    (owed,) = readings_owed(db)
+    _seed_item(db, "I2", "the tool reads yaml")
+    _seed_item(db, "I3", "the tool reads toml")
+    page, order = render_page(db, "present", ["I2", "I3", owed], None)
+    assert order == ["I2", "I3", owed]
+    line = page.splitlines()[-1]
+    assert ('as the team read it: the step "the team could not check a '
+            'claim for command" is dropped; 1 line approved.') in line
+    assert not re.search(r"\bline \d", line)
+
+
+def test_a_key_whose_ref_is_a_tick_key_reads_in_words(db):
+    """Review p8, finding 5: the comma split left the inner key raw, so the
+    words said "for critic|tick:challenge|...". """
+    from rota.roles.principal import _gave_up_words, _step_name
+
+    key = f"liaison|tick:quarantined|{CRITIC_KEY}"
+    _quarantine(db, key)
+    assert "|" not in _step_name(db, key)
+    assert "the team could not check a claim for command" in _step_name(db, key)
+    (words,) = _gave_up_words(db, [key])
+    assert "|" not in words
 
 
 @pytest.mark.parametrize("verdict", ["drop", "try again"])
@@ -449,9 +487,28 @@ def test_a_line_key_on_a_page_with_no_line_owes_a_read_back(db):
                       ).fetchone()["status"] == "answered"
     assert db.execute("SELECT COUNT(*) FROM faults").fetchone()[0] == 0
     assert readings_owed(db) == [f"reading:{reply}"]
+    # Review p8, finding 4: the line rides a later page, which has lines.
     assert reading_line(db, f"reading:{reply}") == (
-        'Your answer "1 drop", as the team read it: the page had no line, so '
-        'your answer landed on no line.' + READ_BACK_ASK)
+        'Your answer "1 drop", as the team read it: the earlier page had no '
+        'line, so your answer landed on no line.' + READ_BACK_ASK)
+    # The row on the ask is no row of a table, so the landing wake of the
+    # next page never offers it to the seat (review p8, finding 4).
+    from tests.rota.test_principal_reply import _reply
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    _seed_item(db)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m_next', 'th', 'liaison', "
+               "'principal', 'present', ?, 9, 'open')",
+               (json.dumps(["I1", f"reading:{reply}"]),))
+    ask = page_ask(db.execute("SELECT * FROM messages WHERE id = 'm_next'"
+                              ).fetchone())
+    his = _reply(db, ask, "ok")
+    landing = resolve_inbound(db, Wake(
+        role="liaison", kind="message", detail="converse", message_id=his,
+        refs=ask.refs))["landing"]
+    assert "read_back" not in landing, landing["read_back"]
 
 
 def test_a_bare_number_on_a_step_beside_a_criterion_names_the_step(db):

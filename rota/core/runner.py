@@ -2559,12 +2559,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 5b, finding 6). Only a page with the line gets the key.
                 from ..roles.principal import READING_REF, read_back_rows
 
+                # A row on the ask itself is a ruling on a page with no
+                # line. No table holds it as a row, so the door refuses it
+                # in `rows`, and the key never offers it (review p8 of
+                # frame 354, finding 4).
                 back = {str(i + 1): [
                     {k: r[k] for k in ("ref", "line", "verdict", "act", "target")}
                     for r in read_back_rows(conn, ref[len(READING_REF):],
-                                            order)]
+                                            order)
+                    if r["ref"] != r["ask_id"]]
                     for i, ref in enumerate(order)
                     if str(ref).startswith(READING_REF)}
+                back = {k: v for k, v in back.items() if v}
                 if back:
                     landing["read_back"] = back
                 # Both copies, measured together. The gate read `line_rows`
