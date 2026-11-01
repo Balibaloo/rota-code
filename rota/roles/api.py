@@ -13704,6 +13704,11 @@ _PAIR_WORD = re.compile(
 _PAIR_END = re.compile(
     r"\b(?:ok(?:ay)?|yes|fine|good|right|correct|wrong|approved?|drop|"
     r"again|contest|revise|rewrite|misread|park|now|resume)\s+$", re.I)
+# A verb of the clause right after a clause-start number makes the number a
+# line name (review p9 of frame 354, finding 1). The list is closed. A noun or
+# "at" after the number makes a quantity, as "2 examples" and "3 at most".
+_LEAD_VERB = re.compile(
+    r"\s*:?\s+(?:is|are|does|do|isn['’]t|doesn['’]t|should|was)\b", re.I)
 
 
 def _pair_cut(text: str, start: int, end: int,
@@ -13735,9 +13740,14 @@ def _pair_cut(text: str, start: int, end: int,
 
 def _later_pair(clause: str, end: int) -> bool:
     """A later "N word" pair in `clause` cuts after an earlier line name, as
-    the "2 drop" of "1 does not work 2 drop"."""
+    the "2 drop" of "1 does not work 2 drop". The number that ends at `end`
+    is a line name only before a verb of `_LEAD_VERB` or a menu word."""
     # Review p8 of frame 354, finding 2: "does" is no verb of `_BARE_VERB`,
     # so line 1 had no subject and every line took the whole reply.
+    # Review p9, finding 1: a number before a noun or "at" is a quantity.
+    # "2 examples are too many 1 ok" bound line 2 to its words.
+    if not (_LEAD_VERB.match(clause, end) or _PAIR_WORD.match(clause, end)):
+        return False
     for m in re.finditer(r"(?<![\w.,])\d+(?!\w|\.\d)", clause[end:]):
         at = end + m.start()
         if _pair_cut(clause, at, end + m.end(), True):

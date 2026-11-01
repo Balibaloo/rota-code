@@ -613,3 +613,20 @@ def test_a_negation_after_a_line_name_is_that_lines_words(his, one, two):
     assert api._words_outside("2 drop", "I never said ok 2 drop") is not None
     assert set(api.line_words("I never said ok 2 drop", 2).values()) == {
         "I never said ok 2 drop"}
+    assert api.line_words(his, 3) == {1: one, 2: two, 3: None}
+
+
+@pytest.mark.parametrize("size", [2, 3])
+def test_a_quantity_before_a_later_pair_names_no_line(size):
+    """Frame 354, review p9, finding 1: a later pair let a clause-start count
+    name its line, so "3 at most 2 drop" bound line 3 to "3 at most"."""
+    whole = "2 examples are too many 1 ok"
+    got = api.line_words(whole, size)
+    assert got.get(2) != "2 examples are too many"
+    assert (set(got.values()) == {whole}
+            or got == {1: "1 ok", **{n: None for n in range(2, size + 1)}})
+    got = api.line_words("3 at most 2 drop", size)
+    assert got.get(3) in (None, "3 at most 2 drop")
+    assert "3 at most" not in got.values()
+    assert set(api.line_words("I want 2 examples", size).values()) == {
+        "I want 2 examples"}
