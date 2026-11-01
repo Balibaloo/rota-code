@@ -1,0 +1,37 @@
+# Review p6 of frame 354: commit f26bee62
+
+Verdict: the claim holds, with 0 high and 4 low findings. Points: 5 hold, and point 4 holds with a finding on a live reach. Point 5 finds no hunk outside the claim. Tests: 20, 19, 41 and 70 passed, 0 failed. L3R: 23 of 25 passed, and no case moved.
+
+## (a) Verdicts on the points
+
+1. Holds as claimed, with finding 1. On a two-line page the step is line 2, so the probe replied `{"1": "ok", "2": "try again"}`. Line 1 keeps its read-back, and line 2 gets none: 'Your answer "1 ok 2 try again", as the team read it: 1 line approved.' When the step does not stall again, his retry is never read back as a clause. The quote of his words holds "2 try again", and no clause says the team read it as a retry. When the step stalls again, the step line says "You asked me to try it again once before". The code does this. The ruling is the assistant's.
+2. Holds. A scripted `park` raises "'park' moves no stopped step. A step takes try again; drop". The ask stays open. The counts of `keypress`, `ruled_refs` and `landed` rows stay 0, and `faults`, `rulings` and `messages` do not change. A scripted `revise` passes `_step_verdicts`. `land` lifts the key, so `tick_attempts` is empty and the step runs again. It writes one `landed` row with `revise`, one ruling, one verdict message and one false fault (finding 2). Nothing else is staged. A mixed `{KEY: "park", "I1": "approve"}` refuses the whole reply, and the item key lands nothing.
+3. Holds, with no test. The words show as a read-back line on the next present of other work. Probe: after "1 drop", a later page of item I2 shows '2. Your answer "1 drop", as the team read it: line 1 is dropped.' After a drop, `render_state` says "Nothing waits on you" and shows no read-back. The state view shows a reading only when its request is delivered. So the words reach no page until the Liaison presents other work. No test reads "is dropped" on a step.
+4. Holds as the pass report says, and the reach is live. `line_words("1 try again", 2)` gives `{1: '1 try again', 2: '1 try again'}`. The binder takes "line N" as a name of a line. It does not take a bare "N". One live page is a step that stalls again after a mixed reply. That page has the step on line 1 and the owed read-back line on line 2. There, "1 try again" is refused: "line 2: his words name the line, and the call gives it no option". On a page of an item, a criterion and a step, "3 try again" is refused for lines 1 and 2. The control "2 drop" on the criterion line is refused the same way, so the cause is in the binder and not in steps. "line 1 try again" gives `{KEY: "contest"}`. See finding 4.
+5. None outside the claim. The two files are the claimed `principal.py` changes and the claimed test changes. The `readings_owed` query keeps the old order, because `setdefault` keeps the first reply by `ruling_seq`.
+6. `test_frame354_quarantine_page.py -n0`: 20 passed. `test_frame337_earlier_answers.py -n0`: 19 passed. `test_r1_menu_form.py -n0`: 41 passed. `test_request_page.py -n0`: 70 passed. `test_l3_rulings.py -n0`: 2 failed, 23 passed. The reds are L3R-n171-m27-m28 and L3R-n172-m76-m77, the same two as the pass report. No case moved.
+
+## (b) Findings
+
+1. rota/roles/principal.py 1247-1256 and 1310-1311, low, CONFIRMED. A retry that does not stall again is never read back as a clause. Probe p1: after "1 ok 2 try again" the later page of I2 says "1 line approved" only. The quote shows his words, and no clause says "try it again". The ruling of 2026-10-26 says every answer is read back. Fix: the assistant rules. One option is a clause "line 2 runs again" in `_READ_BACK_VERDICT` that rides only a reply with a line that is not a retry.
+2. rota/roles/principal.py 3313 and 3686-3708, low, CONFIRMED. A scripted step verdict on `land` stages a false fault: "no table holds this row, so ruling r_m2 has no ruled_refs row on it". The lift or `mark_ruled` runs first, so `ruled_ref_home` finds no home when `_insert_keypress_rows` runs. The `landed` row exists. The fault was there for `contest` and `approve` before this commit. The commit routes `drop` and `try again` into the same path. Before the commit, a stored `drop` kept the key quarantined and gave no fault. The new test `test_a_scripted_drop_on_a_step_marks_it_ruled` reads no `faults` row. The Liaison path stages no fault. Fix: read the keypress homes of the step keys before the lift, or treat a key in `steps` as held in `ruling_rows`.
+3. rota/core/runner.py 2557-2560, low, CONFIRMED. The landing wake's `read_back` key still lists the step retry row. Probe p1: `read_back_rows` gives `[('I1', 1, 'approve'), (KEY, 2, 'contest')]`, and the line shows only "1 line approved". The docstring of `read_back_rows` says "The line and the landing wake read this one function". The commit filters only in `reading_line`, so the two now differ. The seat can correct a row that the line never showed. Fix: put the `_step_retry` filter in `read_back_rows`, then check `row_items` and `_owners`, which read the same rows.
+4. rota/roles/api.py 13673-13765, low, CONFIRMED, outside the commit. A bare line number names every line of a page with two lines or more. The Liaison must rule every line, and that includes a read-back line he did not mean to rule. Probe p4: "1 try again" and "3 try again" are refused on two step pages, and "2 drop" is refused on a criterion page. The reach is every multi-line page and not only a page with a step. The L1 and L3R replays read this binder. Fix: read a leading "N " as "line N" when N is a line of the page, and measure the L1 and L3R replays.
+
+## (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/393648aa-e5f9-4235-ad76-56489455e14e/scratchpad/f354p6r/`. They ran from `C:/Users/roman/rota_f354r` with `ROTA_MODEL=qwen3:8b`. No model call ran.
+
+- `common.py`: the shared fixture. It seeds an item, presents through `_sessions` and rules through `rulings.rule` and `apply_rulings`, as `_rule_on_line` does.
+- `p1_mixed_retry.py`: a page of I1 and the step, then "1 ok 2 try again". It prints the reading rows, `readings_owed`, `reading_line`, `read_back_rows`, a later page of I2 and a page where the step stalls again.
+- `p2_step_verdicts.py`: `land` with scripted `park`, `revise`, mixed `park` with `approve`, and mixed `drop` with `approve`. It prints the ask status, the row counts, `tick_attempts` and `render_state`.
+- `p2b_faults.py`: the `faults` and `rulings` rows after a scripted `revise`, `contest`, `try again`, `drop` and mixed reply.
+- `p2c_liaison_faults.py`: the `faults` table after the Liaison path for `drop` and `try again`. It is empty.
+- `p3_dropped.py`: "1 drop" and "1 ok 2 drop". It prints the read-back line, `render_state` and a later page of I2.
+- `p4_binder.py`: `line_words` on bare numbers, then "N try again" and "line N try again" on a step with a criterion, a step with a ticket and the stalled-again page. The control is "2 drop" on the criterion line.
+- A `python -c` call on `line_words` with eight reply forms.
+- The point 6 runs with `-q -n0`. The L3R run read a copy of `tests/rota/cassettes.db` in the probe directory through `ROTA_DEV_DB`, because the replay writes run rows. The copy is deleted.
+
+## (d) Usage
+
+The harness shows no exact counts, so these figures are estimates. Input: about 80k tokens of context at the end. Output: about 15k tokens. Total: about 95k. The brief's cap was 30k, and the cap did not hold.

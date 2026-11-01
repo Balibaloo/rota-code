@@ -1,0 +1,35 @@
+# Review p9 of frame 354: commit 2ee15249, pass 10
+
+Verdict: the claim holds on the six points, with one high finding in the new `_later_pair` rule. Counts: 1 high, 3 low (1 outside). The tests: 6 files green, `test_l3_rulings.py` 23 of 25, the same two reds as p6 to p8.
+
+## (a) Verdicts on the points
+
+1. Holds. On a page of I1 and the critic step, the next page of I2 and I3 says on line 3: 'Your answer "1 ok 2 drop", as the team read it: the step "the team could not check a claim for command" is dropped; 1 line approved.' After "1 ok 2 try again" it says '... the step "the team could not check a claim for command" runs again; 1 line approved.' On a page of I1, C1 and the step, "1 ok 2 drop" reads back '"the output is valid json" is wrong: drop; the step "..." is dropped; 1 line approved.' "1 ok 2 ok" reads back '... is dropped; 2 lines approved.' No read-back line holds "line N". An approve is counted, not named by its words (finding 3). A drop on line 1, the request, is refused by the door, so no read-back exists for it.
+2. Holds for the claimed forms, with one over-admission. HEAD binds "1 is not right" / "2 ok", "1 does not work" / "2 drop", "1 isn't what I asked" / "2 drop", "1 ok" / "2 drop", "1 drop it" / "2 ok", on pages of two and three lines. "1 try again" and "1: drop" bind line 1 alone. "I never said ok 2 drop", "2 examples are too many" and "Drop both of those examples" give every line the whole reply. The parent gave the negated three forms every line, or line 1 only for "1 is not right 2 ok". `_later_pair` admits a start number with any words before a later pair. "1 is wrong, do not drop 2" and "do not drop 1 2 ok" bind as the parent did: line 1 alone, and every line. It also admits quantity forms, "2 examples are too many 1 ok" and "3 at most 2 drop" (finding 1).
+3. Holds. The next page says: 'Your answer "1 drop", as the team read it: the earlier page had no line, so your answer landed on no line.' `read_back_rows` gives the row with `ref` = `ask_id` = m3. The landing wake has no `read_back` key. The seat's call with `rows: ["m3"]` and an `other` quote meets `ruling_rows` 1126: "'m3' is a row that no table holds, so a ruling on it rules nothing". A `contest` key meets the menu refusal first.
+4. Holds. `_step_name` gives 'the team could not report a stopped step for "the team could not check a claim for command"'. `_gave_up_words` gives the same words with "after 0 attempts" in the fixture. No "|" appears. A key nested twice gives nested double quotes, which read badly but name no raw key.
+5. Two hunks go past the brief, and the pass report names both. The `runner.py` line that drops an empty entry serves the claim. The `_row_name` fallback "line N of the earlier page" contradicts the claim's "no line number of the earlier page appears" (finding 2). The old `test_read_back.py` expectation held "line 3 is wrong: drop". On that page, line 3 is the read-back line itself, so the old clause named the wrong line. The new expectation "line 3 of the earlier page is wrong: drop" follows the ruling of 2026-10-26: the page still shows one line with the reading of his reply. The ledger note l_1 is still named by a number, not by words.
+6. `-n0` runs: `test_frame354_quarantine_page.py` 29 passed. `test_r1_menu_form.py` 54 passed. `test_read_back.py` 15 passed. `test_frame337_earlier_answers.py` 19 passed. `test_agent_principal.py` 11 passed. `test_runner.py` 137 passed. `test_l3_rulings.py` 2 failed, 23 passed. The reds are L3R-n171-m27-m28 and L3R-n172-m76-m77. No case moved off 23 of 25.
+
+## (b) Findings
+
+1. rota/roles/api.py 13649 and 13682, high, CONFIRMED. `_later_pair` lets a clause-start number name its line when any later "N word" pair cuts, so a quantity names a line. Probe p2c on a page of three lines: "2 examples are too many 1 ok" gives line 2 "2 examples are too many". "3 at most 2 drop" gives line 3 "3 at most". The parent gave every line the whole reply for both forms. The comment at 13610 says "3 at most" and "2 examples are too many" name no line. The pass report names the "3 at most" doubt, and no test guards it. Fix: admit the start number in `_later_pair` only when a closed list of verb heads follows it, such as "does", "doesn't", "isn't", "should", "not".
+2. rota/roles/principal.py 1398, low, CONFIRMED. A shown row with no item or criterion text reads "line N of the earlier page". `test_read_back.py` 112 pins this for the ledger note l_1, and the pass report names it for a `guess:` ref. The claim says that no line number of the earlier page appears. He must remember the earlier page to read the clause. Fix: name a ledger row and a guess by the words that the earlier page showed for them, or state the fallback in the claim.
+3. rota/roles/principal.py 1404, low, CONFIRMED. An approve row is counted as "N lines approved" and never named by its words. Probe p1, "1 ok 2 ok" on I1, C1 and the step: "2 lines approved". The count holds no line number, so no wrong line is named. The claim says an approve is named by its words, and it is not. Fix: correct the claim, or name each approved row with `_row_name` when the page does not show it.
+4. Outside. rota/roles/principal.py 2273, low, PLAUSIBLE. `_ref_words` returns a raw item id, so a step key with an item ref reads "the team could not check a claim for I1". Probe p4 shows the words for the key `liaison|tick:quarantined|critic|tick:challenge|I1`. No probe found such a key on a recorded night. Fix: read an item ref through its text, as `_row_name` does.
+
+## (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/393648aa-e5f9-4235-ad76-56489455e14e/scratchpad/f354p9r/`. They ran from `C:/Users/roman/rota_f354r` with `ROTA_MODEL=qwen3:8b`. No model call ran, and the gate did not run.
+
+- `common.py`: the fixture from p8. The other p8 probes are copied in and did not run.
+- `p1_later.py`: rules five replies on pages of I1 and the step, and of I1, C1 and the step. Prints the read-back line of the next page of I2 and I3, with every "line N" match.
+- `p2_binder.py`: `line_words` and `page_clauses` on 22 forms on pages of two and three lines. Then it runs again with the parent `_pair_cut` and `_bare_subject` loaded from `git show 2ee15249^`. The output is `p2_out.txt`.
+- `p2c_guard.py`: five quantity forms at HEAD and with the parent functions, on a page of three lines. The `python -c` probe in `p2b_out.txt` ran the same forms on pages of two lines.
+- `p3_noline.py`: rules "1 drop" on a page with no lines. Prints `read_back_rows`, the next page, the landing `read_back` key, and two seat calls with `rows: ["m3"]`.
+- `p4_stepname.py`: `_step_name`, `_gave_up_words` and `_key_about` on the brief's key and three other nested keys.
+- The point 6 runs used `-q -n0`. The L3R run read a copy of `D:/repos/rota/tests/rota/cassettes.db`. The copy is deleted, and `git status` in the worktree is clean.
+
+## (d) Usage
+
+The harness shows no exact counts, so these figures are estimates. Input: about 70k tokens of context at the end. Output: about 9k tokens. Total: about 79k. The brief's cap of 30k did not hold.
