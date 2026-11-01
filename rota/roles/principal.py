@@ -1202,12 +1202,29 @@ def insert_ruling_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
 _READ_BACK_VERDICT = {"approve": "is approved", "contest": "is wrong",
                       "revise": "is to change", "park": "waits",
                       "now": "comes first", "drop": "is dropped",
-                      "resume": "resumes"}
+                      "resume": "resumes",
+                      # A stopped step takes the words of its own menu. Its
+                      # approve is his 'drop' (review p5 of frame 354,
+                      # finding 1). A retry has no line, see `_step_retry`.
+                      "step approve": "is dropped"}
 # The read-back line quotes the start of his answer. A clock time in the
 # page changes the prompt of every recorded case on each run.
 READ_BACK_WORDS = 8
 # The ask that ends a read-back line on a page. The state view leaves it out.
 READ_BACK_ASK = " Say ok, or say what we misread."
+
+
+def _step_key(ref) -> bool:
+    """The ref is a tick key, so its page line is a stopped step."""
+    return isinstance(ref, str) and "|tick:" in ref
+
+
+def _step_retry(ref, verdict) -> bool:
+    """His ruling runs the stopped step `ref` again. The step's next page
+    says so with `_retries_said`, so no read-back line says it again."""
+    # Review p5 of frame 354, finding 1: the read-back line called his
+    # retry "line 1 is wrong", and every retry added a line to answer.
+    return _step_key(ref) and verdict in ("contest", "revise")
 
 
 def _is_reading(ref) -> bool:
@@ -1227,14 +1244,18 @@ def readings_owed(conn: sqlite3.Connection,
     (the seam design, 2.3; ruled: Roman, 2026-10-26 22:5x, "every time").
     """
     out: list[str] = []
+    replies: dict[str, None] = {}
     for r in conn.execute(
-            "SELECT reply_id FROM ruled_refs_live WHERE source = 'reading' "
+            "SELECT reply_id, ref, verdict FROM ruled_refs_live "
+            "WHERE source = 'reading' "
             "AND reply_id IS NOT NULL AND ruling_status = 'landed' "
             "AND status != 'superseded' AND confirmed_by IS NULL "
-            "AND substr(ref, 1, ?) != ? GROUP BY reply_id "
-            "ORDER BY MIN(ruling_seq)",
+            "AND substr(ref, 1, ?) != ? ORDER BY ruling_seq",
             (len(READING_REF), READING_REF)).fetchall():
-        ref = READING_REF + r["reply_id"]
+        if not _step_retry(r["ref"], r["verdict"]):
+            replies.setdefault(r["reply_id"], None)
+    for reply_id in replies:
+        ref = READING_REF + reply_id
         if not conn.execute(
                 "SELECT 1 FROM ruled_refs_live WHERE ref = ? "
                 "AND ruling_status = 'landed'", (ref,)).fetchone():
@@ -1286,7 +1307,8 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     No model writes the line. A row on a `reading:` ref is never read back,
     so the chain ends at his approve (the seam design, 2.3)."""
     reply = ref[len(READING_REF):]
-    rows = read_back_rows(conn, reply)
+    rows = [r for r in read_back_rows(conn, reply)
+            if not _step_retry(r["ref"], r["verdict"])]
     if not rows:
         return None
     words = said(conn, reply).split()
@@ -1295,11 +1317,13 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     clauses: list[str] = []
     approves = 0
     for r in rows:
-        if r["verdict"] == "approve" and not r["act"]:
+        verdict = ("step approve" if _step_key(r["ref"])
+                   and r["verdict"] == "approve" else r["verdict"])
+        if verdict == "approve" and not r["act"]:
             approves += 1
             continue
         where = f"line {r['line']}" if r["line"] else "a row"
-        clause = f"{where} {_READ_BACK_VERDICT.get(r['verdict'], r['verdict'])}"
+        clause = f"{where} {_READ_BACK_VERDICT.get(verdict, verdict)}"
         if r["act"]:
             clause += f": {r['act']} {r['target'] or ''}".rstrip()
         clauses.append(clause)
@@ -3138,6 +3162,26 @@ def _reply_of(conn: sqlite3.Connection, ruling_id: str | None) -> str | None:
     return row["reply_id"] if row else None
 
 
+def _step_verdicts(per_item: dict, steps: list[str]) -> dict:
+    """`per_item` with each word of a stopped step's menu read as its
+    verdict. A step verdict off the menu raises ValueError."""
+    # The page says 'try again' and 'drop', so a script that copies the
+    # page's word lands. A stored 'drop' left the step 'Stuck' (review p5
+    # of frame 354, finding 2). `_STEP_ROWS` is the one map of the words.
+    from .api import _MENU_BASE, _STEP_ROWS
+
+    out = {}
+    for ref, verdict in per_item.items():
+        if ref in steps and verdict not in ("approve", "contest", "revise"):
+            if verdict not in _STEP_ROWS:
+                raise ValueError(
+                    f"{ref}: {verdict!r} moves no stopped step. A step takes "
+                    f"{'; '.join(_MENU_BASE['step'])}")
+            verdict = _STEP_ROWS[verdict][0]
+        out[ref] = verdict
+    return out
+
+
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
          ruling_id: str | None = None) -> str | None:
     """
@@ -3204,6 +3248,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     if not (answer.text or "").strip() and not answer.per_item:
         return None
 
+    # A stopped step takes the words of its menu, read before the ask
+    # closes, so a refused verdict leaves the ask open.
+    from ..core.scheduler import rowless_key
+
+    steps = ([k for k in door_rows(conn, ask.message_id, "stalled")
+              if rowless_key(conn, k)]
+             if ask.verb == "present" and answer.verb == "verdict" else [])
+    given = _step_verdicts(answer.per_item or {}, steps)
     closed = mark_answered(conn, ask.message_id, only_open=True)
     if not closed:
         return None
@@ -3239,7 +3291,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # touch note's verdict. A contest of the batch line kept the verdict
     # alive, and the item's approve then set a draft item approved off the
     # sign-off page (the diff review of 2dace61b, finding 4).
-    per_item = dict(answer.per_item or {})
+    per_item = dict(given)
     # A read-back line rules his own answer and no row of an owner, so it
     # leaves the relay. Its `ruled_refs` row is the record (the seam
     # design, 2.3).
@@ -3252,11 +3304,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # such a key, because `park_owns` reads a batch and the key names none
     # (frame 142's design, 2.D).
     from ..core.db import mark_ruled
-    from ..core.scheduler import rowless_key
 
-    steps = ([k for k in door_rows(conn, ask.message_id, "stalled")
-              if rowless_key(conn, k)]
-             if ask.verb == "present" and answer.verb == "verdict" else [])
     # 'ok' over a page of stopped steps only names no line, and it drops them.
     if steps and not per_item and set(ask.refs) <= set(steps):
         per_item = {k: "approve" for k in steps}

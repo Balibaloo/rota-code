@@ -194,7 +194,10 @@ def _present_critic(db, sent=None):
     out = _sessions(db, wake, "TOOL: msg.present_principal(refs=%s)"
                     % json.dumps(sent or [CRITIC_KEY]))
     assert out.committed, out.errors
-    return db.execute("SELECT * FROM messages WHERE verb = 'present'").fetchone()
+    # A retried step gets a second page, and the first page is answered
+    # (review p5 of frame 354, finding 4).
+    return db.execute("SELECT * FROM messages WHERE verb = 'present' "
+                      "ORDER BY seq DESC").fetchone()
 
 
 def test_a_key_part_that_names_a_row_lands_as_the_key_once(db):
@@ -253,13 +256,13 @@ def test_a_page_of_stalled_steps_only_says_what_a_reply_does(db):
     assert "starts building" not in page
 
 
-def _rule_on_line(db, option, text="1 try again"):
+def _rule_on_line(db, option, text="1 try again", row=None):
     """Pass 6: the Liaison path. The menu call of `rulings.rule` stages the
     ruling and its rows, and `apply_rulings` lands them."""
     from tests.rota.test_principal_reply import _landing
     from rota.roles.principal import apply_rulings, page_ask
 
-    row = _present_critic(db)
+    row = row or _present_critic(db)
     sb, _ = _landing(db, page_ask(row), text)
     out = sb.call("rulings.rule", rulings={"1": option})
     for table, _op, values, *_ in sb.ctx.writes:
@@ -307,11 +310,45 @@ def test_the_stalled_line_takes_only_its_two_words(db, option):
 
 
 def test_the_next_page_of_a_retried_step_says_he_asked_before(db):
+    """Review p5, findings 1, 3 and 4: the second page read his retry back
+    as 'line 1 is wrong', and his repeat named that line too."""
     _rule_on_line(db, "try again")
-    # The step stalls again after his retry.
-    _quarantine(db, CRITIC_KEY)
-    page, order = render_page(db, "present", [CRITIC_KEY], None,
-                              stalled=[CRITIC_KEY])
+    # The step stalls again after his retry, and the Liaison presents it.
+    row = _present_critic(db)
+    page, order = render_page(db, "present", json.loads(row["body_refs"]),
+                              None, ask_id=row["id"])
     assert order == [CRITIC_KEY]
+    assert page.count("  1. ") == 1 and "  2. " not in page
     assert "You asked me to try it again once before" in page
+    assert "as the team read it" not in page
     assert "'drop' on it to stop it" in page
+    out, _ = _rule_on_line(db, "try again", row=row)
+    assert out["per_item"] == {CRITIC_KEY: "contest"}
+
+
+def _land_script(db, verdict):
+    """A script that copies the page's word into `per_item`."""
+    from rota.roles.principal import Answer, land, page_ask
+
+    row = _present_critic(db)
+    return land(db, page_ask(row), Answer(
+        verb="verdict", text=f"1 {verdict}", per_item={CRITIC_KEY: verdict}))
+
+
+def test_a_scripted_drop_on_a_step_marks_it_ruled(db):
+    """Review p5, finding 2: a scripted 'drop' closed the ask and left the
+    step at 'Stuck'."""
+    from rota.roles.principal import render_state
+
+    assert _land_script(db, "drop")
+    att = _attempts(db)
+    assert (att["quarantined"], att["reported"]) == (1, 2)
+    assert "Stuck" not in render_state(db)
+
+
+def test_a_scripted_step_verdict_off_its_menu_is_refused(db):
+    with pytest.raises(ValueError) as err:
+        _land_script(db, "park")
+    assert "try again; drop" in str(err.value)
+    assert db.execute("SELECT COUNT(*) FROM messages WHERE verb = 'present' "
+                      "AND status = 'open'").fetchone()[0] == 1
