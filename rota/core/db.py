@@ -426,6 +426,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
                              f"INTEGER NOT NULL DEFAULT 0")
         _widen_code_index_kinds(conn)
         _widen_ruled_ref_acts(conn)
+        _widen_statement_states(conn)
         # The same for the description flag: 0 is every older item's truth, since
         # no seat could describe an item before the column existed.
         if not _has_column(conn, "items", "is_description"):
@@ -875,6 +876,49 @@ def _widen_ruled_ref_acts(conn: sqlite3.Connection) -> None:
         raise
     finally:
         conn.execute("PRAGMA legacy_alter_table = OFF")
+
+
+def _widen_statement_states(conn: sqlite3.Connection) -> None:
+    """
+    Give an older `statements` the CHECK that holds the status `dropped`.
+
+    Frame 357 gives a statement the principal dropped its own end status.
+    SQLite cannot change a CHECK in place, so the table is built again from
+    the schema file, as `_widen_ruled_ref_acts` does. A live run keeps its
+    rows, so the move needs no new mark. The foreign keys go off for the
+    copy, because the drop of the old table would fail on `supersedes`.
+    """
+    import re as _re
+
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
+                       "AND name = 'statements'").fetchone()
+    if row is None or "'dropped'" in (row[0] or ""):
+        return
+    schema = SCHEMA_PATH.read_text(encoding="utf-8")
+    create = _re.search(r"CREATE TABLE IF NOT EXISTS statements \(.*?\n\);",
+                        schema, _re.S).group(0)
+    index = _re.search(r"CREATE INDEX IF NOT EXISTS ix_statements_status .*?;",
+                       schema).group(0)
+    names = ", ".join(r[1] for r in conn.execute("PRAGMA table_info(statements)"))
+    keys = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("PRAGMA legacy_alter_table = ON")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(create.replace("IF NOT EXISTS statements",
+                                    "statements_widened", 1))
+        conn.execute(f"INSERT INTO statements_widened ({names}) "
+                     f"SELECT {names} FROM statements")
+        conn.execute("DROP TABLE statements")
+        conn.execute("ALTER TABLE statements_widened RENAME TO statements")
+        conn.execute(index)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.execute("PRAGMA legacy_alter_table = OFF")
+        conn.execute(f"PRAGMA foreign_keys = {'ON' if keys else 'OFF'}")
 
 
 def _thread_of(conn: sqlite3.Connection, m) -> str:

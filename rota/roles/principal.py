@@ -758,6 +758,12 @@ def contested_statement(conn: sqlite3.Connection, sid: str, *,
     ruling whose reply came at or after that point (frame 193's design, 2.G.3
     and 2.G.4).
     """
+    # A dropped statement stays contested. Dry1's approve m78 came after the
+    # drop r_m75, was the newest ruling, and `brief_ratify` admitted it
+    # (frame 357).
+    dropped = statement_drop(conn, sid)
+    if dropped:
+        return dropped
     # The rows on `sid` in `ruled_refs_live`, newest first (the seam
     # design, 3.1).
     sql = ("SELECT r.ruling_id, r.verdict FROM ruled_refs_live r "
@@ -1748,6 +1754,12 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
         # A quarantined key with no row is a numbered line of the page, so
         # it stays (frame 354).
         if rowless_key(conn, ref):
+            continue
+        # A dropped statement is no line on any page, so no "ok" approves
+        # it again (frame 357, dry1's m77).
+        if conn.execute("SELECT 1 FROM statements WHERE id = ? AND "
+                        "status = 'dropped'", (ref,)).fetchone():
+            out.add(ref)
             continue
         # The intake door refuses a statement of another entry, so the
         # Liaison learns to say it again (frame 193, pass 3, finding 4).
@@ -3743,6 +3755,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     for rid in rulings_here:
         _insert_landed_rows(conn, rid, ask, msg_id, remaining, moved,
                             (answer.text or "").strip())
+    _drop_statements(conn, rulings_here)
     # A landed ruling on a row of a running batch moves what its seats read.
     # Night 170's m92, m98 and m103 ruled on b_3 and its criterion, and
     # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1, finding 1).
@@ -3759,6 +3772,44 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             "SELECT id FROM batches WHERE item_id IN (%s) ORDER BY id"
             % ",".join("?" * len(ruled)), ruled)])
     return msg_id
+
+
+def _drop_statements(conn: sqlite3.Connection, rulings: list[str]) -> None:
+    """Write `dropped` on each proposed statement that a landed row of
+    `rulings` drops.
+
+    Dry1's r_m75 dropped s2 and s3 and wrote nothing, so `awaiting_confirm`
+    asked again as m77. The seat's "ok" on m77 then ratified the request he
+    had dropped (frame 357; composition.md, no work he did not ask for)."""
+    from ..core.db import write_state
+
+    if not rulings:
+        return
+    marks = ",".join("?" * len(rulings))
+    for r in conn.execute(
+            f"SELECT DISTINCT rr.ref FROM ruled_refs rr JOIN statements s "
+            f"ON s.id = rr.ref WHERE rr.ruling_id IN ({marks}) "
+            f"AND rr.source = 'landed' AND rr.verdict = 'contest' "
+            f"AND rr.act = 'drop' AND s.status = 'proposed'",
+            tuple(rulings)).fetchall():
+        write_state(conn, "statements", r["ref"],
+                    "UPDATE statements SET status = 'dropped' "
+                    "WHERE id = ? AND status = 'proposed'", (r["ref"],))
+
+
+def statement_drop(conn: sqlite3.Connection, sid: str) -> str | None:
+    """The newest landed ruling that dropped statement `sid`, when `sid` is
+    `dropped`, else None. A later ruling does not hide it, because the end
+    status holds (frame 357)."""
+    r = conn.execute(
+        "SELECT rr.ruling_id FROM ruled_refs rr "
+        "JOIN rulings u ON u.id = rr.ruling_id "
+        "JOIN statements s ON s.id = rr.ref "
+        "WHERE rr.ref = ? AND s.status = 'dropped' AND u.status = 'landed' "
+        "AND rr.source = 'landed' AND rr.verdict = 'contest' "
+        "AND rr.act = 'drop' ORDER BY u.rowid DESC, rr.rowid DESC LIMIT 1",
+        (sid,)).fetchone()
+    return r["ruling_id"] if r is not None else None
 
 
 def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,

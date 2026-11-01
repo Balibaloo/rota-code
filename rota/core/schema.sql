@@ -36,8 +36,10 @@ CREATE TABLE IF NOT EXISTS statements (
     span_start      INTEGER NOT NULL,
     span_end        INTEGER NOT NULL,
     text            TEXT NOT NULL,
+    -- A landed drop of the principal ends a statement as dropped (frame 357).
     status          TEXT NOT NULL CHECK (status IN
-                        ('proposed','ratified','superseded','contradicted','clarified')),
+                        ('proposed','ratified','superseded','contradicted','clarified',
+                         'dropped')),
     supersedes      TEXT REFERENCES statements(id),
     version         INTEGER NOT NULL DEFAULT 1
 );

@@ -154,6 +154,8 @@ TERMINAL: dict[tuple[str, str, str], str] = {
         "replaced by a later statement, which carries the work forward",
     ("statements", "status", "clarified"):
         "the ambiguity was resolved in a later statement",
+    ("statements", "status", "dropped"):
+        "the principal dropped it, so no page asks for it again (frame 357)",
     ("items", "approval", "approved"):
         "drained by slicing once tickets exist; approval itself owes nothing",
     ("items", "approval", "pending"):
