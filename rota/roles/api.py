@@ -5578,6 +5578,109 @@ def _program_rank(conn, name: str, grains: list[str],
         f"the program's first: {', '.join(listed[:5])}{more}")
 
 
+def _surface_text(ref: str) -> str:
+    """The ref without a trailing call. s139's prompt wrote `click.pause()`
+    (frame 356, review 1, finding 5)."""
+    text = ref.strip()
+    return text[:-2].rstrip() if text.endswith("()") else text
+
+
+def _module_fits(conn, grain: str, prefix: str) -> bool:
+    """True when the grain's dotted module is the ref's module part.
+
+    `click.pause` names the package, and `src/click/termui.py` is
+    `click.termui`, so a package prefix fits. `termui.pause` names the
+    module's tail, so a tail prefix fits too (frame 356, review 1, finding 3).
+    """
+    dotted = (module_of(conn, grain) or ("", ""))[0]
+    return bool(dotted) and (dotted == prefix or dotted.startswith(prefix + ".")
+                             or dotted.endswith("." + prefix))
+
+
+def _symbol_rows(conn, name: str, prefix: str, kind: str | None = None) -> list[str]:
+    """The symbol grains named `name` whose module fits `prefix`."""
+    rows = [r["grain"] for r in conn.execute(
+        "SELECT grain, sym_kind FROM code_index WHERE grain_kind='symbol' "
+        "AND grain LIKE ?", (f"%::{name}",))
+        if r["grain"].endswith(f"::{name}") and kind in (None, r["sym_kind"])]
+    return [g for g in rows if not prefix or _module_fits(conn, g, prefix)]
+
+
+def _dotted_rows(conn, ref: str) -> tuple[str, list[str]]:
+    """The dotted suffix of `ref` the index holds, and its grains.
+
+    The longest suffix comes first. The indexer does not descend into a class
+    body, so a method has no grain. When the penultimate segment is a class
+    grain, the method goes after the class grain (frame 356, review 1,
+    finding 1).
+    """
+    parts = ref.split(".")
+    for i in range(len(parts)):
+        tail, prefix = parts[i:], ".".join(parts[:i])
+        rows = _symbol_rows(conn, ".".join(tail), prefix) if i else []
+        if not rows and len(tail) == 2:
+            rows = [f"{g}.{tail[1]}" for g in
+                    _symbol_rows(conn, tail[0], prefix, kind="class")]
+        if rows:
+            return ".".join(tail), rows
+    return ref, []
+
+
+def _resolve_surface(conn, ref: str) -> tuple[str | None, str]:
+    """
+    The grain a surface ref names, and the refusal when several rows fit.
+
+    One reader for both ends: the vet stores the grain at specify time, and
+    the never-calls check of `tests.encode` reads a stored ref the same way.
+    dry1 stored `click.pause` before frame 356, so only a read-time
+    resolution lets a retry on that batch pass. A grain of None and no
+    refusal means that the index holds no such surface.
+    """
+    text = _surface_text(ref)
+    rows = [r["grain"] for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
+        "(grain = ? OR grain LIKE ?)", (text, f"%::{text}"))]
+    name = text
+    if not rows and "::" not in text:
+        # Frame 356: dry1's s139 stored `click.pause`, and the encode door
+        # refused every test, since no test calls that string.
+        name, rows = _dotted_rows(conn, text)
+    if not rows:
+        return None, ""
+    hit = rows[0]
+    # LIKE ignores case and reads `_` as any character, so a bare `clear`
+    # also finds a class `Clear` (frame 324, review 1, finding 1).
+    exact = [g for g in rows if g.endswith(f"::{name}")]
+    if exact:
+        rows, hit = exact, exact[0]
+    if len(rows) > 1 and "::" not in text:
+        # A bare name of several rows took the lowest rowid, and night
+        # 165 stored an example's `clear` (frame 324). A qualified ref
+        # stays as written.
+        pick, refusal = _program_rank(conn, name, rows)
+        if pick is None:
+            return None, refusal
+        hit = pick
+    return hit, ""
+
+
+def _surface_call_names(conn, surface: list[str]) -> set[str]:
+    """
+    The names a test may call to exercise the surface.
+
+    A ref is compared as its grain, its name and the name's last dotted
+    segment. `src/click/core.py::Context.invoke` is called as `invoke`, and a
+    ref the index does not hold is called by its last segment (frame 356,
+    review 1, finding 2).
+    """
+    names = set(surface)
+    for s in surface:
+        grain = s if "::" in s else (_resolve_surface(conn, s)[0] or s)
+        tail = _surface_text(grain).rsplit("::", 1)[-1]
+        names |= {grain, tail, tail.rsplit(".", 1)[-1]}
+    return names
+
+
 def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
                  ticket_id: str | None = None) -> list[str]:
     """
@@ -5606,46 +5709,14 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         return refs                       # greenfield: intent is the surface
     vetted = []
     for ref in refs:
-        rows = ctx.conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
-            "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchall()
-        # Frame 356: dry1's s139 stored `click.pause`, and the encode door
-        # refused every test, since no test calls that string. The index
-        # writes `path::name` or `path::Class.name`, so try each dotted
-        # suffix, the longest first.
-        name = ref
-        parts = ref.split(".") if "::" not in ref else []
-        for i in range(1, len(parts)):
-            if rows:
-                break
-            name = ".".join(parts[i:])
-            rows = [r for r in ctx.conn.execute(
-                "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
-                "grain LIKE ?", (f"%::{name}",))
-                if r["grain"].endswith(f"::{name}")]
-        if not rows:
-            name = ref
-        hit = rows[0] if rows else None
-        # LIKE ignores case and reads `_` as any character, so a bare `clear`
-        # also finds a class `Clear` (frame 324, review 1, finding 1).
-        exact = [r for r in rows if r["grain"].endswith(f"::{name}")]
-        if exact:
-            rows, hit = exact, exact[0]
-        if len(rows) > 1 and "::" not in ref:
-            # A bare name of several rows took the lowest rowid, and night
-            # 165 stored an example's `clear` (frame 324). A qualified ref
-            # stays as written.
-            pick, refusal = _program_rank(ctx.conn, name,
-                                          [r["grain"] for r in rows])
-            if pick is None:
-                raise ValueError(refusal)
-            hit = {"grain": pick}
-        if hit:
+        g, refusal = _resolve_surface(ctx.conn, ref)
+        if refusal:
+            raise ValueError(refusal)
+        if g:
             # A test is not a surface. tipsS (2026-09-09): the split's first
             # criterion named `tests/test_calculate_tip.py::test_calculate_tip`
             # as its surface, the second named the existing tip function,
             # and the Tester tested the split through the tip.
-            g = hit["grain"]
             gpath, _, gname = g.partition("::")
             # Frame 324 (ruled: Roman, 2026-10-26 20:37): the frame's kind
             # decides, not a folder name. Night 167's s280 respecified tk_3
@@ -5688,7 +5759,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
                  ctx.conn.execute("SELECT grain FROM code_index "
                                   "WHERE grain_kind='symbol'")}
         near = [stems[m] for m in difflib.get_close_matches(
-            ref.split("::")[-1], stems, n=5, cutoff=0.75)]
+            _surface_text(ref).split("::")[-1], stems, n=5, cutoff=0.75)]
         if near:
             # A name one edit away from a real symbol is a typo, not a design.
             raise ValueError(
@@ -5702,7 +5773,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         # Click night 56 (2026-09-14): a repair named `inspect_signature`,
         # a library function the program does not have, and every test of
         # the criterion was refused for never calling it.
-        bare = ref.split("::")[-1].rsplit(".", 1)[-1]
+        bare = _surface_text(ref).split("::")[-1].rsplit(".", 1)[-1]
         given = set(item_callables(ctx, ticket_id).new)
         in_tree = bool(definers_of(ctx.conn, bare))
         # At the repair only: a first criterion may name the entry point a
@@ -10741,7 +10812,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # whole, `from main import calculate_tip` + `calculate_tip(100, 10)`
         # was refused as never calling `main.py::calculate_tip`, three
         # sessions, quarantine, nothing merged (tipsK, 2026-09-09).
-        surface_names = {s.rsplit("::", 1)[-1] for s in surface} | set(surface)
+        surface_names = _surface_call_names(ctx.conn, surface)
         # And from the surface's own module. tipsU (2026-09-09): the surface
         # was `main.py::calculate_tip` and the test did `from billing import
         # calculate_tip`; no such module, ImportError at collection, three
@@ -10966,6 +11037,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"{sorted(imported_from)[0]}. Import the surface from its own "
                 f"module: `from {want} import "
                 f"{surface[0].rsplit('::', 1)[-1]}`")
+        if not any(n.isidentifier() for n in surface_names):
+            # Frame 356, review 1, finding 2: no body can call a ref with no
+            # name in it, so "call it" cannot help. The criterion is the
+            # Terminologist's to repair. F25: every Tester mode that reaches
+            # this door holds the question, and the answer and challenge
+            # modes do not hold `tests.triage`.
+            question = "the surface names no callable: which callable does a test call?"
+            said = (f"msg.question_terminologist(refs=['{criterion_id}'], "
+                    f"question='{question}')")
+            raise Wall(_offer(
+                ctx,
+                f"the criterion names the surface {surface[0]!r}, and the "
+                f"index holds no such surface. No part of it is a name, so "
+                f"no test can call it. Send {said}",
+                "msg.question_terminologist",
+                {"refs": [criterion_id], "question": question}))
         if not (surface_names & called_names):
             raise Wall(
                 f"this test never calls {surface[0]!r}, the surface the "
