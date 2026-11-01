@@ -1596,16 +1596,41 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # same pass -- the answer to "what is ready" has to be computed against a
     # world where the abandonment has already happened.
     quarantine_looping(conn)
-    ready = waiting_filter(conn, quarantine_stalled(
-        conn, all_wakes(conn, principal_present=principal_present)))
-    return ready or quarantine_stalled(conn, quiet_park(conn))
+    # One bound pass over every wake and the quiet park. A second pass over
+    # the park alone forgot the counts of wakes that `waiting_filter` holds
+    # back (review p1 of frame 330, finding 1).
+    quiet = quiet_park(conn)
+    bounded = quarantine_stalled(
+        conn, all_wakes(conn, principal_present=principal_present) + quiet)
+    return _quiet_last(conn, bounded, quiet)
+
+
+def _quiet_last(conn: sqlite3.Connection, bounded: list[Wake],
+                quiet: list[Wake]) -> list[Wake]:
+    """The ready wakes of `bounded`, or its quiet park when none is ready.
+    The park is told apart by identity, because `preempt` can return an
+    equal `do:park` wake beside a challenger."""
+    mine = {id(w) for w in quiet}
+    ready = waiting_filter(conn, [w for w in bounded if id(w) not in mine])
+    return ready or [w for w in bounded if id(w) in mine]
 
 
 def frontier_readonly(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
-    """Read-only frontier view for the cockpit: no quarantine writes."""
+    """Read-only frontier view for the cockpit: no quarantine writes.
+
+    It drops the keys that `quarantine_stalled` drops, by a read, and adds
+    the quiet park under the same rule. So the cockpit and the status line
+    show what `frontier` does (review p1 of frame 330, finding 3)."""
+    from . import config
     from .predicates import all_wakes
 
-    return waiting_filter(conn, all_wakes(conn, principal_present=principal_present))
+    cap = config.get(conn, "tick_attempt_cap")
+    stalled = {r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE attempts >= ?", (cap,))}
+    quiet = quiet_park(conn)
+    bounded = [w for w in all_wakes(conn, principal_present=principal_present) + quiet
+               if tick_key(w) not in stalled]
+    return _quiet_last(conn, bounded, quiet)
 
 
 def quiet_park(conn: sqlite3.Connection) -> list[Wake]:
@@ -1618,6 +1643,12 @@ def quiet_park(conn: sqlite3.Connection) -> list[Wake]:
     2026-11-01, frame 330). A park while a seat can still move the batch
     loses its recovery: the Tester's new red test lifts the key, as night
     119's s259 did (frame 134). So the park waits for the quiet.
+
+    A wake that `waiting_filter` holds back counts as quiet. Its seat waits
+    on an answer, and the answer arrives as a message wake, which the filter
+    never holds. A pending answer ends the quiet by its own wake, so the
+    held wake alone cannot move the batch (review p1 of frame 330,
+    finding 2).
     """
     from .predicates import spent_park
 

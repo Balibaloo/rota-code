@@ -656,6 +656,32 @@ def test_a_bare_menu_pair_on_the_shift_page_lands(db, word, kind):  # noqa: F811
     assert out["per_item"] == {CONFIRM: kind}
 
 
+def test_a_run_of_menu_pairs_on_the_shift_page_lands_its_line(db):  # noqa: F811
+    """Review p1 of frame 330, finding 4. `request_shift` asks one question
+    per earlier item, so a shift page holds one line, and no two-line shift
+    page exists. "1 now 2 drop" lands line 1 through its own clause, and
+    line 2 is no line of the page."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+    from rota.roles.principal import land, parse_reply, pending_asks
+
+    from .test_frame193_pass2 import CONFIRM, _ask_shift, _night137
+
+    _night137(db)
+    _ask_shift(db)
+    words = "1 now 2 drop"
+    (ask,) = pending_asks(db)
+    reply = land(db, ask, parse_reply(ask, words))
+    db.commit()
+    sb = build("liaison", db, mode="normal", session_id="sess_shift",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = reply
+    with pytest.raises(ValueError, match="'2' is not a line of the page"):
+        sb.call("rulings.rule", rulings={"1": "now", "2": "drop"}, words=words)
+    out = sb.call("rulings.rule", rulings={"1": "now"}, words=words)
+    assert out["per_item"] == {CONFIRM: "now"}
+
+
 def test_a_count_before_a_pair_still_names_no_line():
     """The guard of 3668fd4f beside the bare pair: a count opens the reply,
     so line 2 takes no words of its own."""

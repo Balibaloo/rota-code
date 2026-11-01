@@ -252,6 +252,47 @@ def test_a_tester_wake_on_the_batch_keeps_it_from_the_quiet_park(night_168):
     assert [w.kind for w in scheduler.quiet_park(night_168)] == ["do:park"]
 
 
+def _dry1(conn) -> None:
+    """dry1's end: the Tester's key ran out on a missing test, and the green
+    batch's review ran out too. So the Tester's wake is quarantined."""
+    _one_batch(conn, "tester|tick:tests_missing|batch_1")
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES ('critic|tick:review|batch_1', 3, 1, 1)")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_3', 't_1', 'x')")
+
+
+def test_a_held_wake_keeps_its_count_across_a_frontier_that_parks(night_168, monkeypatch):
+    """Review p1 of frame 330, finding 1: the park's own bound pass read only
+    the park as live, so it deleted the count of a wake that
+    `waiting_filter` holds back."""
+    _dry1(night_168)
+    night_168.execute("INSERT INTO messages (id, from_role, to_role, verb, status, seq, "
+                      "body_text, thread_id) VALUES ('q1', 'architect', 'principal', "
+                      "'question', 'open', 5000, 'which?', 'q1')")
+    night_168.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                      "reported) VALUES ('architect|tick:grouping|tk9', 2, 0, 0)")
+    real = P.all_wakes
+    held = Wake("architect", "tick:grouping", refs=("tk9",), detail="held")
+    monkeypatch.setattr(P, "all_wakes", lambda conn, principal_present=False:
+                        real(conn, principal_present=principal_present) + [held])
+    assert scheduler.waiting_on(night_168, "architect")
+    assert [w.kind for w in scheduler.frontier(night_168)] == ["do:park"]
+    assert night_168.execute("SELECT attempts FROM tick_attempts WHERE tick_key = "
+                             "'architect|tick:grouping|tk9'").fetchone()["attempts"] == 2
+
+
+def test_the_read_only_frontier_shows_the_park_and_not_the_quarantined_wake(night_168):
+    """Review p1 of frame 330, finding 3: on dry1 the cockpit showed the
+    Tester's quarantined wake and no park. The read-only view now shows
+    what `frontier` does, and it writes nothing."""
+    _dry1(night_168)
+    before = [tuple(r) for r in night_168.execute("SELECT * FROM tick_attempts")]
+    seen = [(w.role, w.kind, w.refs) for w in scheduler.frontier_readonly(night_168)]
+    assert seen == [(P.SCHEDULER, "do:park", ("batch_1",))]
+    assert [tuple(r) for r in night_168.execute("SELECT * FROM tick_attempts")] == before
+    assert seen == [(w.role, w.kind, w.refs) for w in scheduler.frontier(night_168)]
+
+
 def test_a_quarantined_rung_counts_as_asked(night_168):
     """Instance 10: a rung whose own key ran out committed no session, so
     `_next_rung` asked it for ever and `preempt` never parked."""
