@@ -1,0 +1,34 @@
+# Review p3 of frame 356: commit 584f7f91
+
+Verdict: the claim holds on dry1's copy and the real click source. The review has 0 high and 3 low findings. Points: 1 holds, 2 holds with two shapes the reader misses, 3 holds, 4 holds, 5 finds no hunk outside the claim, 6 holds. Tests: 19 passed in the frame 356 file, 87 passed in the frame 356 and F25 files, 204 passed in the ten vet and criteria files, 0 failed.
+
+## (a) Verdicts on the points
+
+1. Holds. The copy's `project_root` is `D:\repos\_AI\sample_repos\clickI`. The `Context` row has lines 207 to 956, `Command` 958 to 1631, `Group` 1648 to 2109. These store a grain at specify and at repair: `click.Context.invoke`, `click.Group.invoke`, `click.Command.invoke` and `click.Context.__init__` give `src/click/core.py::<Class>.<method>`. `click.pause` and `click.termui.pause` give `src/click/termui.py::pause`. `click.Context.invok` and `click.Context.nothing_here` resolve to None. The specify vet keeps them as written. The repair door refuses both: "'click.Context.invok' is not a symbol the index knows, not a name the item or the ticket gives, and nothing in the worktree defines it. A surface is a callable of this program that a test would exercise: name the one that exists, or the new name the ticket asks for". The pass report's doubt 3 does not apply: click's `Group` defines `invoke`.
+2. Holds with two misses. A docstring first, a decorated method, a comment first, a multi-line signature and a two-space body give a grain. A nested class that defines the method, a method made by assignment and a nested def give none. These three are correct. A class body with tabs gives no grain, and an AST read gives one (finding 1). A class header whose continuation line is deeper than the body, `class A(Base,` then eight spaces `Other):`, gives no grain (finding 2). An AST read is cheaper. The indent part of the helper is 11 lines, from `name =` to `return any(...)`. An AST read is 6 lines: `ast.parse(text)`, one `ast.walk`, a match on `ClassDef` with the row's name and `lineno` in the row's range, and `any` over `node.body` for a `FunctionDef` or `AsyncFunctionDef` named `method`. The fix is in finding 1.
+3. Holds. With the stored grain `src/click/core.py::Context.invoke`: `from click import Context` with `.invoke(` is refused with the hint "Import the surface from its own module: `from click.core import Context`". The hint parses. `from click.core import Context` with `.invoke(` passes. `import click` with `click.Context.invoke(...)` gets the same refusal and the same hint. The Tester can follow the hint, because the second case passes. `import click` with `click.Context(...).invoke(...)` gets the same refusal. That is review 2 finding 3, unchanged and low. No other place in `tests_encode` writes the last `::` part into an import line. Line 10935 puts the grain in an `_unloadable_surface` refusal. Line 11049 writes `misplaced[0]`, a name the body imports. `_unbound_name_hint` uses `_ref_symbol`.
+4. Holds. The vet never reads a batch worktree in any mode. `criteria.specify` at `rota/roles/api.py:6466` calls the vet with `required` False. The two repair callers at `:7286` and `:7415` call it with `required` True, then `_surface_outside_batch` reads the batch rows and not the tree. `_class_defines` reads `project_root(conn)` only. `definers_of` at `:20444` reads `code_index` only, under rule C76. A method the batch adds to a class is not in the root file and not in the index. At specify the ref stays as written, and the encode door compares the last segment, so a call of `.m(` passes. At repair the door refuses it unless the item gives the bare name (finding 3 on the refusal's words).
+5. Finds no hunk outside the claim. The diff adds `_class_defines`, filters `_dotted_rows`, and changes the two import hints. The test file adds five cases and a stand-in `core.py`.
+6. Holds. `tests/rota/test_frame356_dotted_surface.py`: 19 passed. The frame 356 file with `test_f25_offers_in_mode.py`: 87 passed in 41.00s. The ten files of the pass report, the frame 356 file and `test_f25_offers_in_mode.py` among them: 204 passed in 90.02s. All runs used `-n0`.
+
+## (b) Findings
+
+1. **A class body with tabs gives no method grain.** `rota/roles/api.py:5642` to `:5644`. Low. CONFIRMED. The pattern starts with `" {body}"`, spaces only, so a tab-indented `def m(` never matches. The probe gives `regex=False ast=True` for the tabs shape. The ref then stays as written and is refused at repair, so no false grain follows. Fix: replace the indent read with an AST read of the file, a `ClassDef` with the row's name and `lineno` between `line_start` and `line_end`, and `any` over its `body` for a def named `method`.
+2. **A class header with a deeper continuation line gives no method grain.** `rota/roles/api.py:5638` to `:5641`. Low. CONFIRMED. The body indent comes from the first deeper line that is not blank. For `class A(Base,` with `Other):` at eight spaces, the body reads 8, and `def m` at 4 does not match. Black's shape, `class A(` and a four-space `Base,`, passes. Fix: the same AST read as finding 1.
+3. **Outside the points: the repair refusal says "nothing in the worktree defines it", and the check reads the index.** `rota/roles/api.py:5819` and `:5826`. Low. CONFIRMED by reading. `in_tree` is `definers_of(ctx.conn, bare)`, and `definers_of` reads `code_index` only. A Terminologist who added the method in the batch reads the words as a false report of the tree. Fix: change the words to "and the index holds no definer", or pass the batch tree as `lenient_root`.
+
+## (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/3b83d22b-0033-48d3-816a-f69a7fe15544/scratchpad/f356r3/`. Each ran from the worktree root `C:/Users/roman/rota_f354r` with `ROTA_MODEL=qwen3:8b`. The file `dry1.db` there is a copy of `dry1w4/dry1.db`.
+
+- `p1_resolve.py`: prints the root and the class rows' lines, then runs `_resolve_surface` and `_vet_surface` with `required` False and True on the eight refs of point 1.
+- `p2_classreader.py`: builds an in-memory database with a `config` and a `code_index` table and a temp root. It runs `_class_defines` on eight class shapes and prints the regex result beside an AST read.
+- `p2b_header.py`: the same on two header continuations, a decorated class and a two-space body.
+- `test_p3_encode.py`: a pytest file that reuses the `tester` fixture of the frame 356 test file. It runs `tests.encode` on the stored method grain with four import shapes. It needs `--rootdir C:/Users/roman/rota_f354r -c C:/Users/roman/rota_f354r/pyproject.toml`, else the session template is not found.
+- pytest with `-n0`: the frame 356 file with `test_f25_offers_in_mode.py`, and the ten vet and criteria files.
+
+## (d) Usage
+
+- Input tokens: about 45k in context at the end. This is an estimate, because the harness shows no exact count.
+- Output tokens: about 7k, also an estimate.
+- Total: about 52k.
