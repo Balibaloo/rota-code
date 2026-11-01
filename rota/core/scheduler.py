@@ -2004,7 +2004,7 @@ def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
             "ELSE '[]' END")
     out = []
     for red in conn.execute(
-            "SELECT r.test_id, t.path FROM latest_runs r "
+            "SELECT r.test_id, r.commit_sha, t.path FROM latest_runs r "
             "LEFT JOIN tests t ON t.id = r.test_id "
             "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
             + live_tests(conn, "r.test_id") + " ORDER BY r.test_id",
@@ -2023,8 +2023,28 @@ def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
             "AND s.role = 'tester' ORDER BY rc.new_version",
             (red["test_id"],))]
         out.append({"test_id": red["test_id"], "path": red["path"],
+                    "commit_sha": red["commit_sha"],
                     "challenges": n, "versions": versions})
     return out
+
+
+def gave_up(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """
+    The team gave up on the batch at its head: `given_up` lists a key of
+    it, or `challenged_reds` lists a red test run at its head commit.
+    The count reads any batch status.
+    """
+    # Review p1 of frame 278, H2: a batch deferred on the count alone was
+    # not parked, and `next_batch` chose it again. A key lifts at a new
+    # head in `db._lift_quarantines`. The count has no reset, so the run
+    # at an older commit ends the park the same way (frame 278, pass 2b).
+    if given_up(conn, batch_id):
+        return True
+    head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                        (batch_id,)).fetchone()
+    head = head["head_commit"] if head else None
+    return any(head is None or r["commit_sha"] in (None, head)
+               for r in challenged_reds(conn, batch_id))
 
 
 def versions_words(versions: list[int]) -> str:
@@ -2091,7 +2111,11 @@ def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     looped = challenge_words(conn, batch_id) if _running(conn, batch_id) else ""
     if not looped:
         return why
-    return f"{why or f'attempt {tries} of {cap}'}; {looped}"
+    # Below the cap the attempt clause reads as the cause, and it is false
+    # there (review p1 of frame 278, L2). At the cap it is the cause.
+    if tries >= cap:
+        return f"attempt {tries} of {cap}; {looped}"
+    return f"{why}; {looped}" if why else looped
 
 
 # The id prefix of a park ask, then ten hex characters, `_` and the batch id.
@@ -2186,7 +2210,7 @@ def park_owns(conn: sqlite3.Connection, batch_id: str) -> bool:
     row = conn.execute(
         "SELECT b.status, i.approval, i.approval_ver, i.version FROM batches b "
         "LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?", (batch_id,)).fetchone()
-    if row is None or row["status"] != "deferred" or not given_up(conn, batch_id):
+    if row is None or row["status"] != "deferred" or not gave_up(conn, batch_id):
         return False
     # A contested item's batch goes to `do:cancel`, so nothing is asked.
     # The test is `cancel`'s own, where a NULL compares false.
@@ -2632,7 +2656,7 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
         batch = park_ask_batch(r["id"])
         row = conn.execute("SELECT status FROM batches WHERE id = ?",
                            (batch,)).fetchone()
-        if row is None or row["status"] != "deferred" or not given_up(conn, batch):
+        if row is None or row["status"] != "deferred" or not gave_up(conn, batch):
             n += mark_answered(conn, r["id"])
     return n
 
@@ -2652,7 +2676,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # `given_up` lists (frame 330).
     status = conn.execute("SELECT status FROM batches WHERE id = ?",
                           (batch_id,)).fetchone()
-    if status and status["status"] == "deferred" and given_up(conn, batch_id):
+    if status and status["status"] == "deferred" and gave_up(conn, batch_id):
         return True
     if not stopped_bouncing(conn, batch_id):
         return False

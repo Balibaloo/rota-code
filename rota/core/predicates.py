@@ -981,9 +981,15 @@ def tests_failing(conn) -> list[Wake]:
         + live_tests(conn, "r.test_id") +
         " GROUP BY r.batch_id"
     ).fetchall()
+    # The challenge bound of `stopped_bouncing` ends the fix loop too, or
+    # the wake holds the frontier and `quiet_park` never fires below the
+    # cap (review p1 of frame 278, H1).
+    from .scheduler import challenged_reds
+
     return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
                  detail=f"attempt {r['att']}")
-            for r in rows if (r["att"] or 1) < cap]
+            for r in rows if (r["att"] or 1) < cap
+            and not challenged_reds(conn, r["bid"])]
 
 
 @predicate("reopen", wakes="developer", band="fix",

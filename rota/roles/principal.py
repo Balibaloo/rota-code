@@ -411,7 +411,11 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # to the park ask the page said "nothing moves" (observed: frame 87's
     # pass 3 review, 2026-09-30). One line per batch, even at the cap too.
     keyed = {b: given_up(conn, b) for b in held}
-    capped = [b for b in held if not keyed[b]]
+    # A batch parked on the challenge count alone did not reach the attempt
+    # cap, so it gets the park page's sentence (review p1 of frame 278, H2).
+    from ..core.scheduler import challenged_reds
+    looped = {b: challenged_reds(conn, b) for b in held if not keyed[b]}
+    capped = [b for b in held if not keyed[b] and not looped[b]]
 
     # The line shows only while no ask is open: before the Liaison writes
     # the park ask, or when its wake is quarantined. No gate is open then,
@@ -461,6 +465,9 @@ def _render_state(conn: sqlite3.Connection) -> str:
                 + (" I ask you about it next." if b in coming else ""))
 
     parked_lines = [parked_line(b, keys) for b, keys in keyed.items() if keys]
+    parked_lines += [f"Stuck: {b} is parked. " + " ".join(map(_looped_words, rows))
+                     + " A new commit on the change starts it again."
+                     for b, rows in looped.items() if rows]
     if capped:
         parked_lines.append(
             f"Stuck: {', '.join(capped)} {'is' if len(capped) == 1 else 'are'} "
@@ -2379,13 +2386,22 @@ TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
 ACCOUNT_TODAY = "What the project does today. This is not your request:"
 
 
+def _looped_words(row: dict) -> str:
+    """The park sentence for one row of `challenged_reds`."""
+    from ..core.scheduler import versions_words
+
+    return (f"The team challenged the check {row['path'] or row['test_id']} "
+            f"{row['challenges']} times, and wrote "
+            f"{versions_words(row['versions'])} of it.")
+
+
 def _park_page(conn: sqlite3.Connection, batch: str,
                refs: list[str]) -> tuple[str, list[str]]:
     """The park message as the principal reads it: a page with the item and
     its criteria, or a note when the batch is its one ref."""
     from ..core.scheduler import (TESTER_MISSING, challenged_reds,
                                   failing_attempt, given_up, key_parts,
-                                  park_reds, park_untested, versions_words)
+                                  park_reds, park_untested)
 
     own, project = park_reds(conn, batch)
     if refs == [batch]:
@@ -2412,10 +2428,7 @@ def _park_page(conn: sqlite3.Connection, batch: str,
                    f"{len(checks)} checks still fail.")
     # The page names the check that looped between the Developer and the
     # Tester. Dry1 turn 12 showed the seat nothing (frame 278, pass 2).
-    for r in challenged_reds(conn, batch):
-        out.append(f"The team challenged the check {r['path'] or r['test_id']} "
-                   f"{r['challenges']} times, and wrote "
-                   f"{versions_words(r['versions'])} of it.")
+    out.extend(_looped_words(r) for r in challenged_reds(conn, batch))
     request_block(conn, refs, order, out, batch=batch, park=True)
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch,)).fetchone()

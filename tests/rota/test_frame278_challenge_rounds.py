@@ -97,8 +97,42 @@ def test_three_challenges_on_the_red_test_climb_the_ladder(dry1):
     assert stopped_bouncing(dry1, "bg_1")
     assert _ladder(dry1) == [("developer", "tick:exhausted", ("bg_1",))]
     (wake,) = P.exhausted(dry1)
-    assert wake.detail == ("attempt 8 of 10; the Developer challenged tst_waited "
+    # Review p1, L2: below the cap the attempt clause is not the cause.
+    assert wake.detail == ("the Developer challenged tst_waited "
                            "3 times, and the Tester wrote versions 5, 6 and 7")
+
+
+def test_at_the_cap_the_attempt_clause_stays(dry1):
+    _rounds(dry1, 3)
+    dry1.execute("UPDATE test_runs SET attempt = 10")
+    (wake,) = P.exhausted(dry1)
+    assert wake.detail == ("attempt 10 of 10; the Developer challenged tst_waited "
+                           "3 times, and the Tester wrote versions 5, 6 and 7")
+
+
+def test_the_count_ends_the_tests_failing_wake(dry1):
+    """Review p1, H1: the Developer's wake held the frontier, so
+    `quiet_park` never fired below the cap."""
+    _rounds(dry1, 2)
+    assert [w.refs for w in P.tests_failing(dry1)] == [("bg_1",)]
+    _message(dry1, "m97", "developer", "tester", "challenge", WAITED)
+    assert P.tests_failing(dry1) == []
+
+
+def test_a_batch_deferred_on_the_count_stays_parked(dry1):
+    """Review p1, H2: `parked` read `given_up` only, so `next_batch` chose
+    the deferred batch again."""
+    from rota.core.scheduler import next_batch
+
+    _rounds(dry1, 3)
+    dry1.execute("UPDATE batches SET status = 'deferred'")
+    assert parked(dry1, "bg_1")
+    assert scheduler.park_owns(dry1, "bg_1")
+    assert "bg_1" not in [r["id"] for r in next_batch(dry1)]
+    # A new head commit ends the park, as it lifts a key.
+    dry1.execute("UPDATE batches SET head_commit = 'f00dfeed'")
+    assert not parked(dry1, "bg_1")
+    assert "bg_1" in [r["id"] for r in next_batch(dry1)]
 
 
 def test_two_challenges_are_below_the_cap(dry1):
