@@ -880,38 +880,49 @@ def _widen_ruled_ref_acts(conn: sqlite3.Connection) -> None:
 
 def _widen_statement_states(conn: sqlite3.Connection) -> None:
     """
-    Give an older `statements` the CHECK that holds the status `dropped`.
+    Give an older `statements` the CHECK that holds the status `dropped`,
+    and an older `items` the CHECK that holds the approval `dropped`.
 
-    Frame 357 gives a statement the principal dropped its own end status.
-    SQLite cannot change a CHECK in place, so the table is built again from
-    the schema file, as `_widen_ruled_ref_acts` does. A live run keeps its
-    rows, so the move needs no new mark. The foreign keys go off for the
-    copy, because the drop of the old table would fail on `supersedes`.
+    Frame 357 gives a statement and an item the principal dropped their own
+    end word. SQLite cannot change a CHECK in place, so each table is built
+    again from the schema file, as `_widen_ruled_ref_acts` does. A live run
+    keeps its rows, so the move needs no new mark. The foreign keys go off
+    for the copy, because the drop of an old table would fail on the rows
+    that reference it.
     """
+    _widen_to_dropped(conn, "statements", ("ix_statements_status",))
+    _widen_to_dropped(conn, "items", ())
+
+
+def _widen_to_dropped(conn: sqlite3.Connection, table: str,
+                      indexes: tuple[str, ...]) -> None:
+    """Build `table` again from the schema file when its CHECK lacks
+    `dropped`, and build its `indexes` again after it."""
     import re as _re
 
     row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
-                       "AND name = 'statements'").fetchone()
+                       "AND name = ?", (table,)).fetchone()
     if row is None or "'dropped'" in (row[0] or ""):
         return
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
-    create = _re.search(r"CREATE TABLE IF NOT EXISTS statements \(.*?\n\);",
+    create = _re.search(rf"CREATE TABLE IF NOT EXISTS {table} \(.*?\n\);",
                         schema, _re.S).group(0)
-    index = _re.search(r"CREATE INDEX IF NOT EXISTS ix_statements_status .*?;",
-                       schema).group(0)
-    names = ", ".join(r[1] for r in conn.execute("PRAGMA table_info(statements)"))
+    after = [_re.search(rf"CREATE INDEX IF NOT EXISTS {name} .*?;",
+                        schema).group(0) for name in indexes]
+    names = ", ".join(r[1] for r in conn.execute(f"PRAGMA table_info({table})"))
     keys = conn.execute("PRAGMA foreign_keys").fetchone()[0]
     conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("PRAGMA legacy_alter_table = ON")
     conn.execute("BEGIN IMMEDIATE")
     try:
-        conn.execute(create.replace("IF NOT EXISTS statements",
-                                    "statements_widened", 1))
-        conn.execute(f"INSERT INTO statements_widened ({names}) "
-                     f"SELECT {names} FROM statements")
-        conn.execute("DROP TABLE statements")
-        conn.execute("ALTER TABLE statements_widened RENAME TO statements")
-        conn.execute(index)
+        conn.execute(create.replace(f"IF NOT EXISTS {table}",
+                                    f"{table}_widened", 1))
+        conn.execute(f"INSERT INTO {table}_widened ({names}) "
+                     f"SELECT {names} FROM {table}")
+        conn.execute(f"DROP TABLE {table}")
+        conn.execute(f"ALTER TABLE {table}_widened RENAME TO {table}")
+        for sql in after:
+            conn.execute(sql)
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")

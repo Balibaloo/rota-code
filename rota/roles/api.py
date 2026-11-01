@@ -2066,6 +2066,15 @@ def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
     return f"{fact}. {step}"
 
 
+def _refuse_dropped(ctx: Ctx, id: str) -> None:
+    """Refuse a write to an item the principal dropped. Dry1's s229 put his
+    words "Drop 1 and 3" into the item he dropped (frame 357, pass 2)."""
+    if ctx.conn.execute("SELECT 1 FROM items WHERE id = ? AND approval = "
+                        "'dropped'", (id,)).fetchone():
+        raise ValueError(f"the principal dropped {id}, so it is no request "
+                         f"now. Leave it")
+
+
 @op("problem", "assert")
 def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict:
     """
@@ -2091,6 +2100,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             f"you have already put {id} {clash[2]['kind']} in this session and "
             f"this says {kind}. Those are the two answers this call chooses "
             f"between, so both is not an answer; decide, and send the one")
+    _refuse_dropped(ctx, id)
 
     # law 11: decided rows rest on a ratified statement or landed ruling
     # The principal's words stay the principal's. The describe door already
@@ -2329,6 +2339,10 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     """Approval must postdate the item's last amendment, so it is stamped with
     the item's current version at the moment it is granted."""
     _must_exist(ctx, "items", id)
+    _refuse_dropped(ctx, id)
+    # The end word is the principal's, and only `land` writes it (frame 357).
+    if approval == "dropped":
+        raise ValueError(f"only the principal's drop ends {id}. Leave it")
     # law 1: one writing role per row; a journal entry has one author
     # The relay of a ruling cannot undo it. `principal.land` wrote the state
     # at the keypress. On night 136 the relay session s172 set a revised item
@@ -14321,7 +14335,9 @@ _MENU_BASE = {
     # Two cases expect a rewrite of the read-back line: n174-m53-m55 line 9
     # and n175-m75-m77 line 6. So the read-back menu offers it.
     "read-back": ("ok", "misread", "misread, drop", "slightly off", "rewrite"),
-    "request": ("approve", "add <quote>"),
+    # Dry1's m101: "Drop 1 and 3" had no option, landed as `other`, and the
+    # Vision Keeper amended line 1 with his words (frame 357, pass 2).
+    "request": ("approve", "drop", "add <quote>"),
     "other": ("approve", "drop", "rewrite"),
     # A stopped step that names no row. The page says the same two words,
     # and no other option moves the step (review p4 of frame 354, finding 1).

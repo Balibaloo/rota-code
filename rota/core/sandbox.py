@@ -4500,6 +4500,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             off = off_page(ctx.conn, refs, confirm=True)
             if off:
                 refs = [r for r in refs if r not in off]
+        # A clarify about an item he dropped asks him again. Dry1's m108,
+        # m112 and m114 did (frame 357, pass 2).
+        if verb == "clarify" and recipient == "principal":
+            from ..roles.principal import dropped_items
+
+            gone = sorted(set(refs or ()) & dropped_items(ctx.conn))
+            if gone:
+                raise ValueError(
+                    f"the principal dropped {', '.join(gone)}, so no page "
+                    f"asks about it again. Send nothing about it")
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

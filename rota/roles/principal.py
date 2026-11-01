@@ -680,6 +680,8 @@ def open_requests(conn: sqlite3.Connection) -> list[str]:
         "SELECT i.id FROM items i JOIN item_provenance p ON p.id = i.id "
         "WHERE i.kind = 'in_scope' AND i.id != 'how_it_works' "
         "  AND p.provenance != 'observed' "
+        # A dropped item is no request (frame 357, pass 2).
+        "  AND i.approval != 'dropped' "
         + not_described(conn, "i.id") +
         "  AND EXISTS (SELECT 1 FROM refs r JOIN statements s ON s.id = r.target "
         "              WHERE r.src_table = 'items' AND r.src_id = i.id "
@@ -1750,7 +1752,9 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
     """
     from ..core.scheduler import aside_items, rowless_key
 
-    aside = aside_items(conn)
+    # A dropped item and its rows are no line, as an item set aside (frame
+    # 357, pass 2: dry1's m122 put both dropped items on a page again).
+    aside = aside_items(conn) | dropped_items(conn)
     # Requests are told apart by their boundaries. A run with no request
     # message has one request, and every open item keeps its line (frame
     # 190's design, 2.F, amendment 2).
@@ -3674,11 +3678,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # `approval_ver` is stamped against the current version. That keeps law
     # 9 true: no batch schedules unless its approval postdates its last
     # amendment.
+    # A drop ends the item, so no owner amends it and no later ruling revives
+    # it. Dry1's m101 "Drop 1 and 3" landed as a contest, and the Vision
+    # Keeper put his words into line 1 (frame 357, pass 2).
+    ended = _item_drops(conn, ruling_id, per_item)
     for ref, ruling in per_item.items():
         if ref in closed_here:
             continue
-        state = {"approve": "approved", "contest": "contested",
-                 "revise": "contested"}.get(ruling)
+        state = "dropped" if ref in ended else {
+            "approve": "approved", "contest": "contested",
+            "revise": "contested"}.get(ruling)
         if state is None:
             continue
         # An approval change is an exit from a quarantine. This raw write
@@ -3690,10 +3699,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
 
         write_state(conn, "items", ref,
                     "UPDATE items SET approval = ?, approval_ver = version "
-                    "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
+                    "WHERE id = ? AND approval IS NOT ? "
+                    "AND approval != 'dropped'", (state, ref, state))
 
+    gone = dropped_items(conn)
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
-            if r not in closed_here and not _is_reading(r)]
+            if r not in closed_here and not _is_reading(r) and r not in gone]
     # A page whose every row closed at the keypress leaves nothing for an
     # owner to do. The verdict is the record and lands answered. Relayed,
     # it woke the Terminologist with a ruling on a done row; it adopted the
@@ -3823,6 +3834,30 @@ def _drop_statements(conn: sqlite3.Connection, rulings: list[str]) -> None:
         write_state(conn, "statements", r["ref"],
                     "UPDATE statements SET status = 'dropped' "
                     "WHERE id = ? AND status = 'proposed'", (r["ref"],))
+
+
+def dropped_items(conn: sqlite3.Connection) -> set[str]:
+    """The items the principal dropped (frame 357, pass 2)."""
+    return {r[0] for r in conn.execute(
+        "SELECT id FROM items WHERE approval = 'dropped'")}
+
+
+def _item_drops(conn: sqlite3.Connection, ruling_id: str | None,
+                per_item: dict) -> set[str]:
+    """The items that ruling `ruling_id` contests with the act `drop`.
+
+    The act is on the Liaison's rows of the ruling, because `per_item`
+    holds the verdict only. A verdict from the seat with no ruling row has
+    no act, so it drops nothing."""
+    contested = [r for r, v in per_item.items() if v == "contest"]
+    if not ruling_id or not contested:
+        return set()
+    marks = ",".join("?" * len(contested))
+    return {r["ref"] for r in conn.execute(
+        f"SELECT DISTINCT rr.ref FROM ruled_refs rr JOIN items i "
+        f"ON i.id = rr.ref WHERE rr.ruling_id = ? AND rr.source != 'landed' "
+        f"AND rr.verdict = 'contest' AND rr.act = 'drop' "
+        f"AND rr.ref IN ({marks})", (ruling_id, *contested))}
 
 
 def statement_drop(conn: sqlite3.Connection, sid: str) -> str | None:

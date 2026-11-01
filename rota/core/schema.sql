@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS items (
     text          TEXT NOT NULL,
     kind          TEXT NOT NULL CHECK (kind IN ('in_scope','out_of_scope')),
     approval      TEXT NOT NULL DEFAULT 'draft'
-                  CHECK (approval IN ('draft','pending','approved','contested')),
+                  -- A landed drop of the principal ends an item (frame 357).
+                  CHECK (approval IN ('draft','pending','approved','contested','dropped')),
     approval_ver  INTEGER,                  -- version the approval was granted at
     -- Priority lives here, not on batches: it is a property of what the
     -- principal wants, and what they want is an item. It is also what makes
