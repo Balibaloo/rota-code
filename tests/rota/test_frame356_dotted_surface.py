@@ -34,11 +34,42 @@ DRY1_SYMBOLS = (
     ("src/click/_termui_impl.py::getchar", "function"),
     ("src/click/termui.py::getchar", "function"),
 )
+# dry1's row for `Context` spans these lines of src/click/core.py.
+CONTEXT_LINES = (207, 956)
+
+
+def _write_core(root):
+    """A stand-in for click's core.py with `Context` at dry1's lines.
+
+    Review 2, finding 1: the method grain needs the class body to define
+    the method. `nothing_here` is a nested def, so it is no method.
+    """
+    start, end = CONTEXT_LINES
+    body = ['    """A stand-in for click.Context."""',
+            "",
+            "    def invoke(self, callback, /, *args, **kwargs):",
+            "        return callback(*args, **kwargs)",
+            "",
+            "    def forward(self, cmd, /, *args, **kwargs):",
+            "        def nothing_here():",
+            "            return None",
+            "        return nothing_here()"]
+    lines = ([f"# line {n}" for n in range(1, start)] + ["class Context:"]
+             + body + ["    # body"] * (end - start - len(body)))
+    pkg = root / "src" / "click"
+    pkg.mkdir(parents=True)
+    # click's package re-exports `Context`, so `from click import Context`
+    # meets the import door and not the misplaced-name door.
+    (pkg / "__init__.py").write_bytes(b"from .core import Context\n")
+    (pkg / "core.py").write_bytes(("\n".join(lines) + "\n").encode())
 
 
 @pytest.fixture
 def db(tmp_path):
+    _write_core(tmp_path)
     conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('project_root', ?)", (str(tmp_path),))
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version, priority) VALUES (?, ?, 'in_scope', 'approved', 1, 1, 1)",
                  (ITEM, "Make click.pause() wait for a key."))
@@ -49,8 +80,10 @@ def db(tmp_path):
         conn.execute("INSERT INTO code_index (grain, grain_kind) "
                      "VALUES (?, 'path')", (path,))
     for grain, kind in DRY1_SYMBOLS:
-        conn.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) "
-                     "VALUES (?, 'symbol', ?)", (grain, kind))
+        lines = CONTEXT_LINES if grain.endswith("::Context") else (0, 0)
+        conn.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, "
+                     "line_start, line_end) VALUES (?, 'symbol', ?, ?, ?)",
+                     (grain, kind, *lines))
     conn.execute("INSERT INTO frame_rulings (id, kind, reason) VALUES "
                  "('examples', 'attached', 'Contains example code')")
     conn.execute("INSERT INTO frame_rulings (id, kind, reason) VALUES "
@@ -94,6 +127,26 @@ def test_a_method_ref_stores_its_class_row_and_the_method(db):
     assert _vet(db, "click.Context.invoke") == [
         "src/click/core.py::Context.invoke"]
     assert _vet(db, "Context.invoke") == ["src/click/core.py::Context.invoke"]
+
+
+def _repair(db, ref):
+    from rota.roles.api import _vet_surface
+
+    ctx = build("terminologist", db, mode="criteria").ctx
+    return _vet_surface(ctx, [ref], required=True, ticket_id="tk_1")
+
+
+@pytest.mark.parametrize("ref", ["click.Context.invok", "click.Context.nothing_here",
+                                 "click.nothing_here"])
+def test_a_method_the_class_does_not_define_is_no_surface(db, ref):
+    """Review 2, finding 1: a typo after a class grain stored a method grain,
+    and skipped the near-match scan and the repair door's rule that a
+    surface exists. A nested def is no method of the class. The item names
+    `pause`, so `criteria.specify` refuses any other surface by another
+    door, and the vet stands for the specify call here."""
+    assert _vet(db, ref) == [ref]
+    with pytest.raises(ValueError, match="is not a symbol the index knows"):
+        _repair(db, ref)
 
 
 def test_the_module_part_narrows_the_rows(db):
@@ -157,6 +210,32 @@ def test_a_stored_method_ref_passes_a_call_of_the_method(tester):
                         "def test_invoke():\n"
                         "    ctx = click.Context(click.Command('x'))\n"
                         "    assert ctx.invoke(lambda: 3) == 3\n")
+
+
+METHOD = "src/click/core.py::Context.invoke"
+INVOKE_BODY = ("def test_invoke():\n"
+               "    ctx = Context()\n"
+               "    assert ctx.invoke(lambda: 3) == 3\n")
+
+
+def _encode_body(sb, body):
+    return sb.call("tests.encode", id="tst1", criterion_id="c_1",
+                   path="tests/test_invoke.py", body=body)
+
+
+def test_a_stored_method_grain_hints_an_import_of_its_class(tester):
+    """Review 2, finding 2: the hint read `from click.core import
+    Context.invoke`, and that line does not parse."""
+    sb = tester([METHOD])
+    with pytest.raises(ValueError) as e:
+        _encode_body(sb, "from click import Context\n" + INVOKE_BODY)
+    assert "`from click.core import Context`" in str(e.value)
+    assert "Context.invoke`" not in str(e.value)
+
+
+def test_a_stored_method_grain_passes_an_import_of_its_class(tester):
+    sb = tester([METHOD])
+    assert _encode_body(sb, "from click.core import Context\n" + INVOKE_BODY)
 
 
 def test_a_ref_with_no_name_names_the_step_the_tester_can_take(tester):

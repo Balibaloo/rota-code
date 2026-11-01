@@ -5606,13 +5606,52 @@ def _symbol_rows(conn, name: str, prefix: str, kind: str | None = None) -> list[
     return [g for g in rows if not prefix or _module_fits(conn, g, prefix)]
 
 
+def _class_defines(conn, grain: str, method: str) -> bool:
+    """True when the class body of the index row `grain` defines `method`.
+
+    Frame 356, review 2, finding 1: a method grain built from the class row
+    alone stored `Context.invok`, and the typo skipped the near-match
+    refusal. The index holds no method row, so the class's lines decide.
+    A file that cannot be read proves no method, and the ref stays a ref
+    the index does not hold.
+    """
+    import re as _re
+
+    from ..core.worktrees import project_root
+
+    row = conn.execute("SELECT line_start, line_end FROM code_index "
+                       "WHERE grain = ?", (grain,)).fetchone()
+    if not row or not row["line_start"] or not row["line_end"]:
+        return False
+    try:
+        text = (project_root(conn) / _grain_path(grain)).read_text(
+            encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001 -- no root or no file: no method proved
+        return False
+    lines = text.splitlines()[row["line_start"] - 1:row["line_end"]]
+    name = grain.rsplit("::", 1)[-1]
+    head = next((i for i, ln in enumerate(lines)
+                 if _re.match(rf"\s*class\s+{_re.escape(name)}\b", ln)), None)
+    if head is None:
+        return False
+    outer = len(lines[head]) - len(lines[head].lstrip())
+    # The first deeper line that is not blank sets the body's indent. The
+    # class's docstring is such a line, so a nested def does not count.
+    body = next((len(ln) - len(ln.lstrip()) for ln in lines[head + 1:]
+                 if ln.strip() and len(ln) - len(ln.lstrip()) > outer), None)
+    if body is None:
+        return False
+    pattern = _re.compile(rf" {{{body}}}(?:async\s+)?def\s+{_re.escape(method)}\s*\(")
+    return any(pattern.match(ln) for ln in lines[head + 1:])
+
+
 def _dotted_rows(conn, ref: str) -> tuple[str, list[str]]:
     """The dotted suffix of `ref` the index holds, and its grains.
 
     The longest suffix comes first. The indexer does not descend into a class
     body, so a method has no grain. When the penultimate segment is a class
-    grain, the method goes after the class grain (frame 356, review 1,
-    finding 1).
+    grain whose body defines the method, the method goes after the class
+    grain (frame 356, review 1, finding 1, and review 2, finding 1).
     """
     parts = ref.split(".")
     for i in range(len(parts)):
@@ -5620,7 +5659,8 @@ def _dotted_rows(conn, ref: str) -> tuple[str, list[str]]:
         rows = _symbol_rows(conn, ".".join(tail), prefix) if i else []
         if not rows and len(tail) == 2:
             rows = [f"{g}.{tail[1]}" for g in
-                    _symbol_rows(conn, tail[0], prefix, kind="class")]
+                    _symbol_rows(conn, tail[0], prefix, kind="class")
+                    if _class_defines(conn, g, tail[1])]
         if rows:
             return ".".join(tail), rows
     return ref, []
@@ -10894,8 +10934,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         ctx, criterion_id,
                         f"{hinted_path}::{surface[0].rsplit('::', 1)[-1]}",
                         hinted, broken))
+            # Frame 356, review 2, finding 2: a method grain imports its
+            # class, since `import Context.invoke` does not parse.
             hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
-                    f"import {surface[0].rsplit('::', 1)[-1]}`") if dotted_surfaces else ""
+                    f"import {_ref_symbol(surface[0]) or surface[0]}`") if dotted_surfaces else ""
             raise Wall(
                 f"this test imports {', '.join(_missing_mods)}, and no module of "
                 f"that name exists in the tree: the import path is the worktree "
@@ -11036,7 +11078,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"{sorted(surface_mods)[0]}.py and this test imports from "
                 f"{sorted(imported_from)[0]}. Import the surface from its own "
                 f"module: `from {want} import "
-                f"{surface[0].rsplit('::', 1)[-1]}`")
+                f"{_ref_symbol(surface[0]) or surface[0]}`")
         if not any(n.isidentifier() for n in surface_names):
             # Frame 356, review 1, finding 2: no body can call a ref with no
             # name in it, so "call it" cannot help. The criterion is the
