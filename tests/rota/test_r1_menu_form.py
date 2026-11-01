@@ -50,7 +50,7 @@ def test_each_row_kind_offers_its_menu(db):  # noqa: F811
 def test_the_request_line_offers_add(db):  # noqa: F811
     _page(db)
     assert api.line_menu(db, "calculate_tip", ["calculate_tip"], "") == (
-        "request", ["approve", "drop", "add <quote>", "other <quote>"])
+        "request", ["approve", "add <quote>", "other <quote>"])
 
 
 def test_the_clauses_carry_his_words_and_their_lines():

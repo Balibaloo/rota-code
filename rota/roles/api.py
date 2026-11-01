@@ -14338,9 +14338,7 @@ _MENU_BASE = {
     # Two cases expect a rewrite of the read-back line: n174-m53-m55 line 9
     # and n175-m75-m77 line 6. So the read-back menu offers it.
     "read-back": ("ok", "misread", "misread, drop", "slightly off", "rewrite"),
-    # Dry1's m101: "Drop 1 and 3" had no option, landed as `other`, and the
-    # Vision Keeper amended line 1 with his words (frame 357, pass 2).
-    "request": ("approve", "drop", "add <quote>"),
+    "request": ("approve", "add <quote>"),
     "other": ("approve", "drop", "rewrite"),
     # A stopped step that names no row. The page says the same two words,
     # and no other option moves the step (review p4 of frame 354, finding 1).
@@ -14947,6 +14945,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                                else "line"].get(name, name)
             names = {o.split(" ", 1)[0] if o.split(" ", 1)[0] in _MENU_NAMED
                      else o for o in options}
+            # A request line takes a drop that its menu does not show. Dry1's
+            # m101 "Drop 1 and 3" was refused and landed as `other`. A menu
+            # word moved the Liaison's prompt, and L3R-n173-m34-m35 fell
+            # (frame 357, pass 2c).
+            if kind == "request":
+                names.add("drop")
             paths = None
             fits = opt in names
             if fits and opt == "exclude":

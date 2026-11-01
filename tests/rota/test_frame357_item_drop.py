@@ -100,11 +100,22 @@ def _item(db, iid):
                       (iid,)).fetchone()
 
 
-def test_a_request_line_offers_drop(db):
-    _dry1_turn13(db)
-    kind, options = line_menu(db, "write_tests_again", M90, "")
-    assert kind == "request"
-    assert "drop" in options
+def test_the_door_admits_a_drop_on_a_request_line_off_the_menu(tmp_path):
+    """Pass 2c: the request menu keeps its old text, so the Liaison's prompt
+    and its recordings stay. The door still takes a drop on the line, as
+    the Liaison sent one on m101 before any menu showed it."""
+    from .test_ruled_refs import _page, _seat
+
+    conn = init_db(tmp_path / "seam.db")
+    ask = _page(conn)
+    assert line_menu(conn, "calculate_tip", ["calculate_tip"], "") == (
+        "request", ["approve", "add <quote>", "other <quote>"])
+    sb, _ = _seat(conn, ask, words="Drop line 2. It is not a request.")
+    sb.call("rulings.rule", rulings={"c1": "drop", "c2": "none",
+                                     "rest": "approve"})
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    assert (rows["calculate_tip"]["verdict"], rows["calculate_tip"]["act"]) == (
+        "contest", "drop")
 
 
 def test_the_drop_on_lines_1_and_3_lands_as_dropped(db):
