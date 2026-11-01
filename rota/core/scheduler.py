@@ -2398,9 +2398,27 @@ def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
     # The sum moves with it, so a re-park asks again (frame 142's design,
     # 2.F, amendment 2, after frame 87's review of 4a0ab5c).
     versions = _park_versions(conn, batch_id)
-    digest = hashlib.sha256(
-        f"{batch_id}|{head}|{keys}|{ended}|{versions}".encode()).hexdigest()[:10]
-    return f"{PARK_ASK}{digest}_{batch_id}"
+    seed = f"{batch_id}|{head}|{keys}|{ended}|{versions}"
+
+    def made(text: str) -> str:
+        return f"{PARK_ASK}{hashlib.sha256(text.encode()).hexdigest()[:10]}_{batch_id}"
+
+    # A stored message is the ask only when its shape is the shape the rows
+    # give now. dry1's bg_1 held a rested note from before the page rule,
+    # so no page reached the seat (ruled: Roman, 2026-11-01, the amendment
+    # of point 3; frame 330, pass 2b). The kind salts the id only on a
+    # change of shape, so every other park keeps its id.
+    mid = made(seed)
+    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?", (mid,)).fetchone()
+    if row is not None:
+        try:
+            was_note = batch_id in json.loads(row["body_refs"] or "[]")
+        except (TypeError, ValueError):
+            was_note = False
+        is_note = park_rows(conn, batch_id) == [batch_id]
+        if was_note != is_note:
+            mid = made(f"{seed}|{'note' if is_note else 'page'}")
+    return mid
 
 
 def park_rests(conn: sqlite3.Connection, batch_id: str) -> bool:

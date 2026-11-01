@@ -997,9 +997,47 @@ def _dry1_presents(conn) -> str:
     out = run_session(conn, wake, backend=ScriptedBackend([call, "done"]),
                       pins=Pins(model="stub", temperature=0.0), instructions="ask")
     assert out.committed, out.errors
-    (row,) = conn.execute("SELECT id FROM messages WHERE substr(id, 1, 7) = 'm_park_'"
-                          ).fetchall()
+    # The page is open. A rested note of an earlier park is answered.
+    (row,) = conn.execute("SELECT id FROM messages WHERE substr(id, 1, 7) = 'm_park_' "
+                          "AND status = 'open'").fetchall()
     return row["id"]
+
+
+def _rested_note(conn) -> str:
+    """dry1's `m_park_ac1ca5b10a_bg_1` from turn 9: the note the door wrote
+    before the page rule, closed as answered. Its id is the id the rows gave
+    then, so the fixture computes it before the note exists."""
+    mid = park_ask_id(conn, "bg_1")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, status, seq) VALUES (?, ?, 'liaison', 'principal', "
+                 "'present', '[\"bg_1\"]', 'answered', 76)", (mid, mid))
+    conn.commit()
+    return mid
+
+
+def test_a_rested_note_from_before_the_page_rule_still_owes_the_page(dry1):
+    """dry1's turn 10 at 1304c56c ran 0 sessions: `park_ask` found the turn 9
+    note under the park's id and skipped bg_1 (frame 330, pass 2b)."""
+    note = _rested_note(dry1)
+    assert park_ask_id(dry1, "bg_1") != note
+    mid = _dry1_presents(dry1)
+    assert mid == park_ask_id(dry1, "bg_1")
+    row = dry1.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                       (mid,)).fetchone()
+    assert row["status"] == "open"
+    assert json.loads(row["body_refs"]) == [ITEM_DRY1] + [c for c, _ in DRY1_CRITERIA]
+    # The door's once per park holds: the page is the ask now.
+    assert P.REGISTRY["park_ask"].fn(dry1) == []
+
+
+def test_a_rested_note_whose_rows_still_form_a_note_owes_nothing(dry1):
+    """A test of a criterion exists, so the rows form a note, as the stored
+    note does. The id stays, and nothing more is asked."""
+    dry1.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                 "VALUES ('tst_w', 'bg_1', 'tk_1_criteria_waited', 'tests/test_w.py', '', 1)")
+    note = _rested_note(dry1)
+    assert park_ask_id(dry1, "bg_1") == note
+    assert P.REGISTRY["park_ask"].fn(dry1) == []
 
 
 def test_a_tester_give_up_before_any_test_is_a_page_with_the_item_and_its_criteria(dry1):
