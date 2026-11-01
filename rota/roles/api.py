@@ -5609,17 +5609,33 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         rows = ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
             "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchall()
+        # Frame 356: dry1's s139 stored `click.pause`, and the encode door
+        # refused every test, since no test calls that string. The index
+        # writes `path::name` or `path::Class.name`, so try each dotted
+        # suffix, the longest first.
+        name = ref
+        parts = ref.split(".") if "::" not in ref else []
+        for i in range(1, len(parts)):
+            if rows:
+                break
+            name = ".".join(parts[i:])
+            rows = [r for r in ctx.conn.execute(
+                "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
+                "grain LIKE ?", (f"%::{name}",))
+                if r["grain"].endswith(f"::{name}")]
+        if not rows:
+            name = ref
         hit = rows[0] if rows else None
         # LIKE ignores case and reads `_` as any character, so a bare `clear`
         # also finds a class `Clear` (frame 324, review 1, finding 1).
-        exact = [r for r in rows if r["grain"].endswith(f"::{ref}")]
+        exact = [r for r in rows if r["grain"].endswith(f"::{name}")]
         if exact:
             rows, hit = exact, exact[0]
         if len(rows) > 1 and "::" not in ref:
             # A bare name of several rows took the lowest rowid, and night
             # 165 stored an example's `clear` (frame 324). A qualified ref
             # stays as written.
-            pick, refusal = _program_rank(ctx.conn, ref,
+            pick, refusal = _program_rank(ctx.conn, name,
                                           [r["grain"] for r in rows])
             if pick is None:
                 raise ValueError(refusal)
