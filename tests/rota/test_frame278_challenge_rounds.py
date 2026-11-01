@@ -184,3 +184,25 @@ def test_the_park_page_names_the_looped_check(dry1):
     text, _ = _park_page(dry1, "bg_1", [ITEM])
     assert ("The team challenged the check tests/test_termui_tk_1_criteria_waited.py "
             "3 times, and wrote versions 5, 6 and 7 of it.") in text
+
+
+def test_the_park_ask_detail_names_the_looped_test(dry1):
+    """Review p2: the detail read "The team gave up on: ." with no key."""
+    _rounds(dry1, 3)
+    dry1.execute("UPDATE batches SET status = 'deferred'")
+    (wake,) = P.park_ask(dry1)
+    assert wake.detail.startswith(
+        "bg_1 is parked. The team gave up on: the Developer challenged "
+        "tst_waited 3 times, and the Tester wrote versions 5, 6 and 7. It is a")
+
+
+def test_the_count_restarts_after_a_closed_park_ask(dry1):
+    """Review p1, L1: the challenges before the batch's last closed park
+    ask are spent, and `messages.seq` orders the two."""
+    _rounds(dry1, 3)
+    _message(dry1, "m_park_0123456789_bg_1", "liaison", "principal", "ask",
+             [ITEM])
+    _rounds(dry1, 1, first=98)
+    assert scheduler.challenged_reds(dry1, "bg_1") == []
+    assert not stopped_bouncing(dry1, "bg_1")
+    assert [w.refs for w in P.tests_failing(dry1)] == [("bg_1",)]

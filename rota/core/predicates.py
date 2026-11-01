@@ -1882,6 +1882,11 @@ def park_ask(conn) -> list[Wake]:
         # the records. So the detail keeps the kind's name (fact F21).
         what = ", ".join(f"{key_parts(k)[1].replace('tick:', '')} for {b['id']}"
                          for k in keys)
+        # A park on the challenge count has no key to name, so the detail
+        # carries the first rung's clause (review p2 of frame 278).
+        from .scheduler import challenge_words
+
+        what = "; ".join(p for p in (what, challenge_words(conn, b["id"])) if p)
         kind = "note" if park_rows(conn, b["id"]) == [b["id"]] else "page"
         out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
                         detail=f"{b['id']} is parked. The team gave up on: {what}. "

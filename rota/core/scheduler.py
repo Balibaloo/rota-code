@@ -1997,6 +1997,13 @@ def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
     from . import config
 
     cap = config.get(conn, "tick_attempt_cap")
+    # The count restarts after the batch's last closed park ask. The ask
+    # and the challenge are both messages, so `messages.seq` orders them
+    # (review p1 of frame 278, L1; review p2).
+    since = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) AS s FROM messages WHERE status != 'open' "
+        "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()["s"]
     # A body_refs that is not a JSON array holds no test id, as in
     # `runner._thread_on_tests`.
     refs = ("CASE WHEN json_valid(m.body_refs) THEN CASE WHEN "
@@ -2012,8 +2019,9 @@ def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
         n = conn.execute(
             "SELECT COUNT(*) AS n FROM messages m WHERE m.from_role = 'developer' "
             "AND m.to_role = 'tester' AND m.verb = 'challenge' "
-            "AND m.status != 'open' AND EXISTS (SELECT 1 FROM json_each("
-            + refs + ") j WHERE j.value = ?)", (red["test_id"],)).fetchone()["n"]
+            "AND m.status != 'open' AND m.seq > ? AND EXISTS (SELECT 1 FROM "
+            "json_each(" + refs + ") j WHERE j.value = ?)",
+            (since, red["test_id"])).fetchone()["n"]
         if n < cap:
             continue
         versions = [v["new_version"] for v in conn.execute(
