@@ -2383,8 +2383,9 @@ def _park_page(conn: sqlite3.Connection, batch: str,
                refs: list[str]) -> tuple[str, list[str]]:
     """The park message as the principal reads it: a page with the item and
     its criteria, or a note when the batch is its one ref."""
-    from ..core.scheduler import (TESTER_MISSING, failing_attempt, given_up,
-                                  key_parts, park_reds, park_untested)
+    from ..core.scheduler import (TESTER_MISSING, challenged_reds,
+                                  failing_attempt, given_up, key_parts,
+                                  park_reds, park_untested, versions_words)
 
     own, project = park_reds(conn, batch)
     if refs == [batch]:
@@ -2409,6 +2410,12 @@ def _park_page(conn: sqlite3.Connection, batch: str,
         out.append(f"This change stopped. The team tried {tries} "
                    f"time{'' if tries == 1 else 's'}, and {len(own)} of its "
                    f"{len(checks)} checks still fail.")
+    # The page names the check that looped between the Developer and the
+    # Tester. Dry1 turn 12 showed the seat nothing (frame 278, pass 2).
+    for r in challenged_reds(conn, batch):
+        out.append(f"The team challenged the check {r['path'] or r['test_id']} "
+                   f"{r['challenges']} times, and wrote "
+                   f"{versions_words(r['versions'])} of it.")
     request_block(conn, refs, order, out, batch=batch, park=True)
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch,)).fetchone()

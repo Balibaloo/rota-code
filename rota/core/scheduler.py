@@ -1952,7 +1952,8 @@ def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
 def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     The batch stopped bouncing: its failing attempt reached `loop_cap`, or it
-    runs and `given_up` lists a key of it.
+    runs and `given_up` lists a key of it, or it runs and `challenged_reds`
+    lists a red test of it.
 
     Law 6 says "Budget exhaustion escalates one rung" and "It is never
     silence". A seat key's cap of 3 can run out below `loop_cap`, and then
@@ -1967,7 +1968,82 @@ def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
 
     if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
         return True
-    return bool(_running_given_up(conn, batch_id))
+    if _running_given_up(conn, batch_id):
+        return True
+    # The challenge count is a second bound beside the key. A re-encode
+    # still lifts the key, as frame 318 rules (frame 278, pass 2).
+    return _running(conn, batch_id) and bool(challenged_reds(conn, batch_id))
+
+
+def _running(conn: sqlite3.Connection, batch_id: str) -> bool:
+    row = conn.execute("SELECT status FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    return row is not None and row["status"] == "running"
+
+
+def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
+    """
+    Each red test of the batch that the Developer challenged at least
+    `tick_attempt_cap` times, with the count and the Tester's versions.
+
+    A challenge counts when its refs name the test and it is no longer
+    open. An open challenge still waits for the Tester's round.
+    """
+    # Dry1 turn 12: each challenge on `tst_waited` opened its own thread at
+    # round 0, and each re-encode reset the `tests_failing` key (frame 318).
+    # Six challenges spent no budget, and only `loop_cap` was left. The
+    # challenge names its test in its refs, so the messages count the
+    # rounds and no new table is needed (frame 278, pass 2).
+    from . import config
+
+    cap = config.get(conn, "tick_attempt_cap")
+    # A body_refs that is not a JSON array holds no test id, as in
+    # `runner._thread_on_tests`.
+    refs = ("CASE WHEN json_valid(m.body_refs) THEN CASE WHEN "
+            "json_type(m.body_refs) = 'array' THEN m.body_refs ELSE '[]' END "
+            "ELSE '[]' END")
+    out = []
+    for red in conn.execute(
+            "SELECT r.test_id, t.path FROM latest_runs r "
+            "LEFT JOIN tests t ON t.id = r.test_id "
+            "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
+            + live_tests(conn, "r.test_id") + " ORDER BY r.test_id",
+            (batch_id,)).fetchall():
+        n = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages m WHERE m.from_role = 'developer' "
+            "AND m.to_role = 'tester' AND m.verb = 'challenge' "
+            "AND m.status != 'open' AND EXISTS (SELECT 1 FROM json_each("
+            + refs + ") j WHERE j.value = ?)", (red["test_id"],)).fetchone()["n"]
+        if n < cap:
+            continue
+        versions = [v["new_version"] for v in conn.execute(
+            "SELECT rc.new_version FROM receipts rc "
+            "JOIN sessions s ON s.id = rc.session_id "
+            "WHERE rc.table_name = 'tests' AND rc.row_id = ? "
+            "AND s.role = 'tester' ORDER BY rc.new_version",
+            (red["test_id"],))]
+        out.append({"test_id": red["test_id"], "path": red["path"],
+                    "challenges": n, "versions": versions})
+    return out
+
+
+def versions_words(versions: list[int]) -> str:
+    """'versions 3, 5 and 6', 'version 3' or 'no new version'."""
+    if not versions:
+        return "no new version"
+    if len(versions) == 1:
+        return f"version {versions[0]}"
+    return ("versions " + ", ".join(str(v) for v in versions[:-1])
+            + f" and {versions[-1]}")
+
+
+def challenge_words(conn: sqlite3.Connection, batch_id: str) -> str:
+    """'the Developer challenged tst_waited 3 times, and the Tester wrote
+    versions 3, 5 and 6', one part per test of `challenged_reds`, or ''."""
+    return "; ".join(
+        f"the Developer challenged {r['test_id']} {r['challenges']} times, "
+        f"and the Tester wrote {versions_words(r['versions'])}"
+        for r in challenged_reds(conn, batch_id))
 
 
 def _running_given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
@@ -1989,7 +2065,9 @@ def _running_given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
 
 def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     """
-    Why a batch below `loop_cap` stopped bouncing, or "" at the cap.
+    Why a batch below `loop_cap` stopped bouncing, or "" at the cap. A
+    running batch with a test in `challenged_reds` adds the challenge
+    words after the old text, at the cap too.
 
     `exhausted` and `preempt`'s park both say it. A batch at the cap keeps
     their old text. Below the cap "attempt 6 of 10" and "past its cap" are
@@ -2003,9 +2081,17 @@ def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     # read one table (frame 312, review 1, finding 1).
     from ..roles.principal import _stalled_words
 
-    if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
-        return ""
-    return _stalled_words(conn, _running_given_up(conn, batch_id))
+    cap = config.get(conn, "loop_cap")
+    tries = failing_attempt(conn, batch_id)
+    why = ("" if tries >= cap
+           else _stalled_words(conn, _running_given_up(conn, batch_id)))
+    # The rung and the park name the looped test beside the old words, so
+    # the Architect and then the principal see what looped (frame 278,
+    # pass 2, change 3).
+    looped = challenge_words(conn, batch_id) if _running(conn, batch_id) else ""
+    if not looped:
+        return why
+    return f"{why or f'attempt {tries} of {cap}'}; {looped}"
 
 
 # The id prefix of a park ask, then ten hex characters, `_` and the batch id.
