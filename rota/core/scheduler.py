@@ -2051,17 +2051,40 @@ def park_criteria(conn: sqlite3.Connection, batch_id: str) -> list[str]:
         "WHERE t.batch_id = ?" + live + " ORDER BY 1", (batch_id, batch_id))]
 
 
+TESTER_MISSING = ("tester", "tick:tests_missing")
+
+
+def park_untested(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """True when the Tester gave up on the batch's tests and no live test of
+    the batch names one of its criteria."""
+    # dry1's bg_1 parked green on 34 project tests with this key given up.
+    # Its park was a note, and a note has no row he can rule (ruled: Roman,
+    # 2026-11-01, the park ruling's amendment, point 3's third case).
+    if not any(key_parts(k)[:2] == TESTER_MISSING for k in given_up(conn, batch_id)):
+        return False
+    crits = park_criteria(conn, batch_id)
+    if not crits:
+        return False
+    marks = ",".join("?" * len(crits))
+    return conn.execute(
+        f"SELECT 1 FROM tests t WHERE t.batch_id = ? AND t.criterion_id IN ({marks})"
+        + live_tests(conn, "t.id"), (batch_id, *crits)).fetchone() is None
+
+
 def park_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     """
     The refs of the park message: the item and the batch's criteria when a
-    criterion's own test is red, else the batch alone, which is a note.
+    criterion's own test is red, or when the Tester gave up before any test
+    of them existed. Else the batch alone, which is a note.
     """
-    # The page goes to the principal only when a criterion's own test is
-    # red. With the project's tests alone red, the builder broke what worked,
-    # and the team files a note (ruled: Roman, 2026-10-08, the park ask is a
-    # page with rows, point 3).
+    # The page goes to the principal when a criterion's own test is red. With
+    # the project's tests alone red, the builder broke what worked, and the
+    # team files a note (ruled: Roman, 2026-10-08, the park ask is a page
+    # with rows, point 3). A batch with no test of its criteria gets the
+    # page too, because his ruling on a criterion is its one restart
+    # (ruled: Roman, 2026-11-01, the amendment of point 3).
     own, _ = park_reds(conn, batch_id)
-    if not own:
+    if not own and not park_untested(conn, batch_id):
         return [batch_id]
     row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
                        (batch_id,)).fetchone()

@@ -881,3 +881,220 @@ def test_the_agenda_refuses_a_run_from_before_the_faults_table(tmp_path, monkeyp
     with pytest.raises(SystemExit) as refused:
         cli.main(["agenda", "run"])
     assert str(refused.value) == f"run: {SCHEMA_STALE}"
+
+
+# dry1's bg_1 on 2026-11-01, read from a copy of `.rota/dry1.db`
+# (`plans/dry1-fourth-wall-read-2026-11-01.md`). The Tester gave up before
+# any test of the three criteria existed, and the 34 project tests pass.
+ITEM_DRY1 = "click_pause_returns_true_on_key"
+ITEM_DRY1_TEXT = ("Make click.pause() return True when it waited for a key and "
+                  "False when it skipped because stdin or stdout is not a terminal.")
+HEAD_DRY1 = "4fcd6d73f6fc05cdcb9fda0770f6cb6928335956"
+TESTER_KEY = "tester|tick:tests_missing|bg_1"
+DRY1_CRITERIA = [
+    ("tk_1_criteria_skipped",
+     "When click.pause() skips execution because stdin or stdout is not a terminal "
+     "(e.g., piped input), it must return False."),
+    ("tk_1_criteria_terminal_check",
+     "The return value depends on whether the current environment is a terminal, "
+     "determined by checking stdin and stdout."),
+    ("tk_1_criteria_waited",
+     "When click.pause() suspends execution awaiting a keypress from the user, it "
+     "must return True."),
+]
+DRY1_TESTS = [
+    ("inh_01fdb170", "tests/test_utils/test_echo_via_pager.py"),
+    ("inh_022b8a87", "tests/test_utils/test_confirm.py"),
+    ("inh_05435239", "tests/test_utils/test_LazyFile.py"),
+    ("inh_06c40582", "tests/test_commands.py"),
+    ("inh_124f701f", "tests/test_compat.py"),
+    ("inh_137414af", "tests/test_types.py"),
+    ("inh_43116084", "tests/test_arguments.py"),
+    ("inh_4c6bbd05", "tests/test_context.py"),
+    ("inh_4ce8bfa2", "tests/test_utils/test_prompt.py"),
+    ("inh_51d478df", "tests/test_termui.py"),
+    ("inh_55974267", "tests/test_imports.py"),
+    ("inh_592d7a66", "tests/test_testing.py"),
+    ("inh_5f7b1750", "tests/test_utils/test_echo.py"),
+    ("inh_608c189f", "tests/test_info_dict.py"),
+    ("inh_6727bbc3", "tests/test_utils/test_KeepOpenFile.py"),
+    ("inh_68ad6cb3", "tests/test_utils/test__expand_args.py"),
+    ("inh_6acc723a", "tests/test_formatting.py"),
+    ("inh_822ce75d", "tests/test_custom_classes.py"),
+    ("inh_86bace6b", "tests/test_deprecations.py"),
+    ("inh_87015df6", "tests/test_utils/test__detect_program_name.py"),
+    ("inh_8a28f9b7", "tests/test_chain.py"),
+    ("inh_8d0af835", "tests/test_shell_completion.py"),
+    ("inh_907333b2", "tests/test_utils/test_style.py"),
+    ("inh_9627b71f", "tests/test_parser.py"),
+    ("inh_ba9c2491", "tests/test_options.py"),
+    ("inh_c5677a70", "tests/test_utils/test_open_file.py"),
+    ("inh_c95b73db", "tests/test_defaults.py"),
+    ("inh_d538ead5", "tests/test_stream_lifecycle.py"),
+    ("inh_dcc9ea38", "tests/test_basic.py"),
+    ("inh_edf3b159", "tests/test_utils/test_sentinel.py"),
+    ("inh_ef3ebd42", "tests/test_command_decorators.py"),
+    ("inh_fd43da7e", "tests/test_utils/test_make_default_short_help.py"),
+    ("inh_fe335b28", "tests/test_normalization.py"),
+    ("inh_fe7f4bfc", "tests/test_utils/test_format_filename.py"),
+]
+
+
+@pytest.fixture
+def dry1(tmp_path):
+    """dry1's bg_1 rows. The copy holds bg_1 `running`. Frame 330's pass 1
+    parks it, so the fixture sets it `deferred`, the state the park reaches."""
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
+                 "priority) VALUES (?, ?, 'in_scope', 'approved', 1, 1, 1)",
+                 (ITEM_DRY1, ITEM_DRY1_TEXT))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', ?, 'the ticket')",
+                 (ITEM_DRY1,))
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('bg_1', ?, 'deferred', ?)", (ITEM_DRY1, HEAD_DRY1))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_1', 'tk_1')")
+    for crit, text in DRY1_CRITERIA:
+        conn.execute("INSERT INTO criteria (id, ticket_id, text, version) "
+                     "VALUES (?, 'tk_1', ?, 1)", (crit, text))
+    for n, (test, path) in enumerate(DRY1_TESTS, 1):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                     "VALUES (?, 'bg_1', NULL, ?, '', 1)", (test, path))
+        conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                     "output, attempt) VALUES (?, 'bg_1', ?, ?, 'pass', '1 passed', 1)",
+                     (f"tr{n}", test, HEAD_DRY1))
+    for key, attempts, quarantined, reported in (
+            (TESTER_KEY, 3, 1, 1),
+            ("developer|tick:exhausted|bg_1", 1, 0, 0),
+            ("architect|tick:exhausted|bg_1", 1, 0, 0),
+            ("vision_keeper|tick:exhausted|bg_1", 1, 0, 0),
+            ("liaison|tick:quarantined|bg_1", 1, 0, 0)):
+        conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                     "VALUES (?, ?, ?, ?)", (key, attempts, quarantined, reported))
+    # The ladder woke its three rungs, so `_next_rung` is empty.
+    for seq, (sid, role, kind) in enumerate((
+            ("s146", "tester", "tick:tests_missing"),
+            ("s147", "tester", "tick:tests_missing"),
+            ("s148", "tester", "tick:tests_missing"),
+            ("s149", "developer", "tick:exhausted"),
+            ("s152", "architect", "tick:exhausted"),
+            ("s155", "vision_keeper", "tick:exhausted")), 1):
+        conn.execute("INSERT INTO sessions (id, role, committed, seq, wake_kind, wake_refs) "
+                     "VALUES (?, ?, 1, ?, ?, '[\"bg_1\"]')", (sid, role, seq, kind))
+    conn.commit()
+    return conn
+
+
+def _dry1_presents(conn) -> str:
+    """The `park_ask` wake of bg_1, run as a Liaison session with a scripted
+    model that types the item and the batch, as the brief shows."""
+    from rota.core.runner import run_session
+
+    (wake,) = P.REGISTRY["park_ask"].fn(conn)
+    assert wake.detail == ("bg_1 is parked. The team gave up on: tests_missing for "
+                           "bg_1. It is a page.")
+    conn.commit()
+    call = f'TOOL: msg.present_principal(refs=["{ITEM_DRY1}", "bg_1"])'
+    out = run_session(conn, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=Pins(model="stub", temperature=0.0), instructions="ask")
+    assert out.committed, out.errors
+    (row,) = conn.execute("SELECT id FROM messages WHERE substr(id, 1, 7) = 'm_park_'"
+                          ).fetchall()
+    return row["id"]
+
+
+def test_a_tester_give_up_before_any_test_is_a_page_with_the_item_and_its_criteria(dry1):
+    """dry1's bg_1: the harness is green, so `park_rows` gave the batch alone
+    and the park was a note with no row to rule (ruled: Roman, 2026-11-01,
+    the amendment of the park ruling's point 3)."""
+    assert park_reds(dry1, "bg_1") == ([], [])
+    assert park_rows(dry1, "bg_1") == [ITEM_DRY1] + [c for c, _ in DRY1_CRITERIA]
+    mid = _dry1_presents(dry1)
+    row = dry1.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                       (mid,)).fetchone()
+    assert row["status"] == "open"
+    assert json.loads(row["body_refs"]) == [ITEM_DRY1] + [c for c, _ in DRY1_CRITERIA]
+    # A test of one criterion exists: the Tester's key is no longer the
+    # whole story, and the park keeps the note of point 3.
+    dry1.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                 "VALUES ('tst_w', 'bg_1', 'tk_1_criteria_waited', 'tests/test_w.py', '', 1)")
+    assert park_rows(dry1, "bg_1") == ["bg_1"]
+
+
+def test_the_page_of_a_tester_give_up_shows_no_test_yet_and_the_refusal(dry1):
+    """Each criterion row says it has no test in its one line, and the page
+    names the Tester's give-up in one sentence."""
+    _dry1_presents(dry1)
+    (ask,) = pending_asks(dry1)
+    assert ask.order == [ITEM_DRY1] + [c for c, _ in DRY1_CRITERIA]
+    assert ask.rendered.splitlines() == [
+        "This change stopped before it had any checks, because the team could not "
+        "write the tests after 3 attempts.",
+        "You asked:",
+        f"  1. {ITEM_DRY1_TEXT}",
+        "It must:",
+        f"  2. {DRY1_CRITERIA[0][1]}",
+        "     check: no test yet.",
+        f"  3. {DRY1_CRITERIA[1][1]}",
+        "     check: no test yet.",
+        f"  4. {DRY1_CRITERIA[2][1]}",
+        "     check: no test yet.",
+        "Reply 'ok' if every line says what you want. The team then stops here and tells you.",
+        "Name a line to correct only that line. Ask, if something here is unclear.",
+    ]
+
+
+def test_a_revise_of_line_2_moves_the_criterion_lifts_the_tester_and_offers_the_batch(dry1):
+    """His revise lands on the criterion row. The Terminologist's respecify
+    moves its version, the move lifts the Tester's key, and `next_batch`
+    offers bg_1 again, so the Tester rewrites the test from the new words."""
+    from rota.core.db import write_state
+    from rota.core.scheduler import next_batch, quarantined_keys
+
+    mid = _dry1_presents(dry1)
+    (ask,) = pending_asks(dry1)
+    crit = DRY1_CRITERIA[0][0]
+    per_item = {r: "approve" for r in ask.order}
+    per_item[crit] = "revise"
+    land(dry1, ask, Answer(verb="verdict", per_item=per_item,
+                           text="line 2: it returns False when stdin is piped"))
+    (verdict,) = dry1.execute("SELECT id, status FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    assert verdict["status"] == "open"
+    assert verdict_for(dry1, verdict["id"])[crit] == "revise"
+    # The page holds no lift of its own. The criterion's move is the exit.
+    assert TESTER_KEY in quarantined_keys(dry1, "bg_1")
+
+    write_state(dry1, "criteria", crit,
+                "UPDATE criteria SET text = ?, version = 2 WHERE id = ?",
+                ("When stdin is piped, click.pause() returns False.", crit),
+                fields={"text": "When stdin is piped, click.pause() returns False.",
+                        "version": 2})
+    assert dry1.execute("SELECT version FROM criteria WHERE id = ?",
+                        (crit,)).fetchone()["version"] == 2
+    assert TESTER_KEY not in quarantined_keys(dry1, "bg_1")
+    assert dry1.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                        (TESTER_KEY,)).fetchone() is None
+    assert [r["id"] for r in next_batch(dry1)] == ["bg_1"]
+    assert P.REGISTRY["park_ask"].fn(dry1) == []
+
+
+def test_an_approve_of_every_line_of_a_tester_give_up_page_is_the_ceiling(dry1):
+    """Point 5: a page approved whole stops the change, and the status page
+    says that it stops."""
+    from rota.core.scheduler import next_batch
+
+    mid = _dry1_presents(dry1)
+    (ask,) = pending_asks(dry1)
+    land(dry1, ask, Answer(verb="verdict", per_item={r: "approve" for r in ask.order},
+                           text=WALK))
+    (verdict,) = dry1.execute("SELECT status FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    assert verdict["status"] == "answered"
+    assert park_rests(dry1, "bg_1")
+    assert P.REGISTRY["park_ask"].fn(dry1) == []
+    assert dry1.execute("SELECT status FROM batches WHERE id = 'bg_1'"
+                        ).fetchone()["status"] == "deferred"
+    assert next_batch(dry1) == []
+    assert ("Stuck: bg_1 stops here. You approved its lines as they stand, and the "
+            "team could not write the tests. A new commit on the change starts it "
+            "again.") in render_state(dry1)

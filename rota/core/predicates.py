@@ -1842,14 +1842,16 @@ def park_ask(conn) -> list[Wake]:
     Roman, 2026-09-27). The principal answers through a gate, and the
     Liaison writes the gate (ruled: Roman, 2026-09-30). The park message
     is a page with the item and its criteria when a criterion's own test is
-    red, and a note otherwise (ruled: Roman, 2026-10-08). Its id comes from
+    red, and a note otherwise (ruled: Roman, 2026-10-08). The Tester's give-up
+    before any test of the criteria existed is a page too (ruled: Roman,
+    2026-11-01). Its id comes from
     the batch, its head commit, its keys, the versions of its criteria and
     tests, and the closed asks that did not rest. A note or a page approved
     whole rests, so nothing more is asked until something moves. The refs
     are the item and the batch. The door writes the page's own refs.
     """
     from .scheduler import (given_up, key_parts, open_park_ask, park_ask_id,
-                            park_owns, park_reds)
+                            park_owns, park_rows)
 
     from .scheduler import not_parked
 
@@ -1872,7 +1874,7 @@ def park_ask(conn) -> list[Wake]:
         # the records. So the detail keeps the kind's name (fact F21).
         what = ", ".join(f"{key_parts(k)[1].replace('tick:', '')} for {b['id']}"
                          for k in keys)
-        kind = "page" if park_reds(conn, b["id"])[0] else "note"
+        kind = "note" if park_rows(conn, b["id"]) == [b["id"]] else "page"
         out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
                         detail=f"{b['id']} is parked. The team gave up on: {what}. "
                                f"It is a {kind}."))

@@ -427,7 +427,7 @@ def _render_state(conn: sqlite3.Connection) -> str:
     coming = {w.refs[1] for w in _park_ask(conn)
               if tick_key(w) not in quarantined}
     from ..core.scheduler import (park_ask_id, park_message_rests, park_reds,
-                                  park_ruling)
+                                  park_ruling, park_untested)
 
     def parked_line(b: str, keys: list[str]) -> str:
         # A park message that rests is the report: a note says the change
@@ -446,6 +446,12 @@ def _render_state(conn: sqlite3.Connection) -> str:
             if any(v != "approve" for v in ruled.values()):
                 return (f"Stuck: {b} is parked. The team rewrites the lines you "
                         "corrected, and I show you the page again after that.")
+            # With no check to count, "0 of them still fail" says nothing
+            # true (ruled: Roman, 2026-11-01, the amendment of point 3).
+            if not own and park_untested(conn, b):
+                return (f"Stuck: {b} stops here. You approved its lines as they "
+                        "stand, and the team could not write the tests. A new "
+                        "commit on the change starts it again.")
             return (f"Stuck: {b} stops here. You approved its checks as they "
                     f"stand, and {len(own)} of them still fail. A new commit "
                     "on the change starts it again.")
@@ -2102,7 +2108,12 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
             # the team stopped trying. Night 136's m96 said nothing of cr_3
             # (frame 190's design, 2.5).
             tries = None if park else _gave_up_tries(conn, r, batch, stalled or [])
-            if tries is None:
+            # A park page's row with no test says so in its one line, in
+            # place of the expectation and the red mark (ruled: Roman,
+            # 2026-11-01, the amendment of the park ruling's point 3).
+            if park:
+                out.append("     check: no test yet.")
+            elif tries is None:
                 out.append("     check: none yet.")
             else:
                 out.append("     check: none. The team gave up writing it after "
@@ -2360,7 +2371,8 @@ def _park_page(conn: sqlite3.Connection, batch: str,
                refs: list[str]) -> tuple[str, list[str]]:
     """The park message as the principal reads it: a page with the item and
     its criteria, or a note when the batch is its one ref."""
-    from ..core.scheduler import failing_attempt, park_reds
+    from ..core.scheduler import (TESTER_MISSING, failing_attempt, given_up,
+                                  key_parts, park_reds, park_untested)
 
     own, project = park_reds(conn, batch)
     if refs == [batch]:
@@ -2375,9 +2387,16 @@ def _park_page(conn: sqlite3.Connection, batch: str,
         "SELECT id FROM tests WHERE batch_id = ? "
         "AND criterion_id IS NOT NULL", (batch,)).fetchall()
     tries = failing_attempt(conn, batch)
-    out.append(f"This change stopped. The team tried {tries} "
-               f"time{'' if tries == 1 else 's'}, and {len(own)} of its "
-               f"{len(checks)} checks still fail.")
+    if not own and park_untested(conn, batch):
+        # No check exists to count, so the sentence names the Tester's
+        # give-up (ruled: Roman, 2026-11-01, the amendment of point 3).
+        keys = [k for k in given_up(conn, batch) if key_parts(k)[:2] == TESTER_MISSING]
+        out.append("This change stopped before it had any checks, because "
+                   + " and ".join(_gave_up_words(conn, keys)) + ".")
+    else:
+        out.append(f"This change stopped. The team tried {tries} "
+                   f"time{'' if tries == 1 else 's'}, and {len(own)} of its "
+                   f"{len(checks)} checks still fail.")
     request_block(conn, refs, order, out, batch=batch, park=True)
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch,)).fetchone()
