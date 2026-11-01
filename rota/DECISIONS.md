@@ -1483,6 +1483,17 @@ Frame 142 carries the design. Its first design, three new words with four
 doors, was reviewed and found broken in three places before any code
 (observed: `plans/stack.md`, frame 142, the status lines of 2026-10-08).
 
+**Amendment, 2026-11-01 16:03, frame 330.** Roman ruled "I like your recommendation"
+to this reading: point 3 gains a third case. When the Tester gave up before any
+test existed for the batch's criteria, the park ask is the page of point 2, with
+the item and its criteria as rows, and not the note. A criterion row with no
+test says so in its one line. His revise or contest on a criterion moves its
+version, the Tester rewrites the test from the ruled words, and the batch is
+re-derived. Found on dry1's fourth wall (observed:
+`plans/dry1-fourth-wall-read-2026-11-01.md`): the batch's harness was green, so
+the park was a note, and a note has no row the seat can rule. A try again on
+the Tester's key was not taken, because point 1 names no fix word.
+
 ### A write is permitted on any file, and an unexpected change goes to the Architect (2026-10-17)
 
 Roman, 2026-10-17 at about 16:50, in the terminal, after the build session
