@@ -2437,6 +2437,9 @@ def problem_describe(ctx: Ctx, id: str) -> dict:
     law 11: decided rows rest on a ratified statement or landed ruling
     """
     _must_exist(ctx, "items", id)
+    # The `draft` it stages would bring a dropped item back (review p2 of
+    # frame 357, finding 5).
+    _refuse_dropped(ctx, id)
     prov = ctx.conn.execute(
         "SELECT provenance FROM item_provenance WHERE id = ?", (id,)).fetchone()
     if prov and prov["provenance"] == "decided":

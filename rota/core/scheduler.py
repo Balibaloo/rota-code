@@ -2574,10 +2574,17 @@ def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
 
 
 def dropped_items(conn: sqlite3.Connection) -> set[str]:
-    """The items whose newest park row is a drop."""
+    """The items whose newest park row is a drop, and the items whose
+    approval is `dropped`.
+
+    A request whose items he dropped on a page is finished too. Review p2
+    of frame 357, finding 2: e_m70 read not finished, so nothing parked
+    behind it resumed."""
+    ended = {r[0] for r in conn.execute(
+        "SELECT id FROM items WHERE approval = 'dropped'")}
     if not _has_parks(conn):
-        return set()
-    return {r["item_id"] for r in conn.execute(
+        return ended
+    return ended | {r["item_id"] for r in conn.execute(
         "SELECT p.item_id FROM item_parks p WHERE p.kind = 'drop' AND p.rowid = "
         "(SELECT q.rowid FROM item_parks q WHERE q.item_id = p.item_id "
         "ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)")}

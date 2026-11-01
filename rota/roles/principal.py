@@ -3702,6 +3702,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                     "WHERE id = ? AND approval IS NOT ? "
                     "AND approval != 'dropped'", (state, ref, state))
 
+    # The open asks about the items he dropped close, by the shift drop's
+    # path. Dry1's clarifies m108, m112 and m114 stayed open (review p2 of
+    # frame 357, finding 3).
+    if ended:
+        _close_asks_about(conn, ended, msg_id)
     gone = dropped_items(conn)
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
             if r not in closed_here and not _is_reading(r) and r not in gone]
@@ -3848,7 +3853,9 @@ def _item_drops(conn: sqlite3.Connection, ruling_id: str | None,
 
     The act is on the Liaison's rows of the ruling, because `per_item`
     holds the verdict only. A verdict from the seat with no ruling row has
-    no act, so it drops nothing."""
+    no act, so it drops nothing. Only a request item ends, by the rule that
+    makes its page line a request line. Review p2 of frame 357, finding 1:
+    a drop ended the description `how_it_works`."""
     contested = [r for r, v in per_item.items() if v == "contest"]
     if not ruling_id or not contested:
         return set()
@@ -3857,7 +3864,8 @@ def _item_drops(conn: sqlite3.Connection, ruling_id: str | None,
         f"SELECT DISTINCT rr.ref FROM ruled_refs rr JOIN items i "
         f"ON i.id = rr.ref WHERE rr.ruling_id = ? AND rr.source != 'landed' "
         f"AND rr.verdict = 'contest' AND rr.act = 'drop' "
-        f"AND rr.ref IN ({marks})", (ruling_id, *contested))}
+        f"AND rr.ref IN ({marks})", (ruling_id, *contested))
+        if _is_request_item(conn, r["ref"])}
 
 
 def statement_drop(conn: sqlite3.Connection, sid: str) -> str | None:
@@ -4009,6 +4017,22 @@ def _write_park(conn: sqlite3.Connection, item: str, kind: str, by: str,
                  (pid, item, kind, by, cause, seq))
 
 
+def _close_asks_about(conn: sqlite3.Connection, items: set[str],
+                      msg_id: str) -> None:
+    """Close each open ask to the principal whose refs reach only `items`,
+    with a `closed:<ask>` row that names the verdict `msg_id`. A drop is
+    the whole answer to such an ask (2.F.3)."""
+    for r in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE status = 'open' "
+            "AND to_role = 'principal' AND verb != 'converse'").fetchall():
+        reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
+        if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= items:
+            continue
+        mark_answered(conn, r["id"])
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"closed:{r['id']}", msg_id))
+
+
 def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 ruling_id: str | None) -> str:
     """
@@ -4035,15 +4059,7 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         _write_park(conn, item, kind, "shift", msg_id, seq)
         if kind != "drop":
             continue
-        for r in conn.execute(
-                "SELECT id, body_refs FROM messages WHERE status = 'open' "
-                "AND to_role = 'principal' AND verb != 'converse'").fetchall():
-            reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
-            if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= {item}:
-                continue
-            mark_answered(conn, r["id"])
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                         (f"closed:{r['id']}", msg_id))
+        _close_asks_about(conn, {item}, msg_id)
         # The ledger branch of `land`, with the principal's words, and no
         # contest of the item: the drop is the item's whole answer.
         for r in conn.execute("SELECT id, about_ref, default_taken FROM ledger "

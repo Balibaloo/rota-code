@@ -194,3 +194,71 @@ def test_a_contest_with_no_drop_keeps_todays_path(db):
                                                          "contested"]
     assert sorted(w.refs[0] for w in contested(db)) == sorted(ITEMS)
     assert off_page(db, ITEMS) == set()
+
+
+# Pass 2b: review p2 of frame 357.
+
+def test_a_drop_ends_no_description(db):
+    """Finding 1: a drop on `how_it_works` is no request drop."""
+    _dry1_turn13(db)
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, is_description) VALUES ('how_it_works', 'Click is a "
+               "toolkit.', 'in_scope', 'approved', 1, 1, 1)")
+    db.execute("UPDATE rulings SET per_item = json_set(per_item, "
+               "'$.how_it_works', 'contest') WHERE id = 'r_m101'")
+    db.execute("INSERT INTO ruled_refs (id, ruling_id, ref, line, verdict, act, "
+               "target_kind, words, words_from, source) VALUES ('rr_hiw', "
+               "'r_m101', 'how_it_works', 6, 'contest', 'drop', 'row', ?, "
+               "'m101', 'reading')", (M101,))
+    db.commit()
+    apply_rulings(db)
+    db.commit()
+    assert _item(db, "how_it_works")["approval"] == "contested"
+    assert [_item(db, i)["approval"] for i in ITEMS] == ["dropped", "dropped"]
+
+
+def test_a_request_whose_items_are_dropped_is_finished(db):
+    """Finding 2: e_m70 finishes, so an item parked behind it resumes."""
+    from rota.core.predicates import _request_finished
+    from rota.core.scheduler import dropped_items
+
+    _dry1_turn13(db)
+    apply_rulings(db)
+    db.commit()
+    assert set(ITEMS) <= dropped_items(db)
+    assert _request_finished(db, {"entries": ["e_m70"]})
+
+
+def test_describe_refuses_a_dropped_item(db):
+    """Finding 5: the `draft` of `problem.describe` revives nothing."""
+    from types import SimpleNamespace
+
+    from rota.roles.api import problem_describe
+
+    _dry1_turn13(db)
+    apply_rulings(db)
+    db.commit()
+    vk = SimpleNamespace(conn=db, writes=[], session_id="sess_357c",
+                         role="vision_keeper", trigger=None)
+    with pytest.raises(ValueError, match="dropped write_tests_again"):
+        problem_describe(vk, id="write_tests_again")
+    assert not vk.writes
+
+
+def test_the_drop_closes_the_clarifies_about_the_dropped_items(db):
+    """Finding 3: m108 and m114 asked about the dropped items only. A
+    clarify about another item stays open."""
+    _dry1_turn13(db)
+    _msg(db, "m108", 111, "liaison", "principal", "clarify",
+         ["write_tests_again"], status="open", text="Write the tests again?")
+    _msg(db, "m114", 117, "liaison", "principal", "clarify",
+         ["surface_is_click_pause", "write_tests_again_rebuttal"],
+         status="open", text="Which surface?")
+    _msg(db, "m115", 118, "liaison", "principal", "clarify",
+         ["click_pause_returns_true_on_key"], status="open", text="Which key?")
+    db.commit()
+    apply_rulings(db)
+    db.commit()
+    status = {r["id"]: r["status"] for r in db.execute(
+        "SELECT id, status FROM messages WHERE id IN ('m108', 'm114', 'm115')")}
+    assert status == {"m108": "answered", "m114": "answered", "m115": "open"}
