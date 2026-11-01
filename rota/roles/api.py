@@ -12809,7 +12809,35 @@ def _line_refs(words: str, size: int | None = None) -> list[LineRef]:
                                m.group(0)))
         if cut:
             start = cut.end()
+    pair = _menu_pair(text, size)
+    if pair and not any(r.start == pair.start for r in out):
+        out.insert(0, pair)
     return out
+
+
+# A bare menu pair is his whole reply: one number, one menu word of
+# `_PAIR_WORD`, and at most a full stop. dry1's m72 "1 now" named no line,
+# so the rulings door refused his shift answer twice (dry1's fourth wall,
+# 2026-11-01, frame 330). The whole-reply rule keeps a count out, as "2
+# good examples". It also keeps frame 305's rule: "1 ok, 11 is not about
+# this page" names no line, because its other clause names none.
+_PAIR_OPEN = re.compile(r"\s*(\d+)(?!\w|\.\d)")
+_PAIR_CLOSE = re.compile(r"\s*[.!]?\s*$")
+
+
+def _menu_pair(text: str, size: int | None = None) -> LineRef | None:
+    """The line that a bare menu pair names when the pair is the whole of
+    `text`, or None. "1 now" and "1 drop." name line 1. "1 now please"
+    and "1 ok, 2 drop" name no line here, and `line_words` reads the
+    second form."""
+    m = _PAIR_OPEN.match(text)
+    word = m and _PAIR_WORD.match(text, m.end())
+    if not (word and _PAIR_CLOSE.match(text, word.end())):
+        return None
+    n = int(m.group(1))
+    if size is not None and not 0 < n <= size:
+        return None
+    return LineRef(m.start(1), m.end(1), frozenset({n}), "", m.group(1))
 
 
 class LineReading:
@@ -13737,15 +13765,18 @@ _BARE_VERB = re.compile(r"\s+(?:is|are)\b", re.I)
 # again", "2 drop", "1 ok". Review p6 of frame 354, finding 4: "1 try again"
 # named no line, so every line of the page took the whole reply. The list
 # is closed, so "3 at most" and "2 examples are too many" name no line.
+# "later" is the shift page's menu word beside "now" and "drop" (frame 330).
 _PAIR_WORD = re.compile(
     r"\s*:?\s+(?:ok(?:ay)?|yes|fine|good|right|correct|wrong|approved?|"
-    r"drop|try\s+again|contest|revise|rewrite|misread|park|now|resume)\b",
+    r"drop|try\s+again|contest|revise|rewrite|misread|park|now|later|"
+    r"resume)\b",
     re.I)
 # A menu word right before the number of a pair, as the "ok" of "1 ok 2
 # drop". The pair then opens a new clause with no comma.
 _PAIR_END = re.compile(
     r"\b(?:ok(?:ay)?|yes|fine|good|right|correct|wrong|approved?|drop|"
-    r"again|contest|revise|rewrite|misread|park|now|resume)\s+$", re.I)
+    r"again|contest|revise|rewrite|misread|park|now|later|resume)\s+$",
+    re.I)
 # A verb of the clause right after a clause-start number makes the number a
 # line name (review p9 of frame 354, finding 1). The list is closed. A noun or
 # "at" after the number makes a quantity, as "2 examples" and "3 at most".

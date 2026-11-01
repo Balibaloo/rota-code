@@ -691,18 +691,21 @@ def two_batches(tmp: Path) -> Scene:
     missing test comes next. Its new test row lifts the key
     (`db._lift_quarantines`), and three more empty sessions quarantine the
     key again. The ladder is spent, so no rung wakes. The Liaison reports it
-    again, and the loop is quiet. So the walk ends, and the next walk says
-    item 2.
-
-    Item 2 ranks above item 1. Right after its grouping b2 can start, and
-    the spent ladder parks b1 (`do:park`, frame 86's path). Before frame 330
-    the preempt deferred b1 here. The Liaison then sends the park page: the
+    again. No seat wakes, so the quiet parks b1 (`do:park`, frame 86's
+    path, `scheduler.quiet_park`). The Liaison then sends the park page: the
     item and c1, whose own test is red. The walk with no words approves
     every line. That is the ceiling: the page rests, and the park asks
-    nothing more (frame 142, ruled: Roman, 2026-10-08, point 5). b2 then
-    starts, takes in the project's tests again under the same ids (frame
-    130's wall), and its Developer commits the export. The scene ends when
-    the harness has run at b2's head.
+    nothing more (frame 142, ruled: Roman, 2026-10-08, point 5). The loop is
+    quiet, so the walk ends, and the next walk says item 2.
+
+    What moved: the park came after item 2's grouping, when b2 could start.
+    Dry1's fourth wall of 2026-11-01 showed that a lone batch then holds the
+    seat for ever, so frame 330 parks a spent batch at the quiet with no
+    challenger. The Tester's recovery before the quiet stays.
+
+    Item 2 ranks above item 1. b2 then starts, takes in the project's tests
+    again under the same ids (frame 130's wall), and its Developer commits
+    the export. The scene ends when the harness has run at b2's head.
 
     Night 121 holds the same order up to the park, bg_2 from its start at
     s212: two quarantines of `tests_failing` with the Tester between (s224,
@@ -725,6 +728,12 @@ def two_batches(tmp: Path) -> Scene:
     rule(sc, "present", ["b1"], {"b1": "approve"})
     seat(sc, "tester|tick:tests_missing|b1", encode(PRORATE_TEST))
     _climb(sc, "b1")
+    # The quiet after the second report parks b1 (frame 330). The park page
+    # numbers the item and c1, whose own test is red. The walk with no
+    # words approves every line, which is the ceiling: the page rests, and
+    # the park asks nothing more (frame 142).
+    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
+    rule(sc, "present", ["i1", "c1"], {"i1": "approve", "c1": "approve"})
     play_to_quiet(sc)
     sc.ids["head1"] = sc.conn.execute(
         "SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
@@ -735,11 +744,6 @@ def two_batches(tmp: Path) -> Scene:
     seat(sc, "liaison|tick:request_shift|i1,s2",
          ["TOOL: msg.present_principal(refs=['i1', 's2'])"])
     rule(sc, "present", ["i1", "s2"], {"i1": "now"})
-    # The park page numbers the item and c1, whose own test is red. The
-    # walk with no words approves every line, which is the ceiling: the
-    # page rests, and the park asks nothing more (frame 142).
-    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
-    rule(sc, "present", ["i1", "c1"], {"i1": "approve", "c1": "approve"})
     annotate(sc, 2, [EXPORT_PATH])
     seat(sc, "developer|tick:batch_start|b2",
          commit([(EXPORT_PATH, EXPORT)], "export invoices"))
@@ -849,14 +853,19 @@ def park(tmp: Path) -> Scene:
     stops the bounce, so law 6's three rungs wake one by one with nothing
     done (frame 330). Before frame 330 the loop went quiet here, and on
     night 168 that quiet held the one batch seat. The Liaison tells the
-    principal on the `quarantined` wake, and the loop is then quiet. So the
-    walk ends, and the next walk says item 2. Item 2 ranks above item 1.
-    Right after its grouping b2 can start, and the spent ladder parks b1
-    (`do:park`, frame 86's path). Before frame 330 the preempt deferred b1
-    here. The Liaison's `park_ask` wake opens the ask, and the scene ends
-    there, before the walk answers it. Night 121 holds the same order, from
-    bg_2's start at s212 to the park ask at s277, except the ladder and the
-    park. The scene `two_batches` holds the answer.
+    principal on the `quarantined` wake. No seat wakes then, so the quiet
+    parks b1 (`do:park`, frame 86's path, `scheduler.quiet_park`). The
+    Liaison's `park_ask` wake opens the park page, and the walk with no
+    words approves every line, so the page rests (frame 142). The loop is
+    then quiet, so the walk ends, and the next walk says item 2. Item 2
+    ranks above item 1, and the scene ends at its grouping.
+
+    What moved: the park came after item 2's grouping, when b2 could start,
+    and the scene ended at the open park ask. Dry1's fourth wall of
+    2026-11-01 showed that a lone batch then holds the seat for ever, so
+    frame 330 parks a spent batch at the quiet with no challenger. Night 121
+    holds the same order, from bg_2's start at s212 to the park ask at
+    s277, except the ladder and the park's place.
 
     The design named b3 behind b1 by a `batch_dep_facts` row (S4). No op in
     `rota/` writes that table, and nights 119 to 124 hold no row in it
@@ -880,6 +889,12 @@ def park(tmp: Path) -> Scene:
     # The principal reads it. A present on a batch alone is acknowledged.
     rule(sc, "present", ["b1"], {"b1": "approve"})
     _climb(sc, "b1")
+    # The quiet after the report parks b1, and the Liaison opens the park
+    # page (frame 330). The walk answers every ask before it says item 2.
+    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
+    play(sc, lambda conn: scheduler.open_park_ask(conn, "b1"))
+    sc.ids["ask"] = scheduler.open_park_ask(sc.conn, "b1")
+    rule(sc, "present", ["i1", "c1"], {"i1": "approve", "c1": "approve"})
     # The walk ends at quiet, and the next walk says item 2.
     play_to_quiet(sc)
     item(sc, 2, 2)
@@ -888,10 +903,8 @@ def park(tmp: Path) -> Scene:
     seat(sc, "liaison|tick:request_shift|i1,s2",
          ["TOOL: msg.present_principal(refs=['i1', 's2'])"])
     rule(sc, "present", ["i1", "s2"], {"i1": "now"})
-    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
-    play(sc, lambda conn: scheduler.open_park_ask(conn, "b1"))
-    sc.ids.update(key="developer|tick:tests_failing|b1",
-                  ask=scheduler.open_park_ask(sc.conn, "b1"))
+    play(sc, _has("SELECT 1 FROM batches WHERE id = 'b2'"))
+    sc.ids.update(key="developer|tick:tests_failing|b1")
     return sc
 
 

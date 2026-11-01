@@ -5,8 +5,9 @@ b1's Developer turns `tests/test_charges.py` red and stays red, b1 is
 deferred by the park, and b2 starts and takes in the project's tests
 under the same ids. In the night's order b1's key is quarantined twice
 before item 2 comes. The first quarantine climbs law 6's ladder (frame
-330), so the park defers b1 once item 2's batch can start, and the walk
-approves every line of the park page before b2 starts. The proof by removal is
+330). The quiet after the second report parks b1 before item 2 comes
+(dry1's fourth wall, 2026-11-01), and the walk approves every line of the
+park page before it says item 2. The proof by removal is
 frame 135's project-id door (the design's section 5): without it, the
 catalogue's two calls with the project's id land.
 
@@ -76,8 +77,12 @@ def test_the_walk_approves_the_park_page_and_the_park_rests(scene):
     (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (asks[0][0],)).fetchall()
     assert verdict["status"] == "answered", "the ceiling wakes no Liaison"
+    # Frame 330: the quiet after the second report parks b1, so the page
+    # comes before item 2's walk.
     i = steps.index(PARK)
-    assert steps[i + 1:i + 3] == ["principal|present|i1,c1", "architect|tick:annotate|b2"]
+    assert steps[i - 2:i] == ["principal|present|b1,i1,c1", "-|do:park|b1"]
+    assert steps[i + 1] == "principal|present|i1,c1"
+    assert steps[i + 2].startswith("liaison|converse|")
     assert "liaison|tick:quarantined|i1,b1" not in steps
 
 

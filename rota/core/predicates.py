@@ -1636,26 +1636,42 @@ def preempt(conn) -> list[Wake]:
 
     ranked = next_batch(conn)
     if not ranked:
+        # With no challenger the scheduler's quiet parks a spent batch
+        # (`scheduler.quiet_park`). dry1 held its one batch here with
+        # nothing awake (dry1's fourth wall, 2026-11-01, frame 330).
         return []
     challenger = ranked[0]["id"]
-    # law 6: exhaustion escalates one rung at a time
-    # A running batch past its cap with every rung asked wakes nobody again.
-    # Night 93 held `b_1` so, and three ready batches waited to the end
-    # (observed: night 93, 2026-09-25). The deferral frees the seat, and
-    # `next_batch` keeps the batch out until a new head commit. The refs hold
-    # batch ids only, so frame 83's counter rules read the key unchanged.
-    from .scheduler import parked, stop_detail
-
-    if parked(conn, running["bid"]) and not _next_rung(conn, running["bid"]):
-        why = stop_detail(conn, running["bid"])
-        return [Wake(SCHEDULER, "do:park", refs=(running["bid"],),
-                     detail=(f"{running['bid']}: {why}, and its ladder is spent" if why
-                             else f"{running['bid']} is past its cap and its ladder is spent"))]
+    park = spent_park(conn, running["bid"])
+    if park:
+        return [park]
     if (ranked[0]["priority"] or 0) <= (running["pri"] or 0):
         return []
     return [Wake(SCHEDULER, "do:preempt",
                  refs=(running["bid"], challenger),
                  detail=f"{challenger} outranks {running['bid']}")]
+
+
+def spent_park(conn, bid: str) -> Wake | None:
+    """The `do:park` wake of the running batch `bid` when it is parked and
+    no rung is left, or None.
+
+    law 6: exhaustion escalates one rung at a time. A running batch past its
+    cap with every rung asked wakes nobody again. Night 93 held `b_1` so,
+    and three ready batches waited to the end (observed: night 93,
+    2026-09-25). The deferral frees the seat, and `next_batch` keeps the
+    batch out until a new head commit. The refs hold batch ids only, so
+    frame 83's counter rules read the key unchanged. `preempt` reads it
+    with a challenger, and the scheduler's quiet reads it with none
+    (`scheduler.quiet_park`, frame 330).
+    """
+    from .scheduler import parked, stop_detail
+
+    if not parked(conn, bid) or _next_rung(conn, bid):
+        return None
+    why = stop_detail(conn, bid)
+    return Wake(SCHEDULER, "do:park", refs=(bid,),
+                detail=(f"{bid}: {why}, and its ladder is spent" if why
+                        else f"{bid} is past its cap and its ladder is spent"))
 
 
 @predicate("merge", wakes=SCHEDULER, band="gate",

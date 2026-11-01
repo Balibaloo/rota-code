@@ -1917,6 +1917,20 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
         assert word not in first
 
 
+def test_a_whole_reply_menu_pair_names_its_line_on_the_returned_page(db):
+    """Frame 330: dry1's "1 now" is a bare menu pair, and the pair is the
+    whole reply. So it names line 1, as "1 is wrong" does (frame 305)."""
+    from rota.roles.principal import pending_asks
+
+    _page_and_reply(db, attempts=2)
+    db.execute("UPDATE messages SET body_text = '1 ok' WHERE id = 'm178'")
+    db.commit()
+    _commit_reply_session(db, "s337")
+    rendered = {a.message_id: a.rendered for a in pending_asks(db)}["m177"]
+    assert "could not turn your words about line 1 into a ruling" in (
+        rendered.splitlines()[0])
+
+
 def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
     """The replay of s336's end: one refused call three times, the repeat
     door, a barren commit. The first run keeps the reply open, and the

@@ -1596,8 +1596,9 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # same pass -- the answer to "what is ready" has to be computed against a
     # world where the abandonment has already happened.
     quarantine_looping(conn)
-    return waiting_filter(conn, quarantine_stalled(
+    ready = waiting_filter(conn, quarantine_stalled(
         conn, all_wakes(conn, principal_present=principal_present)))
+    return ready or quarantine_stalled(conn, quiet_park(conn))
 
 
 def frontier_readonly(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
@@ -1605,6 +1606,25 @@ def frontier_readonly(conn: sqlite3.Connection, principal_present: bool = False)
     from .predicates import all_wakes
 
     return waiting_filter(conn, all_wakes(conn, principal_present=principal_present))
+
+
+def quiet_park(conn: sqlite3.Connection) -> list[Wake]:
+    """The `do:park` wake of the running batch with a spent ladder, read
+    only when no predicate wakes any seat.
+
+    law 6: a spent ladder goes to the principal. dry1 held its one batch
+    `bg_1` as `running` with a spent ladder, and nothing woke, because
+    `preempt` parks only beside a challenger (observed: dry1's fourth wall,
+    2026-11-01, frame 330). A park while a seat can still move the batch
+    loses its recovery: the Tester's new red test lifts the key, as night
+    119's s259 did (frame 134). So the park waits for the quiet.
+    """
+    from .predicates import spent_park
+
+    running = conn.execute(
+        "SELECT id FROM batches WHERE status = 'running'").fetchone()
+    park = spent_park(conn, running["id"]) if running else None
+    return [park] if park else []
 
 
 def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:

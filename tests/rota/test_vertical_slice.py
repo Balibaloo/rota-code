@@ -146,6 +146,12 @@ def test_understanding_loop_scripted(db):
             "TOOL: tests.encode(id='tst1', batch_id='b1', criterion_id='c1', "
             "path='test_delete.py', body='assert tombstoned(account)')",
         ],
+        # Frame 330: the Developer starts nothing, the ladder is spent, and
+        # the quiet parks b1. So the arc now ends at the park ask, and the
+        # Liaison tells the principal (dry1's fourth wall, 2026-11-01).
+        "liaison:park_ask": [
+            "TOOL: msg.present_principal(refs=['i1', 'b1'])",
+        ],
         "vision_keeper": [""],
         "architect": [""],
         "tester": [""],
@@ -160,8 +166,9 @@ def test_understanding_loop_scripted(db):
         "clarify": Answer(verb="converse", text="yes, soft delete is fine"),
     })
 
+    # Two steps past the old cap of 25: the park and its ask (frame 330).
     trace = loop.run(db, backend=backend, pins=Pins(model="scripted"),
-                     principal=principal, max_steps=25)
+                     principal=principal, max_steps=27)
 
     print("\n" + trace.render())
 

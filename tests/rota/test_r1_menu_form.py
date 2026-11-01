@@ -630,3 +630,35 @@ def test_a_quantity_before_a_later_pair_names_no_line(size):
     assert "3 at most" not in got.values()
     assert set(api.line_words("I want 2 examples", size).values()) == {
         "I want 2 examples"}
+
+
+@pytest.mark.parametrize("word, kind", [
+    ("now", "now"), ("later", "park"), ("drop", "drop")])
+def test_a_bare_menu_pair_on_the_shift_page_lands(db, word, kind):  # noqa: F811
+    """dry1's turn 8: his reply "1 now" named no line, so the rulings door
+    refused both calls of s170 and s171 on page m72 (frame 330)."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+    from rota.roles.principal import land, parse_reply, pending_asks
+
+    from .test_frame193_pass2 import CONFIRM, _ask_shift, _night137
+
+    _night137(db)
+    _ask_shift(db)
+    words = f"1 {word}"
+    (ask,) = pending_asks(db)
+    reply = land(db, ask, parse_reply(ask, words))
+    db.commit()
+    sb = build("liaison", db, mode="normal", session_id="sess_shift",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = reply
+    out = sb.call("rulings.rule", rulings={"1": word}, words=words)
+    assert out["per_item"] == {CONFIRM: kind}
+
+
+def test_a_count_before_a_pair_still_names_no_line():
+    """The guard of 3668fd4f beside the bare pair: a count opens the reply,
+    so line 2 takes no words of its own."""
+    whole = "2 examples are too many 1 ok"
+    assert 2 not in api._line_reading(whole, 2).named
+    assert api.line_words(whole, 2).get(2) != "2 examples are too many"

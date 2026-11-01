@@ -2,12 +2,12 @@
 S3 and S4, one park scene.
 
 b1 failed five attempts, its `tests_failing` key is quarantined and
-reported, law 6's three rungs woke on it (frame 330), the spent ladder
-parked it once item 2's batch could start, and the Liaison opened its park
-ask. The scene ends there, before the walk answers the ask, as night 121
-stood at s277. b2 is pending. The proof by removal is the park ask that
-names its batch (the design's section 5, 0c6e54e, in its present form from
-b23d17b). The answered park ask is in the scene `two_batches`.
+reported, law 6's three rungs woke on it (frame 330), and the quiet after
+the report parked it with no sibling batch (dry1's fourth wall,
+2026-11-01). The Liaison opened its park ask, and the walk approved the
+page before item 2. The scene ends at item 2's grouping, with b2 pending.
+The proof by removal is the park ask that names its batch (the design's
+section 5, 0c6e54e, in its present form from b23d17b).
 
 The second build is in `test_scene_park_again.py`.
 """
@@ -28,10 +28,13 @@ def test_b1_is_parked_with_one_open_ask_and_b2_waits(scene):
     assert scheduler.given_up(conn, "b1") == [KEY]
     assert scheduler.parked(conn, "b1")
     # Frame 142: the park ask is a present, a page with the item and c1.
-    asks = conn.execute("SELECT id FROM messages WHERE status = 'open' AND to_role = 'principal' "
-                        "AND verb = 'present'").fetchall()
-    assert [r["id"] for r in asks] == [scene.ids["ask"]]
+    # Frame 330: the quiet parks b1 before item 2, so the walk answers the
+    # page before it says item 2, and the page rests.
+    asks = conn.execute("SELECT id, status, body_refs FROM messages "
+                        "WHERE substr(id, 1, 7) = 'm_park_'").fetchall()
+    assert [tuple(r) for r in asks] == [(scene.ids["ask"], "answered", '["i1", "c1"]')]
     assert scheduler.park_ask_batch(scene.ids["ask"]) == "b1"
+    assert scheduler.park_rests(conn, "b1")
     # The park keeps b1 out of the start's order. b1 is deferred, and a
     # deferred batch that is not parked is in the order beside b2.
     assert [r["id"] for r in scheduler.next_batch(conn)] == ["b2"]
@@ -57,9 +60,10 @@ globals().update(make(
     end=["architect|tick:annotate|b2", "developer|tick:batch_start|b2"],
     attempts=[("-|do:park|b1", 1, 0, 0),
               ("architect|tick:exhausted|b1", 1, 0, 0),
+              ("architect|tick:grouping|tk2", 1, 0, 0),
               ("developer|tick:exhausted|b1", 1, 0, 0),
               (KEY, 3, 1, 1),
               ("liaison|tick:park_ask|i1,b1", 1, 0, 0),
               ("liaison|tick:quarantined|b1", 1, 0, 0),
               ("vision_keeper|tick:exhausted|b1", 1, 0, 0)],
-    asks=[("present", "i1", "c1")]))
+    asks=[]))

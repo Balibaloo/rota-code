@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from rota.core import predicates as P
+from rota.core import scheduler
 from rota.core.db import init_db
 from rota.core.predicates import LADDER
 from rota.core.scheduler import Wake, next_batch, parked, tick_batch_start
@@ -200,6 +201,55 @@ def test_every_given_up_key_of_a_green_running_batch_climbs_and_parks(night_168,
     _only_key(night_168, key)
     assert _ladder(night_168) == [(rung, "tick:exhausted", ("batch_1",))]
     _frees_the_seat(night_168)
+
+
+def _one_batch(conn, key: str) -> None:
+    """dry1's shape: `batch_1` is the one batch, `key` is its one given-up
+    key, and every rung is asked. Its ticket is grouped, so no grouping
+    wakes."""
+    conn.execute("DELETE FROM batches WHERE id = 'batch_2'")
+    conn.execute("DELETE FROM items WHERE id = 'i_2'")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+                 "VALUES ('batch_1', 't_1')")
+    _only_key(conn, key)
+    _asked(conn, *LADDER)
+
+
+def test_a_quiet_frontier_parks_the_last_batch_with_a_spent_ladder(night_168):
+    """dry1's fourth wall: `bg_1` was the one batch, green, with its Tester
+    key quarantined and its ladder spent. `preempt` reads no challenger, so
+    the batch held the seat as `running` and nothing woke. The quiet now
+    parks it (`scheduler.quiet_park`)."""
+    _one_batch(night_168, "tester|tick:tests_missing|batch_1")
+    # The green batch's review ran out too, so no seat can move it.
+    night_168.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                      "reported) VALUES ('critic|tick:review|batch_1', 3, 1, 1)")
+    assert parked(night_168, "batch_1")
+    assert _ladder(night_168) == []
+    assert next_batch(night_168) == []
+    assert P.preempt(night_168) == [], "with no challenger the quiet parks"
+    (wake,) = scheduler.frontier(night_168)
+    assert (wake.role, wake.kind, wake.refs) == (P.SCHEDULER, "do:park", ("batch_1",))
+    assert wake.detail.endswith("and its ladder is spent")
+
+
+def test_a_tester_wake_on_the_batch_keeps_it_from_the_quiet_park(night_168):
+    """Night 119's s259 (frame 134): the Tester's new red test lifts the
+    quarantined fix key, and the last fix session lands. A park before the
+    Tester's wake loses that route, so a frontier with the wake parks
+    nothing."""
+    _one_batch(night_168, KEY)
+    night_168.execute("UPDATE test_runs SET result = 'error' WHERE id LIKE 'r_%'")
+    night_168.execute("INSERT INTO criteria (id, ticket_id, text) "
+                      "VALUES ('cr_3', 't_1', 'x')")
+    assert parked(night_168, "batch_1")
+    assert _ladder(night_168) == []
+    assert [(w.role, w.kind, w.refs) for w in scheduler.frontier(night_168)] == [
+        ("tester", "tick:tests_missing", ("batch_1",))]
+    assert night_168.execute("SELECT status FROM batches WHERE id = 'batch_1'"
+                             ).fetchone()["status"] == "running"
+    # The park waits for the quiet, and it is due there.
+    assert [w.kind for w in scheduler.quiet_park(night_168)] == ["do:park"]
 
 
 def test_a_quarantined_rung_counts_as_asked(night_168):
