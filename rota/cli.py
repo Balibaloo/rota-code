@@ -498,6 +498,11 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     return 0
 
 
+#: The exit code of `rota run` after the loop stops on a model that does not
+#: answer. Review p3 of frame 355 names no code, so the code is 2.
+MODEL_DOWN_EXIT = 2
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     import os
 
@@ -536,9 +541,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         profile_mod.bind(conn, prof)      # recorded, with history
         conn.commit()
     conn.close()
-    drive(str(path), prof.default_model, args.limit, survey_only=not args.all,
-          profile=prof)
-    return 0
+    down = drive(str(path), prof.default_model, args.limit,
+                 survey_only=not args.all, profile=prof)
+    # A night launcher reads the exit code. A model-down stop is no
+    # quiescent run (frame 355, review p3, finding 4).
+    return MODEL_DOWN_EXIT if down else 0
 
 
 def cmd_cassettes(args: argparse.Namespace) -> int:

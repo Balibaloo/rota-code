@@ -67,6 +67,10 @@ class RunOutcome:
     # The session ended with no answer from the model, so it spent no
     # attempt and the loop waits before it sends the wake again (frame 355).
     unavailable: bool = False
+    # The probe state of such an end, as `probe_state` names it, and the
+    # probe's error. `model_stop` reads both (frame 355, review p3).
+    probe: str = ""
+    probe_error: str = ""
 
 
 _COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
@@ -6437,12 +6441,16 @@ def run_session(
         # A replay miss repeats on every retry and has no model to probe, so
         # the end is the wake's own.
         if isinstance(exc, llm.LLMUnavailable) and not exc.replay_miss:
-            if instrument_end(backend, pins):
+            outcome.probe, outcome.probe_error = instrument_end(backend, pins)
+            if outcome.probe in (PROBE_REFUSED, PROBE_SILENT):
                 _give_back_attempt(conn, wake)
                 outcome.unavailable = True
             else:
-                error = f"{error} {PROBE_ANSWERED}"
-                outcome.errors[-1] = f"{outcome.errors[-1]} {PROBE_ANSWERED}"
+                note = (PROBE_ANSWERED if outcome.probe == PROBE_UP
+                        else PROBE_NO_MODEL_NOTE.format(
+                            model=pins.model, error=outcome.probe_error))
+                error = f"{error} {note}"
+                outcome.errors[-1] = f"{outcome.errors[-1]} {note}"
         sandbox_mod.drain_calls(sb.ctx)
         # The row a failed session leaves. Night 31 (2026-09-13): 69 deaths
         # on one error and nothing in the database to read.
@@ -6487,14 +6495,18 @@ def run_session(
 PROBE_TIMEOUT_S = 30.0
 #: The note on the error of an end whose probe answered.
 PROBE_ANSWERED = "The model answered a probe, so the failure is the wake's own."
+#: The note on the error of an end whose server has no model of that name.
+PROBE_NO_MODEL_NOTE = ("The server answered that it has no model {model} "
+                       "({error}), so the failure is the wake's own.")
 
 
-def probe_model(backend: llm.Backend, pins: llm.Pins) -> bool:
-    """Whether the model of `pins` answers one call with the smallest
-    prompt and one token, in `PROBE_TIMEOUT_S`, at the session's window.
+def probe_result(backend: llm.Backend, pins: llm.Pins) -> tuple[str, str]:
+    """The probe state and the error text of one call to the model of
+    `pins`, with the smallest prompt and one token, in `PROBE_TIMEOUT_S`,
+    at the session's window.
 
     The probe goes past a recorder, so it writes no cassette. A replay
-    backend has no model to ask, so the probe returns True."""
+    backend has no model to ask, so the probe answers."""
     from ..llm.cassettes import RecordingBackend, ReplayOnlyBackend
 
     inner = backend
@@ -6506,7 +6518,7 @@ def probe_model(backend: llm.Backend, pins: llm.Pins) -> bool:
         else:
             break
     if isinstance(inner, ReplayOnlyBackend):
-        return True
+        return PROBE_UP, ""
     if hasattr(inner, "timeout"):
         import copy
 
@@ -6520,23 +6532,58 @@ def probe_model(backend: llm.Backend, pins: llm.Pins) -> bool:
                      max_tokens=1, think=False)
     try:
         inner.complete("", "Say OK.", small)
-    except Exception:  # noqa: BLE001 -- any failure of the probe is the fact
-        return False
-    return True
+    except Exception as exc:  # noqa: BLE001 -- any failure of the probe is the fact
+        return probe_state(exc), str(exc)
+    return PROBE_UP, ""
 
 
-def instrument_end(backend: llm.Backend, pins: llm.Pins) -> bool:
-    """Whether a session that ended with no answer from the model is the
-    instrument's end, and not the wake's own. The probe decides.
+#: The states of a probe. The model answered. The server answered that it
+#: has no model of that name. The server answered with another error. No
+#: server answered.
+PROBE_UP, PROBE_NO_MODEL, PROBE_REFUSED, PROBE_SILENT = (
+    "answered", "no such model", "refused", "silent")
+
+
+def probe_state(exc: BaseException) -> str:
+    """The probe state that the failure `exc` of a probe call shows."""
+    # A wrong model name on a live server read as a down server, and the
+    # stop line said to start it (frame 355, review p3, finding 1). Ollama
+    # answers an unknown model with HTTP 404. LiteLLM raises NotFoundError
+    # with `status_code` 404. Its other errors carry a status that no server
+    # sent, so only Ollama's HTTPError counts as a refusal.
+    import urllib.error
+
+    seen: BaseException | None = exc
+    while seen is not None:
+        status = getattr(seen, "status_code", None)
+        if isinstance(seen, urllib.error.HTTPError):
+            status = seen.code
+        if status == 404:
+            return PROBE_NO_MODEL
+        if isinstance(seen, urllib.error.HTTPError):
+            return PROBE_REFUSED
+        seen = seen.__cause__ or seen.__context__
+    return PROBE_SILENT
+
+
+def probe_model(backend: llm.Backend, pins: llm.Pins) -> bool:
+    """Whether the model of `pins` answers the probe of `probe_result`."""
+    return probe_result(backend, pins)[0] == PROBE_UP
+
+
+def instrument_end(backend: llm.Backend, pins: llm.Pins) -> tuple[str, str]:
+    """The probe state and error of a session that ended with no answer
+    from the model. The probe decides whose end it is.
 
     A probe that answers makes the end the wake's own, and the attempt
-    counts. A probe that fails makes the end the instrument's."""
+    counts. So does a server that has no model of that name. Any other
+    failed probe makes the end the instrument's."""
     # LiteLLM wraps every error in `LLMUnavailable`, so a prompt too large
     # for the window ends like a server that is down. An inference from
     # other sessions' answers failed both ways (frame 355, review 2,
     # findings 1 and 2). The composition's rule: only a fact gates, so a
     # call to the model decides.
-    return not probe_model(backend, pins)
+    return probe_result(backend, pins)
 
 
 def _give_back_attempt(conn: sqlite3.Connection, wake: Wake) -> None:

@@ -225,10 +225,86 @@ def _probe(monkeypatch, answers):
 
     def probe(backend, pins):
         calls.append(pins)
-        return answers
+        if isinstance(answers, tuple):
+            return answers
+        return ((runner_mod.PROBE_UP, "") if answers
+                else (runner_mod.PROBE_SILENT, "no answer in 30s"))
 
-    monkeypatch.setattr(runner_mod, "probe_model", probe)
+    monkeypatch.setattr(runner_mod, "probe_result", probe)
     return calls
+
+
+class NoSuchModel:
+    """A live Ollama that has no model of the name, as `OllamaBackend`
+    raises it."""
+    name = "no-model"
+    timeout = 300.0
+
+    def complete(self, system, user, pins, tools=None):
+        import io
+        import urllib.error
+
+        try:
+            raise urllib.error.HTTPError("http://test/api/chat", 404,
+                                         "Not Found", {}, io.BytesIO(b""))
+        except urllib.error.URLError as exc:
+            raise LLMUnavailable(f"ollama at test: {exc}") from exc
+
+
+def test_a_wrong_model_name_on_a_live_server_is_the_wakes_own_end(
+        tmp_path, monkeypatch):
+    """Review p3, finding 1: the probe read a 404 as a down server, and the
+    stop line said to start the server that was up."""
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    db = init_db(tmp_path / "rota.db")
+    _seed_message(db)
+
+    s = loop.step(db, backend=NoSuchModel(), pins=Pins(model="qwen9:1b"))
+    assert s.outcome.probe == runner_mod.PROBE_NO_MODEL, s.outcome.errors
+    assert not s.outcome.unavailable and _m1(db)["attempts"] == 1, _m1(db)
+    assert "no model qwen9:1b" in s.outcome.errors[-1], s.outcome.errors
+    refused = loop.Step(wake=s.wake, outcome=RunOutcome(
+        session_id=s.outcome.session_id, committed=False, iterations=0,
+        unavailable=True, probe=runner_mod.PROBE_REFUSED,
+        probe_error="HTTP Error 500: out of memory"))
+    _, line = loop.model_stop(db, 2, refused)
+    assert "out of memory" in line and "Start the model server" not in line
+    silent = loop.Step(wake=s.wake, outcome=RunOutcome(
+        session_id=s.outcome.session_id, committed=False, iterations=0,
+        unavailable=True, probe=runner_mod.PROBE_SILENT))
+    assert "Start the model server" in loop.model_stop(db, 2, silent)[1]
+
+
+def test_a_probe_that_answers_clears_an_old_stop(tmp_path):
+    """Review p3, finding 3: an end whose probe answered kept the stop."""
+    db = init_db(tmp_path / "rota.db")
+    db_mod.set_config(db, loop.MODEL_DOWN, "Stopped at then: old")
+    own = loop.Step(outcome=RunOutcome(session_id="s8", committed=False,
+                                       iterations=0,
+                                       probe=runner_mod.PROBE_UP))
+    assert loop.model_stop(db, 2, own) == (0, "")
+    assert db_mod.get_config(db, loop.MODEL_DOWN) is None
+
+
+def test_rota_run_exits_2_after_a_model_down_stop(tmp_path, monkeypatch):
+    """Review p3, finding 4: a night launcher read the stop as a quiet run."""
+    import argparse
+
+    from rota import cli
+    from rota.llm import profile as profile_mod
+    from rota.tools import onboard_run
+
+    path = tmp_path / "rota.db"
+    init_db(path).close()
+    monkeypatch.setattr(cli, "require", lambda name: path)
+    monkeypatch.setattr(profile_mod, "of_run", lambda conn: type(
+        "P", (), {"default_model": "qwen3:8b"})())
+    args = argparse.Namespace(name="x", until=None, role=[], model=None,
+                              limit=1, all=False)
+    monkeypatch.setattr(onboard_run, "drive", lambda *a, **k: "Stopped at now")
+    assert cli.cmd_run(args) == cli.MODEL_DOWN_EXIT == 2
+    monkeypatch.setattr(onboard_run, "drive", lambda *a, **k: None)
+    assert cli.cmd_run(args) == 0
 
 
 def test_a_no_answer_end_whose_probe_answers_spends_the_attempt(

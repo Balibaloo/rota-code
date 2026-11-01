@@ -28,7 +28,7 @@ from . import lifecycle
 from ..llm import llm
 from ..roles.principal import PrincipalBackend, pump
 from .predicates import SCHEDULER
-from .runner import RunOutcome, run_session
+from .runner import PROBE_SILENT, PROBE_UP, RunOutcome, run_session
 from .scheduler import (
     RoleBusy, Wake, cascade_wakes, frontier, is_quiescent, release,
 )
@@ -564,7 +564,10 @@ def model_stop(conn: sqlite3.Connection, ends: int, s: Step) -> tuple[int, str]:
         # A session that answers and then fails on its own kept the stop
         # line (frame 355, review 2, finding 6). The runner writes its own
         # turns with an empty system text.
-        if getattr(s.outcome, "committed", False) or conn.execute(
+        # A probe that answers proves the model is up too (frame 355,
+        # review p3, finding 3).
+        if getattr(s.outcome, "committed", False) or getattr(
+                s.outcome, "probe", "") == PROBE_UP or conn.execute(
                 "SELECT 1 FROM turns WHERE session_id = ? AND system != '' "
                 "LIMIT 1", (s.outcome.session_id,)).fetchone():
             conn.execute("DELETE FROM config WHERE key = ?", (MODEL_DOWN,))
@@ -578,11 +581,18 @@ def model_stop(conn: sqlite3.Connection, ends: int, s: Step) -> tuple[int, str]:
                        (s.outcome.session_id,)).fetchone()
     model = row["model"] if row and row["model"] else "the model"
     at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # Only a server that did not answer at all needs a start. A server that
+    # answered with an error is up, so the line gives its words (frame 355,
+    # review p3, finding 1).
+    error = getattr(s.outcome, "probe_error", "")
+    act = ("Start the model server, then run again."
+           if getattr(s.outcome, "probe", "") in ("", PROBE_SILENT)
+           else f"The server is up and said: {error}. Fix the model on the "
+                f"server, then run again.")
     line = (f"Stopped at {at}: the model {model} does not answer. {ends} "
             f"sessions in a row ended with no answer, and a probe of the "
             f"model failed after each, {config.get(conn, 'model_wait_s')}s "
-            f"apart. The last wake was {s.wake}. Start the model server, then "
-            f"run again.")
+            f"apart. The last wake was {s.wake}. {act}")
     set_config(conn, MODEL_DOWN, line)
     conn.commit()
     return ends, line

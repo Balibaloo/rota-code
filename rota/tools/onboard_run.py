@@ -40,7 +40,9 @@ def onboard(db_path: str, root: str) -> None:
 
 
 def drive(db_path: str, model: str, limit: int, survey_only: bool = True,
-          profile=None) -> None:
+          profile=None) -> str | None:
+    """Run the loop on `db_path`. Return the stop line of a model that does
+    not answer, or None for any other end."""
     conn = connect(db_path)
     if profile is None:
         from ..llm import profile as _profile
@@ -107,7 +109,7 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True,
         if down:
             # `render_state` says the stop first, so the line prints once.
             _say_where_we_are(conn)
-            return
+            return down
         if not step.productive and not step.wake:
             print(f"       idle: {step.note}")
             _say_where_we_are(conn)
