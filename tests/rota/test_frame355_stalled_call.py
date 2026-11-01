@@ -442,17 +442,7 @@ def test_a_message_on_two_rows_closes_only_when_both_moved(tmp_path):
 
 
 def test_an_old_database_opened_with_connect_alone_reads_told(tmp_path):
-    import shutil
-
-    import pytest
-
-    from rota import paths
-
-    src = paths.REPO / ".rota" / "dry1.db"
-    if not src.exists():
-        pytest.skip("dry1.db is a local run file")
-    shutil.copy(src, tmp_path / "dry1.db")
-    db = db_mod.connect(tmp_path / "dry1.db")
+    db = db_mod.connect(_dry1(tmp_path))
     row = db.execute("SELECT told, moved_refs FROM messages WHERE id = 'm4'").fetchone()
     assert (row["told"], row["moved_refs"]) == (0, "[]"), dict(row)
     assert predicates.quarantined(db), "m4 and m5 are untold"
@@ -534,7 +524,12 @@ def _dry1(tmp_path):
 
     from rota import paths
 
-    src = paths.REPO / ".rota" / "dry1.db"
+    # The tests read the database as the first dry run left it, before any
+    # run on the fixed code. The rerun of 2026-11-01 added the `told` column
+    # to `dry1.db` and answered its five asks, so a frozen copy taken before
+    # that rerun is the source, and the live file is the fallback.
+    frozen = paths.REPO / ".rota" / "dry1_frozen.db"
+    src = frozen if frozen.exists() else paths.REPO / ".rota" / "dry1.db"
     if not src.exists():
         pytest.skip("dry1.db is a local run file")
     shutil.copy(src, tmp_path / "dry1.db")
