@@ -1226,6 +1226,21 @@ def _step_key(ref) -> bool:
     return isinstance(ref, str) and "|tick:" in ref
 
 
+def _step_retry(ref, verdict) -> bool:
+    """His ruling runs the stopped step `ref` again."""
+    return _step_key(ref) and verdict in ("contest", "revise")
+
+
+def _step_name(conn: sqlite3.Connection, key: str) -> str:
+    """The words of the stopped step `key`, with no count of attempts."""
+    from ..core.scheduler import key_parts
+
+    kind = key_parts(key)[1].replace("tick:", "")
+    what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
+                     if w)
+    return f"{_tick_words(kind)}{f' for {what}' if what else ''}"
+
+
 def _is_reading(ref) -> bool:
     return isinstance(ref, str) and ref.startswith(READING_REF)
 
@@ -1285,26 +1300,35 @@ def reading_delivered(conn: sqlite3.Connection, ref: str) -> bool:
     return req is not None and _request_finished(conn, {"entries": [req]})
 
 
-def read_back_rows(conn: sqlite3.Connection, reply: str) -> list:
+def read_back_rows(conn: sqlite3.Connection, reply: str,
+                   shown: list | tuple = ()) -> list:
     """The rows that the read-back line of reply `reply` reads back, one
     per ref. The line says how the team read his words, so only the
     reading's rows count, never a keypress row or a `landed` row (fact F1,
     review 1, finding 2). A `reading:` ref is the line itself. The line and
-    the landing wake read this one function."""
+    the landing wake read this one function.
+
+    `shown` is the order of the page that carries the line. A retry of a
+    step that the page shows is no row here, because the step's own line
+    says "You asked me to try it again" (review p7 of frame 354, finding 1).
+    """
     return one_row_per_ref([
         r for r in ruled(conn, reply=reply, every=True)
         if r["source"] in ("reading", "backfill")
-        and not _is_reading(r["ref"])])
+        and not _is_reading(r["ref"])
+        and not (_step_retry(r["ref"], r["verdict"]) and r["ref"] in shown)])
 
 
-def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
+def reading_line(conn: sqlite3.Connection, ref: str,
+                 shown: list | tuple = ()) -> str | None:
     """The read-back line of `reading:<reply id>`, written from the columns,
     or None when the reply has no row.
 
     No model writes the line. A row on a `reading:` ref is never read back,
-    so the chain ends at his approve (the seam design, 2.3)."""
+    so the chain ends at his approve (the seam design, 2.3). `shown` is the
+    order of the page, as `read_back_rows` reads it."""
     reply = ref[len(READING_REF):]
-    rows = read_back_rows(conn, reply)
+    rows = read_back_rows(conn, reply, shown)
     if not rows:
         return None
     words = said(conn, reply).split()
@@ -1313,6 +1337,13 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     clauses: list[str] = []
     approves = 0
     for r in rows:
+        # A ruling on a page with no line has one row on the page itself.
+        # His word is read back, so he learns that it ruled nothing (review
+        # p7 of frame 354, finding 5; ruled: Roman, 2026-10-26 22:5x).
+        if r["ref"] == r["ask_id"]:
+            clauses.append("the page had no line, so your answer landed on "
+                           "no line")
+            continue
         step = f"step {r['verdict']}"
         verdict = (step if _step_key(r["ref"]) and step in _READ_BACK_VERDICT
                    else r["verdict"])
@@ -1320,6 +1351,10 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
             approves += 1
             continue
         where = f"line {r['line']}" if r["line"] else "a row"
+        # The page of this line does not show the step, so the line number
+        # of the earlier page names nothing here (review p7, finding 1).
+        if _step_retry(r["ref"], r["verdict"]):
+            where = f"the step for {_step_name(conn, r['ref'])}"
         clause = f"{where} {_READ_BACK_VERDICT.get(verdict, verdict)}"
         if r["act"]:
             clause += f": {r['act']} {r['target'] or ''}".rstrip()
@@ -2987,7 +3022,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     # either, as at the send door (P8).
     owed = set(readings_owed(conn, refs)) if readings else set()
     for ref in readings:
-        line = reading_line(conn, ref) if ref in owed else None
+        line = reading_line(conn, ref, order) if ref in owed else None
         if line:
             order.append(ref)
             out.append(f"  {len(order)}. {line}")

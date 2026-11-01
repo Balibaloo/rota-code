@@ -2561,7 +2561,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
 
                 back = {str(i + 1): [
                     {k: r[k] for k in ("ref", "line", "verdict", "act", "target")}
-                    for r in read_back_rows(conn, ref[len(READING_REF):])]
+                    for r in read_back_rows(conn, ref[len(READING_REF):],
+                                            order)]
                     for i, ref in enumerate(order)
                     if str(ref).startswith(READING_REF)}
                 if back:

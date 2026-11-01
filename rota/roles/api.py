@@ -12142,9 +12142,14 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
     for m in re.finditer(r"\w+|[.!?,;:]", folded):
         s = m.group()
         # "1 ok 2 drop" is two clauses, as the binder cuts it (review p6 of
-        # frame 354, finding 4). So the span check holds "2 drop".
-        if s.isdigit() and _pair_cut(folded, m.start(), m.end()):
-            cuts.add(len(tokens))
+        # frame 354, finding 4). So the span check holds "2 drop". An
+        # earlier number in the clause stands for the binder's earlier line
+        # name, so "1 drop it 2 ok" holds "2 ok" too (review p7, finding 3).
+        if s.isdigit():
+            named = any(t.isdigit() for t in
+                        tokens[max(c for c in cuts if c <= len(tokens)):])
+            if _pair_cut(folded, m.start(), m.end(), named):
+                cuts.add(len(tokens))
         if s in _CLAUSE_MARK:
             cuts.add(len(tokens))
             continue
@@ -13477,6 +13482,11 @@ def _clause_spans(words: str) -> list[tuple[int, int, str]]:
         sent = body[start:end]
         at = 0
         for sep in [*_CUE_CLAUSE.finditer(sent), None]:
+            # "1: drop" names line 1, so its colon is no cut. The cut left
+            # "1" and "drop" apart, and every line took his reply (review p7
+            # of frame 354, finding 2).
+            if sep and _number_colon(sent[at:sep.start()], sep.group()):
+                continue
             stop = sep.start() if sep else len(sent)
             out.append((lead + start + at, lead + start + stop, sent))
             if sep:
@@ -13484,6 +13494,18 @@ def _clause_spans(words: str) -> list[tuple[int, int, str]]:
         if cut:
             start = cut.end()
     return out
+
+
+def _number_colon(before: str, sep: str) -> bool:
+    """True when the cut `sep` is a colon right after one bare number that
+    stands as a subject: at the clause start, after a comma or after a
+    menu word, as in "1: drop" and "1 ok, 2: drop"."""
+    num = re.search(r"\b\d+\s*$", before)
+    if not sep.startswith(":") or not num:
+        return False
+    lead = before[:num.start()]
+    return (not lead.strip() or lead.rstrip().endswith(",")
+            or bool(_PAIR_END.search(lead)))
 
 
 def _cue_clauses(words: str) -> list[tuple[str, set[int] | None, bool]]:
@@ -13581,11 +13603,25 @@ _PAIR_END = re.compile(
     r"again|contest|revise|rewrite|misread|park|now|resume)\s+$", re.I)
 
 
-def _pair_cut(text: str, start: int, end: int) -> bool:
+def _pair_cut(text: str, start: int, end: int,
+              after_name: bool = False) -> bool:
     """The one number at `text[start:end]` opens a clause with no comma: a
-    menu word stands before it and after it, as in "1 ok 2 drop"."""
-    return bool(_PAIR_WORD.match(text, end)
-                and _PAIR_END.search(text[:start]))
+    menu word stands after it, and a menu word or an earlier line name
+    (`after_name`) stands before it, as in "1 ok 2 drop" and "1 drop it 2
+    ok". A negation before it in the clause keeps the clause whole, so "I
+    never said ok 2 drop" holds no clause "2 drop"."""
+    if not _PAIR_WORD.match(text, end):
+        return False
+    before = re.split(r"[.!?,;:]", text[:start])[-1]
+    # Review p7 of frame 354, finding 4: the cut dropped his "never" from
+    # the span check. `_NEGATED` is the one negation reader (the seam
+    # review, p5-3), and it reads the words right before a cut.
+    if any(_NEGATED.search(before[:w.end()])
+           for w in re.finditer(r"\s+", before)):
+        return False
+    # Review p7, finding 3: "it" is no menu word, so "1 drop it 2 ok" gave
+    # line 2 no words. An earlier line name in the clause cuts too.
+    return after_name or bool(_PAIR_END.search(text[:start]))
 
 
 def _bare_subject(clause: str, m: re.Match, after_name: bool = False
@@ -13604,7 +13640,7 @@ def _bare_subject(clause: str, m: re.Match, after_name: bool = False
     pair = len(nums) == 1 and bool(_PAIR_WORD.match(clause, m.end()))
     if (before.strip() and not before.rstrip().endswith(",")
             and not (pair and after_name
-                     and _pair_cut(clause, m.start(), m.end()))):
+                     and _pair_cut(clause, m.start(), m.end(), True))):
         return set()
     if len(nums) < 2 and not _BARE_VERB.match(clause, m.end()) and not pair:
         return set()
@@ -14932,6 +14968,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     from .principal import SHIFT_ASK
 
     shift = ask["id"].startswith(SHIFT_ASK)
+    no_line = False
     # A page takes the menu form only (frame 345, pass R2; ruled: Roman,
     # 2026-10-29 10:29, "Yes do R"). The menu runs before `_words_outside`:
     # the clause gives the words, so a `words` field of the seat is not read
@@ -14944,7 +14981,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # nothing. dry1's rerun, turn 3: the door refused 'rest' on m3 three
         # times, and the page never closed. The present door refuses such a
         # page at creation since pass 3, and this closes one already open.
+        # A line key there is his word on a line the page did not have, so
+        # one read-back line is owed on his reply (review p7 of frame 354,
+        # finding 5; ruled: Roman, 2026-10-26 22:5x, "every time").
         if not (order or refs) and isinstance(rulings, dict) and rulings:
+            no_line = any(str(k).strip().isdigit() for k in rulings)
             rulings = {}
         # An empty ruling of a page with no numbered line acknowledges the
         # page below. Any other ruling is no menu call, a map on a page with
@@ -15016,6 +15057,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                            words, unheld="skip")
         for ref in [r for r in row_refs if r not in {row["ref"] for row in rows}]:
             _stage_fault(ctx, "rulings.rule", unheld_text(rid, ref), "fault")
+        # The row is on the page itself, so `reading_line` reads it as the
+        # page with no line. `per_item` stays empty, and `land` rules
+        # nothing.
+        if no_line:
+            rows += _ruled_rows(ctx, rid, [], {ask["id"]: "approve"}, words,
+                                unheld="keep")
         _stage_ruling(ctx, {
             "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
             "per_item": json.dumps({r: "approve" for r in row_refs}),

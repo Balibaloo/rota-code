@@ -311,30 +311,43 @@ def test_the_stalled_line_takes_only_its_two_words(db, option):
 
 def test_the_next_page_of_a_retried_step_reads_the_retry_back(db):
     """Review p5, findings 1, 3 and 4: the second page read his retry back
-    as 'line 1 is wrong'. Review p6, finding 1: pass 7 then read it back
-    nowhere, against the ruling of 2026-10-26 that every reply is read
-    back. The read-back line says the step runs again."""
+    as 'line 1 is wrong'. Review p7, finding 1: pass 8 read it back as
+    'line 2 runs again' on a page whose line 2 was the read-back line. The
+    step's own line carries the read-back, so the page has one line."""
+    from rota.roles.principal import readings_owed
+
     _rule_on_line(db, "try again")
+    (owed,) = readings_owed(db)
     # The step stalls again after his retry, and the Liaison presents it.
     row = _present_critic(db)
     page, order = render_page(db, "present", json.loads(row["body_refs"]),
                               None, ask_id=row["id"])
-    assert order[0] == CRITIC_KEY and len(order) == 2
-    assert order[1].startswith("reading:")
-    assert "You asked me to try it again once before" in page
-    assert ('  2. Your answer "1 try again", as the team read it: line 1 '
-            'runs again.') in page
+    assert order == [CRITIC_KEY]
+    assert page.count("You asked me to try it again once before") == 1
+    assert "as the team read it" not in page and "runs again" not in page
     assert "is wrong" not in page
     assert "'drop' on it to stop it" in page
-    # His repeat names the step alone. The read-back line takes approve, so
-    # it changes no row and is owed no more.
+    # His repeat on the step line rules the step anew, so the earlier
+    # reading's row is superseded and owed no more.
+    out, _ = _rule_on_line(db, "try again", row=row)
+    assert out["per_item"] == {CRITIC_KEY: "contest"}
+    assert owed not in readings_owed(db)
+
+
+def test_a_retry_that_runs_through_reads_back_by_the_steps_words(db):
+    """Review p7, finding 1: the next page of other work does not show the
+    step, so a line number of the earlier page names nothing there."""
     from rota.roles.principal import readings_owed
 
-    out, writes = _rule_on_line(db, "try again", row=row)
-    assert out["per_item"] == {CRITIC_KEY: "contest"}
-    assert not [w for w in writes if w[0] == "ruled_refs"
-                and w[2]["ref"] == order[1]]
-    assert order[1] not in readings_owed(db)
+    _rule_on_line(db, "try again")
+    (owed,) = readings_owed(db)
+    _seed_item(db, "I2", "the tool reads yaml")
+    page, order = render_page(db, "present", ["I2", owed], None)
+    assert order == ["I2", owed]
+    assert ('  2. Your answer "1 try again", as the team read it: the step '
+            'for the team could not check a claim for command runs '
+            'again.') in page
+    assert "line 1 runs again" not in page
 
 
 def _seed_item(db, iid="I1", text="the tool prints json"):
@@ -359,11 +372,16 @@ def test_a_stalled_again_step_after_a_mixed_reply_reads_its_retry_back(db):
     page, order = render_page(db, "present", json.loads(row["body_refs"]),
                               None, ask_id=row["id"])
     assert order[0] == CRITIC_KEY and len(order) == 2
-    line = reading_line(db, order[1])
-    assert "line 2 runs again; 1 line approved." in line
+    # The step's line carries the retry, so the read-back line reads back
+    # the other line only (review p7, finding 1).
+    line = reading_line(db, order[1], order)
+    assert "as the team read it: 1 line approved." in line
+    assert "runs again" not in line
     assert line in page and page.count("as the team read it") == 1
+    assert page.count("You asked me to try it again once before") == 1
     # The landing wake and the line read the same rows (review p6, finding 3).
     reply = order[1][len("reading:"):]
+    assert {r["ref"] for r in read_back_rows(db, reply, order)} == {"I1"}
     assert {r["ref"] for r in read_back_rows(db, reply)} == {"I1", CRITIC_KEY}
 
 
@@ -402,6 +420,38 @@ def test_a_ruling_on_a_page_with_no_line_closes_the_ask(db):
     assert db.execute("SELECT status FROM messages WHERE id = 'm3'"
                       ).fetchone()["status"] == "answered"
     assert db.execute("SELECT COUNT(*) FROM ruled_refs").fetchone()[0] == 0
+
+
+def test_a_line_key_on_a_page_with_no_line_owes_a_read_back(db):
+    """Review p7, finding 5: his "1 drop" on a page with no line closed the
+    ask, and nothing told him that his word ruled nothing."""
+    from tests.rota.test_principal_reply import _landing
+    from rota.roles.principal import (READ_BACK_ASK, apply_rulings, page_ask,
+                                      reading_line, readings_owed)
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m3', 'th', 'liaison', "
+               "'principal', 'present', '[]', 1, 'open')")
+    row = db.execute("SELECT * FROM messages WHERE id = 'm3'").fetchone()
+    sb, reply = _landing(db, page_ask(row), "1 drop")
+    out = sb.call("rulings.rule", rulings={"1": "drop"})
+    assert out["per_item"] == {}
+    assert "nothing is ruled" in out["note"]
+    for table, _op, values, *_ in sb.ctx.writes:
+        if table in ("rulings", "ruled_refs"):
+            cols = [c for c in values if c in {r[1] for r in db.execute(
+                f"PRAGMA table_info({table})")}]
+            db.execute(f"INSERT INTO {table} ({', '.join(cols)}) VALUES "
+                       f"({', '.join('?' * len(cols))})",
+                       [values[c] for c in cols])
+    apply_rulings(db)
+    assert db.execute("SELECT status FROM messages WHERE id = 'm3'"
+                      ).fetchone()["status"] == "answered"
+    assert db.execute("SELECT COUNT(*) FROM faults").fetchone()[0] == 0
+    assert readings_owed(db) == [f"reading:{reply}"]
+    assert reading_line(db, f"reading:{reply}") == (
+        'Your answer "1 drop", as the team read it: the page had no line, so '
+        'your answer landed on no line.' + READ_BACK_ASK)
 
 
 def test_a_bare_number_on_a_step_beside_a_criterion_names_the_step(db):

@@ -575,3 +575,25 @@ def test_one_bare_number_and_a_step_word_names_its_line_alone():
     assert api.line_words("1 try again", 2) == {1: "1 try again", 2: None}
     assert api.line_words("1 try again 2 drop", 2) == {
         1: "1 try again", 2: "2 drop"}
+
+
+def test_a_number_and_a_colon_name_its_line_alone():
+    """Frame 354, review p7, finding 2: the colon cut "1: drop" in two, so
+    every line took his whole reply."""
+    assert api.line_words("1: drop", 2) == {1: "1: drop", 2: None}
+    assert api.line_words("1 ok, 2: drop", 2) == {1: "1 ok", 2: "2: drop"}
+
+
+def test_a_pair_after_a_line_name_cuts_with_no_menu_word_before_it():
+    """Frame 354, review p7, finding 3: "it" is no menu word, so line 1
+    took "2 ok" and line 2 had no words."""
+    assert api.line_words("1 drop it 2 ok", 2) == {
+        1: "1 drop it", 2: "2 ok"}
+    assert api._words_outside("2 ok", "1 drop it 2 ok") is None
+
+
+def test_a_negated_pair_is_no_clause_of_his():
+    """Frame 354, review p7, finding 4: the pair cut dropped his "never"
+    from the span check."""
+    assert api._words_outside("2 drop", "I never said ok 2 drop") is not None
+    assert api._words_outside("2 drop", "1 ok 2 drop") is None
