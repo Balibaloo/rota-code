@@ -297,6 +297,11 @@ PARKED_WORDS = (
      "questions your answer left open"),
 )
 
+# The shipped line for a merged batch whose head is a claim: the code already
+# held the item, and the merge added tests only (frame 360, ruled: Roman,
+# 2026-11-02 17:14, shape A of the design page).
+CLAIMED_LINE = "No code changed. These tests show the code already does this."
+
 
 def render_state(conn: sqlite3.Connection) -> str:
     """
@@ -350,10 +355,23 @@ def _render_state(conn: sqlite3.Connection) -> str:
     pending = count("SELECT COUNT(*) FROM batches WHERE status = 'pending'")
     approved = count("SELECT COUNT(*) FROM items WHERE approval = 'approved'")
 
+    # Frame 360 (ruled: Roman, 2026-11-02 17:14): a claimed batch merged
+    # its tests and no code, so it is not "built". A database older than
+    # the mark has no claim.
+    from ..core.db import _has_column
+
+    claimed = (count("SELECT COUNT(*) FROM batches WHERE status = 'merged' "
+                     "AND claimed_head IS NOT NULL "
+                     "AND claimed_head = head_commit")
+               if _has_column(conn, "batches", "claimed_head") else 0)
+    built = merged - claimed
+
     out: list[str] = []
-    if merged:
-        out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
+    if built:
+        out.append(f"Done: {built} change{'s' if built > 1 else ''} built, "
                    "tested and merged.")
+    if claimed:
+        out.append(CLAIMED_LINE)
     # A parked row is shown quietly, as a count that asks nothing (ruled:
     # Roman, 2026-10-11 15:00, frame 204's design, section 4).
     # Each kind has its own words: a `scope` row is not a choice (frame

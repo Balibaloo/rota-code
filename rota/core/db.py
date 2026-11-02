@@ -458,6 +458,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # test's truth, since no ruling retired a test before the column.
         if not _has_column(conn, "tests", "retired_by"):
             conn.execute("ALTER TABLE tests ADD COLUMN retired_by TEXT")
+        # The same for a claimed head (frame 360): NULL is every older
+        # batch's truth, since no door wrote a claim before the column.
+        if not _has_column(conn, "batches", "claimed_head"):
+            conn.execute("ALTER TABLE batches ADD COLUMN claimed_head TEXT")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))

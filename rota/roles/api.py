@@ -7787,6 +7787,12 @@ def _test_shaped(f: str) -> bool:
                              f.rpartition("/")[2]))
 
 
+# The refusal of a Developer's write to a test file. `code.commit` reads it in
+# the session's refusals: a refused test write does not undo a claim, and a
+# refused write to the program does (frame 360).
+TEST_FILE_REFUSAL = "is a test file, and the tests are the Tester's"
+
+
 def _is_test_file(conn, path: str) -> bool:
     """A test file: a test-shaped basename that the frame marks attached."""
     # Frame 324 (ruled: Roman, 2026-10-26 20:37): the basename gives the
@@ -23060,7 +23066,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # write: the harness holds the tests from the database.
         if ctx.role == "developer" and _is_test_file(ctx.conn, path):
             raise ValueError(
-                f"{path} is a test file, and the tests are the Tester's. The "
+                f"{path} {TEST_FILE_REFUSAL}. The "
                 f"harness runs the tests on record; a test you cannot pass "
                 f"is `msg.challenge_tester`, not a rewrite")
         # An entry point keeps its main guard. tipsR (2026-09-09): main.py
@@ -24039,6 +24045,28 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             return {"committed": False, "why": "nothing changed",
                     "note": ("the tree is exactly as you found it. You have "
                              "sent your message: end the session")}
+        # Frame 360 (ruled: Roman, 2026-11-02 17:14, shape A): an unchanged
+        # tree on a batch with no head is a claim that the code already
+        # meets the criteria. The fork becomes the head, so the Tester's
+        # tests and the harness check the claim. On dry2, three such
+        # sessions counted as failed starts, and the page said the team
+        # gave up. A session whose write to the program a door refused
+        # meant a change, so it claims nothing (night 163's bg_2).
+        head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                                (ctx.batch_id,)).fetchone()
+        refused = any(r[0] == "code.write" and TEST_FILE_REFUSAL not in r[1]
+                      for r in (getattr(ctx, "refusals", None) or []))
+        fork = worktrees.head(tree)
+        if head is not None and not head["head_commit"] and not refused and fork:
+            ctx.writes.append(("batches", ctx.batch_id,
+                               {"head_commit": fork, "claimed_head": fork},
+                               False))
+            return {"committed": False, "why": "nothing changed",
+                    "claimed": fork,
+                    "note": ("the tree is exactly as you found it. You "
+                             "claimed the criteria are met. The Tester's "
+                             "tests check the claim. Now end the session, "
+                             "with no message to anybody")}
         return {"committed": False, "why": "nothing changed",
                 "note": ("the tree is exactly as you found it. If the "
                          "criteria are already met, say so in your reply and "

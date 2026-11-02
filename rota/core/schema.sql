@@ -520,6 +520,12 @@ CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer
     item_id   TEXT NOT NULL REFERENCES items(id),
     worktree  TEXT,
     head_commit TEXT,                        -- last commit the DB has a receipt for
+    -- The fork commit that `code.commit` wrote as the head when the tree was
+    -- unchanged: the Developer claimed that the code already meets the
+    -- criteria, and the Tester's tests check the claim. The batch is a claim
+    -- while this equals `head_commit`. A later commit is a change, and the
+    -- mark then names an old head (frame 360, ruled: Roman, 2026-11-02 17:14).
+    claimed_head TEXT,
     status    TEXT NOT NULL DEFAULT 'pending'
               CHECK (status IN ('pending','running','deferred','merged','abandoned')),
     -- The first port of this batch's reserved range, assigned by the scheduler
