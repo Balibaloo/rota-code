@@ -31,7 +31,7 @@ From `plans/dry1-turn16-read-2026-11-02.md`, section 6, both priced 2 cycles:
 
 ## dry1, where it stands
 
-The live database `D:/repos/rota/.rota/dry1.db` holds bg_1 merged and two open pages, m144 and m145. The dry1 worktree `C:/Users/roman/rota_dry1` is at 21a2380a; move it to the gated head before turn 17. Turn 17 is the seat's answer to m144 and m145 as a careful person would give it: the change merged and nothing stopped, and the notes are not a request. Each turn so far found a wall; expect one. Copies: `dry1w9/` after turn 15b, `dry1w9b/` before turn 16's row change, `dry1w10/` after turn 16, all in this session's scratchpad. Never point a test at the live file. The scripts of turns 15a, 15b and 16 are in the scratchpad as the shape.
+Turn 17 ran at 054b461e, 03:56 to 04:00, 12 sessions. The seat answered m144 with 'this page is wrong, the change merged', and m145 with 'I asked for none of these notes, drop every note and build nothing'. The Liaison read the second as a drop of the project description `how_it_works` and the brief's items s1 to s3. The Vision Keeper defended on `tick:contested` three times, three clarifies m152, m154 and m156 ask whether the drop deletes the scope, the present m157 shows the description again with 'ok approves all of this and starts building', and the contested key quarantined at 3. Four things wait on the seat. This is the eighth wall: the m145 push, the survey's notes put to him, and frame 357's shape at a third site, a drop read as a contest that the Vision Keeper defends. It needs a read on the dry1w11 copy before any fix, by the rule of 2026-10-18, and the m145 push when the economy allows. The dry1 worktree `C:/Users/roman/rota_dry1` is at 054b461e. Copies: `dry1w9/` after turn 15b, `dry1w9b/` before turn 16's row change, `dry1w10/` after turn 16, `dry1w11/` after turn 17, all in this session's scratchpad. Never point a test at the live file. The scripts of turns 15a, 15b, 16 and 17 are in the scratchpad as the shape.
 
 ## Doubts the taker should hold
 
@@ -42,6 +42,6 @@ The live database `D:/repos/rota/.rota/dry1.db` holds bg_1 merged and two open p
 
 ## Records
 
-The briefs and reports are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/066a0dbd-4073-40a3-ae58-5d6d5157faf7/scratchpad/`: `dry1_turn15_read_brief.md`, `dry1_turn16_read_brief.md`, `f330_pass4_brief.md` and `f330_pass4_report.md` with pass 4b, `f330_review_p4_brief.md`, `f330_pass5_brief.md` and `f330_pass5_report.md` with pass 5b, `dry1_turn15a.sh`, `dry1_turn15b.sh`, `dry1_turn16.sh`. The reviewers' probes are in `rv4/` and `rv5/`, the readers' in `w7read/` and `w8read/`. Roman's rulings this session: none.
+The briefs and reports are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/066a0dbd-4073-40a3-ae58-5d6d5157faf7/scratchpad/`: `dry1_turn15_read_brief.md`, `dry1_turn16_read_brief.md`, `f330_pass4_brief.md` and `f330_pass4_report.md` with pass 4b, `f330_review_p4_brief.md`, `f330_pass5_brief.md` and `f330_pass5_report.md` with pass 5b, `dry1_turn15a.sh`, `dry1_turn15b.sh`, `dry1_turn16.sh`, `dry1_turn17.sh`. The reviewers' probes are in `rv4/` and `rv5/`, the readers' in `w7read/` and `w8read/`. Roman's rulings this session: none.
 
 This session keeps the end of its context to answer the taker.
