@@ -1887,9 +1887,16 @@ def park_ask(conn) -> list[Wake]:
                          for k in keys)
         # A park on the challenge count has no key to name, so the detail
         # carries the first rung's clause (review p2 of frame 278).
-        from .scheduler import challenge_words
+        from . import config
+        from .scheduler import challenge_words, failing_attempt, park_reds
 
-        what = "; ".join(p for p in (what, challenge_words(conn, b["id"])) if p)
+        # A park at `loop_cap` has no key either, so the detail names the
+        # cap and the red tests (frame 330, pass 3).
+        tries, cap = failing_attempt(conn, b["id"]), config.get(conn, "loop_cap")
+        reds = [r["test_id"] for part in park_reds(conn, b["id"]) for r in part]
+        capped = (f"attempt {tries} of {cap} with {', '.join(reds)} red"
+                  if tries >= cap and reds else "")
+        what = "; ".join(p for p in (what, capped, challenge_words(conn, b["id"])) if p)
         kind = "note" if park_rows(conn, b["id"]) == [b["id"]] else "page"
         out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
                         detail=f"{b['id']} is parked. The team gave up on: {what}. "

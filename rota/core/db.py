@@ -1121,6 +1121,14 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                     (f"%|{b}", f"%|{b},%", f"%,{b}", f"%,{b},%"))
                     if not _row_move_reaches(r["tick_key"], red_moved))
                 _forget_batch_counts(conn, b, keep=spared)
+                # His revise or contest on the park page restarts the
+                # attempt counter with the keys. The counter is the MAX of
+                # `test_runs.attempt` (`lifecycle.next_attempt`), so the
+                # batch's runs go. Dry1 turn 14: his answer bought two
+                # attempts of ten (frame 330, pass 3). `test_run_journal`
+                # keeps the history.
+                if red_moved and _ruled_park(conn, b):
+                    conn.execute("DELETE FROM test_runs WHERE batch_id = ?", (b,))
 
 
 def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
@@ -1223,6 +1231,21 @@ def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
     if n:
         _lift_quarantines(conn, w, _subject_moved(conn, w, before))
     return n
+
+
+def _ruled_park(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """A deferred batch whose newest closed park ask holds his landed
+    revise or contest on a row."""
+    from .scheduler import PARK_ASK, _PARK_BATCH_AT, park_ruling
+
+    row = conn.execute(
+        "SELECT m.id FROM messages m JOIN batches b ON b.id = ? "
+        "WHERE b.status = 'deferred' AND m.status != 'open' "
+        "AND substr(m.id, 1, ?) = ? AND substr(m.id, ?) = ? "
+        "ORDER BY m.seq DESC LIMIT 1",
+        (batch_id, len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()
+    ruled = park_ruling(conn, row["id"]) if row else None
+    return any(v != "approve" for v in (ruled or {}).values())
 
 
 def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:

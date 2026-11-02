@@ -336,3 +336,89 @@ def test_a_deferred_batch_s_given_up_key_still_parks_it(night_168):
     assert parked(night_168, "batch_1")
     assert _ladder(night_168) == []
     assert [r["id"] for r in next_batch(night_168)] == ["batch_2"]
+
+
+# Pass 3: dry1 after turn 14. `bg_1` is deferred at head 4fcd6d7 with
+# `tst_waited` red at attempt 10 of 10, no key given up, and one challenge
+# since the closed park ask m_park_421158fa15_bg_1 at seq 126.
+DRY1_HEAD = "4fcd6d73f6fc05cdcb9fda0770f6cb6928335956"
+DRY1_ASK = "m_park_421158fa15_bg_1"
+
+
+@pytest.fixture
+def dry1_turn14(tmp_path):
+    conn = init_db(tmp_path / "rota.db")
+    item = "click_pause_returns_true_on_key"
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version, priority) VALUES (?, 'x', 'in_scope', 'approved', "
+                 "1, 1, 1)", (item,))
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree, head_commit) "
+                 "VALUES ('bg_1', ?, 'deferred', 'wt/bg_1', ?)", (item, DRY1_HEAD))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', ?, 'x')", (item,))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_1', 'tk_1')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) "
+                 "VALUES ('tk_1_criteria_waited', 'tk_1', 'x')")
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+                 "('tst_waited', 'bg_1', 'tk_1_criteria_waited', "
+                 "'tests/test_termui_tk_1_criteria_waited.py', 'b')")
+    conn.execute("INSERT INTO tests (id, batch_id, path, body) "
+                 "VALUES ('inh_51d478df', 'bg_1', 'tests/test_termui.py', 'b')")
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                 "output, attempt) VALUES ('tr_w', 'bg_1', 'tst_waited', ?, 'fail', "
+                 "'E   ValueError: I/O operation on closed file', 10)", (DRY1_HEAD,))
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                 "attempt) VALUES ('tr_i', 'bg_1', 'inh_51d478df', ?, 'pass', 10)",
+                 (DRY1_HEAD,))
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq, status) VALUES (?, ?, 'liaison', 'principal', "
+                 "'clarify', ?, 126, 'answered')",
+                 (DRY1_ASK, DRY1_ASK, f'["{item}", "tk_1_criteria_waited"]'))
+    conn.commit()
+    return conn
+
+
+def test_a_park_at_the_cap_owns_the_park_page(dry1_turn14):
+    """Point 3 of the park ruling of 2026-10-08: a criterion's own test is
+    red, so the page goes to the principal. Turn 14 opened no ask."""
+    assert scheduler.gave_up(dry1_turn14, "bg_1")
+    assert parked(dry1_turn14, "bg_1")
+    assert scheduler.park_owns(dry1_turn14, "bg_1")
+    assert next_batch(dry1_turn14) == []
+    (wake,) = P.park_ask(dry1_turn14)
+    assert wake.detail == ("bg_1 is parked. The team gave up on: attempt 10 of 10 "
+                           "with tst_waited red. It is a page.")
+    assert scheduler.park_rows(dry1_turn14, "bg_1") == [
+        "click_pause_returns_true_on_key", "tk_1_criteria_waited"]
+
+
+def test_his_revise_on_the_park_page_restarts_the_attempt_counter(dry1_turn14,
+                                                                  monkeypatch):
+    """Turn 14: his answer bought two attempts, because the lift reset the
+    keys and not the counter."""
+    from rota.core import lifecycle
+    from rota.core.db import SessionResult, Write, session_commit
+
+    monkeypatch.setattr(scheduler, "park_ruling",
+                        lambda conn, mid: ({"tk_1_criteria_waited": "revise"}
+                                           if mid == DRY1_ASK else None))
+    session_commit(dry1_turn14, SessionResult(
+        session_id="s252", role="terminologist",
+        writes=[Write("criteria", "tk_1_criteria_waited", {"text": "v2"},
+                      op="update")]))
+    assert lifecycle.next_attempt(dry1_turn14, "bg_1") == 1
+    assert scheduler.failing_attempt(dry1_turn14, "bg_1") == 0
+    assert not parked(dry1_turn14, "bg_1")
+    assert [r["id"] for r in next_batch(dry1_turn14)] == ["bg_1"]
+
+
+def test_an_approve_on_the_park_page_keeps_the_counter(dry1_turn14, monkeypatch):
+    from rota.core import lifecycle
+    from rota.core.db import SessionResult, Write, session_commit
+
+    monkeypatch.setattr(scheduler, "park_ruling",
+                        lambda conn, mid: {"tk_1_criteria_waited": "approve"})
+    session_commit(dry1_turn14, SessionResult(
+        session_id="s252", role="terminologist",
+        writes=[Write("criteria", "tk_1_criteria_waited", {"text": "v2"},
+                      op="update")]))
+    assert lifecycle.next_attempt(dry1_turn14, "bg_1") == 11

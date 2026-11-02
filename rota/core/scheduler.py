@@ -2039,7 +2039,8 @@ def challenged_reds(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
 def gave_up(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     The team gave up on the batch at its head: `given_up` lists a key of
-    it, or `challenged_reds` lists a red test run at its head commit.
+    it, or its failing attempt reached `loop_cap` with a red run at its
+    head commit, or `challenged_reds` lists a red test run at that commit.
     The count reads any batch status.
     """
     # Review p1 of frame 278, H2: a batch deferred on the count alone was
@@ -2047,6 +2048,14 @@ def gave_up(conn: sqlite3.Connection, batch_id: str) -> bool:
     # head in `db._lift_quarantines`. The count has no reset, so the run
     # at an older commit ends the park the same way (frame 278, pass 2b).
     if given_up(conn, batch_id):
+        return True
+    # A park at `loop_cap` owes the page too. Point 3 of the park ruling
+    # of 2026-10-08 sends it when a criterion's own test is red. Dry1 turn
+    # 14 parked at the cap with no key, so no ask opened (frame 330, pass 3).
+    from . import config
+
+    if (failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap")
+            and _red_at_head(conn, batch_id)):
         return True
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch_id,)).fetchone()
@@ -2707,6 +2716,11 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # Only the harness tests it, and the harness tests running batches only.
     # Without this exit the park is for ever (observed: frame 86's pass 2
     # review, 2026-09-25). The ladder is not asked again for the new commit.
+    return _red_at_head(conn, batch_id)
+
+
+def _red_at_head(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """A failing latest run of the batch at its head commit."""
     return bool(conn.execute(
         "SELECT 1 FROM latest_runs r JOIN batches b ON b.id = r.batch_id "
         "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
