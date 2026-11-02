@@ -1136,3 +1136,125 @@ def test_an_approve_of_every_line_of_a_tester_give_up_page_is_the_ceiling(dry1):
     assert ("Stuck: bg_1 stops here. You approved its lines as they stand, and the "
             "team could not write the tests. A new commit on the change starts it "
             "again.") in render_state(dry1)
+
+
+# Frame 330, pass 4: dry1 turn 15b. The park page of bg_1 at attempt 10 of
+# 10, with tst_waited red. The rows are the dry1w9 copy's. The page's refs
+# are the item and the criteria, and its order adds each check line.
+DRY1_PAGE = "m_park_a162344dbf_bg_1"
+DRY1_REFS = [ITEM_DRY1, "tk_1_criteria_skipped", "tk_1_criteria_terminal_check",
+             "tk_1_criteria_waited"]
+DRY1_ORDER = [ITEM_DRY1, "tk_1_criteria_skipped", "tst_skipped",
+              "tk_1_criteria_terminal_check", "inh_03a1b2c3",
+              "tk_1_criteria_waited", "tst_waited"]
+DRY1_WORDS = ("Line 7's check is wrong, and line 6 stands. The test patches "
+              "sys.stdout, sys.__stdout__ and sys.stdin with mocks beside the "
+              "right targets, so echo writes to a closed stream and raises the "
+              "ValueError.")
+
+
+@pytest.fixture
+def dry1_turn15(tmp_path):
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
+                 "priority) VALUES (?, ?, 'in_scope', 'approved', 1, 1, 1)",
+                 (ITEM_DRY1, ITEM_DRY1_TEXT))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', ?, 'the ticket')",
+                 (ITEM_DRY1,))
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree, head_commit) "
+                 "VALUES ('bg_1', ?, 'deferred', 'wt/bg_1', ?)", (ITEM_DRY1, HEAD_DRY1))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_1', 'tk_1')")
+    for crit, text in DRY1_CRITERIA:
+        conn.execute("INSERT INTO criteria (id, ticket_id, text, version) "
+                     "VALUES (?, 'tk_1', ?, 1)", (crit, text))
+    for n, (test, crit, result) in enumerate((
+            ("tst_skipped", "tk_1_criteria_skipped", "pass"),
+            ("inh_03a1b2c3", "tk_1_criteria_terminal_check", "pass"),
+            ("tst_waited", "tk_1_criteria_waited", "fail")), 1):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                     "VALUES (?, 'bg_1', ?, ?, 'b', 1)",
+                     (test, crit, f"tests/test_termui_{crit}.py"))
+        conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                     "output, attempt) VALUES (?, 'bg_1', ?, ?, ?, 'o', 10)",
+                     (f"tr{n}", test, HEAD_DRY1, result))
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq, status) VALUES (?, ?, 'liaison', 'principal', "
+                 "'present', ?, 143, 'open')",
+                 (DRY1_PAGE, DRY1_PAGE, json.dumps(DRY1_REFS)))
+    conn.commit()
+    return conn
+
+
+def _dry1_lands(conn, per_item: dict) -> dict:
+    """His ruling lands on the page as the Liaison rendered it, and the new
+    verdict row returns."""
+    mid = land(conn, Ask(message_id=DRY1_PAGE, verb="present", refs=DRY1_REFS,
+                         order=DRY1_ORDER),
+               Answer(verb="verdict", per_item=per_item, text=DRY1_WORDS))
+    return conn.execute("SELECT id, status FROM messages WHERE id = ?",
+                        (mid,)).fetchone()
+
+
+def _contest_of_line_7() -> dict:
+    return {**{r: "approve" for r in DRY1_ORDER}, "tst_waited": "contest"}
+
+
+def test_a_contest_of_the_check_line_alone_keeps_the_park_verdict_open(dry1_turn15):
+    """Dry1 turn 15b: r_m139 contested line 7, the check of tst_waited, and
+    approved every other line. The verdict m140 closed as the ceiling, so no
+    Liaison woke and no Tester rewrote the test (the park ruling of
+    2026-10-08, point 2)."""
+    from rota.core.runner import _mode_key
+
+    verdict = _dry1_lands(dry1_turn15, _contest_of_line_7())
+    assert verdict["status"] == "open"
+    (wake,) = [w for w in open_tips(dry1_turn15) if w.message_id == verdict["id"]]
+    assert _mode_key(wake, dry1_turn15) == "verdict_signoff"
+
+
+def test_an_approve_of_every_line_of_the_park_page_is_still_the_ceiling(dry1_turn15):
+    verdict = _dry1_lands(dry1_turn15, {r: "approve" for r in DRY1_ORDER})
+    assert verdict["status"] == "answered"
+
+
+def test_an_approve_of_the_refs_alone_is_still_the_ceiling(dry1_turn15):
+    """An "ok" that names no check line approves the page whole."""
+    verdict = _dry1_lands(dry1_turn15, {r: "approve" for r in DRY1_REFS})
+    assert verdict["status"] == "answered"
+
+
+def test_the_door_relays_the_contested_check_s_criterion_to_the_terminologist(
+        dry1_turn15):
+    """The verdict_signoff session that sends nothing still relays the
+    criterion of the contested test (frame 213, route B)."""
+    from rota.core.sandbox import build, stage_park_relay
+    from rota.roles import prompts
+
+    verdict = _dry1_lands(dry1_turn15, _contest_of_line_7())
+    sb = build("liaison", dry1_turn15, mode="normal", session_id="s262",
+               allow=prompts.mode_tools("liaison", "verdict_signoff"))
+    sb.ctx.trigger = verdict["id"]
+    stage_park_relay(sb.ctx)
+    assert [(m["to_role"], m["verb"], m["body_refs"]) for m in sb.ctx.outbound] == [
+        ("terminologist", "relay", ["tk_1_criteria_waited"])]
+
+
+def test_the_tester_s_rewrite_from_the_ruled_words_restarts_the_counter(dry1_turn15):
+    """The chain m140, the relay and the Terminologist's answer leads the
+    Tester's move to his ruling on the current page (frame 330, pass 3b)."""
+    from rota.core import lifecycle
+    from rota.core.db import SessionResult, Write, session_commit
+
+    verdict = _dry1_lands(dry1_turn15, _contest_of_line_7())
+    for mid, cause, frm, to, verb, seq in (
+            ("m141", verdict["id"], "liaison", "terminologist", "relay", 146),
+            ("m142", "m141", "terminologist", "tester", "answer", 147)):
+        dry1_turn15.execute(
+            "INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+            "verb, body_refs, seq, status) VALUES (?, ?, ?, ?, ?, ?, "
+            "'[\"tk_1_criteria_waited\"]', ?, 'answered')",
+            (mid, cause, DRY1_PAGE, frm, to, verb, seq))
+    session_commit(dry1_turn15, SessionResult(
+        session_id="s264", role="tester", trigger_msg="m142",
+        writes=[Write("tests", "tst_waited", {"body": "b2"}, op="update")]))
+    assert lifecycle.next_attempt(dry1_turn15, "bg_1") == 1

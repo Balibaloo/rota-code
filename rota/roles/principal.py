@@ -3726,10 +3726,15 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # A park page approved whole is the ceiling. The team stops here and the
     # parked line says so, so no Liaison session wakes on the verdict
     # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 5).
+    # A check line is a ruled line and no ref since aa999fd1, so a contest of
+    # it left the verdict closed and reached no Tester (frame 330, pass 4).
+    # An "ok" that names no check line still approves the page whole.
     from ..core.scheduler import park_ask_batch
 
+    lines = {*ask.refs, *ask.order}
     if (ask.verb == "present" and park_ask_batch(ask.message_id or "")
-            and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)):
+            and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)
+            and all(v == "approve" for r, v in per_item.items() if r in lines)):
         settled = True
     conn.execute(
         "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "

@@ -5252,11 +5252,19 @@ def stage_park_relay(ctx: api.Ctx) -> None:
     # finding 1; ruled: Roman, 2026-10-08, the park ask is a page with rows,
     # point 2).
     from .runner import new_id
-    from .scheduler import park_verdict_criteria, verdict_rows
+    from .scheduler import park_verdict_criteria, ruled_criteria, verdict_rows
 
     if getattr(ctx, "role", None) != "liaison" or not getattr(ctx, "trigger", None):
         return
-    contested = park_verdict_criteria(ctx.conn, ctx.trigger)
+    # A ruled test row travels as its criterion (frame 213, route B). A
+    # verdict that contests a check line alone staged no relay, so its
+    # criterion reached no Tester (frame 330, pass 4). The verdict's own rows
+    # leave `ruled_criteria` here, because a criterion off the page stays out.
+    rows = verdict_rows(ctx.conn, ctx.trigger)
+    tested = ([c for c in ruled_criteria(ctx.conn, ctx.trigger) if c not in rows]
+              if rows is not None else [])
+    contested = list(dict.fromkeys(
+        park_verdict_criteria(ctx.conn, ctx.trigger) + tested))
     if not contested:
         return
     held = [m for m in ctx.outbound
