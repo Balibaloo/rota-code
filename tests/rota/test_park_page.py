@@ -1212,6 +1212,27 @@ def test_a_contest_of_the_check_line_alone_keeps_the_park_verdict_open(dry1_turn
     assert _mode_key(wake, dry1_turn15) == "verdict_signoff"
 
 
+def test_the_liaison_s_ruling_of_the_check_line_lands_an_open_verdict(dry1_turn15):
+    """Review p4 of frame 330, high 1: dry1's r_m139 came through
+    `apply_rulings`, whose ask has no order, so the ceiling read the refs
+    alone and m140 closed. The order is the record of his reply m139."""
+    from rota.roles.principal import apply_rulings
+
+    conn = dry1_turn15
+    conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+                 "verb, body_refs, body_text, seq, status) VALUES ('m139', ?, ?, "
+                 "'principal', 'liaison', 'converse', ?, ?, 144, 'answered')",
+                 (DRY1_PAGE, DRY1_PAGE, json.dumps(DRY1_REFS), DRY1_WORDS))
+    conn.execute("INSERT INTO config (key, value) VALUES ('order:m139', ?)",
+                 (json.dumps(DRY1_ORDER),))
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
+                 "VALUES ('r_m139', ?, 'm139', ?, ?, 'open')",
+                 (DRY1_PAGE, json.dumps(_contest_of_line_7()), DRY1_WORDS))
+    (mid,) = apply_rulings(conn)
+    assert conn.execute("SELECT status FROM messages WHERE id = ?",
+                        (mid,)).fetchone()["status"] == "open"
+
+
 def test_an_approve_of_every_line_of_the_park_page_is_still_the_ceiling(dry1_turn15):
     verdict = _dry1_lands(dry1_turn15, {r: "approve" for r in DRY1_ORDER})
     assert verdict["status"] == "answered"

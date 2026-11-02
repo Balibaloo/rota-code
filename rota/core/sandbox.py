@@ -5252,17 +5252,19 @@ def stage_park_relay(ctx: api.Ctx) -> None:
     # finding 1; ruled: Roman, 2026-10-08, the park ask is a page with rows,
     # point 2).
     from .runner import new_id
-    from .scheduler import park_verdict_criteria, ruled_criteria, verdict_rows
+    from .scheduler import park_verdict_criteria, verdict_rows
 
     if getattr(ctx, "role", None) != "liaison" or not getattr(ctx, "trigger", None):
         return
     # A ruled test row travels as its criterion (frame 213, route B). A
     # verdict that contests a check line alone staged no relay, so its
-    # criterion reached no Tester (frame 330, pass 4). The verdict's own rows
-    # leave `ruled_criteria` here, because a criterion off the page stays out.
-    rows = verdict_rows(ctx.conn, ctx.trigger)
-    tested = ([c for c in ruled_criteria(ctx.conn, ctx.trigger) if c not in rows]
-              if rows is not None else [])
+    # criterion reached no Tester (frame 330, pass 4). The query reads the
+    # test rows only, so a criterion row of the verdict never hides a test's
+    # criterion (review p4 of frame 330, low 1).
+    tested = [r["criterion_id"] for r in ctx.conn.execute(
+        "SELECT criterion_id FROM tests WHERE criterion_id IS NOT NULL AND id IN "
+        "(SELECT value FROM json_each(?))",
+        (json.dumps(verdict_rows(ctx.conn, ctx.trigger) or []),))]
     contested = list(dict.fromkeys(
         park_verdict_criteria(ctx.conn, ctx.trigger) + tested))
     if not contested:
@@ -5285,10 +5287,6 @@ def stage_park_relay(ctx: api.Ctx) -> None:
         # 4ef3bd9f, finding 2).
         # A ruled test row travels as its criterion (frame 213, route B), so
         # that criterion stays beside the contested lines.
-        tested = [r["criterion_id"] for r in ctx.conn.execute(
-            "SELECT criterion_id FROM tests WHERE criterion_id IS NOT NULL AND id IN "
-            "(SELECT value FROM json_each(?))",
-            (json.dumps(verdict_rows(ctx.conn, ctx.trigger) or []),))]
         crit[0]["body_refs"] = list(dict.fromkeys(
             list(contested) + [r for r in tested if r in crit[0]["body_refs"]]))
         for m in crit[1:]:

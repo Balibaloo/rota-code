@@ -3729,13 +3729,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # A check line is a ruled line and no ref since aa999fd1, so a contest of
     # it left the verdict closed and reached no Tester (frame 330, pass 4).
     # An "ok" that names no check line still approves the page whole.
+    # `apply_rulings` passes no order, so the lines come from his reply's
+    # record. Dry1's r_m139 came by that path (review p4 of frame 330, high 1).
     from ..core.scheduler import park_ask_batch
 
-    lines = {*ask.refs, *ask.order}
     if (ask.verb == "present" and park_ask_batch(ask.message_id or "")
-            and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)
-            and all(v == "approve" for r, v in per_item.items() if r in lines)):
-        settled = True
+            and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)):
+        lines = {*ask.refs, *(ask.order or seen_order(
+            conn, _reply_of(conn, ruling_id), ask))}
+        if all(v == "approve" for r, v in per_item.items() if r in lines):
+            settled = True
     conn.execute(
         "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
         "to_role, verb, body_refs, seq, status) "
