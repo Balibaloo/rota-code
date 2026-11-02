@@ -5209,7 +5209,10 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
             # from "the write was refused", which are different results.
             refusals = getattr(ctx, "refusals", None)
             if refusals is not None:
-                refusals.append((label, str(exc), type(exc).__name__))
+                # The path decides whether a refused write meant a change
+                # to the program or to a test (frame 360, review p1, F2).
+                refusals.append((label, str(exc), type(exc).__name__,
+                                 kwargs.get("path")))
             raise
 
     wrapper.__name__ = label.replace(".", "_")

@@ -133,7 +133,9 @@ def test_the_measure_on_dry2w3(dry2w3):
         "the Tester is not woken for the claimed batch"
     # The four inherited tests of b_2 are owed a run at the claimed head.
     assert ("b_2",) in [w.refs for w in predicates.harness(db)]
-    assert lifecycle.mergeable(db, "b_2") != "nothing committed"
+    # The gate now waits on the Tester, the next step of the claim (review
+    # p1, F4).
+    assert lifecycle.mergeable(db, "b_2") == "criteria without a test: c_10, c_5"
 
 
 # ---------------------------------------------------------------------------
@@ -321,3 +323,122 @@ def test_an_older_database_gains_the_mark(tmp_path):
     assert db.execute("SELECT claimed_head FROM batches WHERE id = 'b1'"
                       ).fetchone()[0] is None
     assert "Done: 1 change built, tested and merged." in render_state(db)
+
+
+# ---------------------------------------------------------------------------
+# Pass 1b: the findings of review p1 (plans/f360-review-p1.md)
+# ---------------------------------------------------------------------------
+
+# The fixture's `formatting.py` with one line inside `plural` changed, as in
+# `test_developer.py`, so the commit drops nothing.
+REWRITTEN = '''ELLIPSIS = chr(8230)
+
+
+def truncate(text, limit=72):
+    return text if len(text) <= limit else text[: limit - 1] + ELLIPSIS
+
+
+def plural(count, singular, plural_form=None):
+    if count == 1:
+        return "1 " + singular
+    return f"{count} {plural_form or singular + 's'}"
+'''
+
+
+def test_the_shift_page_does_not_call_a_claim_built(project):
+    """F1: before the merge, the shift page said "The change b1 is built"
+    for a claim. The ruling puts "No code changed" in front of the seat."""
+    from rota.roles.principal import _shift_where
+
+    db, _ = project
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.commit", message="the criteria are met")
+    _land(db, sb)
+
+    said = _shift_where(db, "i1")
+
+    assert "built" not in said, said
+    assert "no code" in said.lower(), said
+    assert "tests check the claim" in said, said
+
+
+def test_a_refused_test_write_does_not_block_the_claim(project):
+    """F2: a write to a test file that the parse door refuses carries other
+    words than the test-file refusal. The path decides the side, so the
+    session still claims."""
+    db, _ = project
+    sb = build("developer", db, batch_id="b1")
+    with pytest.raises(ValueError):
+        sb.call("code.write", path="tests/test_formatting.py",
+                text="def test_x(: pass")
+    assert sb.ctx.refusals and "test file" not in sb.ctx.refusals[-1][1]
+
+    out = sb.call("code.commit", message="the criteria are met")
+
+    assert CLAIM_NOTE in out["note"], out
+    assert len(_heads(sb)) == 1
+
+
+def test_a_real_commit_after_a_claim_clears_the_mark(project):
+    """F7: the claim went red and the Developer changed the code. The batch
+    is a change now, so the mark goes."""
+    db, _ = project
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.commit", message="the criteria are met")
+    _land(db, sb, sid="s_claim")
+    assert db.execute("SELECT claimed_head FROM batches WHERE id = 'b1'"
+                      ).fetchone()[0]
+
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
+    out = sb.call("code.commit", message="the change")
+    assert out["committed"] is True
+    _land(db, sb, sid="s_change")
+
+    row = db.execute("SELECT head_commit, claimed_head FROM batches "
+                     "WHERE id = 'b1'").fetchone()
+    assert row["head_commit"] == out["head_commit"]
+    assert row["claimed_head"] is None
+
+
+def test_the_notes_tail_does_not_join_the_claimed_line(tmp_path):
+    """F3: the notes tail appended to the claimed line read "These tests
+    ... They carry". The claimed line stands as its own line."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x','in_scope')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, "
+               "claimed_head) VALUES ('b1', 'i1', 'merged', 'bbb', 'bbb')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('l1', 'i1', 'items', 'the team chose', "
+               "'parked', 'developer')")
+    db.commit()
+
+    lines = render_state(db).splitlines()
+
+    assert CLAIMED_LINE in lines, lines
+    assert any("carries 1 choice" in line for line in lines), lines
+
+
+def test_a_boot_reconcile_keeps_the_claim_over_its_tests_commit(world):
+    """F6: the merge commits the tests in the worktree, a conflict defers
+    the batch, and the boot then writes that commit as the head. The tests
+    commit changes no code, so the claim moves with the head."""
+    from rota.core.boot import reconcile_worktrees
+
+    db, repo, tree = world
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.commit", message="the criteria are met")
+    _land(db, sb)
+    db.execute("INSERT INTO tests (id, batch_id, path, body) VALUES "
+               "('tst1','b1','tests/test_probe_f360.py','def test_x(): pass')")
+    db.execute("UPDATE batches SET status = 'deferred' WHERE id = 'b1'")
+    db.commit()
+    repo.edit(tree, "tests/test_probe_f360.py", "def test_x(): pass\n")
+    tests_commit = repo.commit_in(tree, "rota: tests of b1")
+
+    reconcile_worktrees(db)
+
+    row = db.execute("SELECT head_commit, claimed_head FROM batches "
+                     "WHERE id = 'b1'").fetchone()
+    assert row["head_commit"] == tests_commit
+    assert row["claimed_head"] == tests_commit

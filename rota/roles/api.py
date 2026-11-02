@@ -7788,9 +7788,24 @@ def _test_shaped(f: str) -> bool:
 
 
 # The refusal of a Developer's write to a test file. `code.commit` reads it in
-# the session's refusals: a refused test write does not undo a claim, and a
-# refused write to the program does (frame 360).
+# a refusal that kept no path (frame 360).
 TEST_FILE_REFUSAL = "is a test file, and the tests are the Tester's"
+
+
+def _program_write_refused(ctx, refusal: tuple) -> bool:
+    """Whether a refusal of this session refused a write to the program.
+
+    A refused test write does not undo a claim, and a refused write to the
+    program does (frame 360). The path decides the side, whichever door
+    refused it (review p1, F2). The runner's repeat refusal keeps no path,
+    and the first refusal of the same call has decided already."""
+    label, why, *rest = refusal
+    if label != "code.write" or (rest and rest[0] == "Repeat"):
+        return False
+    path = rest[1] if len(rest) > 1 else None
+    if path is None:
+        return TEST_FILE_REFUSAL not in why
+    return not _is_test_file(ctx.conn, str(path))
 
 
 def _is_test_file(conn, path: str) -> bool:
@@ -24054,7 +24069,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         # meant a change, so it claims nothing (night 163's bg_2).
         head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                                 (ctx.batch_id,)).fetchone()
-        refused = any(r[0] == "code.write" and TEST_FILE_REFUSAL not in r[1]
+        refused = any(_program_write_refused(ctx, r)
                       for r in (getattr(ctx, "refusals", None) or []))
         fork = worktrees.head(tree)
         if head is not None and not head["head_commit"] and not refused and fork:
@@ -24074,7 +24089,14 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                          "you were going to change the code, the change "
                          "comes first: code.write, then commit")}
 
-    ctx.writes.append(("batches", ctx.batch_id, {"head_commit": sha}, False))
+    # A real commit after a claim makes the batch a change, so the mark goes
+    # (frame 360, review p1, F7).
+    claim = ctx.conn.execute("SELECT claimed_head FROM batches WHERE id = ?",
+                             (ctx.batch_id,)).fetchone()
+    ctx.writes.append(("batches", ctx.batch_id,
+                       {"head_commit": sha, "claimed_head": None}
+                       if claim is not None and claim["claimed_head"]
+                       else {"head_commit": sha}, False))
     touched = worktrees.touched(tree)
     # Detector two (`core.divergence`): the paths this commit reached that
     # the batch's prediction never named. Recorded, never refused (law 12).

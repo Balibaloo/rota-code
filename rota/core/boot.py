@@ -167,6 +167,16 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
             write_state(conn, "batches", r["id"],
                         "UPDATE batches SET head_commit = ? WHERE id = ?",
                         (actual, r["id"]), fields={"head_commit": actual})
+            # The merge's tests commit on a claim changes no code, so the
+            # claim moves with the head (frame 360, review p1, F6).
+            claim = conn.execute("SELECT claimed_head FROM batches WHERE id = ?",
+                                 (r["id"],)).fetchone()["claimed_head"]
+            if claim and claim == r["head_commit"]:
+                from .worktrees import batch_furniture, changed_since
+
+                if set(changed_since(r["worktree"], claim)) <= batch_furniture(conn, r["id"]):
+                    conn.execute("UPDATE batches SET claimed_head = ? WHERE id = ?",
+                                 (actual, r["id"]))
     return diverged
 
 

@@ -370,8 +370,6 @@ def _render_state(conn: sqlite3.Connection) -> str:
     if built:
         out.append(f"Done: {built} change{'s' if built > 1 else ''} built, "
                    "tested and merged.")
-    if claimed:
-        out.append(CLAIMED_LINE)
     # A parked row is shown quietly, as a count that asks nothing (ruled:
     # Roman, 2026-10-11 15:00, frame 204's design, section 4).
     # Each kind has its own words: a `scope` row is not a choice (frame
@@ -394,8 +392,15 @@ def _render_state(conn: sqlite3.Connection) -> str:
             words.append(f"{n} other note{'s' if n > 1 else ''} from the team")
         listed = (words[0] if len(words) == 1
                   else ", ".join(words[:-1]) + " and " + words[-1])
-        carry = "They carry" if merged > 1 else "It carries"
-        out[-1] += f" {carry} {listed}. Ask me to show them."
+        # The tail joins the Done line only. On the claimed line, "They
+        # carry" read as the tests (frame 360, review p1, F3).
+        if built:
+            carry = "They carry" if built > 1 else "It carries"
+            out[-1] += f" {carry} {listed}. Ask me to show them."
+        else:
+            out.append(f"The merged work carries {listed}. Ask me to show them.")
+    if claimed:
+        out.append(CLAIMED_LINE)
     # A re-survey after a merge asks nothing, so the state view shows it as
     # one sentence and no page (frame 358).
     notes = resurvey_count(conn) if merged else 0
@@ -2538,6 +2543,22 @@ def _built_words(conn: sqlite3.Connection, batch: sqlite3.Row) -> str:
     runs = conn.execute(
         "SELECT result FROM latest_runs WHERE batch_id = ?",
         (batch["id"],)).fetchall()
+    # A claimed batch is not built: the team claims that the code already
+    # does this (frame 360, review p1, F1).
+    from ..core.db import _has_column
+
+    if _has_column(conn, "batches", "claimed_head") and conn.execute(
+            "SELECT 1 FROM batches WHERE id = ? AND claimed_head = head_commit",
+            (batch["id"],)).fetchone():
+        failing = sum(1 for r in runs if r["result"] in ("fail", "error"))
+        said = (f" The change {batch['id']} changes no code. The team claims "
+                f"that the code already does this, and the tests check the "
+                f"claim.")
+        if not runs:
+            return said + " No test has run yet."
+        if not failing:
+            return said + f" All {len(runs)} of its tests pass."
+        return said + f" {failing} of its {len(runs)} tests fail."
     if not runs:
         return f" The change {batch['id']} is built, and no test has run yet."
     failing = sum(1 for r in runs if r["result"] in ("fail", "error"))
