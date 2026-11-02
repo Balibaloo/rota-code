@@ -59,8 +59,8 @@ def _dry1_turn17(db):
     """The description, one re-survey note, the page m145, an open clarify
     m144 about the note, and his reply m147 read as a drop of both lines."""
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
-               "version) VALUES (?, 'Click builds command line interfaces.', "
-               "'in_scope', 'approved', 1, 1)", (HIW,))
+               "version, is_description) VALUES (?, 'Click builds command "
+               "line interfaces.', 'in_scope', 'approved', 1, 1, 1)", (HIW,))
     db.execute("INSERT INTO constraints (id, headline, text, is_global) "
                "VALUES (?, ?, 'Programs import click.get_current_context.', 1)",
                (NOTE, NOTE))
@@ -121,6 +121,46 @@ def test_a_later_approve_takes_the_objection_back(db):
     apply_rulings(db)
     assert not principal_objects(db, NOTE)
     assert f"click.get_current_context. ({NOT_MINE})" not in render_state(db)
+
+
+def test_a_drop_on_his_delivered_request_keeps_the_contest(db):
+    """Review p3, H1: his own delivered request is no row of the team. The
+    drop lands as at 19feac1a, contested and relayed to its owner."""
+    item = "click_pause_returns_true_on_key"
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1', 'principal', 'Make pause return True.', 1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1', 'e_m1', 0, 23, "
+               "'Make pause return True.', 'ratified')")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES (?, 'Make pause return True.', 'in_scope', "
+               "'approved', 1, 1)", (item,))
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('items', ?, 'statement', 's1')", (item,))
+    db.execute("INSERT INTO config (key, value) VALUES (?, '1')",
+               (f"delivered:{item}",))
+    _msg(db, "m150", 150, "liaison", "principal", "present", [item],
+         status="open")
+    _msg(db, "m151", 151, "principal", "liaison", "converse", [item],
+         cause="m150", text="Drop 1.")
+    _ruling(db, "r_m151", "m150", "m151", {item: "contest"}, "Drop 1.", "drop")
+    [verdict] = apply_rulings(db)
+    assert not principal_objects(db, item)
+    assert db.execute("SELECT approval FROM items WHERE id = ?",
+                      (item,)).fetchone()[0] == "contested"
+    row = db.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                     (verdict,)).fetchone()
+    assert (row["status"], json.loads(row["body_refs"])) == ("open", [item])
+    assert NOT_MINE not in render_page(db, "present", [item])[0]
+
+
+def test_the_state_view_counts_the_objections_while_an_ask_waits(db):
+    """Review p3, L1: the first ask hid the list of his objections."""
+    _dry1_turn17(db)
+    apply_rulings(db)
+    _msg(db, "m160", 160, "liaison", "principal", "clarify", ["other"],
+         status="open", text="Which file?")
+    assert "Rows you said are not yours: 2" in render_state(db)
 
 
 def test_a_drop_on_a_request_item_still_ends_it(db):

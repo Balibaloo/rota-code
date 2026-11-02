@@ -328,7 +328,11 @@ def _render_state(conn: sqlite3.Connection) -> str:
     if asks:
         head = ("Waiting on you." if len(asks) == 1
                 else f"Waiting on you: {len(asks)} things. The first is:")
-        return head + chr(10) + asks[0].rendered
+        # His objections stay visible while an ask waits (review p3 of
+        # frame 357, L1).
+        mine = len(objected_rows(conn))
+        tail = f"{chr(10)}Rows you said are not yours: {mine}" if mine else ""
+        return head + chr(10) + asks[0].rendered + tail
 
     def count(sql):
         row = conn.execute(sql).fetchone()
@@ -3943,10 +3947,16 @@ def _team_row(conn: sqlite3.Connection, ref: str) -> bool:
         return False
     if tables_of(conn, ref, among=["constraints", "glossary_terms"]):
         return True
-    item = conn.execute("SELECT approval FROM items WHERE id = ?",
-                        (ref,)).fetchone()
+    from ..core.runner import _is_description
+
+    # The ruling covers a row observed from the code only. His own request,
+    # delivered or not, keeps the contest path (review p3 of frame 357, H1).
+    item = conn.execute(
+        "SELECT i.approval, p.provenance FROM items i LEFT JOIN "
+        "item_provenance p ON p.id = i.id WHERE i.id = ?", (ref,)).fetchone()
     return (item is not None and item["approval"] != "dropped"
-            and not _is_request_item(conn, ref))
+            and (item["provenance"] == "observed"
+                 or _is_description(conn, ref)))
 
 
 def principal_objects(conn: sqlite3.Connection, ref: str) -> bool:
