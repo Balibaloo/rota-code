@@ -67,3 +67,13 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/066a0d
 ## Usage
 
 Input tokens: about 80k. Output tokens: about 14k. Total: about 94k. These numbers are estimates, because the harness shows no exact count.
+
+## Pass 4b
+
+Commit `b5b7514c` in `C:/Users/roman/rota_f354r`. Verdict: **stands**. High 1 and low 1 are closed. No new finding is high or medium.
+
+- Point 1, CONFIRMED. I ran `rv4/p1_ceiling.py` again. Through `apply_rulings`, `r_m139` lands `m140` as `open` (path B). With `ruling_id` and no order, `land` also gives `open` (path B2). The new probe `rv4/p3_allok_rulings.py` sets every line of `r_m139` to `approve` and lands it through `apply_rulings`. Then `m140` is `answered`. Paths A, C, D and E give the same results as before.
+- Point 1, the order source, CONFIRMED by reading. The ceiling reads `ask.order or seen_order(conn, _reply_of(conn, ruling_id), ask)`, at `rota/roles/principal.py:3738-3739`. The read-back site at `principal.py:3473` makes the same call. `seen_order` is the one reader of the order (fact F28). The ceiling calls it only on a park page whose refs are all approved.
+- Point 2, low 1 closed, PLAUSIBLE by reading. `tested` now comes from one `tests` query over `verdict_rows` (`rota/core/sandbox.py:5264-5267`), and nothing subtracts `rows`. A contested test row's criterion now enters `contested`, also when that criterion is a verdict row that is not a line of the page. The criteria relay branch uses the same list. On the dry1 path, `rv4/p2_relay_counter.py` still stages `m141` with `["tk_1_criteria_waited"]`. I did not build a fixture for a non-park page with an `about_ref` contest.
+- Outside, low, PLAUSIBLE. A test row that an `about_ref` contest adds as a verdict row now sends its criterion to the relay, but it is no line of the page. The crit branch read the same rows before this pass, so the behaviour is not new. No action.
+- Tests: `tests/rota/test_park_page.py` gives `36 passed in 4.69s`.
