@@ -1013,7 +1013,8 @@ def _ref_list(text: str | None) -> list:
     return [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
 
 
-def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
+def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool,
+                      trigger: str | None = None) -> None:
     """
     A quarantine holds while its subject is unchanged. A write that moves
     the subject is the exit: a new row, a version change, an approval
@@ -1127,7 +1128,7 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 # batch's runs go. Dry1 turn 14: his answer bought two
                 # attempts of ten (frame 330, pass 3). `test_run_journal`
                 # keeps the history.
-                if red_moved and _ruled_park(conn, b):
+                if red_moved and _ruled_park(conn, b, trigger):
                     conn.execute("DELETE FROM test_runs WHERE batch_id = ?", (b,))
 
 
@@ -1233,19 +1234,39 @@ def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
     return n
 
 
-def _ruled_park(conn: sqlite3.Connection, batch_id: str) -> bool:
-    """A deferred batch whose newest closed park ask holds his landed
-    revise or contest on a row."""
+def _ruled_park(conn: sqlite3.Connection, batch_id: str,
+                trigger: str | None) -> bool:
+    """
+    The move comes from his revise or contest on the deferred batch's
+    current park ask: the session's trigger message leads, by `cause_id`,
+    to his reply to the newest park ask of the batch.
+    """
+    # Review p3 of frame 330: the newest closed ask of an earlier park let
+    # any later move restart the counter, and law 6 had no bound. A move
+    # with no trigger, or a trigger that does not lead to his reply to the
+    # current ask, resets nothing (frame 330, pass 3b).
     from .scheduler import PARK_ASK, _PARK_BATCH_AT, park_ruling
 
     row = conn.execute(
         "SELECT m.id FROM messages m JOIN batches b ON b.id = ? "
-        "WHERE b.status = 'deferred' AND m.status != 'open' "
+        "WHERE b.status = 'deferred' "
         "AND substr(m.id, 1, ?) = ? AND substr(m.id, ?) = ? "
         "ORDER BY m.seq DESC LIMIT 1",
         (batch_id, len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()
-    ruled = park_ruling(conn, row["id"]) if row else None
-    return any(v != "approve" for v in (ruled or {}).values())
+    if row is None:
+        return False
+    ask, mid, seen = row["id"], trigger, set()
+    while mid and mid not in seen:          # a cause chain is short and acyclic
+        seen.add(mid)
+        m = conn.execute("SELECT cause_id, from_role FROM messages WHERE id = ?",
+                         (mid,)).fetchone()
+        if m is None:
+            return False
+        if m["from_role"] == "principal" and m["cause_id"] == ask:
+            ruled = park_ruling(conn, ask)
+            return any(v != "approve" for v in (ruled or {}).values())
+        mid = m["cause_id"]
+    return False
 
 
 def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:
@@ -1867,7 +1888,8 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     (result.session_id, table, row_id, new_version),
                 )
             if w.table != REFS_TABLE:
-                _lift_quarantines(conn, w, _subject_moved(conn, w, before))
+                _lift_quarantines(conn, w, _subject_moved(conn, w, before),
+                                  trigger=result.trigger_msg)
         lift_moved_reads(conn, reads_before)
 
         for m in result.messages:

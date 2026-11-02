@@ -401,8 +401,9 @@ def test_his_revise_on_the_park_page_restarts_the_attempt_counter(dry1_turn14,
     monkeypatch.setattr(scheduler, "park_ruling",
                         lambda conn, mid: ({"tk_1_criteria_waited": "revise"}
                                            if mid == DRY1_ASK else None))
+    _his_reply(dry1_turn14, DRY1_ASK)
     session_commit(dry1_turn14, SessionResult(
-        session_id="s252", role="terminologist",
+        session_id="s252", role="terminologist", trigger_msg="m133",
         writes=[Write("criteria", "tk_1_criteria_waited", {"text": "v2"},
                       op="update")]))
     assert lifecycle.next_attempt(dry1_turn14, "bg_1") == 1
@@ -421,4 +422,43 @@ def test_an_approve_on_the_park_page_keeps_the_counter(dry1_turn14, monkeypatch)
         session_id="s252", role="terminologist",
         writes=[Write("criteria", "tk_1_criteria_waited", {"text": "v2"},
                       op="update")]))
+    assert lifecycle.next_attempt(dry1_turn14, "bg_1") == 11
+
+
+def _his_reply(conn, ask: str) -> None:
+    """m128, his reply to `ask`, and m133, the Liaison's relay of it."""
+    for mid, cause, frm, to, verb, seq in (
+            ("m128", ask, "principal", "liaison", "converse", 131),
+            ("m133", "m128", "liaison", "terminologist", "relay", 133)):
+        conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                     "to_role, verb, body_refs, seq, status) VALUES "
+                     "(?, ?, ?, ?, ?, ?, '[\"tk_1_criteria_waited\"]', ?, 'answered')",
+                     (mid, cause, ask, frm, to, verb, seq))
+
+
+def _runs(conn) -> int:
+    return conn.execute("SELECT COUNT(*) FROM test_runs WHERE batch_id = 'bg_1'"
+                        ).fetchone()[0]
+
+
+@pytest.mark.parametrize("trigger", [None, "m133"])
+def test_a_move_without_his_answer_on_the_current_ask_keeps_the_runs(
+        dry1_turn14, monkeypatch, trigger):
+    """Review p3: a closed ask of an earlier park restarted the counter on
+    a move with no actor, and law 6 had no bound."""
+    from rota.core import lifecycle
+    from rota.core.db import SessionResult, Write, session_commit
+
+    monkeypatch.setattr(scheduler, "park_ruling",
+                        lambda conn, mid: {"tk_1_criteria_waited": "revise"})
+    _his_reply(dry1_turn14, DRY1_ASK)          # his answer on the earlier park
+    dry1_turn14.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                        "verb, seq, status) VALUES ('m_park_a162344dbf_bg_1', "
+                        "'m_park_a162344dbf_bg_1', 'liaison', 'principal', "
+                        "'clarify', 140, 'open')")
+    session_commit(dry1_turn14, SessionResult(
+        session_id="s260", role="terminologist", trigger_msg=trigger,
+        writes=[Write("criteria", "tk_1_criteria_waited", {"text": "v3"},
+                      op="update")]))
+    assert _runs(dry1_turn14) == 2
     assert lifecycle.next_attempt(dry1_turn14, "bg_1") == 11
