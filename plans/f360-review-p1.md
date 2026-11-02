@@ -122,3 +122,18 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/ce483c
 ## Usage
 
 The reviewer has no exact meter. The estimate is about 130k input tokens and about 16k output tokens, about 146k in total. The work went past the cap of 30k in the brief, mostly on the cassette search of point 6.
+
+## Pass 1b
+
+Stands. Commit 11eea04d fixes F1, F2, F3, F4, F6 and F7, and the probes confirm each fix. No new high or medium finding appears. The refusal record changes no recorded case.
+
+- The test file of the pass now passes 14 of 14 at 11eea04d (observed: pytest in the worktree, 114 s).
+- F1, fixed, CONFIRMED. The shift page reads "approved. The change b1 changes no code. The team claims that the code already does this, and the tests check the claim. No test has run yet." (observed: `test_probe_1b.py::test_shift_and_boot`).
+- F2, fixed, CONFIRMED. The sandbox keeps the path as the fourth field, and the claim decides the side by the path (observed: the diff, sandbox.py 5212 to 5215, api.py `_program_write_refused`). A write to `tests/test_formatting.py` that the parse door refuses still claims. A write to the same path that the span door refuses still claims. A refused write to `src/auth/__init__.py` from the parse door blocks the claim (observed: `test_probe_1b.py::test_refusal_sides`, 3 cases).
+- F3, fixed, CONFIRMED by the new test of the pass. The tail joins the Done line only, and the claimed line is its own line (observed: principal.py diff, `test_the_notes_tail_does_not_join_the_claimed_line`).
+- F4, fixed. The measure test now asserts the full reason of the gate (observed: the test file diff, the run above).
+- F6, fixed, CONFIRMED. After a claim, the tests commit and a deferred status, `reconcile_worktrees` moves the head to `b356002`, and `claimed_head` moves with the head (observed: `test_probe_1b.py::test_shift_and_boot`).
+- F7, fixed, CONFIRMED. A real commit after a claim gives `claimed_head` None and the head `21f3d1f`. After the merge, the page says "Done: 1 change built, tested and merged." (observed: `test_probe_p2.py` rerun at 11eea04d).
+- The refusal record: every reader of `ctx.refusals` indexes the tuple or unpacks it with `*_` (observed: grep of `refusals` in `rota/` at api.py 2955, 3003, 3416, 4685, 4719, 14470 and db.py 1729, 2142). The tuple never enters a prompt, so no cassette key changes (reasoned). The commit write adds `claimed_head` only on a batch with a claim, and no recorded case seeds a claim (reasoned: point 6).
+- F5 and F8 stay open as low, as pass 1 left them (reasoned: the diff does not touch them).
+- Usage for pass 1b: about 25k input tokens and about 4k output tokens, about 29k in total. The work went past the cap of 10k because of the probe runs.
