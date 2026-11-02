@@ -1130,6 +1130,10 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool,
                 # keeps the history.
                 if red_moved and _ruled_park(conn, b, trigger):
                     conn.execute("DELETE FROM test_runs WHERE batch_id = ?", (b,))
+                    # His restart starts from zero starts too. Dry1 turn 16:
+                    # each of his restarts spent one of three starts, and the
+                    # third quarantined bg_1 (frame 330, pass 5). Law 4.
+                    forget_keys(conn, batch_keys(conn, b, {"tick:batch_start"}))
 
 
 def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:

@@ -1264,18 +1264,80 @@ def test_the_tester_s_rewrite_from_the_ruled_words_restarts_the_counter(dry1_tur
     """The chain m140, the relay and the Terminologist's answer leads the
     Tester's move to his ruling on the current page (frame 330, pass 3b)."""
     from rota.core import lifecycle
+
+    _his_rewrite(dry1_turn15)
+    assert lifecycle.next_attempt(dry1_turn15, "bg_1") == 1
+
+
+def _his_rewrite(conn) -> None:
+    """His contest of line 7, the relay, and the Tester's rewrite from it."""
     from rota.core.db import SessionResult, Write, session_commit
 
-    verdict = _dry1_lands(dry1_turn15, _contest_of_line_7())
+    verdict = _dry1_lands(conn, _contest_of_line_7())
     for mid, cause, frm, to, verb, seq in (
             ("m141", verdict["id"], "liaison", "terminologist", "relay", 146),
             ("m142", "m141", "terminologist", "tester", "answer", 147)):
-        dry1_turn15.execute(
+        conn.execute(
             "INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
             "verb, body_refs, seq, status) VALUES (?, ?, ?, ?, ?, ?, "
             "'[\"tk_1_criteria_waited\"]', ?, 'answered')",
             (mid, cause, DRY1_PAGE, frm, to, verb, seq))
-    session_commit(dry1_turn15, SessionResult(
+    session_commit(conn, SessionResult(
         session_id="s264", role="tester", trigger_msg="m142",
         writes=[Write("tests", "tst_waited", {"body": "b2"}, op="update")]))
-    assert lifecycle.next_attempt(dry1_turn15, "bg_1") == 1
+
+
+START_BG1 = "developer|tick:batch_start|bg_1"
+
+
+def _start_count(conn):
+    row = conn.execute("SELECT attempts, quarantined FROM tick_attempts "
+                       "WHERE tick_key = ?", (START_BG1,)).fetchone()
+    return (row["attempts"], row["quarantined"]) if row else None
+
+
+def test_his_restart_forgets_the_batch_s_start_count(dry1_turn15):
+    """Dry1 turn 16: s192, s256 and s265 each resumed bg_1 and each spent
+    one of three starts. His restart reset the attempt counter and kept the
+    start count, so the third start quarantined the key (frame 330, pass 5)."""
+    dry1_turn15.execute("INSERT INTO tick_attempts (tick_key, attempts) "
+                        "VALUES (?, 2)", (START_BG1,))
+    _his_rewrite(dry1_turn15)
+    assert _start_count(dry1_turn15) is None
+
+
+def _bg1_green_and_running(conn) -> None:
+    conn.execute("UPDATE batches SET status = 'running' WHERE id = 'bg_1'")
+    conn.execute("UPDATE test_runs SET result = 'pass' WHERE batch_id = 'bg_1'")
+
+
+def test_a_start_at_the_cap_whose_wake_drained_is_not_quarantined(dry1_turn15):
+    """Dry1 turn 16, m144: s265 resumed bg_1 at the cap, and the batch ran
+    green. The key quarantined anyway, and the page said the change could
+    not start. A dispatch that drains its wake is progress (law 4)."""
+    from rota.core import config
+    from rota.core.predicates import all_wakes
+    from rota.core.scheduler import frontier, quarantined_keys
+
+    conn = dry1_turn15
+    _bg1_green_and_running(conn)
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts) VALUES (?, ?)",
+                 (START_BG1, config.get(conn, "tick_attempt_cap")))
+    frontier(conn)
+    assert _start_count(conn) == (config.get(conn, "tick_attempt_cap"), 0)
+    assert START_BG1 not in quarantined_keys(conn, "bg_1")
+    assert not [w for w in all_wakes(conn) if w.kind == "tick:quarantined"]
+
+
+def test_a_start_at_the_cap_whose_wake_is_still_ready_is_quarantined(dry1_turn15):
+    """The old rule stands: a start dispatched to the cap that did not drain
+    is quarantined and dropped (law 4, night 73)."""
+    from rota.core import config
+    from rota.core.scheduler import Wake, quarantine_stalled
+
+    conn = dry1_turn15
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts) VALUES (?, ?)",
+                 (START_BG1, config.get(conn, "tick_attempt_cap")))
+    wake = Wake("developer", "tick:batch_start", refs=("bg_1",))
+    assert quarantine_stalled(conn, [wake]) == []
+    assert _start_count(conn) == (config.get(conn, "tick_attempt_cap"), 1)

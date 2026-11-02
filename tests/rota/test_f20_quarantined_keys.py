@@ -234,8 +234,9 @@ _QUARANTINE_WRITES = {
     ("rota/core/db.py", "lift_keys"): "the one delete of a quarantined key",
     ("rota/core/db.py", "mark_ruled"): "marks the keys the principal answered",
     ("rota/core/loop.py", "step"): "marks the reported keys",
-    ("rota/core/scheduler.py", "quarantine_overrun"): "sets the flag",
-    ("rota/core/scheduler.py", "quarantine_stalled"): "sets the flag",
+    ("rota/core/scheduler.py", "_quarantine_live"): "sets the flag for "
+                                                    "`quarantine_overrun` and "
+                                                    "`quarantine_stalled`",
 }
 
 # These splits read no tick key. Each site names what it splits.

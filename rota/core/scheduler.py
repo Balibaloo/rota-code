@@ -1581,7 +1581,7 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # sees the abandonment it is supposed to skip past, in the pass where it
     # happens. The bound was always doing its job; the answer to "what is ready"
     # was computed against the state before it did.
-    quarantine_overrun(conn)
+    quarantine_overrun(conn, principal_present)
     # A batch that left its park owes no answer, so its ask closes in the
     # same pass. The Liaison writes the ask, woken by `park_ask` (ruled:
     # Roman, 2026-09-30).
@@ -2927,24 +2927,44 @@ def deepest_repeat(conn: sqlite3.Connection) -> tuple[int, str, str]:
     return best
 
 
-def quarantine_overrun(conn: sqlite3.Connection) -> int:
+def quarantine_overrun(conn: sqlite3.Connection,
+                       principal_present: bool = False) -> int:
     """
-    Mark everything past the attempt bound as abandoned. Returns how many.
+    Mark everything past the attempt bound that did not drain as abandoned.
+    Returns how many.
 
-    Separated from `quarantine_stalled` because it needs no wake list — "has
-    this been dispatched more than the cap allows" is answered by the counter
-    alone — and because the *order* turned out to matter. Deciding abandonment
-    after computing what is ready means the answer was computed against a world
-    where the area was still outstanding, and `tick_survey` sequences roles by
-    exactly that. One area stuck at the bound made the whole next role invisible.
+    Separated from `quarantine_stalled` because the *order* turned out to
+    matter. Deciding abandonment after computing what is ready means the
+    answer was computed against a world where the area was still outstanding,
+    and `tick_survey` sequences roles by exactly that. One area stuck at the
+    bound made the whole next role invisible. So this runs before `frontier`
+    asks what is ready, and reads the wakes only when a key is at the bound.
     """
     from . import config
+    from .predicates import all_wakes
 
-    cur = conn.execute(
-        "UPDATE tick_attempts SET quarantined = 1 "
-        "WHERE attempts >= ? AND quarantined = 0",
-        (config.get(conn, "tick_attempt_cap"),))
-    return cur.rowcount or 0
+    cap = config.get(conn, "tick_attempt_cap")
+    over = [r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts "
+        "WHERE attempts >= ? AND quarantined = 0", (cap,))]
+    if not over:
+        return 0
+    return _quarantine_live(conn, over, all_wakes(
+        conn, principal_present=principal_present) + quiet_park(conn))
+
+
+def _quarantine_live(conn: sqlite3.Connection, keys: Iterable[str],
+                     ready: list[Wake]) -> int:
+    """Quarantine each key whose wake is still ready. Returns how many."""
+    # law 4: the bound is on dispatch without progress. A wake that drained
+    # after its dispatch made progress, so its key keeps the count and no
+    # quarantine. Dry1 turn 16: s265 resumed bg_1 at the cap, bg_1 ran green
+    # and merged, and m144 told him the change could not start.
+    live = {tick_key(w) for w in ready}
+    stalled = [k for k in keys if k in live]
+    conn.executemany("UPDATE tick_attempts SET quarantined = 1 WHERE tick_key = ?",
+                     [(k,) for k in stalled])
+    return len(stalled)
 
 
 def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake]:
@@ -2992,9 +3012,7 @@ def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake
 
     stalled = {r["tick_key"] for r in conn.execute(
         "SELECT tick_key FROM tick_attempts WHERE attempts >= ?", (cap,))}
-    if stalled:
-        conn.execute(
-            "UPDATE tick_attempts SET quarantined = 1 WHERE attempts >= ?", (cap,))
+    _quarantine_live(conn, stalled, ready)
     return [w for w in ready if tick_key(w) not in stalled]
 
 
