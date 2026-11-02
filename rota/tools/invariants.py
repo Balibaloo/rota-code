@@ -31,7 +31,7 @@ INVARIANTS = {
     "I2": "an inh_ row has no criterion, and its body is the project file at the batch's base",
     "I3": "a merged batch's latest run of each of its own tests at its head is a pass",
     "I4": "a run row's test is a test of the run's batch",
-    "I5": "a batch parked on a quarantined key holds one open park ask, and an open park "
+    "I5": "a parked batch the team gave up on holds one open park ask, and an open park "
           "ask names such a batch",
     "I6": "a quarantined key never names a merged or abandoned batch",
     "I7": "at most one batch runs",
@@ -156,12 +156,16 @@ def i4(conn) -> list[Finding]:
 
 
 def _owes_ask(conn, batch: str, status: str, approval, approval_ver, version) -> bool:
-    """The park that `predicates.park_ask` asks about: a deferred batch with a
-    quarantined key, on an item that is not contested.
+    """The park that `predicates.park_ask` asks about: a deferred batch the team
+    gave up on (`scheduler.gave_up`), on an item that is not contested.
 
-    A batch at or past `loop_cap` is parked too (`scheduler.parked`), but it
-    climbs the ladder and owes no ask. Night 126's bg_1 and night 127's bg_1
-    and bg_2 are of that kind (the delta review of b43b99d6, its medium).
+    A batch at or past `loop_cap` with a red run at its head owes the ask too,
+    since frame 330's pass 3 (d959c33f): point 3 of the ruling of 2026-10-08
+    sends the page when a criterion's own test is red, and dry1 turn 14
+    parked at the cap with no page. Before that pass the loop-cap park
+    climbed the ladder and owed no ask (the delta review of b43b99d6,
+    2026-10-07, on night 126's bg_1). A batch past the cap whose head is
+    green is not parked and owes none.
 
     A park whose message rests owes no open ask: a note is written closed,
     and a page approved whole is the ceiling (ruled: Roman, 2026-10-08,
@@ -193,7 +197,7 @@ def i5(conn) -> list[Finding]:
             continue
         held = by_batch.pop(b, [])
         if owes and len(held) != 1:
-            out.append(Finding("I5", f"{b}, parked on a quarantined key, holds {len(held)} "
+            out.append(Finding("I5", f"{b}, parked and given up on, holds {len(held)} "
                                      f"open park asks"))
         elif held and not owes:
             out.append(Finding("I5", f"open park ask {held[0]} names {b}, which owes no ask"))

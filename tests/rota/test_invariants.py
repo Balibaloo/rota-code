@@ -107,14 +107,17 @@ def test_i5_a_batch_parked_on_a_quarantined_key_with_no_ask(built):
                      ("UPDATE batches SET status = 'deferred' WHERE id = 'b2'", ()),
                      ("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
                       "VALUES ('developer|tick:tests_failing|b2', 3, 1, 1)", ())) == [
-        "I5: b2, parked on a quarantined key, holds 0 open park asks"]
+        "I5: b2, parked and given up on, holds 0 open park asks"]
 
 
-def test_i5_a_batch_past_the_loop_cap_owes_no_ask(built):
-    # The loop-cap park climbs the ladder, and `predicates.park_ask` asks
-    # nothing. Night 126's bg_1 is this park (the delta review of b43b99d6).
-    def is_parked(copy):
+def test_i5_a_batch_past_the_loop_cap_with_a_red_head_owes_an_ask(built):
+    # A loop-cap park with a red run at its head owes the park page, point 3
+    # of the ruling of 2026-10-08, since frame 330's pass 3. Dry1 turn 14's
+    # bg_1 is this park. Before that pass the park climbed the ladder and owed
+    # no ask (the delta review of b43b99d6, night 126's bg_1).
+    def is_parked_with_no_key(copy):
         assert scheduler.parked(copy, "b2") and not scheduler.given_up(copy, "b2")
+        assert scheduler.gave_up(copy, "b2")
 
     assert added_all(built,
                      ("UPDATE batches SET status = 'deferred' WHERE id = 'b2'", ()),
@@ -122,7 +125,22 @@ def test_i5_a_batch_past_the_loop_cap_owes_no_ask(built):
                       "(SELECT head_commit FROM batches WHERE id = 'b2') "
                       "WHERE rowid = (SELECT MAX(rowid) FROM test_runs WHERE batch_id = 'b2')",
                       ()),
-                     check=is_parked) == []
+                     check=is_parked_with_no_key) == [
+        "I5: b2, parked and given up on, holds 0 open park asks"]
+
+
+def test_i5_a_batch_past_the_loop_cap_with_a_green_head_owes_no_ask(built):
+    # Past the cap with every run at the head green, the batch is not parked
+    # (review p3 of frame 330, point 4), so no ask is owed.
+    def is_not_parked(copy):
+        assert not scheduler.parked(copy, "b2") and not scheduler.gave_up(copy, "b2")
+
+    assert added_all(built,
+                     ("UPDATE batches SET status = 'deferred' WHERE id = 'b2'", ()),
+                     ("UPDATE test_runs SET result = 'pass', attempt = 10, commit_sha = "
+                      "(SELECT head_commit FROM batches WHERE id = 'b2') "
+                      "WHERE batch_id = 'b2'", ()),
+                     check=is_not_parked) == []
 
 
 def test_i6_a_quarantined_key_on_a_merged_batch(built):
