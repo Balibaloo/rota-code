@@ -701,15 +701,24 @@ def observed_entries(conn) -> list[Wake]:
     # reference) is cited, and a cited row was never put to the principal.
     from .db import PROVENANCE_VIEW_OF_TABLE
 
-    counts, offered = [], []
+    counts, offered, owed = [], [], []
+    noted = resurvey_noted(conn)
     for table in ("glossary_terms", "constraints", "model_areas", "items"):
         view = PROVENANCE_VIEW_OF_TABLE[table]
         rows = [r["id"] for r in conn.execute(
             f"SELECT id FROM {view} WHERE basis = 'code' ORDER BY id")]
-        fresh = [i for i in rows if i not in presented]
+        # A re-survey after a merge is no onboarding, so its rows go to the
+        # ledger and not to a page. Night 175's m145 put 15 such notes to the
+        # principal with nothing to build (frame 358).
+        late = resurvey_rows(conn, table, rows)
+        owed += [i for i in rows if i in late and i not in noted]
+        fresh = [i for i in rows if i not in presented and i not in late]
         if fresh:
             counts.append(f"{table}:{len(fresh)}")
             offered += fresh
+    if owed:
+        return [Wake(SCHEDULER, "do:resurvey_note", refs=tuple(owed),
+                     detail=f"re-survey rows after a merge: {len(owed)}")]
     # A deferral is an election. A present answered without a ruling -- the
     # principal read it and moved on -- left its rows in limbo: not decided,
     # not ledgered, and never re-offered, because a row is put to them once.
@@ -787,6 +796,101 @@ def observed_entries(conn) -> list[Wake]:
     return [] if asked else [
         Wake("liaison", "tick:observed_entries", refs=tuple(offered),
              detail=", ".join(counts))]
+
+
+# The words of the one ledger row per re-survey after a merge. The refs
+# follow as JSON, so the predicate reads back which rows the row holds.
+RESURVEY_WORDS = "After the merge the team re-read the project and recorded these notes: "
+
+
+def resurvey_rows(conn, table: str, ids: list[str]) -> dict[str, str]:
+    """The rows of `ids` that a re-survey after a merge wrote, each mapped to
+    the merged batch it followed.
+
+    No column dates a merge, and no column dates a row. The receipts date
+    both by session seq. A batch's date is the seq of its first receipt. A
+    row's date is the seq of the session that first wrote it.
+
+    A row is a re-survey row when an onboarding tick wrote it after the
+    first merged batch's date. The delivery loop waits for onboarding, so
+    no batch exists while the first onboarding writes. A row with no
+    receipt is an onboarding row, as before."""
+    if not ids:
+        return {}
+    from .scheduler import ONBOARDING_TICKS
+
+    merged = conn.execute(
+        "SELECT b.id, b.item_id, MIN(s.seq) AS seq FROM batches b "
+        "JOIN receipts r ON r.table_name = 'batches' AND r.row_id = b.id "
+        "JOIN sessions s ON s.id = r.session_id "
+        "WHERE b.status = 'merged' GROUP BY b.id ORDER BY seq").fetchall()
+    if not merged:
+        return {}
+    first = conn.execute(
+        # SQLite gives the bare column of the row that holds the MIN.
+        "SELECT r.row_id AS id, MIN(s.seq) AS seq, s.wake_kind AS kind "
+        "FROM receipts r JOIN sessions s ON s.id = r.session_id "
+        "WHERE r.table_name = ? GROUP BY r.row_id", (table,)).fetchall()
+    out: dict[str, str] = {}
+    wanted = set(ids)
+    for r in first:
+        if (r["id"] not in wanted or r["kind"] not in ONBOARDING_TICKS
+                or r["seq"] is None or r["seq"] <= merged[0]["seq"]):
+            continue
+        # The latest merged batch dated before the row is the merge it followed.
+        out[r["id"]] = [b["id"] for b in merged if b["seq"] < r["seq"]][-1]
+    return out
+
+
+def resurvey_noted(conn) -> set[str]:
+    """The refs that the re-survey ledger rows already hold."""
+    held: set[str] = set()
+    for r in conn.execute("SELECT default_taken FROM ledger "
+                          "WHERE substr(default_taken, 1, ?) = ?",
+                          (len(RESURVEY_WORDS), RESURVEY_WORDS)):
+        try:
+            held.update(json.loads(r["default_taken"][len(RESURVEY_WORDS):]))
+        except (TypeError, ValueError):
+            continue
+    return held
+
+
+def resurvey_note(conn) -> list[str]:
+    """Write one ledger row per merge for the re-survey rows no row holds yet.
+
+    The row is `parked`: no page shows it, and the state view counts it
+    (frame 204's design, section 4). Its about_ref is the merged item, so
+    `ledger.list(shipped=...)` shows its words. Return the ledger ids."""
+    import hashlib
+
+    from .db import PROVENANCE_VIEW_OF_TABLE
+
+    noted = resurvey_noted(conn)
+    by_batch: dict[str, list[str]] = {}
+    for table in ("glossary_terms", "constraints", "model_areas", "items"):
+        rows = [r["id"] for r in conn.execute(
+            f"SELECT id FROM {PROVENANCE_VIEW_OF_TABLE[table]} "
+            "WHERE basis = 'code' ORDER BY id")]
+        for ref, batch in resurvey_rows(conn, table, rows).items():
+            if ref not in noted:
+                by_batch.setdefault(batch, []).append(ref)
+    written = []
+    for batch, refs in by_batch.items():
+        item = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                            (batch,)).fetchone()["item_id"]
+        words = RESURVEY_WORDS + json.dumps(sorted(refs))
+        lid = "l_" + hashlib.sha256(f"items|{item}|{words}".encode()).hexdigest()[:10]
+        conn.execute(
+            "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
+            "default_taken, kind, status, author) VALUES (?, ?, 'items', ?, "
+            "'other', 'parked', 'scheduler')", (lid, item, words))
+        written.append(lid)
+    return written
+
+
+def resurvey_count(conn) -> int:
+    """The count of notes that the re-survey ledger rows hold."""
+    return len(resurvey_noted(conn))
 
 
 # ---------------------------------------------------------------------------

@@ -527,6 +527,16 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         conn.commit()
         return f"deferred {n} observed rows to the ledger"
 
+    if action == "resurvey_note":
+        # A re-survey after a merge asks nothing, so the clerk records it.
+        # One parked ledger row per merge keeps the notes visible and
+        # countable (frame 358).
+        from .predicates import resurvey_note
+
+        written = resurvey_note(conn)
+        conn.commit()
+        return f"recorded {len(wake.refs)} re-survey rows in {len(written)} ledger row(s)"
+
     if action == "harness":
         from . import harness
 

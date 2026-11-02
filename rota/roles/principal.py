@@ -354,8 +354,13 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # Roman, 2026-10-11 15:00, frame 204's design, section 4).
     # Each kind has its own words: a `scope` row is not a choice (frame
     # 316's review 2, finding 2). `ledger.list(shipped=...)` shows the rows.
-    kinds = dict(conn.execute("SELECT kind, COUNT(*) FROM ledger "
-                              "WHERE status = 'parked' GROUP BY kind").fetchall())
+    # The re-survey row has its own sentence below, so it leaves this count.
+    from ..core.predicates import RESURVEY_WORDS, resurvey_count
+
+    kinds = dict(conn.execute(
+        "SELECT kind, COUNT(*) FROM ledger WHERE status = 'parked' "
+        "AND substr(default_taken, 1, ?) != ? GROUP BY kind",
+        (len(RESURVEY_WORDS), RESURVEY_WORDS)).fetchall())
     if merged and kinds:
         words = []
         for kind, one, many in PARKED_WORDS:
@@ -369,6 +374,12 @@ def _render_state(conn: sqlite3.Connection) -> str:
                   else ", ".join(words[:-1]) + " and " + words[-1])
         carry = "They carry" if merged > 1 else "It carries"
         out[-1] += f" {carry} {listed}. Ask me to show them."
+    # A re-survey after a merge asks nothing, so the state view shows it as
+    # one sentence and no page (frame 358).
+    notes = resurvey_count(conn) if merged else 0
+    if notes:
+        out.append(f"After the merge the team re-read the project and recorded "
+                   f"{notes} note{'s' if notes > 1 else ''}. Ask me to show them.")
     # F7, pass 1b: the summary after the merge names each removal that no
     # grant of his allows. It is information, and it holds nothing.
     gone = merged_removal_line(conn) if merged else ""
@@ -3100,10 +3111,25 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         gave_up_lines()
         # A page of stopped steps only has nothing to build, so its 'ok'
         # starts nothing (review p3 of frame 354, finding 4).
-        if not (gave_up and set(order) <= {k for k, _ in gave_up}):
+        # A page with no request row and no plan row has nothing to build, so
+        # its 'ok' approves the page only. Night 175's m145 promised a build
+        # that could not start (frame 358).
+        # An account from his statement is the plan, so it builds too.
+        planned = any((resolved.get(ref) or {}).get("provenance") != "observed"
+                      for ref, _ in account)
+        builds = bool(said or in_block or does or planned)
+        stopped_only = gave_up and set(order) <= {k for k, _ in gave_up}
+        if stopped_only:
+            pass
+        elif builds:
             out.append("Reply in your own words. 'ok' approves all of this "
                        "and starts building. Name a line to correct only "
                        "that line. Ask, if something here is unclear."
+                       + _name_request(asked) + _name_guess(guessed))
+        else:
+            out.append("Reply in your own words. 'ok' approves this page, and "
+                       "nothing is built. Name a line to correct only that "
+                       "line. Ask, if something here is unclear."
                        + _name_request(asked) + _name_guess(guessed))
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
