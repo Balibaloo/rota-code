@@ -16313,11 +16313,17 @@ def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
     # A re-survey row holds its refs as JSON. The reader asked for the
     # notes, so each ref becomes its words (review p1 of frame 358,
     # finding 3).
-    from ..core.db import table_of
+    from ..core.db import tables_of
     from ..core.predicates import RESURVEY_WORDS
 
-    words_of = {"glossary_terms": "sense_short", "constraints": "text",
-                "model_areas": "account", "items": "text"}
+    # The four observed tables, in the predicate's order. One scoped call
+    # of `tables_of` per ref decides the table (F22). Each table has its
+    # own query, so no query names a table by a variable.
+    words_of = {
+        "glossary_terms": "SELECT sense_short AS words FROM glossary_terms WHERE id = ?",
+        "constraints": "SELECT text AS words FROM constraints WHERE id = ?",
+        "model_areas": "SELECT account AS words FROM model_areas WHERE id = ?",
+        "items": "SELECT text AS words FROM items WHERE id = ?"}
     for r in rows:
         said = r["default_taken"] or ""
         if not said.startswith(RESURVEY_WORDS):
@@ -16328,10 +16334,9 @@ def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
             continue
         notes = []
         for ref in refs:
-            table = table_of(ctx.conn, ref, among=tuple(words_of))
-            row = table and ctx.conn.execute(
-                f"SELECT {words_of[table]} AS words FROM {table} WHERE id = ?",
-                (ref,)).fetchone()
+            found = tables_of(ctx.conn, ref, among=list(words_of))
+            table = found[0] if found else None
+            row = table and ctx.conn.execute(words_of[table], (ref,)).fetchone()
             notes.append(row["words"] if row and row["words"] else ref)
         r["default_taken"] = RESURVEY_WORDS.rstrip(": ") + "."
         r["notes"] = notes
