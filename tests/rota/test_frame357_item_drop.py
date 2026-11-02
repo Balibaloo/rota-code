@@ -16,7 +16,7 @@ import pytest
 from rota.core.db import init_db
 from rota.core.predicates import contested
 from rota.roles.api import line_menu
-from rota.roles.principal import apply_rulings, off_page
+from rota.roles.principal import apply_rulings, off_page, principal_objects
 
 S1 = ("Make click.pause() return True when it waited for a key and False when "
       "it skipped because stdin or stdout is not a terminal.")
@@ -224,7 +224,10 @@ def test_a_drop_ends_no_description(db):
     db.commit()
     apply_rulings(db)
     db.commit()
-    assert _item(db, "how_it_works")["approval"] == "contested"
+    # Pass 3: the drop is his objection on file, so the description keeps
+    # its approval (ruled: Roman, 2026-11-02 11:43, shape B).
+    assert _item(db, "how_it_works")["approval"] == "approved"
+    assert principal_objects(db, "how_it_works")
     assert [_item(db, i)["approval"] for i in ITEMS] == ["dropped", "dropped"]
 
 

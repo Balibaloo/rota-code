@@ -749,16 +749,20 @@ def observed_entries(conn) -> list[Wake]:
     if limbo:
         deferred = {r["about_ref"] for r in conn.execute(
             "SELECT about_ref FROM ledger")}
+        from ..roles.principal import principal_objects
         from .db import tables_of
 
         # `db.tables_of` finds the tables that hold the id (F22). The basis
-        # is then read in the provenance view of each one.
+        # is then read in the provenance view of each one. A row that holds
+        # his drop has his answer, so it is not deferred without a ruling
+        # (ruled: Roman, 2026-11-02 11:43, frame 357, shape B).
         # A re-survey row is on file in its own ledger row already. Its
         # about_ref is the item, so `deferred` misses it (review p1 of
         # frame 358, finding 1).
         deferred |= resurvey_noted(conn)
         still = [i for i in dict.fromkeys(limbo)
-                 if i in presented and i not in deferred and any(
+                 if i in presented and i not in deferred
+                 and not principal_objects(conn, i) and any(
                      conn.execute(f"SELECT 1 FROM {PROVENANCE_VIEW_OF_TABLE[t]} "
                                   f"WHERE id = ? AND basis = 'code'", (i,)).fetchone()
                      for t in tables_of(conn, i, among=(

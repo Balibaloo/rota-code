@@ -396,6 +396,21 @@ def _render_state(conn: sqlite3.Connection) -> str:
     if late:
         out.append("Your answers about delivered work, as the team read them:")
         out += [f"  - {line}" for line in late]
+    # A row he dropped stays the team's record of the code, so the view
+    # shows it with his objection. No page asks him about it again (ruled:
+    # Roman, 2026-11-02 11:43, frame 357, shape B).
+    objected = objected_rows(conn)
+    if objected:
+        from ..core.runner import _resolve_refs
+
+        rows = _resolve_refs(conn, objected)
+        out.append(ACCOUNT_TODAY)
+        for ref in objected:
+            row = rows.get(ref)
+            row = row if isinstance(row, dict) else {}
+            text = next((row[k] for k in ("text", "headline", "body",
+                                          "sense_short") if row.get(k)), ref)
+            out.append(f"  - {text} ({NOT_MINE})")
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -1860,13 +1875,17 @@ def account_page_refs(conn: sqlite3.Connection, rows: list[str]) -> list[str]:
     shown = {r for m in conn.execute(
         "SELECT body_refs FROM messages WHERE to_role = 'principal' "
         "AND status = 'open'") for r in json.loads(m["body_refs"] or "[]")}
-    owed = [r for r in rows if r not in shown and not _approved_now(conn, r)]
+    # A row that holds his drop has his answer, so no page owes it again
+    # (ruled: Roman, 2026-11-02 11:43, frame 357, shape B).
+    owed = [r for r in rows if r not in shown and not _approved_now(conn, r)
+            and not principal_objects(conn, r)]
     if not owed:
         return []
     account = conn.execute(
         "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
     head = (["how_it_works"] if account and "how_it_works" not in owed
-            and not _approved_now(conn, "how_it_works") else [])
+            and not _approved_now(conn, "how_it_works")
+            and not principal_objects(conn, "how_it_works") else [])
     return head + sorted(owed, key=lambda r: r != "how_it_works")
 
 
@@ -2974,6 +2993,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         for ref, text in rows:
             order.append(ref)
             shown = f'"{text}"' if quote else text
+            # His objection stays beside the team's row (frame 357, shape B).
+            if principal_objects(conn, ref):
+                shown += f" ({NOT_MINE})"
             out.append(f"  {len(order)}. {shown}")
 
     def account_lines(plan: str | None = None) -> None:
@@ -3708,8 +3730,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # it. Dry1's m101 "Drop 1 and 3" landed as a contest, and the Vision
     # Keeper put his words into line 1 (frame 357, pass 2).
     ended = _item_drops(conn, ruling_id, per_item)
+    # A drop on the team's row is his objection on file. The row keeps its
+    # state and leaves the relay, so no seat defends it and no clarify asks
+    # him again (ruled: Roman, 2026-11-02 11:43, frame 357, shape B).
+    objected = _row_objections(conn, ruling_id, per_item)
     for ref, ruling in per_item.items():
-        if ref in closed_here:
+        if ref in closed_here or ref in objected:
             continue
         state = "dropped" if ref in ended else {
             "approve": "approved", "contest": "contested",
@@ -3731,9 +3757,9 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # The open asks about the items he dropped close, by the shift drop's
     # path. Dry1's clarifies m108, m112 and m114 stayed open (review p2 of
     # frame 357, finding 3).
-    if ended:
-        _close_asks_about(conn, ended, msg_id)
-    gone = dropped_items(conn)
+    if ended or objected:
+        _close_asks_about(conn, ended, msg_id, rows=objected)
+    gone = dropped_items(conn) | objected
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
             if r not in closed_here and not _is_reading(r) and r not in gone]
     # A page whose every row closed at the keypress leaves nothing for an
@@ -3902,6 +3928,65 @@ def _item_drops(conn: sqlite3.Connection, ruling_id: str | None,
         if _is_request_item(conn, r["ref"])}
 
 
+# The words beside a row that holds his objection (ruled: Roman, 2026-11-02
+# 11:43, frame 357, shape B of `plans/design-drop-observed-row-2026-11-02.md`).
+NOT_MINE = "you said: not mine"
+
+
+def _team_row(conn: sqlite3.Connection, ref: str) -> bool:
+    """Whether `ref` is a row the team wrote and no request owns: a
+    description, an account row, a constraint or a glossary term. A
+    statement and a request item have their own end, `dropped`."""
+    from ..core.db import tables_of
+
+    if not isinstance(ref, str) or not ref:
+        return False
+    if tables_of(conn, ref, among=["constraints", "glossary_terms"]):
+        return True
+    item = conn.execute("SELECT approval FROM items WHERE id = ?",
+                        (ref,)).fetchone()
+    return (item is not None and item["approval"] != "dropped"
+            and not _is_request_item(conn, ref))
+
+
+def principal_objects(conn: sqlite3.Connection, ref: str) -> bool:
+    """Whether his newest ruling on the team's row `ref` drops it.
+
+    The drop is his objection on file, and the row stays the team's record
+    of the code. No seat argues with him and no page asks him again. A later
+    plain approve takes the objection back, by `grant` (ruled: Roman,
+    2026-11-02 11:43, frame 357, shape B)."""
+    return _team_row(conn, ref) and granted(conn, ref, "drop")
+
+
+def _row_objections(conn: sqlite3.Connection, ruling_id: str | None,
+                    per_item: dict) -> set[str]:
+    """The team's rows that ruling `ruling_id` contests with the act `drop`.
+
+    The shape of `_item_drops`: the act is on the Liaison's rows of the
+    ruling. Dry1's r_m147 dropped 15 constraints and `how_it_works`. The
+    description then looped to quarantine through three defends and three
+    clarifies (frame 357; `plans/dry1-turn17-read-2026-11-02.md`)."""
+    contested = [r for r, v in per_item.items() if v == "contest"]
+    if not ruling_id or not contested:
+        return set()
+    marks = ",".join("?" * len(contested))
+    return {r["ref"] for r in conn.execute(
+        f"SELECT DISTINCT rr.ref FROM ruled_refs rr WHERE rr.ruling_id = ? "
+        f"AND rr.source != 'landed' AND rr.verdict = 'contest' "
+        f"AND rr.act = 'drop' AND rr.ref IN ({marks})",
+        (ruling_id, *contested)) if _team_row(conn, r["ref"])}
+
+
+def objected_rows(conn: sqlite3.Connection) -> list[str]:
+    """The team's rows that hold his objection now, in the order of his
+    rulings."""
+    refs = dict.fromkeys(r["ref"] for r in conn.execute(
+        "SELECT rr.ref FROM ruled_refs rr JOIN rulings u ON u.id = rr.ruling_id "
+        "WHERE u.status = 'landed' AND rr.act = 'drop' ORDER BY rr.rowid"))
+    return [r for r in refs if principal_objects(conn, r)]
+
+
 def statement_drop(conn: sqlite3.Connection, sid: str) -> str | None:
     """The newest landed ruling that dropped statement `sid`, when `sid` is
     `dropped`, else None. A later ruling does not hide it, because the end
@@ -4052,15 +4137,24 @@ def _write_park(conn: sqlite3.Connection, item: str, kind: str, by: str,
 
 
 def _close_asks_about(conn: sqlite3.Connection, items: set[str],
-                      msg_id: str) -> None:
+                      msg_id: str, rows: set[str] = frozenset()) -> None:
     """Close each open ask to the principal whose refs reach only `items`,
     with a `closed:<ask>` row that names the verdict `msg_id`. A drop is
-    the whole answer to such an ask (2.F.3)."""
+    the whole answer to such an ask (2.F.3).
+
+    `rows` are the team's rows that he objects to. An ask whose every ref
+    other than a read-back is one of them, or reaches only `items` and
+    them, also closes, because his objection answers it (frame 357, shape
+    B). A constraint reaches no item, so the item test alone missed it."""
     for r in conn.execute(
             "SELECT id, body_refs FROM messages WHERE status = 'open' "
             "AND to_role = 'principal' AND verb != 'converse'").fetchall():
-        reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
-        if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= items:
+        named = [x for x in json.loads(r["body_refs"] or "[]")
+                 if isinstance(x, str) and not _is_reading(x)]
+        reached = _reached(conn, [x for x in named if x not in rows])
+        if r["id"].startswith(SHIFT_ASK) or not named:
+            continue
+        if not reached <= items | rows or not (reached or set(named) <= rows):
             continue
         mark_answered(conn, r["id"])
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
