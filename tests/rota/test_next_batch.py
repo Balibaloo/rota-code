@@ -722,9 +722,11 @@ def test_a_parked_batch_is_stuck_on_the_page():
 def test_the_park_count_survives_a_commit_and_quarantines():
     """Frame 86, pass 4. A commit is the park's own exit, so the park keeps
     its count across the commit. The start's count still resets. At
-    `tick_attempt_cap` the key quarantines, and the page names the batch."""
+    `tick_attempt_cap` the key quarantines, and the page names the batch.
+    Since frame 330, pass 5, a key at the cap quarantines only while its wake
+    is ready, so the key quarantines at the next ready park."""
     from rota.core import config
-    from rota.core.scheduler import quarantine_overrun
+    from rota.core.scheduler import Wake, quarantine_overrun
     from rota.roles.principal import render_state
 
     conn = _night_93_parked()
@@ -746,7 +748,11 @@ def test_the_park_count_survives_a_commit_and_quarantines():
 
     conn.execute("UPDATE tick_attempts SET attempts = ? WHERE tick_key = ?",
                  (config.get(conn, "tick_attempt_cap"), park))
-    assert quarantine_overrun(conn) == 1
+    # The deferred batch drained its park wake, so the count waits for the
+    # next ready park.
+    assert quarantine_overrun(conn) == 0
+    wake = Wake(P.SCHEDULER, "do:park", refs=("b_1",))
+    assert quarantine_stalled(conn, [wake]) == []
     page = render_state(conn)
     # Wall W12: the words print no batch id.
     assert "Stuck: the change was stopped after" in page
