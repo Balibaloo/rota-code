@@ -753,6 +753,10 @@ def observed_entries(conn) -> list[Wake]:
 
         # `db.tables_of` finds the tables that hold the id (F22). The basis
         # is then read in the provenance view of each one.
+        # A re-survey row is on file in its own ledger row already. Its
+        # about_ref is the item, so `deferred` misses it (review p1 of
+        # frame 358, finding 1).
+        deferred |= resurvey_noted(conn)
         still = [i for i in dict.fromkeys(limbo)
                  if i in presented and i not in deferred and any(
                      conn.execute(f"SELECT 1 FROM {PROVENANCE_VIEW_OF_TABLE[t]} "
@@ -811,14 +815,12 @@ def resurvey_rows(conn, table: str, ids: list[str]) -> dict[str, str]:
     both by session seq. A batch's date is the seq of its first receipt. A
     row's date is the seq of the session that first wrote it.
 
-    A row is a re-survey row when an onboarding tick wrote it after the
+    A row is a re-survey row when a `tick:survey` session wrote it after the
     first merged batch's date. The delivery loop waits for onboarding, so
     no batch exists while the first onboarding writes. A row with no
     receipt is an onboarding row, as before."""
     if not ids:
         return {}
-    from .scheduler import ONBOARDING_TICKS
-
     merged = conn.execute(
         "SELECT b.id, b.item_id, MIN(s.seq) AS seq FROM batches b "
         "JOIN receipts r ON r.table_name = 'batches' AND r.row_id = b.id "
@@ -834,7 +836,10 @@ def resurvey_rows(conn, table: str, ids: list[str]) -> dict[str, str]:
     out: dict[str, str] = {}
     wanted = set(ids)
     for r in first:
-        if (r["id"] not in wanted or r["kind"] not in ONBOARDING_TICKS
+        # A survey session only. A challenge after a merge is no re-read of
+        # the project, so its row still pages (review p1 of frame 358,
+        # finding 2).
+        if (r["id"] not in wanted or r["kind"] != "tick:survey"
                 or r["seq"] is None or r["seq"] <= merged[0]["seq"]):
             continue
         # The latest merged batch dated before the row is the merge it followed.

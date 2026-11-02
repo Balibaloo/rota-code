@@ -193,3 +193,58 @@ def test_a_page_with_an_open_item_keeps_the_build_footer(dry1_turn17):
     page, _ = render_page(dry1_turn17, "present", ["echo_flush"] + M145_REFS,
                           ask_id="m146", returned=False)
     assert "'ok' approves all of this and starts building." in page, page
+
+
+def test_an_answered_re_survey_page_defers_no_row_to_the_baseline(dry1_turn17):
+    """Review p1, finding 1: dry1's m144 and m145 went out before this
+    frame. Answered with no verdict, m145's 15 rows sat in the limbo
+    branch, and `do:defer_baseline` would make 15 open assumptions."""
+    from rota.core.loop import step
+
+    for mid, seq, refs in (
+            ("m144", 149, ["bg_1", ITEM, "reading:m65"]),
+            ("m145", 150, M145_REFS + ["reading:m61"])):
+        dry1_turn17.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                            "verb, body_refs, seq, status) VALUES (?, ?, 'liaison', "
+                            "'principal', 'present', ?, ?, 'answered')",
+                            (mid, mid, json.dumps(refs), seq))
+    dry1_turn17.commit()
+    assert step(dry1_turn17, principal_present=False).wake.kind == "do:resurvey_note"
+    # The account is an onboarding row, and its deferral stands as before.
+    wakes = P.REGISTRY["observed_entries"].fn(dry1_turn17)
+    assert not [r for w in wakes for r in w.refs if r in REFS], wakes
+
+
+def test_a_challenge_row_after_the_merge_still_pages(tmp_path):
+    """Review p1, finding 2: only a survey session re-reads the project. A
+    Critic's challenge after the merge is no re-survey, so its row pages."""
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO sessions (id, role, committed, seq, wake_kind, wake_refs) "
+                 "VALUES ('s275', 'critic', 1, 275, 'tick:challenge', '[]')")
+    _seed(conn, writer={"unset": "s275"})
+    (wake,) = P.REGISTRY["observed_entries"].fn(conn)
+    assert wake.kind == "do:resurvey_note" and "unset" not in wake.refs
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq, status) VALUES ('m145', 'm145', 'liaison', "
+                 "'principal', 'present', '[]', 150, 'answered')")
+    from rota.core.predicates import resurvey_note
+
+    resurvey_note(conn)
+    (wake,) = P.REGISTRY["observed_entries"].fn(conn)
+    assert wake.kind == "tick:observed_entries" and list(wake.refs) == ["unset"]
+
+
+def test_the_shipped_list_shows_the_words_of_each_re_survey_note(dry1_turn17):
+    """Review p1, finding 3: "Ask me to show them" gave JSON ids and no
+    note text."""
+    from rota.core.loop import step
+    from rota.roles.api import Ctx, ledger_list
+
+    step(dry1_turn17, principal_present=False)
+    ctx = Ctx(conn=dry1_turn17, role="liaison", session_id="s1")
+    (row,) = ledger_list(ctx, shipped=ITEM)[f"open when {ITEM} shipped"]
+    assert row["default_taken"] == ("After the merge the team re-read the project "
+                                    "and recorded these notes.")
+    assert len(row["notes"]) == 15
+    assert "Any code that uses `UNSET` would break." in row["notes"]
+    assert not any(n in REFS for n in row["notes"])

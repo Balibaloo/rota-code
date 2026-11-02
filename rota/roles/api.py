@@ -16310,6 +16310,31 @@ def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
         "SELECT id, about_ref, about_table, kind, default_taken, author FROM ledger "
         "WHERE status = 'parked' ORDER BY id"))
         if shipped in ledger_items(ctx.conn, r["id"])]
+    # A re-survey row holds its refs as JSON. The reader asked for the
+    # notes, so each ref becomes its words (review p1 of frame 358,
+    # finding 3).
+    from ..core.db import table_of
+    from ..core.predicates import RESURVEY_WORDS
+
+    words_of = {"glossary_terms": "sense_short", "constraints": "text",
+                "model_areas": "account", "items": "text"}
+    for r in rows:
+        said = r["default_taken"] or ""
+        if not said.startswith(RESURVEY_WORDS):
+            continue
+        try:
+            refs = json.loads(said[len(RESURVEY_WORDS):])
+        except (TypeError, ValueError):
+            continue
+        notes = []
+        for ref in refs:
+            table = table_of(ctx.conn, ref, among=tuple(words_of))
+            row = table and ctx.conn.execute(
+                f"SELECT {words_of[table]} AS words FROM {table} WHERE id = ?",
+                (ref,)).fetchone()
+            notes.append(row["words"] if row and row["words"] else ref)
+        r["default_taken"] = RESURVEY_WORDS.rstrip(": ") + "."
+        r["notes"] = notes
     return {f"open when {shipped} shipped": rows}
 
 
