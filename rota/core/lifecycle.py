@@ -20,6 +20,7 @@ schedule already said, and merging is what a passing verdict already meant.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from . import config
@@ -637,6 +638,138 @@ def touch_set(conn: sqlite3.Connection, batch_id: str) -> dict:
         "unsurveyed": unsurveyed,
         "commitments": commitments,
     }
+
+
+# How many lazy rows one touch note names before "and N more" (frame 361).
+FIRST_TOUCH_SHOWN = 10
+
+
+def first_touch_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """
+    The open lazy rows bound to a batch's touch, oldest first.
+
+    Under `lazy` each observed row waits "awaiting first touch" (cli.py
+    `cmd_elect`), and this is that touch (frame 361). The rule binds three
+    tables. A constraint binds by its `constraint_bindings`, with the rule
+    of `touch_set`'s commitments. A glossary row binds when its area is the
+    area of a touched path. An area row binds when it is that area. The area
+    of a path is the deepest `model_areas` row that holds the path, so the
+    root area `.` does not bind every note to every change.
+    """
+    from .predicates import LAZY_WORDS
+
+    touch = [dict(t) for t in conn.execute(
+        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ?",
+        (batch_id,))]
+    if not touch:
+        return []
+    paths = [t["grain"] for t in touch if t["grain_kind"] == "path"]
+
+    def under(path: str, area: str) -> bool:
+        area = area.rstrip("/")
+        return area in ("", ".") or path == area or path.startswith(area + "/")
+
+    known = [r["id"] for r in conn.execute("SELECT id FROM model_areas")]
+    areas = set()
+    for p in paths:
+        holding = [a for a in known if under(p, a)]
+        if holding:
+            areas.add(max(holding, key=lambda a: (a not in ("", "."), len(a))))
+
+    def bound(table: str, ref: str) -> bool:
+        if table == "model_areas":
+            return ref in areas
+        if table == "glossary_terms":
+            row = conn.execute("SELECT area FROM glossary_terms WHERE id = ?",
+                               (ref,)).fetchone()
+            return bool(row) and row["area"] in areas
+        if table == "constraints":
+            for b in conn.execute(
+                    "SELECT grain, grain_kind FROM constraint_bindings "
+                    "WHERE constraint_id = ? AND resolves = 1", (ref,)):
+                if any(t["grain"] == b["grain"] and t["grain_kind"] == b["grain_kind"]
+                       for t in touch):
+                    return True
+                if b["grain_kind"] == "path" and any(
+                        p == b["grain"].rstrip("/")
+                        or p.startswith(b["grain"].rstrip("/") + "/")
+                        for p in paths):
+                    return True
+        return False
+
+    return [r["id"] for r in conn.execute(
+                "SELECT id, about_ref, about_table FROM ledger "
+                "WHERE status = 'open' AND substr(default_taken, 1, ?) = ? "
+                "ORDER BY rowid", (len(LAZY_WORDS), LAZY_WORDS))
+            if bound(r["about_table"], r["about_ref"])]
+
+
+def first_touch_shown(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
+    """The lazy rows that this batch's touch note showed, or None when no
+    record holds the batch yet."""
+    from .predicates import FIRST_TOUCH_WORDS
+
+    for r in conn.execute("SELECT default_taken FROM ledger "
+                          "WHERE substr(default_taken, 1, ?) = ?",
+                          (len(FIRST_TOUCH_WORDS), FIRST_TOUCH_WORDS)):
+        try:
+            held = json.loads(r["default_taken"][len(FIRST_TOUCH_WORDS):])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(held, dict) and held.get("batch") == batch_id:
+            return [x for x in held.get("rows") or () if isinstance(x, str)]
+    return None
+
+
+def first_touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The lazy rows of a batch's first touch as one short line, or ''.
+
+    The record wins over the live rule, so the note reads the same on every
+    render after its rows leave the open set."""
+    from .predicates import LAZY_WORDS
+
+    ids = first_touch_shown(conn, batch_id)
+    if ids is None:
+        ids = first_touch_rows(conn, batch_id)
+    words = []
+    for ref in ids:
+        row = conn.execute("SELECT default_taken FROM ledger WHERE id = ?",
+                           (ref,)).fetchone()
+        if row:
+            words.append(row["default_taken"].removeprefix(LAZY_WORDS))
+    if not words:
+        return ""
+    shown = words[:FIRST_TOUCH_SHOWN]
+    more = len(words) - len(shown)
+    return ("notes the team recorded about this ground, not yet confirmed: "
+            + "; ".join(shown) + (f"; and {more} more" if more else ""))
+
+
+def record_first_touch(conn: sqlite3.Connection, batch_id: str,
+                       ids: list[str]) -> int:
+    """Park the lazy rows a touch note showed, and write one parked row that
+    names the batch and the rows. Return the count of rows parked."""
+    import hashlib
+
+    if not ids or first_touch_shown(conn, batch_id) is not None:
+        return 0
+    from .db import write_state
+    from .predicates import FIRST_TOUCH_WORDS
+
+    item = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                        (batch_id,)).fetchone()
+    words = FIRST_TOUCH_WORDS + json.dumps({"batch": batch_id, "rows": ids})
+    lid = "l_" + hashlib.sha256(f"batches|{batch_id}|{words}".encode()).hexdigest()[:10]
+    conn.execute(
+        "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
+        "default_taken, kind, status, author) VALUES (?, ?, 'items', ?, "
+        "'other', 'parked', 'scheduler')",
+        (lid, item["item_id"] if item else batch_id, words))
+    for ref in ids:
+        write_state(conn, "ledger", ref,
+                    "UPDATE ledger SET status = 'parked' WHERE id = ? "
+                    "AND status = 'open'", (ref,))
+    return len(ids)
 
 
 def touch_notes(conn: sqlite3.Connection, status: str | None = "open") -> set[str]:

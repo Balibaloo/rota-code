@@ -375,12 +375,18 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # Each kind has its own words: a `scope` row is not a choice (frame
     # 316's review 2, finding 2). `ledger.list(shipped=...)` shows the rows.
     # The re-survey row has its own sentence below, so it leaves this count.
-    from ..core.predicates import RESURVEY_WORDS, resurvey_count
+    from ..core.predicates import (FIRST_TOUCH_WORDS, LAZY_WORDS,
+                                   RESURVEY_WORDS, lazy_count, resurvey_count)
 
+    # A lazy row shown at first touch, and the record of that touch, are
+    # the team's notes, not choices. The touch note showed them (frame 361).
     kinds = dict(conn.execute(
         "SELECT kind, COUNT(*) FROM ledger WHERE status = 'parked' "
+        "AND substr(default_taken, 1, ?) != ? "
+        "AND substr(default_taken, 1, ?) != ? "
         "AND substr(default_taken, 1, ?) != ? GROUP BY kind",
-        (len(RESURVEY_WORDS), RESURVEY_WORDS)).fetchall())
+        (len(RESURVEY_WORDS), RESURVEY_WORDS, len(LAZY_WORDS), LAZY_WORDS,
+         len(FIRST_TOUCH_WORDS), FIRST_TOUCH_WORDS)).fetchall())
     if merged and kinds:
         words = []
         for kind, one, many in PARKED_WORDS:
@@ -407,6 +413,13 @@ def _render_state(conn: sqlite3.Connection) -> str:
     if notes:
         out.append(f"After the merge the team re-read the project and recorded "
                    f"{notes} note{'s' if notes > 1 else ''}. Ask me to show them.")
+    # Under `lazy` the read asks nothing, so the view shows one sentence and
+    # no page, in the shape of the re-survey line (ruled: Roman, 2026-11-03
+    # 01:05, the design's 3.5).
+    lazy = lazy_count(conn)
+    if lazy:
+        out.append(f"The team read the project and recorded {lazy} "
+                   f"note{'s' if lazy > 1 else ''}. Ask me to show them.")
     # F7, pass 1b: the summary after the merge names each removal that no
     # grant of his allows. It is information, and it holds nothing.
     gone = merged_removal_line(conn) if merged else ""
@@ -3313,6 +3326,12 @@ def touch_words(conn: sqlite3.Connection, batch_id: str,
         parts.append("commitments: " + ", ".join(
             f"{c['headline']} (bound to {c['bound_to']})"
             for c in t["commitments"]))
+    # The lazy rows wait for this moment, their first touch (frame 361).
+    from ..core.lifecycle import first_touch_words
+
+    lazy = first_touch_words(conn, batch_id)
+    if lazy:
+        parts.append(lazy)
     return "; ".join(parts)
 
 

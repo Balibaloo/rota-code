@@ -782,9 +782,15 @@ def observed_entries(conn) -> list[Wake]:
     # bindings, because logging "this observation is unconfirmed" has no
     # judgement in it for a session to get wrong. Rows already deferred are
     # excluded the same way presented ones are: the ledger row is the record.
-    election = conn.execute(
+    # No ruling reads as `lazy`, and an empty row reads the same (ruled:
+    # Roman, 2026-11-03 01:05). The default lives in the config registry.
+    from .config import SETTINGS
+
+    row = conn.execute(
         "SELECT value FROM config WHERE key = 'baseline_election'").fetchone()
-    if election and election["value"].strip('"') == "lazy":
+    election = ((row["value"] or "").strip('"') if row else ""
+                ) or SETTINGS["baseline_election"].default
+    if election == "lazy":
         deferred = {r["about_ref"] for r in conn.execute(
             "SELECT about_ref FROM ledger")}
         fresh = [i for i in offered if i not in deferred]
@@ -809,6 +815,25 @@ def observed_entries(conn) -> list[Wake]:
 # The words of the one ledger row per re-survey after a merge. The refs
 # follow as JSON, so the predicate reads back which rows the row holds.
 RESURVEY_WORDS = "After the merge the team re-read the project and recorded these notes: "
+
+# The words that open each row the lazy election defers. The prefix is the
+# mark: the agenda leaves these rows out, and the touch note shows them at
+# their first touch (frame 361). No column carries the mark, so an older
+# run database keeps its schema.
+LAZY_WORDS = "observed and unconfirmed under the lazy election: "
+
+# The words of the one parked ledger row per touch note that showed lazy
+# rows. The JSON after them names the batch and the rows it showed, so a row
+# is shown once and its note shows it again on every render (frame 361).
+FIRST_TOUCH_WORDS = "Shown at the first touch of a change: "
+
+
+def lazy_count(conn) -> int:
+    """The count of the lazy rows that still wait for their first touch."""
+    return conn.execute(
+        "SELECT COUNT(*) FROM ledger WHERE status = 'open' "
+        "AND substr(default_taken, 1, ?) = ?",
+        (len(LAZY_WORDS), LAZY_WORDS)).fetchone()[0]
 
 
 def resurvey_rows(conn, table: str, ids: list[str]) -> dict[str, str]:
@@ -1052,6 +1077,19 @@ def touch_note(conn) -> list[Wake]:
         + not_parked(conn, "b.item_id") +
         "GROUP BY b.id ORDER BY b.id"
     ).fetchall()
+    # A presented note showed the lazy rows bound to its touch, so the clerk
+    # takes them out of the open set. Its page reads them from the record
+    # after that, and the next note on the same ground names none of them
+    # (frame 361).
+    from .lifecycle import first_touch_rows, first_touch_shown
+
+    for r in rows:
+        if r["id"] in presented and first_touch_shown(conn, r["id"]) is None:
+            shown = first_touch_rows(conn, r["id"])
+            if shown:
+                return [Wake(SCHEDULER, "do:first_touch",
+                             refs=(r["id"], *shown),
+                             detail=f"lazy rows shown at first touch: {len(shown)}")]
     return [Wake("liaison", "tick:touch_note", refs=(r["id"], r["item"]),
                  detail=f"expected {r['expected']}, possible {r['possible']}")
             for r in rows if r["id"] not in presented]

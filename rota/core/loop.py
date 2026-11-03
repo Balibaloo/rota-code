@@ -501,6 +501,7 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         import hashlib
 
         from .db import table_of
+        from .predicates import LAZY_WORDS
 
         words_of = {"glossary_terms": "sense_short", "constraints": "headline",
                     "model_areas": "account", "items": "text"}
@@ -515,8 +516,7 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
             if not row:
                 continue
             words = row["words"]
-            assumption = (f"observed and unconfirmed under the lazy election: "
-                          f"{words}")
+            assumption = f"{LAZY_WORDS}{words}"
             lid = "l_" + hashlib.sha256(
                 f"{table}|{ref}|{assumption}".encode()).hexdigest()[:10]
             conn.execute(
@@ -536,6 +536,16 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         written = resurvey_note(conn)
         conn.commit()
         return f"recorded {len(wake.refs)} re-survey rows in {len(written)} ledger row(s)"
+
+    if action == "first_touch":
+        # A touch note showed the lazy rows bound to its batch. They leave
+        # the open set, and one parked row records which note showed them
+        # (frame 361). A clerk's step: the rows were already on the page.
+        from .lifecycle import record_first_touch
+
+        n = record_first_touch(conn, wake.refs[0], list(wake.refs[1:]))
+        conn.commit()
+        return f"recorded {n} lazy rows shown at the first touch of {wake.refs[0]}"
 
     if action == "harness":
         from . import harness

@@ -155,6 +155,9 @@ def test_a_note_nobody_answered_freezes_no_gate(db):
                "'vision_keeper')")
     seed_provenance(db, "items", "i2", "decided")
     seed_provenance(db, "glossary_terms", "g1", "observed")
+    # The gate under test is the eager page (frame 361: the default is lazy).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election', '\"eager\"')")
     db.commit()
 
     assert touch_notes(db) == {"m_note"}

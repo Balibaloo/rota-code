@@ -240,6 +240,8 @@ ALLOWED = {
     ("rota/core/lifecycle.py", "predicted_rows"),
     # P4: the page shows the Architect's own rows as a sense check.
     ("rota/core/lifecycle.py", "touch_set"),
+    # The lazy rows bound to the same rows the touch note shows (frame 361).
+    ("rota/core/lifecycle.py", "first_touch_rows"),
     ("rota/core/predicates.py", "touch_note"),
     ("rota/roles/principal.py", "code_target"),
     # Whether the Architect wrote a prediction at all, not what it holds.

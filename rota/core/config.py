@@ -202,10 +202,15 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "only unread.",
             values=("on", "off")),
 
-    Setting("baseline_election", "",
+    # The default is `lazy` where he has not chosen, and his choice wins
+    # (ruled: Roman, 2026-11-03 01:05, design-onboarding ruling 1). The
+    # registry holds it, so every reader through `get` reads one default.
+    Setting("baseline_election", "lazy",
             "The principal's ruling on which baseline the project adopts, "
-            "written by `rota elect` or a chat verdict. Empty means not yet "
-            "elected. A ruling, not plumbing: every change is history."),
+            "written by `rota elect` or a chat verdict. With no ruling the "
+            "project is `lazy`: the observed rows wait in the ledger for "
+            "their first touch, and `eager` puts them on one page. A ruling, "
+            "not plumbing: every change is history."),
 
     Setting("spill_seen", {},
             "The last reading of the card, written by the loop after a "

@@ -484,6 +484,9 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
     db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
                "VALUES ('g1','tip','the gratuity')")
     seed_provenance(db, "glossary_terms", "g1", "observed")
+    # The page is the eager path (frame 361: the default is lazy).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election','\"eager\"')")
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
     assert not any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
@@ -1331,6 +1334,10 @@ def test_the_observed_offer_names_its_rows(db):
     db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1','schema','must match')")
     seed_provenance(db, "constraints", "k1", "observed")
+    # The page is the eager path. With no election the default is lazy
+    # (ruled: Roman, 2026-11-03 01:05, frame 361).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election','\"eager\"')")
     db.commit()
 
     wakes = observed_entries(db)
@@ -1397,9 +1404,10 @@ def test_the_lazy_election_defers_the_baseline_to_the_ledger(db):
     assert observed_entries(db) == []
 
 
-def test_the_eager_default_is_unchanged(db):
-    """The bound: with no election on file, the offer is the present it has
-    always been."""
+def test_with_no_election_the_offer_is_the_lazy_deferral(db):
+    """The bound moved: with no election on file, the rows go to the ledger
+    and no page goes out. `lazy` is the default where he has not chosen
+    (ruled: Roman, 2026-11-03 01:05, frame 361)."""
     from rota.core.predicates import observed_entries
 
     db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
@@ -1408,7 +1416,7 @@ def test_the_eager_default_is_unchanged(db):
     db.commit()
     offer = observed_entries(db)
     assert [(w.role, w.kind) for w in offer] == \
-        [("liaison", "tick:observed_entries")]
+        [(P.SCHEDULER, "do:defer_baseline")]
 
 
 def _bad_criterion(db):

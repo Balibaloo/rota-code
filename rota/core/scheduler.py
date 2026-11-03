@@ -1228,9 +1228,15 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     from .db import _has_column
 
     kind = "kind" if _has_column(conn, "ledger", "kind") else "'default' AS kind"
+    # A lazy row waits for its first touch, and the touch note shows it.
+    # The agenda paged the same 7 of 223 on every answer (frame 361, the
+    # deep dive's section 4). Its words are the mark.
+    from .predicates import LAZY_WORDS
+
     rows = conn.execute(
         f"SELECT id, about_ref, {kind} FROM ledger WHERE status = 'open' "
-        "ORDER BY rowid"
+        "AND substr(default_taken, 1, ?) != ? ORDER BY rowid",
+        (len(LAZY_WORDS), LAZY_WORDS)
     ).fetchall()
     if not rows:
         return []

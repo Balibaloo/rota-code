@@ -99,6 +99,10 @@ def _seed(conn, *, merged: bool = True, writer: dict | None = None) -> None:
     conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                  "verb, body_refs, seq, status) VALUES ('m10', 'm7', 'm7', 'principal', "
                  "'liaison', 'verdict', '[]', 9, 'answered')")
+    # Dry run 1 ran the eager page. With no election the default is lazy
+    # (ruled: Roman, 2026-11-03 01:05, frame 361).
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('baseline_election', '\"eager\"')")
     conn.commit()
 
 

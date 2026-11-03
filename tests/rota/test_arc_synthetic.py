@@ -350,6 +350,9 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
     db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1','frontmatter must match the schema','validateFmSchema')")
     seed_provenance(db, "constraints", "k1", "observed")
+    # The arc is the eager page (frame 361: the default is lazy).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election', '\"eager\"')")
     db.commit()
 
     # 1. The register offers the observations to Liaison, once.
