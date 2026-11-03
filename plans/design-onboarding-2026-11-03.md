@@ -12,6 +12,14 @@ Questions for Roman, each a ruling:
 2. The scope of the reading: both choices of that ruling have the team read the whole project before your first request, and law 12 starves constraint zero by surveying every area; should the team read only the parts your job touches and their callers (recommended: yes)?
 3. A broken outside promise: on 2026-09-30 (13d138b2) you ruled that the checker fails a change only on what your request says, and the purpose line of 2026-09-16 says no work happens that you did not ask for; should a broken promise to outside programs stop the merge even when your request did not name it (recommended: yes)?
 
+Ruled by Roman on 2026-11-03 at about 01:05 (observed: frame 362, the status line of 01:10; the words are from session ce483c7b's terminal):
+
+1. Yes. `lazy` is the default where he has not chosen, and his choice overrides it. This amends the use of 05fbe247, 2026-08-26, not the ruling: the choice stays his.
+2. Not as asked. His words: "I guess we can let the principal decide in the moment, but I'm expecting reading up front to have significant benefits." So the scope of the read is his choice in the moment, the whole project or the touched area and its callers, and the design keeps both. His expectation is measured, not assumed: the demand read's finding that no seat acted on a survey row was taken with three of four doors broken, so it does not yet test the full read. The order is: repair the doors (section 3.A, steps 1 to 3), then one dry run with the full read and the doors working against one with the touched read, scored against the key and by what each seat loaded.
+3. Yes. A broken promise to outside programs stops the merge even when his request did not name it. This amends 13d138b2, 2026-09-30, and reads the purpose line as the project's promise to the outside, not as the team's work.
+
+What ruling 2 changes in B: the "Cuts" line of section 3.B no longer cuts the whole-project survey. The survey's scope becomes a choice he makes per project in the moment, beside the eager-or-lazy election, and neither scope is the default until the measure above says which one pays. The touched read of 3.B step 5 is the second scope, not the only one.
+
 ## 1. The facts the demand read established
 
 The door is the call or push that hands a record to the seat. "Connects" means the record reaches the seat in a usable form.
@@ -109,7 +117,7 @@ What it does:
 
 Keeps: the index, the description, the guess, the touch line, the area-hash rule, the election and constraint zero. Constraint zero now honestly marks every area no request has touched (reasoned: law 12 says constraint zero "makes ignorance safe on day one", and B keeps ignorance outside the touch).
 
-Cuts: the whole-project survey and `define` over every lexicon word, `reconcile`'s 39 to 41 sessions (the README claims become candidates), the `eager` account page as a default, the `term_collision` pages, the re-survey of the whole project after a merge, and the area accounts, which no delivery seat read (observed: the read, section 4). `challenge` runs on the commitments in play only.
+Cuts (amended by ruling 2 of 2026-11-03, see Result: the whole-project survey is not cut, it is his choice in the moment beside the touched read, and the measure decides the default): the whole-project survey as the only scope and `define` over every lexicon word, `reconcile`'s 39 to 41 sessions (the README claims become candidates), the `eager` account page as a default, the `term_collision` pages, the re-survey of the whole project after a merge, and the area accounts, which no delivery seat read (observed: the read, section 4). `challenge` runs on the commitments in play only.
 
 Failure case: a change in `src/icalendar/prop/` to the way a value is parsed breaks the round trip of `vBroken`, and `cal/component.py`, which holds the `errors` list, calls nothing in the touched file. The caller rule misses it. The binding rule still reaches it, because the preservation witness in `docs/how-to/parse-errors.rst` 46 and 47 names `vBroken` and the commitment binds the files that use the name (reasoned: the key binds `unknown_content_survives_round_trip` to `prop/` and `cal/component.py`). A second failure case: a request in everyday words that names no function. The guess then has less to start from, and B depends on the guess more than today does (reasoned: all three merges came from requests that named the function).
 
@@ -285,3 +293,9 @@ From `plans/design-onboarding-review-2026-11-03.md`, one line per finding:
 - L11: the old question 3 is now a notice under the recommendation in section 5.
 - L12: the touched-area `define` reads the existing senses of a word first, in 3.B step 5 and in 3.4.
 - Review section 2: the challenge verdict row in 3.4 is marked as supply that waits for its first demand.
+
+From Roman's rulings of 2026-11-03, written by session 07f209e6 at 01:2x:
+
+- Ruling 1 closes question 1 as recommended.
+- Ruling 2 keeps the whole-project read as his choice in the moment. The Result holds his words and the measure. Section 3.B "Cuts" is amended in place. The door repair of 3.A steps 1 to 3 moves first, as the prerequisite of the measure and of B's push door.
+- Ruling 3 closes question 3 as recommended.
