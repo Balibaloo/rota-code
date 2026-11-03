@@ -58,3 +58,23 @@ Point 8, the register count: 20 cases seed observed rows with no election. Only 
 ## (d) Usage
 
 These are estimates, because the harness shows no count. Input: about 95k tokens. Output: about 12k tokens. Total: about 107k tokens. That is above the cap of about 60k. The extra came from the test runs that found finding 1.
+
+## Second look, pass 1c at `f23ca3ea`
+
+Verdict: fix. Five findings are fixed, two are partly fixed, and one is not fixed. Finding 2 now hides 25 notes instead of counting them for ever. Each line below comes from the same probe as before, run again on `f23ca3ea`.
+
+1. Fixed. The review scenes, reachability, `test_refs`, `test_chaos`, `test_f361_lazy_default` and `test_predicates` give `1019 passed, 31 skipped`. The fixture of `L1-LI-present-what-onboarding-only-observed` now holds a `config` row, so its recording goes STALE. Only the gate measures that.
+2. Partly fixed. **High.** `p2_defer.py`: "deferred 223 observed rows to the ledger, 25 of them parked because no touch binds them". The state line now says 198. The 25 rows surface nowhere. `render_state` names neither the count nor the reason. The record has `about_ref = ''`, and `ledger_items` returns `set()`, so `ledger.list(shipped=)` never lists it. The rows no longer wait for ever, but they are now invisible work. Fix: add one clause to the lazy line, for example "25 of them no change can touch", and list them on request.
+3. Not fixed. `p4_touch.py`: `docs/nowhere/x.txt` still binds the `.` area row and the glossary row of area `.`. The docstring at `lifecycle.py:657` is unchanged. Low.
+4. Partly fixed. `p4c_list.py`: `ledger.list(shipped=<item>)` now shows "Shown at the first touch of a change." with the 5 notes in their words. The record still sits under "open when X shipped", and the record was never open. Low. Accept.
+5. Fixed. `_why_idle` on the copy returns "nothing pending".
+6. No change, as recommended. dry3w7 as it is now defers 217 rows. With `eager` stored, the eager page offers 218 rows.
+7. Fixed. A stored JSON empty string reads `lazy` in `config.get` and in the predicate.
+8. Fixed. The wake carries 223 refs, one per row.
+
+The added points:
+
+- `test_the_lazy_election_defers_the_baseline_to_the_ledger` still proves the deferral. It asserts the `do:defer_baseline` wake on `g1` and `k1`, "deferred 2", two open rows by `principal` in their own words, and a quiet offer after. The new area and the binding only make both rows bindable. The unbound park has its own test: `test_under_lazy_the_state_names_the_count_and_the_agenda_pages_none` asserts 25 parked rows and the reason.
+- The empty-value rule changes one other reading. **Low. CONFIRMED.** A stored `onboarding_phases` of `""` read `()`, no phase, on `12c26a46`. It now reads all nine phases. A stored `runner` of `""` now reads `local`. Before, it read `""`, which names no runner. The settings that list their `values` refuse `""` at `config.set`, so their readings cannot change. No code writes `""` to either setting. The principal can still write it, because config is his direct-edit space. Fix: limit the rule to `baseline_election`, or write the change into the help text of `onboarding_phases`.
+
+Probes of the second look: `p2_defer.py`, `p1_default.py`, `p4_touch.py`, the new `p4c_list.py`, one `-c` call for `render_state`, `ledger_items` and `_why_idle`, one `-c` call per tree (`f23ca3ea` and the `12c26a46` export) for an empty `onboarding_phases` and `runner`, and the pytest run above. Usage of the second look, estimated: input about 30k tokens, output about 5k tokens, total about 35k tokens, above the cap of about 25k.
