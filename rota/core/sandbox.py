@@ -4395,9 +4395,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "SELECT 1 FROM ledger WHERE id = ? AND status = 'open'", (r,)).fetchone())
                 if refs and room > 0:
                     marks = ",".join("?" * len(refs))
+                    # A lazy row waits for its first touch, as on the agenda,
+                    # so it rides no signoff page (frame 361, pass 1b).
+                    from .predicates import LAZY_WORDS
+
                     assumed = [r["id"] for r in ctx.conn.execute(
                         "SELECT id FROM ledger WHERE status = 'open' "
-                        f"AND about_ref IN ({marks}) ORDER BY rowid", tuple(refs))]
+                        f"AND about_ref IN ({marks}) "
+                        "AND substr(default_taken, 1, ?) != ? ORDER BY rowid",
+                        (*refs, len(LAZY_WORDS), LAZY_WORDS))]
                     added = [r for r in assumed if r not in refs][:room]
                     refs += added
                     room -= len(added)

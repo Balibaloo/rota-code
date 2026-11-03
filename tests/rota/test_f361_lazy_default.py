@@ -113,8 +113,10 @@ def test_under_lazy_the_state_names_the_count_and_the_agenda_pages_none(dry3):
     _drain(dry3)
     assert dry3.execute("SELECT COUNT(*) FROM ledger WHERE status = 'open'"
                         ).fetchone()[0] == 223
-    assert ("The team read the project and recorded 223 notes. "
-            "Ask me to show them.") in render_state(dry3)
+    # No path lists the lazy rows on request, so the line promises none
+    # (frame 361, pass 1b).
+    assert ("The team read the project and recorded 223 notes. They wait in "
+            "the ledger until a change touches them.") in render_state(dry3)
     # Control on 12c26a46: the same 7 rows on each of three wakes.
     for i in range(3):
         wakes = tick_agenda(dry3, principal_present=True)
@@ -203,3 +205,37 @@ def test_the_eager_prompt_names_the_first_id_and_the_door_adds_the_rest(tmp_path
     assert out.committed, out.errors
     sent = db.execute("SELECT body_refs FROM messages WHERE verb='present'").fetchone()
     assert sorted(json.loads(sent["body_refs"])) == sorted(wakes[0].refs)
+
+
+def test_a_lazy_row_about_an_item_rides_no_signoff_page(tmp_path):
+    """The signoff hook adds the open rows about a presented item. A lazy
+    row waits for its first touch, as on the agenda (frame 361, pass 1b)."""
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('how_it_works', 'the program prints the tip', "
+               "'in_scope', 'draft', 0, 1)")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('L1', 'how_it_works', 'items', "
+               "'the percentage is typed each time', 'open', 'vision_keeper')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('L9', 'how_it_works', 'items', ?, "
+               "'open', 'principal')", (LAZY_WORDS + "the program prints the tip",))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m8', 'th', 'vision_keeper', "
+               "'liaison', 'submit', ?, 1, 'open')", (json.dumps(["how_it_works"]),))
+    db.commit()
+
+    out = run_session(
+        db, Wake("liaison", "message", message_id="m8", detail="submit"),
+        backend=ScriptedBackend([
+            "TOOL: msg.present_principal(refs=['how_it_works'])", "done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="present it")
+    assert out.committed, out.errors
+    refs = json.loads(db.execute("SELECT body_refs FROM messages "
+                                 "WHERE verb = 'present'").fetchone()[0])
+    assert "L1" in refs, refs
+    assert "L9" not in refs, refs

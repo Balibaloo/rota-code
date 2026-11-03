@@ -416,10 +416,16 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # Under `lazy` the read asks nothing, so the view shows one sentence and
     # no page, in the shape of the re-survey line (ruled: Roman, 2026-11-03
     # 01:05, the design's 3.5).
+    # The line promises no listing. The only listing, `ledger.list(shipped=)`
+    # in the converse mode, finds rows of a merged item, and a lazy row
+    # reaches no item (frame 361, pass 1b).
     lazy = lazy_count(conn)
     if lazy:
+        it, wait, them = (("It", "waits", "it") if lazy == 1
+                          else ("They", "wait", "them"))
         out.append(f"The team read the project and recorded {lazy} "
-                   f"note{'s' if lazy > 1 else ''}. Ask me to show them.")
+                   f"note{'s' if lazy > 1 else ''}. {it} {wait} in the "
+                   f"ledger until a change touches {them}.")
     # F7, pass 1b: the summary after the merge names each removal that no
     # grant of his allows. It is information, and it holds nothing.
     gone = merged_removal_line(conn) if merged else ""

@@ -13,4 +13,4 @@ to".
 
 One page, not several. Measured (tipsK, 2026-09-09): the rows went out two or
 three at a time over eight sessions, and the principal saw the same page
-eleven times. Every ref you leave out comes back as another page.
+eleven times.
