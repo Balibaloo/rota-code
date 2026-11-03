@@ -628,6 +628,9 @@ def test_observed_entries_presents_the_code_and_not_the_world(db):
     _ref(db, "glossary_terms", "g_world", "reference", "ref1")
     _ref(db, "constraints", "k_world", "reference", "ref1")
     assert _prov(db, "term_provenance", "g_world") == ("observed", "world")
+    # The page is the eager path (frame 361: the default is lazy).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election', '\"eager\"')")
 
     wakes = observed_entries(db)
     assert [(w.role, w.kind, w.refs) for w in wakes] == \

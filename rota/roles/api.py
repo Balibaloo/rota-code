@@ -16446,8 +16446,27 @@ def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
         "constraints": "SELECT text AS words FROM constraints WHERE id = ?",
         "model_areas": "SELECT account AS words FROM model_areas WHERE id = ?",
         "items": "SELECT text AS words FROM items WHERE id = ?"}
+    from ..core.predicates import FIRST_TOUCH_WORDS, LAZY_WORDS
+
     for r in rows:
         said = r["default_taken"] or ""
+        # A first-touch record holds the ledger ids it showed as JSON. Each
+        # one becomes the note's words (review p1 of frame 361, finding 4).
+        if said.startswith(FIRST_TOUCH_WORDS):
+            try:
+                held = json.loads(said[len(FIRST_TOUCH_WORDS):])
+                ids = [x for x in held.get("rows") or () if isinstance(x, str)]
+            except (TypeError, ValueError, AttributeError):
+                continue
+            notes = []
+            for ref in ids:
+                row = ctx.conn.execute(
+                    "SELECT default_taken FROM ledger WHERE id = ?", (ref,)).fetchone()
+                notes.append(row["default_taken"].removeprefix(LAZY_WORDS)
+                             if row else ref)
+            r["default_taken"] = FIRST_TOUCH_WORDS.rstrip(": ") + "."
+            r["notes"] = notes
+            continue
         if not said.startswith(RESURVEY_WORDS):
             continue
         try:

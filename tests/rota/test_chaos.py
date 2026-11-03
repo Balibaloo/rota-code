@@ -104,6 +104,10 @@ def test_the_scheduler_killed_between_steps_loses_nothing(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m2','t2','liaison','architect','ask',"
                "'[\"g2\"]',2)")
+    # The steps are seat steps on the eager path (frame 361: the default is
+    # lazy).
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election', '\"eager\"')")
     db.commit()
 
     s = step(db, backend=ScriptedBackend(

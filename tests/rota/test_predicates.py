@@ -1373,11 +1373,16 @@ def test_the_lazy_election_defers_the_baseline_to_the_ledger(db):
     from rota.core.predicates import observed_entries
     from rota.llm.llm import Pins, ScriptedBackend
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
-               "VALUES ('g1','recipe','a note that seeds another')")
+    # Each row can bind a touch, so each waits open for it. A row that binds
+    # nothing is parked at the deferral (review p1 of frame 361, finding 2).
+    db.execute("INSERT INTO model_areas (id, account) VALUES ('notes', 'the notes')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, area) "
+               "VALUES ('g1','recipe','a note that seeds another','notes')")
     seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1','frontmatter must match the schema','x')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
+               "VALUES ('k1', 'notes/schema.py', 'path')")
     seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO config (key, value) VALUES "
                "('baseline_election','lazy')")

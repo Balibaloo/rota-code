@@ -1123,6 +1123,11 @@ def critic(tmp: Path, name: str = "critic") -> Scene:
     scene ends when the harness has run t1, and the loop's next pick is
     the Critic's review of b1."""
     sc = _base(name, tmp, bind=True)
+    # The scene puts the observed constraint on the eager page. With no
+    # election the default is lazy (ruled: Roman, 2026-11-03 01:05, frame 361).
+    sc.conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                    "('baseline_election', '\"eager\"')")
+    sc.conn.commit()
     k = sc.conn.execute("SELECT id FROM constraints WHERE headline = ?",
                         (CONSTRAINT,)).fetchone()["id"]
     sc.ids["constraint"] = k

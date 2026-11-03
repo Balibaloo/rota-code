@@ -94,28 +94,50 @@ def _batch(db, bid):
 def test_with_no_election_the_predicate_takes_the_lazy_branch(dry3):
     # Control on 12c26a46: no election read as eager, a page of 240 rows.
     _drain(dry3)
-    assert lazy_count(dry3) == 223
+    assert lazy_count(dry3) == 198
     assert not any(w.kind == "tick:observed_entries" for w in observed_entries(dry3))
+
+
+def test_an_empty_stored_election_reads_as_lazy(dry3):
+    _elect(dry3, "")
+    assert [w.kind for w in _drain(dry3)] == []
+    assert lazy_count(dry3) == 198
 
 
 def test_with_eager_elected_the_page_is_as_today(dry3):
     _elect(dry3, "eager")
     wakes = _drain(dry3)
     assert [w.kind for w in wakes] == ["tick:observed_entries"]
-    # The run's page held 235 rows. The copy has no present, so all 240
-    # rows of the probe's deferral are fresh.
-    assert len(wakes[0].refs) == 240
+    # The run's page held 235 refs. The copy has no present, so all rows
+    # are fresh, and each of the 223 ids rides once (review p1, finding 8).
+    assert len(wakes[0].refs) == len(set(wakes[0].refs)) == 223
     assert lazy_count(dry3) == 0
 
 
 def test_under_lazy_the_state_names_the_count_and_the_agenda_pages_none(dry3):
     _elect(dry3, "lazy")
     _drain(dry3)
+    # 25 rows bind no touch: 20 glossary rows with no area and 5 items.
+    # They are parked at the deferral, with the reason (review p1, finding 2).
+    from rota.core.lifecycle import BINDS_NOTHING, first_touch_shown
+
+    lazy = [r for r in dry3.execute(
+        "SELECT status, about_table, about_ref FROM ledger "
+        "WHERE substr(default_taken, 1, ?) = ?", (len(LAZY_WORDS), LAZY_WORDS))]
+    assert len(lazy) == 223
+    parked = [r for r in lazy if r["status"] == "parked"]
+    assert len(parked) == 25
+    assert sorted({r["about_table"] for r in parked}) == ["glossary_terms", "items"]
+    assert first_touch_shown(dry3, "bg_none") is None
+    records = [json.loads(r[0].split(": ", 1)[1]) for r in dry3.execute(
+        "SELECT default_taken FROM ledger WHERE default_taken LIKE 'Shown at%'")]
+    assert [(h["batch"], h["reason"], len(h["rows"])) for h in records] == \
+        [(None, BINDS_NOTHING, 25)]
     assert dry3.execute("SELECT COUNT(*) FROM ledger WHERE status = 'open'"
-                        ).fetchone()[0] == 223
+                        ).fetchone()[0] == 198
     # No path lists the lazy rows on request, so the line promises none
     # (frame 361, pass 1b).
-    assert ("The team read the project and recorded 223 notes. They wait in "
+    assert ("The team read the project and recorded 198 notes. They wait in "
             "the ledger until a change touches them.") in render_state(dry3)
     # Control on 12c26a46: the same 7 rows on each of three wakes.
     for i in range(3):

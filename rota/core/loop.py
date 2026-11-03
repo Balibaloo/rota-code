@@ -505,7 +505,9 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
 
         words_of = {"glossary_terms": "sense_short", "constraints": "headline",
                     "model_areas": "account", "items": "text"}
-        n = 0
+        from .lifecycle import record_first_touch, touch_can_bind
+
+        n, unbound = 0, []
         for ref in wake.refs or ():
             # `db.table_of` finds the row, and this map names its words (F22).
             table = table_of(conn, ref, among=tuple(words_of))
@@ -524,8 +526,15 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
                 "default_taken, status, author) VALUES (?,?,?,?, 'open', "
                 "'principal')", (lid, ref, table, assumption))
             n += 1
+            if not touch_can_bind(conn, table, ref):
+                unbound.append(lid)
+        # A row that no touch can bind would wait for ever, and the state
+        # line would count it for ever. It is parked now, with its reason
+        # (review p1 of frame 361, finding 2).
+        parked = record_first_touch(conn, None, unbound)
         conn.commit()
-        return f"deferred {n} observed rows to the ledger"
+        return (f"deferred {n} observed rows to the ledger, "
+                f"{parked} of them parked because no touch binds them")
 
     if action == "resurvey_note":
         # A re-survey after a merge asks nothing, so the clerk records it.
@@ -700,8 +709,14 @@ def _why_idle(conn: sqlite3.Connection) -> str:
     if waiting:
         verbs = ", ".join(sorted({w["verb"] for w in waiting}))
         return f"gate: waiting on the principal ({verbs})"
+    # A lazy row waits for its first touch, not for him, so it is no reason
+    # to idle. The agenda's mark leaves it out (review p1 of frame 361, 5).
+    from .predicates import LAZY_WORDS
+
     open_ledger = conn.execute(
-        "SELECT COUNT(*) n FROM ledger WHERE status = 'open'").fetchone()["n"]
+        "SELECT COUNT(*) n FROM ledger WHERE status = 'open' "
+        "AND substr(default_taken, 1, ?) != ?",
+        (len(LAZY_WORDS), LAZY_WORDS)).fetchone()["n"]
     if open_ledger:
         return f"idle with {open_ledger} open assumption(s)"
     return "nothing pending"

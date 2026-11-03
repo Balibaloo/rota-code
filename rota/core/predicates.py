@@ -705,14 +705,18 @@ def observed_entries(conn) -> list[Wake]:
     noted = resurvey_noted(conn)
     for table in ("glossary_terms", "constraints", "model_areas", "items"):
         view = PROVENANCE_VIEW_OF_TABLE[table]
-        rows = [r["id"] for r in conn.execute(
-            f"SELECT id FROM {view} WHERE basis = 'code' ORDER BY id")]
+        # One id once. The view can hold a row twice, and the eager wake of
+        # dry3w7 carried 240 refs for 223 rows (review p1 of frame 361, 8).
+        rows = list(dict.fromkeys(r["id"] for r in conn.execute(
+            f"SELECT id FROM {view} WHERE basis = 'code' ORDER BY id")))
         # A re-survey after a merge is no onboarding, so its rows go to the
         # ledger and not to a page. Night 175's m145 put 15 such notes to the
         # principal with nothing to build (frame 358).
         late = resurvey_rows(conn, table, rows)
         owed += [i for i in rows if i in late and i not in noted]
         fresh = [i for i in rows if i not in presented and i not in late]
+        # An id in two tables is one ref on the wake.
+        fresh = [i for i in fresh if i not in offered]
         if fresh:
             counts.append(f"{table}:{len(fresh)}")
             offered += fresh
@@ -782,14 +786,18 @@ def observed_entries(conn) -> list[Wake]:
     # bindings, because logging "this observation is unconfirmed" has no
     # judgement in it for a session to get wrong. Rows already deferred are
     # excluded the same way presented ones are: the ledger row is the record.
-    # No ruling reads as `lazy`, and an empty row reads the same (ruled:
-    # Roman, 2026-11-03 01:05). The default lives in the config registry.
-    from .config import SETTINGS
+    # No ruling reads as `lazy`, and an empty value reads the same (ruled:
+    # Roman, 2026-11-03 01:05). `config.get` holds both rules, so one reader
+    # decides (review p1 of frame 361, finding 7). A bare word written past
+    # the registry is not JSON, and it reads as the word.
+    from . import config as config_mod
 
-    row = conn.execute(
-        "SELECT value FROM config WHERE key = 'baseline_election'").fetchone()
-    election = ((row["value"] or "").strip('"') if row else ""
-                ) or SETTINGS["baseline_election"].default
+    try:
+        election = config_mod.get(conn, "baseline_election")
+    except ValueError:
+        election = conn.execute(
+            "SELECT value FROM config WHERE key = 'baseline_election'"
+        ).fetchone()["value"].strip('"')
     if election == "lazy":
         deferred = {r["about_ref"] for r in conn.execute(
             "SELECT about_ref FROM ledger")}

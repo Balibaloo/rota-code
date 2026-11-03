@@ -745,26 +745,58 @@ def first_touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
             + "; ".join(shown) + (f"; and {more} more" if more else ""))
 
 
-def record_first_touch(conn: sqlite3.Connection, batch_id: str,
+# The reason of the record that parks the lazy rows no touch can bind.
+BINDS_NOTHING = "no change can touch these notes, so none waits for a touch"
+
+
+def touch_can_bind(conn: sqlite3.Connection, table: str, ref: str) -> bool:
+    """Whether any touch can ever bind this row under the rule of
+    `first_touch_rows`. An area row always can. A glossary row can when its
+    area is an area. A constraint row can when it has a binding. An item row
+    never can (review p1 of frame 361, finding 2)."""
+    if table == "model_areas":
+        return True
+    if table == "glossary_terms":
+        row = conn.execute(
+            "SELECT 1 FROM glossary_terms g JOIN model_areas a ON a.id = g.area "
+            "WHERE g.id = ?", (ref,)).fetchone()
+        return row is not None
+    if table == "constraints":
+        return conn.execute(
+            "SELECT 1 FROM constraint_bindings WHERE constraint_id = ? "
+            "AND resolves = 1", (ref,)).fetchone() is not None
+    return False
+
+
+def record_first_touch(conn: sqlite3.Connection, batch_id: str | None,
                        ids: list[str]) -> int:
     """Park the lazy rows a touch note showed, and write one parked row that
-    names the batch and the rows. Return the count of rows parked."""
+    names the batch and the rows. Return the count of rows parked.
+
+    With no batch, the rows are the ones no touch can bind. They are parked
+    at the deferral, and the record gives the reason in place of a batch."""
     import hashlib
 
-    if not ids or first_touch_shown(conn, batch_id) is not None:
+    if not ids or (batch_id is not None
+                   and first_touch_shown(conn, batch_id) is not None):
         return 0
     from .db import write_state
     from .predicates import FIRST_TOUCH_WORDS
 
-    item = conn.execute("SELECT item_id FROM batches WHERE id = ?",
-                        (batch_id,)).fetchone()
-    words = FIRST_TOUCH_WORDS + json.dumps({"batch": batch_id, "rows": ids})
+    held: dict = {"batch": batch_id, "rows": ids}
+    about = ""
+    if batch_id is None:
+        held["reason"] = BINDS_NOTHING
+    else:
+        item = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                            (batch_id,)).fetchone()
+        about = item["item_id"] if item else batch_id
+    words = FIRST_TOUCH_WORDS + json.dumps(held)
     lid = "l_" + hashlib.sha256(f"batches|{batch_id}|{words}".encode()).hexdigest()[:10]
     conn.execute(
         "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
         "default_taken, kind, status, author) VALUES (?, ?, 'items', ?, "
-        "'other', 'parked', 'scheduler')",
-        (lid, item["item_id"] if item else batch_id, words))
+        "'other', 'parked', 'scheduler')", (lid, about, words))
     for ref in ids:
         write_state(conn, "ledger", ref,
                     "UPDATE ledger SET status = 'parked' WHERE id = ? "
