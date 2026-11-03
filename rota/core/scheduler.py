@@ -3216,7 +3216,42 @@ def constraints_for_grains(conn: sqlite3.Connection, grains: Iterable[str]) -> l
         ):
             hits.add(r["id"])
 
+    # Frame 362, door 3: once every area has a survey, `k0` has no binding,
+    # and "unbound = global" showed "this area has not been surveyed" on
+    # surveyed code. Law 12 starves constraint zero by survey, so a call on
+    # surveyed areas only does not get it.
+    from ..onboarding.boot import ZERO
+    if ZERO in hits and grains and all_areas_surveyed(conn, grains):
+        hits.discard(ZERO)
+
     return sorted(hits)
+
+
+def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
+    """
+    The area of a grain, from `code_index.area`.
+
+    A grain with no area of its own takes the area of its file, the part
+    before "::". A variable such as `caselessdict.py::__all__` has none of
+    its own. A grain that names an area itself is that area. Else None.
+    """
+    for key in (grain, grain.split("::", 1)[0]):
+        row = conn.execute("SELECT area FROM code_index WHERE grain = ?",
+                           (key,)).fetchone()
+        if row and row["area"]:
+            return row["area"]
+    if conn.execute("SELECT 1 FROM code_index WHERE area = ? LIMIT 1",
+                    (grain,)).fetchone():
+        return grain
+    return None
+
+
+def all_areas_surveyed(conn: sqlite3.Connection, grains: Iterable[str]) -> bool:
+    """True when every grain's area has a survey record. A grain with no
+    known area counts as unsurveyed, so the fail-safe keeps `k0`."""
+    surveyed = {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM survey_records")}
+    return all(grain_area(conn, g) in surveyed for g in grains)
 
 
 def constraint_zero_area_coverage(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:

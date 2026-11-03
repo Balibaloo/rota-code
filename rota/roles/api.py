@@ -3633,6 +3633,51 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
     return out
 
 
+def _glossary_rows_of(ctx: Ctx, ids: list[str]) -> list[dict]:
+    """The glossary rows of `ids`, in the order the database returns them."""
+    if not ids:
+        return []
+    return _shown_rows(ctx.conn.execute(
+        "SELECT g.id, g.term, g.sense_short, g.sense_body, g.area, "
+        "p.provenance, p.basis "
+        "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+        f"WHERE g.id IN ({','.join('?' * len(ids))})", tuple(ids)))
+
+
+def _lookup_batch(ctx: Ctx) -> str | None:
+    """The batch of the session, or the batch a wake ref names."""
+    if ctx.batch_id:
+        return ctx.batch_id
+    for ref in ctx.wake_refs or ():
+        if isinstance(ref, str) and ctx.conn.execute(
+                "SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+            return ref
+    return None
+
+
+def _criteria_term_rows(ctx: Ctx, batch_id: str) -> list[dict] | dict:
+    """The glossary rows that the live criteria of `batch_id` name in
+    `term_refs`, or a note that says why there are none."""
+    named: list[str] = []
+    for r in ctx.conn.execute(
+            "SELECT c.id FROM criteria c JOIN batch_tickets bt "
+            "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?"
+            + _live_rows(ctx.conn, "c.retired_by") + " ORDER BY c.rowid",
+            (batch_id,)):
+        for t in _term_refs_of(ctx.conn, "criteria", r["id"]):
+            if t not in named:
+                named.append(t)
+    if not named:
+        return {"note": f"The criteria of {batch_id} name no glossary term."}
+    # The order of the criteria, so the prompt is stable across runs.
+    rows = sorted(_glossary_rows_of(ctx, named), key=lambda r: named.index(r["id"]))
+    missing = [t for t in named if t not in {r["id"] for r in rows}]
+    if missing:
+        rows.append({"note": f"The criteria name {missing}, and the glossary "
+                             f"holds no row for them."})
+    return rows
+
+
 @op("glossary", "lookup")
 def glossary_lookup(ctx: Ctx, term: str = "") -> list[dict] | dict:
     """
@@ -3660,13 +3705,20 @@ def glossary_lookup(ctx: Ctx, term: str = "") -> list[dict] | dict:
     # holds everything a read needs, making the model ask for it is a turn spent
     # on nothing."
     if not (term or "").strip() and ctx.wake_refs:
-        rows = _shown_rows(ctx.conn.execute(
-            "SELECT g.id, g.term, g.sense_short, g.sense_body, g.area, "
-            "p.provenance, p.basis "
-            "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
-            f"WHERE g.id IN ({','.join('?' * len(ctx.wake_refs))})",
-            tuple(ctx.wake_refs)))
-        return rows or {"note": "the rows this wake named are gone."}
+        rows = _glossary_rows_of(ctx, list(ctx.wake_refs))
+        if rows:
+            return rows
+        # Frame 362, door 1: a delivery wake names its batch, not glossary
+        # rows. The read of `bg_1` as a glossary id sent "gone" to 21
+        # sessions on three dry runs. The batch's criteria name the terms.
+        batch = _lookup_batch(ctx)
+        if batch is not None:
+            return _criteria_term_rows(ctx, batch)
+        # Only a wake about glossary rows names rows that can be gone.
+        if ctx.wake_kind == "tick:term_collision":
+            return {"note": "the rows this wake named are gone."}
+        return {"note": "This wake names no glossary row. Call "
+                        "glossary.lookup(term) with the term you need."}
 
     rows = _shown_rows(ctx.conn.execute(
         "SELECT g.id, g.term, g.sense_short, g.sense_body, p.provenance, p.basis "
@@ -4148,6 +4200,43 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
                 or _grain_path(grain) in grains):
             hits.add(r["constraint_id"])
     return hits
+
+
+def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict:
+    """
+    The constraints that bind the files of `batch_id`, with id, headline and
+    text. The read takes no argument from the seat: the batch is the wake's.
+
+    Frame 362, door 2: the Developer's `model.load` got 14 calls on three dry
+    runs, and none held a constraint id. The seat never saw an id to send.
+    The files are the predicted touch set and the diff. The structural
+    review's push reads the same `_reaching_constraints`.
+    """
+    from ..core.lifecycle import grain_file, predicted_rows
+    from ..core.scheduler import all_areas_surveyed
+    from ..onboarding.boot import ZERO
+
+    files = [f for f in (grain_file(r) for r in predicted_rows(ctx.conn, batch_id))
+             if f]
+    try:
+        files += _diff_files(ctx, batch_id) or []
+    except Exception:                                      # noqa: BLE001
+        pass                    # no worktree yet, so the touch set alone
+    files = list(dict.fromkeys(files))
+    if not files:
+        return {"note": f"Batch {batch_id} names no file yet, so no "
+                        f"constraint is bound to it."}
+    ids = _reaching_constraints(ctx.conn, files)
+    # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
+    if all_areas_surveyed(ctx.conn, files):
+        ids.discard(ZERO)
+    if not ids:
+        return {"note": f"No constraint binds the files of this batch: "
+                        f"{', '.join(files)}."}
+    marks = ", ".join("?" for _ in ids)
+    return _rows(ctx.conn.execute(
+        "SELECT id, headline, text FROM constraints "
+        f"WHERE id IN ({marks}) ORDER BY id", sorted(ids)))
 
 
 def _diff_files(ctx: "Ctx", batch_id: str) -> list[str] | None:

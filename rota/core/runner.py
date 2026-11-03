@@ -4204,6 +4204,8 @@ RETIRED_KEY = "criteria of an old ticket, written before the item changed"
 # (frame 315, pass 1).
 RULED_CAP = 3
 START_RULED_KEY = "the principal's words on this change, newest last"
+# Frame 362, door 2: the key of the pushed constraint read.
+BOUND_KEY = "the constraints that bind the files of this batch"
 
 
 def _old_tickets(conn, item_id: str, before_slice: bool) -> list:
@@ -4390,6 +4392,18 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             conn=sb.ctx.conn, batch_id=wake.refs[0])) if principal and t.strip()]
         if said:
             pushed[START_RULED_KEY] = said[-RULED_CAP:]
+    # Frame 362, door 2: the builder and the Tester get the constraints that
+    # bind the batch's files unasked. The seat cannot send `model.load` an
+    # id it never saw. The read is a push, because a tool here needs a line
+    # in the mode's `.tools` file, and this frame changes no prompt file.
+    if wake is not None and (
+            (role == "developer" and wake.kind == "tick:batch_start")
+            or (role == "tester" and wake.kind == "tick:tests_missing")):
+        from ..roles.api import bound_constraints
+
+        bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
+        if bid:
+            pushed[BOUND_KEY] = bound_constraints(sb.ctx, bid)
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.
