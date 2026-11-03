@@ -161,7 +161,7 @@ def test_every_id_derives_from_the_content(ical_db):
 
 def test_the_fold_candidate_binds_its_file(ical_db):
     row = _one(ical_db, "path = 'src/icalendar/parser/string.py' AND line = 122")[0]
-    assert _bound(ical_db, row["id"]) == {"src/icalendar/parser/string.py": "source"}
+    assert _bound(ical_db, row["id"]) == {"src/icalendar/parser/string.py": "witness_file"}
 
 
 def test_the_entry_point_binds_its_module_and_pyproject(ical_db):

@@ -294,7 +294,7 @@ CREATE TABLE IF NOT EXISTS candidate_bindings (
     witness_id   TEXT NOT NULL REFERENCES commitment_candidates(id),
     path         TEXT NOT NULL,
     rule         TEXT NOT NULL CHECK (rule IN ('standard','dependency','entry_point',
-                                               'exports','source','symbol',
+                                               'exports','witness_file','symbol',
                                                'project_wide')),
     PRIMARY KEY (witness_id, path)
 );

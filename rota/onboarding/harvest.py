@@ -48,7 +48,7 @@ from . import indexer
 KINDS = ("metadata", "doc_claim", "preservation", "numeric_default",
          "issue_comment", "export", "test_witness")
 
-RULES = ("standard", "dependency", "entry_point", "exports", "source",
+RULES = ("standard", "dependency", "entry_point", "exports", "witness_file",
          "symbol", "project_wide")
 
 # The second form is the Sphinx role, as in ":rfc:`5545`".
@@ -499,7 +499,7 @@ def bind(tree: Tree, c: Candidate) -> tuple[str, set[str]]:
     if c.path in source:
         # A witness in a source file binds that file. The ranked callers of
         # step 5 come with the caller rule, a later slice.
-        return "source", {c.path}
+        return "witness_file", {c.path}
     if c.kind == "metadata" and c.detail.get("field") == "script":
         target = str(c.detail.get("target", "")).split(":")[0]
         mod = tree.modules().get(target)
