@@ -3655,16 +3655,20 @@ def _lookup_batch(ctx: Ctx) -> str | None:
     return None
 
 
-def _criteria_term_rows(ctx: Ctx, batch_id: str) -> list[dict] | dict:
+def _criteria_term_rows(ctx: Ctx, batch_id: str) -> list[dict] | dict | None:
     """The glossary rows that the live criteria of `batch_id` name in
-    `term_refs`, or a note that says why there are none."""
+    `term_refs`, or a note that says why there are none. None when the
+    batch has no live criterion."""
     named: list[str] = []
-    for r in ctx.conn.execute(
+    criteria = [r["id"] for r in ctx.conn.execute(
             "SELECT c.id FROM criteria c JOIN batch_tickets bt "
             "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?"
             + _live_rows(ctx.conn, "c.retired_by") + " ORDER BY c.rowid",
-            (batch_id,)):
-        for t in _term_refs_of(ctx.conn, "criteria", r["id"]):
+            (batch_id,))]
+    if not criteria:
+        return None
+    for cid in criteria:
+        for t in _term_refs_of(ctx.conn, "criteria", cid):
             if t not in named:
                 named.append(t)
     if not named:
@@ -3704,21 +3708,26 @@ def glossary_lookup(ctx: Ctx, term: str = "") -> list[dict] | dict:
     # this is exactly the case its docstring describes: "if the session already
     # holds everything a read needs, making the model ask for it is a turn spent
     # on nothing."
-    if not (term or "").strip() and ctx.wake_refs:
-        rows = _glossary_rows_of(ctx, list(ctx.wake_refs))
+    # A `message:answer` wake has a batch and no refs, so the batch alone
+    # opens the door too (frame 362, review 1, finding 7).
+    if not (term or "").strip() and (ctx.wake_refs or ctx.batch_id):
+        rows = _glossary_rows_of(ctx, list(ctx.wake_refs or ()))
         if rows:
             return rows
         # Frame 362, door 1: a delivery wake names its batch, not glossary
         # rows. The read of `bg_1` as a glossary id sent "gone" to 21
         # sessions on three dry runs. The batch's criteria name the terms.
         batch = _lookup_batch(ctx)
-        if batch is not None:
-            return _criteria_term_rows(ctx, batch)
+        found = _criteria_term_rows(ctx, batch) if batch is not None else None
+        if found is not None:
+            return found
         # Only a wake about glossary rows names rows that can be gone.
         if ctx.wake_kind == "tick:term_collision":
             return {"note": "the rows this wake named are gone."}
-        return {"note": "This wake names no glossary row. Call "
-                        "glossary.lookup(term) with the term you need."}
+        # Any other wake gets no push. A pushed order to call the lookup
+        # can block a Terminologist's exit (frame 362, review 1, finding 4).
+        raise TypeError("glossary.lookup needs a term: this wake names no "
+                        "glossary row and no batch with criteria")
 
     rows = _shown_rows(ctx.conn.execute(
         "SELECT g.id, g.term, g.sense_short, g.sense_body, p.provenance, p.basis "
@@ -4224,8 +4233,11 @@ def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict:
         pass                    # no worktree yet, so the touch set alone
     files = list(dict.fromkeys(files))
     if not files:
-        return {"note": f"Batch {batch_id} names no file yet, so no "
-                        f"constraint is bound to it."}
+        # Nothing was checked, so the note says no more than that (frame
+        # 362, review 1, finding 3: a global constraint made "no constraint
+        # is bound" false).
+        return {"note": f"The touch set of batch {batch_id} is empty, so no "
+                        f"binding was checked."}
     ids = _reaching_constraints(ctx.conn, files)
     # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
     if all_areas_surveyed(ctx.conn, files):

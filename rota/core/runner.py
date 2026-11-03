@@ -4312,8 +4312,9 @@ def _index_test_files(conn, limit: int = 80) -> list[str]:
             if _is_test_file(conn, g)][:limit]
 
 
-ZERO_SURVEYED_HEADLINE = ("no constraint binds this diff; every touched area "
-                          "has a survey record")
+# Another constraint can bind the diff beside `k0`, so the headline says
+# only what holds in both cases (frame 362, review 1, finding 2).
+ZERO_SURVEYED_HEADLINE = "every touched area has a survey record"
 
 
 def _zero_row_for(conn, row: dict, files: list[str]) -> dict:
@@ -4425,11 +4426,18 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     if wake is not None and (
             (role == "developer" and wake.kind == "tick:batch_start")
             or (role == "tester" and wake.kind == "tick:tests_missing")):
-        from ..roles.api import bound_constraints
+        from ..roles.api import RETIRED_NOTE_KEY, bound_constraints
 
         bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
         if bid:
-            pushed[BOUND_KEY] = bound_constraints(sb.ctx, bid)
+            # Right after the criteria block, because the cut of a long
+            # wake takes the last keys first (frame 362, review 1, finding 6).
+            block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY}
+            last = max((i for i, k in enumerate(pushed) if k in block),
+                       default=len(pushed) - 1)
+            items = list(pushed.items())
+            items.insert(last + 1, (BOUND_KEY, bound_constraints(sb.ctx, bid)))
+            pushed = dict(items)
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.

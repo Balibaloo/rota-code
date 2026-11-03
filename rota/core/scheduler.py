@@ -3240,9 +3240,14 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
 
     A grain with no area of its own takes the area of its file, the part
     before "::". A variable such as `caselessdict.py::__all__` has none of
-    its own. A grain that names an area itself is that area. Else None.
+    its own. A grain that names an area itself is that area.
+
+    A file that the index does not hold yet, such as a new test file, takes
+    the longest area of the index that is a directory prefix of it (frame
+    362, review 1, finding 1). Else None.
     """
-    for key in (grain, grain.split("::", 1)[0]):
+    path = grain.split("::", 1)[0]
+    for key in (grain, path):
         row = conn.execute("SELECT area FROM code_index WHERE grain = ?",
                            (key,)).fetchone()
         if row and row["area"]:
@@ -3250,7 +3255,11 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
     if conn.execute("SELECT 1 FROM code_index WHERE area = ? LIMIT 1",
                     (grain,)).fetchone():
         return grain
-    return None
+    path = path.replace(chr(92), "/")
+    holds = [r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")
+        if path.startswith(r["area"].rstrip("/") + "/")]
+    return max(holds, key=len) if holds else None
 
 
 def unsurveyed_areas(conn: sqlite3.Connection,

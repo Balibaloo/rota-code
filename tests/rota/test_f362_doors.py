@@ -222,8 +222,7 @@ def test_door3_the_structural_review_k0_row_is_true_on_dry3(dry3, monkeypatch):
     The worktree of `bg_1` is gone, so the test gives the diff's files."""
     rows = _structural_k0(dry3, monkeypatch, [CASELESS])
     assert len(rows) == 1
-    assert rows[0]["headline"] == (
-        "no constraint binds this diff; every touched area has a survey record")
+    assert rows[0]["headline"] == "every touched area has a survey record"
     assert "unsurveyed areas" not in rows[0]
     stored = dry3.execute("SELECT headline FROM constraints WHERE id = ?",
                           (ZERO,)).fetchone()[0]
@@ -238,3 +237,85 @@ def test_door3_the_structural_k0_row_names_the_unsurveyed_area(dry3, monkeypatch
     rows = _structural_k0(dry3, monkeypatch, [CASELESS])
     assert rows[0]["headline"] == "this area has not been surveyed"
     assert rows[0]["unsurveyed areas"] == ["src/icalendar"]
+
+
+# ---------------------------------------------------------------------------
+# Pass 1c: the review of passes 1 and 1b (plans/f362-review-p1.md)
+# ---------------------------------------------------------------------------
+
+NEW_TEST = "src/icalendar/tests/test_new_thing.py"
+
+
+def test_p1c_a_new_file_in_a_surveyed_area_gets_no_k0(dry3, monkeypatch):
+    """Finding 1, the review's probe: a file the index does not hold yet,
+    under the surveyed area `src/icalendar/tests`. Control: `k0` with the
+    stored headline."""
+    assert ZERO not in constraints_for_grains(dry3, [NEW_TEST])
+    assert ZERO not in constraints_for_grains(dry3, [NEW_TEST, CASELESS])
+    dry3.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+                 "VALUES ('bg_1', ?, 'path')", (NEW_TEST,))
+    dry3.commit()
+    ctx = api.Ctx(conn=dry3, role="developer", batch_id="bg_1")
+    bound = api.bound_constraints(ctx, "bg_1")
+    assert isinstance(bound, dict) and ZERO not in str(bound), bound
+    rows = _structural_k0(dry3, monkeypatch, [CASELESS, NEW_TEST])
+    assert rows[0]["headline"] == "every touched area has a survey record"
+
+
+def test_p1c_a_path_under_no_area_keeps_k0(tmp_path):
+    db = _fixture_db(tmp_path)
+    _survey(db, "src/a", "src/b")
+    assert ZERO not in constraints_for_grains(db, ["src/a/new.py"])
+    assert ZERO in constraints_for_grains(db, ["docs/new.rst"])
+
+
+def test_p1c_the_k0_headline_is_true_beside_a_bound_constraint(dry3, monkeypatch):
+    """Finding 2: a constraint bound to the diff stands beside `k0`."""
+    dry3.execute("INSERT INTO constraints (id, headline, text, is_global) "
+                 "VALUES ('wire', 'the wire format', 'Readers parse it.', 0)")
+    dry3.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
+                 "VALUES ('wire', ?, 'path')", (CASELESS,))
+    dry3.commit()
+    rows = _structural_k0(dry3, monkeypatch, [CASELESS])
+    assert rows[0]["headline"] == "every touched area has a survey record"
+
+
+def test_p1c_an_empty_touch_set_says_nothing_was_checked(tmp_path):
+    """Finding 3: with no file, no binding was checked."""
+    db = _fixture_db(tmp_path)
+    db.execute("DELETE FROM batch_touch")
+    db.commit()
+    ctx = api.Ctx(conn=db, role="developer", batch_id="b1")
+    assert api.bound_constraints(ctx, "b1") == {
+        "note": "The touch set of batch b1 is empty, so no binding was checked."}
+
+
+@pytest.mark.parametrize("role, kind, refs", [
+    ("terminologist", "tick:criteria", ("canonical_order_duplicate_keys",)),
+    ("terminologist", "tick:criterion_repair", ("c1",)),
+    ("architect", "tick:unresolved", ("m1",))])
+def test_p1c_a_wake_with_no_batch_criteria_gets_no_pushed_lookup(
+        dry3, role, kind, refs):
+    """Finding 4: these wakes got a pushed order to call the lookup."""
+    wake = Wake(role, kind, refs=refs)
+    sb = session_sandbox(dry3, wake)
+    if "glossary.lookup" not in sb.functions():
+        pytest.skip(f"{kind} does not list glossary.lookup")
+    pushed = push_working_set(role, sb, wake)
+    assert "Call glossary.lookup" not in str(pushed.get("glossary.lookup", ""))
+    assert GONE not in str(pushed.get("glossary.lookup", ""))
+
+
+def test_p1c_an_answer_wake_with_a_batch_reads_the_criteria_terms(dry3):
+    """Finding 7: a `message:answer` wake has a batch and no refs."""
+    wake = Wake("developer", "message", refs=(), detail="answer")
+    sb = session_sandbox(dry3, wake, batch_id="bg_1")
+    rows = sb.call("glossary.lookup")
+    assert [r["id"] for r in rows] == ["canonical_order"]
+
+
+def test_p1c_the_constraint_key_follows_the_criteria_block(dry3):
+    """Finding 6: the key was the last key, which a cut takes first."""
+    pushed, _ = _first_prompt(dry3, "developer", "tick:batch_start")
+    keys = list(pushed)
+    assert keys[keys.index("criteria.load") + 1] == BOUND_KEY, keys
