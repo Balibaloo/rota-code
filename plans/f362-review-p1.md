@@ -108,3 +108,25 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/07f209
 ## (d) Usage
 
 The harness does not show the counts. The estimate: about 100k input tokens in context, about 16k output tokens, about 116k in total. The cap was about 60k, so the review went over the cap. The case dump of point 7 took most of the overrun.
+
+## Second look, pass 1c at eb295ae4
+
+Verdict: fix. Pass 1c fixes findings 1, 2, 4 and 6 and the outside finding 7. It fixes finding 3 only in part. Finding 5 does not change. A new file at the repository root still brings back the false `k0`.
+
+The second look ran the same probes again on fresh copies of dry3w7: `r362/probe_a.py` to `r362/probe_e.py`. The root-file probe is `r362/probe_f.py`. The case dump did not run again.
+
+| Finding | Result | What the probe showed |
+|---|---|---|
+| 1, a new file outside the index | Fixed | `src/icalendar/tests/test_new_thing.py` maps to `src/icalendar/tests`. `constraints_for_grains` gives no `k0`. `bound_constraints` gives the note that no constraint binds the two files. |
+| 2, the `k0` headline beside a bound constraint | Fixed | The pushed headline is now "every touched area has a survey record", which is true beside `wire`. `k0` stays in the push, and the door still refuses a `k0` finding while `wire` binds. The refusal names `wire`, so the cost is one turn at most. |
+| 3, the empty-touch note | Partly fixed | The note is now "The touch set of batch bg_1 is empty, so no binding was checked." The note is true. The global constraint `gl` is still not pushed, so the seat does not see it. |
+| 4, the pushed order on other wakes | Fixed | The `criteria`, `criterion_repair` and `unresolved` wakes raise `TypeError`, and the push skips a read that raises `TypeError`. The `term_collision` "gone" note stays. |
+| 5, a casing variant | Not fixed | The probe still gives the note that the glossary holds no row for `Canonical_Order` and `Calendar`. No recorded ref has this form, so the finding stays low. |
+| 6, the place of the new key | Fixed | The key now comes right after `criteria.load`. On `bg_1`, 1,892 characters come before it in the Developer prompt and 1,894 in the Tester prompt. Before pass 1c the counts were 2,533 and 2,828. |
+
+### The new top-level file (high)
+
+- Where: `rota/core/scheduler.py`, the prefix walk at the end of `grain_area`.
+- CONFIRMED. On dry3, the root area `.` holds 186 index rows and has a survey record. `new_tool.py` maps to no area, so `unsurveyed_areas` reports an unknown grain. `constraints_for_grains` gives `k0`. `bound_constraints` gives `k0` with "this area has not been surveyed".
+- The same happens to a new file in a directory that is not an area, for example `docs/new_page.md` or `newdir/x.py`. The prefix test `path.startswith(area + "/")` never matches `.`.
+- Fix: let the area `.` hold every path in the prefix walk, so that `max` by length still picks a deeper area first. This is what `areas.area_of` does when it lands at the root.
