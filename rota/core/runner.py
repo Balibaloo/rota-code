@@ -4429,14 +4429,15 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         from ..roles.api import RETIRED_NOTE_KEY, bound_constraints
 
         bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
-        if bid:
+        bound = bound_constraints(sb.ctx, bid) if bid else None
+        if bound is not None:
             # Right after the criteria block, because the cut of a long
             # wake takes the last keys first (frame 362, review 1, finding 6).
             block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY}
             last = max((i for i, k in enumerate(pushed) if k in block),
                        default=len(pushed) - 1)
             items = list(pushed.items())
-            items.insert(last + 1, (BOUND_KEY, bound_constraints(sb.ctx, bid)))
+            items.insert(last + 1, (BOUND_KEY, bound))
             pushed = dict(items)
 
     # One read needs an argument the *wake* already knows, and leaving it to

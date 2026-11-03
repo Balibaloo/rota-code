@@ -4211,7 +4211,7 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
     return hits
 
 
-def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict:
+def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict | None:
     """
     The constraints that bind the files of `batch_id`, with id, headline and
     text. The read takes no argument from the seat: the batch is the wake's.
@@ -4233,11 +4233,10 @@ def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict:
         pass                    # no worktree yet, so the touch set alone
     files = list(dict.fromkeys(files))
     if not files:
-        # Nothing was checked, so the note says no more than that (frame
-        # 362, review 1, finding 3: a global constraint made "no constraint
-        # is bound" false).
-        return {"note": f"The touch set of batch {batch_id} is empty, so no "
-                        f"binding was checked."}
+        # Nothing was checked, so the push says nothing (frame 362, pass 1e).
+        # A note on the empty touch set turned the Tester of
+        # L1-TS-an-outside-fact-is-the-researchers to the Vision Keeper, 2 of 5.
+        return None
     ids = _reaching_constraints(ctx.conn, files)
     # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
     if all_areas_surveyed(ctx.conn, files):

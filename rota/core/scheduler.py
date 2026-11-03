@@ -3252,7 +3252,10 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
     the longest area of the index that is a directory prefix of it (frame
     362, review 1, finding 1). Else None.
     """
-    path = grain.split("::", 1)[0]
+    # The one reader of a grain's path half (F11).
+    from .worktrees import grain_path
+
+    path = grain_path(grain)
     for key in (grain, path):
         row = conn.execute("SELECT area FROM code_index WHERE grain = ?",
                            (key,)).fetchone()
@@ -3261,7 +3264,6 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
     if conn.execute("SELECT 1 FROM code_index WHERE area = ? LIMIT 1",
                     (grain,)).fetchone():
         return grain
-    path = path.replace(chr(92), "/")
     # The root area "." holds every path, as `areas.area_of` lands there.
     # The longest match picks a deeper area first (frame 362, pass 1d).
     holds = [r["area"] for r in conn.execute(

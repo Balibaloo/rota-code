@@ -289,14 +289,18 @@ def test_p1c_the_k0_headline_is_true_beside_a_bound_constraint(dry3, monkeypatch
     assert rows[0]["headline"] == "every touched area has a survey record"
 
 
-def test_p1c_an_empty_touch_set_says_nothing_was_checked(tmp_path):
-    """Finding 3: with no file, no binding was checked."""
+def test_p1c_an_empty_touch_set_pushes_nothing(tmp_path):
+    """Finding 3: with no file, no binding was checked. Pass 1e: so the push
+    holds no key, because a note on the empty touch set turned the Tester
+    of L1-TS-an-outside-fact-is-the-researchers to the Vision Keeper."""
     db = _fixture_db(tmp_path)
     db.execute("DELETE FROM batch_touch")
     db.commit()
     ctx = api.Ctx(conn=db, role="developer", batch_id="b1")
-    assert api.bound_constraints(ctx, "b1") == {
-        "note": "The touch set of batch b1 is empty, so no binding was checked."}
+    assert api.bound_constraints(ctx, "b1") is None
+    wake = Wake("developer", "tick:batch_start", refs=("b1",))
+    sb = session_sandbox(db, wake, batch_id="b1")
+    assert BOUND_KEY not in push_working_set("developer", sb, wake)
 
 
 @pytest.mark.parametrize("role, kind, refs", [
