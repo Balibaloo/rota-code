@@ -269,6 +269,15 @@ def test_p1c_a_path_under_no_area_keeps_k0(tmp_path):
     assert ZERO in constraints_for_grains(db, ["docs/new.rst"])
 
 
+@pytest.mark.parametrize("path", ["new_root_file.py", "docs/new_page.md"])
+def test_p1d_a_new_file_under_the_root_area_gets_no_k0(dry3, path):
+    """Pass 1d: the area "." holds every path. On dry3w7 "." has a survey
+    record, and `docs` is no area. Control: `k0`."""
+    assert dry3.execute("SELECT 1 FROM survey_records WHERE area = '.'").fetchone()
+    assert ZERO not in constraints_for_grains(dry3, [path])
+    assert ZERO not in constraints_for_grains(dry3, [path, NEW_TEST])
+
+
 def test_p1c_the_k0_headline_is_true_beside_a_bound_constraint(dry3, monkeypatch):
     """Finding 2: a constraint bound to the diff stands beside `k0`."""
     dry3.execute("INSERT INTO constraints (id, headline, text, is_global) "

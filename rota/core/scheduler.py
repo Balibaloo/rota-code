@@ -3256,10 +3256,12 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
                     (grain,)).fetchone():
         return grain
     path = path.replace(chr(92), "/")
+    # The root area "." holds every path, as `areas.area_of` lands there.
+    # The longest match picks a deeper area first (frame 362, pass 1d).
     holds = [r["area"] for r in conn.execute(
         "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")
-        if path.startswith(r["area"].rstrip("/") + "/")]
-    return max(holds, key=len) if holds else None
+        if r["area"] == "." or path.startswith(r["area"].rstrip("/") + "/")]
+    return max(holds, key=lambda a: (a != ".", len(a))) if holds else None
 
 
 def unsurveyed_areas(conn: sqlite3.Connection,
