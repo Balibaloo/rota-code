@@ -1,6 +1,6 @@
 # Handover from session 07f209e6 (rota-5b), 2026-11-03
 
-Result first: the doors and the lazy default are on `rota/foundation`, gated clean, and dry run 4 measured them. Ruling 2's count is 0: with the doors working and the whole project read, no delivery seat acted on a row from outside the touched area. The doors themselves work, the terms reach the seats, the principal's page never carried the team's rows, and the run still did not merge, because the guess matched "split" to `q_split` and the criteria kept it. The taker holds frame 362 with the slice's first pass in flight, the harvester, and frames 357, 358, 360 and 361 on their counts.
+Result first: the doors, the lazy default and the slice's harvester are on `rota/foundation`, and dry run 4 measured the first two. Ruling 2's count is 0: with the doors working and the whole project read, no delivery seat acted on a row from outside the touched area. The doors themselves work, the terms reach the seats, the principal's page never carried the team's rows, and the run still did not merge, because the guess matched "split" to `q_split` and the criteria kept it. The taker holds frame 362 with the slice's first pass in flight, the harvester, and frames 357, 358, 360 and 361 on their counts.
 
 ## What happened, at altitude
 
@@ -14,7 +14,7 @@ Run T, the touched read, was not run: the approximation by `ignore` rulings hide
 
 ## What comes next, in order
 
-1. The slice's pass 1, the harvester and the `commitment_candidates` record, is in flight in `rota_p362s` from `f362_harvest_brief.md`; its report lands in this session's scratchpad. Review it on a worktree, cherry-pick, gate.
+1. The slice's pass 1, the harvester and the `commitment_candidates` and `candidate_bindings` records, is on the checkout as 4c5f8867 and a621e598, reviewed in `plans/f362-review-slice-p1.md`: 185 candidates on icalendar, the five key witnesses found, 17 project-wide after the docs-claim cut, the push on `parser/string.py` 50 candidates and 4,213 characters. Lows 4 to 8 of the review are residue in `f362_harvest_report.md`: the `:rfc:` restatements, unit synonyms as false pairs, a source comment quoted as one line, a CI log read as a docs claim, an id that moves with the line.
 2. The slice's passes 2 to 4, from the design's 4.2 and the dive's section 7: the Architect's read of the candidates into commitments with party, behaviour and witness; the push of the bound commitments to the Developer, the Tester, the Critic and the structural review, through the `bound_constraints` key that exists; the two Critic sentences with their two register cases, under ruling 3.
 3. Then dry run 5 with the fold sentence, the slice's measure: the seeded character-count break, the 75-octets test, the touch line with the commitment.
 4. The walls of dry run 4 that are not the slice: a correction of the touch line must reach the criteria, frame 306's hop; the removal check on moved statements; the empty start counted as a stall and the "after 0 attempts" count; the `k0` row in the `model.consult` push; the guess that matches a word of the request to a symbol name.
