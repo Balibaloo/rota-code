@@ -749,6 +749,30 @@ def first_touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
 BINDS_NOTHING = "no change can touch these notes, so none waits for a touch"
 
 
+def first_touch_records(conn: sqlite3.Connection) -> list[dict]:
+    """The held JSON of every first-touch record: `batch`, `rows` and, for
+    the rows no touch binds, `reason`."""
+    from .predicates import FIRST_TOUCH_WORDS
+
+    out = []
+    for r in conn.execute("SELECT default_taken FROM ledger "
+                          "WHERE substr(default_taken, 1, ?) = ?",
+                          (len(FIRST_TOUCH_WORDS), FIRST_TOUCH_WORDS)):
+        try:
+            held = json.loads(r["default_taken"][len(FIRST_TOUCH_WORDS):])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(held, dict):
+            out.append(held)
+    return out
+
+
+def unbound_rows(conn: sqlite3.Connection) -> list[str]:
+    """The lazy rows parked at the deferral because no touch binds them."""
+    return [x for h in first_touch_records(conn) if h.get("batch") is None
+            for x in h.get("rows") or () if isinstance(x, str)]
+
+
 def touch_can_bind(conn: sqlite3.Connection, table: str, ref: str) -> bool:
     """Whether any touch can ever bind this row under the rule of
     `first_touch_rows`. An area row always can. A glossary row can when its

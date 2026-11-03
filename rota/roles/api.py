@@ -16421,9 +16421,24 @@ def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
     that were open when that item merged, under their own heading.
     """
     if shipped is None:
-        return _rows(ctx.conn.execute(
+        rows = _rows(ctx.conn.execute(
             "SELECT id, about_ref, about_table, default_taken, author FROM ledger "
             "WHERE status = 'open' ORDER BY id"))
+        # A lazy row that binds no code is parked at the deferral, and no
+        # page or touch shows it. The list shows it with its reason in
+        # words, so it is not invisible work (frame 361, pass 1d).
+        from ..core.lifecycle import BINDS_NOTHING, unbound_rows
+
+        unbound = unbound_rows(ctx.conn)
+        if unbound:
+            marks = ",".join("?" * len(unbound))
+            for r in _rows(ctx.conn.execute(
+                    "SELECT id, about_ref, about_table, default_taken, author "
+                    f"FROM ledger WHERE id IN ({marks}) ORDER BY id",
+                    tuple(unbound))):
+                r["reason"] = BINDS_NOTHING
+                rows.append(r)
+        return rows
     # The shipped line says "Ask me to show them", and this is the route to
     # the words (frame 316's review 2, finding 2).
     from ..core.lifecycle import ledger_items

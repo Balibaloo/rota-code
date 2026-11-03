@@ -135,10 +135,20 @@ def test_under_lazy_the_state_names_the_count_and_the_agenda_pages_none(dry3):
         [(None, BINDS_NOTHING, 25)]
     assert dry3.execute("SELECT COUNT(*) FROM ledger WHERE status = 'open'"
                         ).fetchone()[0] == 198
-    # No path lists the lazy rows on request, so the line promises none
-    # (frame 361, pass 1b).
-    assert ("The team read the project and recorded 198 notes. They wait in "
-            "the ledger until a change touches them.") in render_state(dry3)
+    # The line names both counts, so no parked row is invisible (frame 361,
+    # pass 1d).
+    assert ("The team read the project and recorded 223 notes. 198 wait in "
+            "the ledger until a change touches them, and 25 bind no code."
+            ) in render_state(dry3)
+    # The list shows each row that binds no code, with its reason in words.
+    from rota.roles import api
+
+    listed = api.ledger_list(api.Ctx(conn=dry3, role="liaison"))
+    reasons = [r for r in listed if r.get("reason")]
+    assert len(reasons) == 25
+    assert {r["reason"] for r in reasons} == {BINDS_NOTHING}
+    assert all(r["default_taken"].startswith(LAZY_WORDS) for r in reasons)
+    assert not any("{" in r["default_taken"] for r in listed)
     # Control on 12c26a46: the same 7 rows on each of three wakes.
     for i in range(3):
         wakes = tick_agenda(dry3, principal_present=True)
@@ -261,3 +271,19 @@ def test_a_lazy_row_about_an_item_rides_no_signoff_page(tmp_path):
                                  "WHERE verb = 'present'").fetchone()[0])
     assert "L1" in refs, refs
     assert "L9" not in refs, refs
+
+
+def test_the_empty_value_rule_holds_for_the_election_alone(tmp_path):
+    """An empty `onboarding_phases` read "" on 12c26a46, which is no phase,
+    and an empty `runner` read "". Only the election reads its default
+    (the second look of frame 361)."""
+    from rota.core import config
+
+    db = init_db(tmp_path / "rota.db")
+    for key in ("onboarding_phases", "runner", "baseline_election"):
+        db.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                   (key, '""'))
+    db.commit()
+    assert config.get(db, "onboarding_phases") == ""
+    assert config.get(db, "runner") == ""
+    assert config.get(db, "baseline_election") == "lazy"

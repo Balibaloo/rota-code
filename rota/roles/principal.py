@@ -419,13 +419,31 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # The line promises no listing. The only listing, `ledger.list(shipped=)`
     # in the converse mode, finds rows of a merged item, and a lazy row
     # reaches no item (frame 361, pass 1b).
-    lazy = lazy_count(conn)
-    if lazy:
-        it, wait, them = (("It", "waits", "it") if lazy == 1
-                          else ("They", "wait", "them"))
-        out.append(f"The team read the project and recorded {lazy} "
-                   f"note{'s' if lazy > 1 else ''}. {it} {wait} in the "
-                   f"ledger until a change touches {them}.")
+    # The line names every lazy row: the rows that wait, the rows a change
+    # showed, and the rows that bind no code. A parked row that no count
+    # names is invisible work (the second look of frame 361, finding 2).
+    from ..core.lifecycle import first_touch_records
+
+    waiting = lazy_count(conn)
+    records = first_touch_records(conn)
+    unbound = sum(len(h.get("rows") or ()) for h in records if h.get("batch") is None)
+    shown = sum(len(h.get("rows") or ()) for h in records if h.get("batch") is not None)
+    total = waiting + unbound + shown
+    if total:
+        parts = []
+        if waiting:
+            parts.append(f"{waiting} wait{'s' if waiting == 1 else ''} in the "
+                         "ledger until a change touches "
+                         f"{'it' if waiting == 1 else 'them'}")
+        if shown:
+            parts.append(f"{shown} {'was' if shown == 1 else 'were'} shown "
+                         "when a change touched them")
+        if unbound:
+            parts.append(f"{unbound} bind{'s' if unbound == 1 else ''} no code")
+        listed = (parts[0] if len(parts) == 1
+                  else ", ".join(parts[:-1]) + ", and " + parts[-1])
+        out.append(f"The team read the project and recorded {total} "
+                   f"note{'s' if total > 1 else ''}. {listed[0].upper()}{listed[1:]}.")
     # F7, pass 1b: the summary after the merge names each removal that no
     # grant of his allows. It is information, and it holds nothing.
     gone = merged_removal_line(conn) if merged else ""

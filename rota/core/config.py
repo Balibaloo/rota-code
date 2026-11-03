@@ -249,16 +249,19 @@ def get(conn: sqlite3.Connection, key: str) -> Any:
     if key not in SETTINGS:
         raise UnknownSetting(f"{key!r} is not a declared setting")
     row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
-    default = SETTINGS[key].default
-    if not row or not row["value"]:
-        return default
-    value = json.loads(row["value"])
-    # An empty string is no value, so a setting with a word as its default
-    # reads that word. A stored "" for the election read `lazy` in one
-    # reader and "" in this one (review p1 of frame 361, finding 7).
-    if value == "" and isinstance(default, str):
-        return default
-    return value
+    if not row:
+        return SETTINGS[key].default
+    # An empty election is no ruling, so it reads the default `lazy`. A
+    # stored "" read `lazy` in one reader and "" in this one (review p1 of
+    # frame 361, finding 7). The election alone: an empty `onboarding_phases`
+    # reads no phase, and the rule must not change that (the second look).
+    if key in EMPTY_IS_UNSET and row["value"] in ("", '""'):
+        return SETTINGS[key].default
+    return json.loads(row["value"])
+
+
+# The settings whose empty value reads as unset.
+EMPTY_IS_UNSET = frozenset({"baseline_election"})
 
 
 def routed_model(routing: str, wake_kind: str, role: str | None = None) -> str | None:
