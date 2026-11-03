@@ -265,6 +265,40 @@ CREATE TABLE IF NOT EXISTS constraint_bindings (
     PRIMARY KEY (constraint_id, grain)
 );
 
+-- The witness lines of the outside commitments a project makes (frame 362,
+-- design B step 2). Only `rota.onboarding.harvest` writes these two tables,
+-- at boot, after the indexer (law 1). A row is a candidate, not a
+-- commitment: the Architect states a commitment as a `constraints` row.
+-- `commit_sha` is the project commit the harvest read, so a row of an older
+-- commit is stale, as a survey record goes stale.
+CREATE TABLE IF NOT EXISTS commitment_candidates (
+    id          TEXT PRIMARY KEY,           -- cc_ + sha256(kind, path, line, text), law 14
+    kind        TEXT NOT NULL CHECK (kind IN ('metadata','doc_claim','preservation',
+                                              'numeric_default','issue_comment',
+                                              'export','test_witness')),
+    path        TEXT NOT NULL,
+    line        INTEGER NOT NULL,
+    text        TEXT NOT NULL,              -- the line, copied from the file
+    symbol      TEXT NOT NULL DEFAULT '',   -- the definition that holds the line
+    detail      TEXT NOT NULL DEFAULT '{}', -- the kind's own facts, a JSON object
+    -- The ids of the candidates that state the same fact with another value,
+    -- a JSON array. Both sides stay, so a reader can quote both.
+    contradicts TEXT NOT NULL DEFAULT '[]',
+    commit_sha  TEXT NOT NULL DEFAULT ''
+);
+
+-- A candidate's bound source files. `constraint_bindings` cannot hold these
+-- rows, because its key references `constraints`. The rule stays on the
+-- row, so a reader can tell a placed binding from the project-wide fallback.
+CREATE TABLE IF NOT EXISTS candidate_bindings (
+    witness_id   TEXT NOT NULL REFERENCES commitment_candidates(id),
+    path         TEXT NOT NULL,
+    rule         TEXT NOT NULL CHECK (rule IN ('standard','dependency','entry_point',
+                                               'exports','source','symbol',
+                                               'project_wide')),
+    PRIMARY KEY (witness_id, path)
+);
+
 CREATE TABLE IF NOT EXISTS survey_records (
     id          TEXT PRIMARY KEY,
     area        TEXT NOT NULL,

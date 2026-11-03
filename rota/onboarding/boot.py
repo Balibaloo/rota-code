@@ -31,6 +31,7 @@ from pathlib import Path
 
 from ..core import db
 from . import areas as areas_mod
+from . import harvest as harvest_mod
 from . import indexer
 from . import lexicon as lexicon_mod
 
@@ -55,6 +56,7 @@ class OnboardReport:
     leaky: list
     words: int = 0
     stresses: list = field(default_factory=list)
+    candidates: int = 0
 
 
 def checkout_of(root: str | Path) -> tuple[str, str]:
@@ -108,9 +110,13 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     for key, value in (("project_branch", branch), ("project_commit", commit)):
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (key, value))
+    # The commitment witnesses, after the indexer and with the commit, so a
+    # second onboard at the same commit writes nothing (frame 362).
+    candidates = harvest_mod.record(conn, root, commit)
     unsurveyed = refresh_constraint_zero(conn)
     out = OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
-                        leaky=proposal.leaky(), words=words.words)
+                        leaky=proposal.leaky(), words=words.words,
+                        candidates=candidates)
     out.stresses = stresses(conn, out)
     return out
 
