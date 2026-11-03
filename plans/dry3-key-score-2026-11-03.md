@@ -82,6 +82,8 @@ The real ambiguities of the key, `timezone` with three senses and `parameter` wi
 
 The commit is the same, so the root does not cause the difference (observed: the walk base `99619246` matches the key's `9961924`; `plans/dry3-recipe-2026-11-02.md` line 5 makes the copy a clone of the key's root `D:/tmp/rota-live/icalendar`). The edges agree exactly. Today's indexer adds 261 `export` and 367 `variable` grains, and 628 of them carry no area (observed: `code_index` by `grain_kind`). The partitioner now splits `src/icalendar/tests` into 11 areas, and `src/icalendar` holds 135 grains, not 1,357 (observed). So the indexer and the partitioner changed between the key and dry run 3 (reasoned). The copy's own head is `4f12af1e`, the merge of the run (observed: config `project_commit`).
 
+Correction, 2026-11-03, frame 362's re-cut (observed: `rota/ANSWER_KEY_icalendar.md` at the re-cut, and the report f362_keyrecut_report.md in session 07f209e6's scratchpad): a fresh onboarding of `99619246` on today's indexer gives 2,794 grains, 313 edges and 20 areas, with 628 grains in no area, 261 `export` and 367 `variable`. The partitioner did not change. Dry3's 22 areas come from the judge's 16 frame rulings, which re-pin the partition: `src` ruled `program` turns the tests into 11 areas, and `docs` attaches to `.`. The 6 extra grains of dry3 are the 3 test files that `bg_1` added at `4f12af1e`. So the sentence above that the partitioner changed is wrong, and the next score compares the counts after the rulings with the key's counts before them.
+
 ## Usage
 
 One read-only reader. About 45k tokens and 23 tool calls. No model session started. One database copy in the scratchpad folder `keyscore`. One file written in the repository, this page.

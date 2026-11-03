@@ -7,28 +7,50 @@ true here, written down while nothing has been surveyed, checked afterwards.
 
 Everything below was verified by reading the source at `9961924`, not recalled.
 
-**Repo** icalendar @ `9961924` · BSD · **1,731 grains, 313 edges, 9 areas**,
-all 9 under constraint zero.
+**Repo** icalendar @ `9961924` · BSD · **2,794 grains, 313 edges, 20 areas**,
+628 grains in no area (261 `export`, 367 `variable`). The 9 areas that hold
+code are under constraint zero. The 11 prose areas are not.
+
+Cut at 2026-08-11 on the old indexer: 1,731 grains, 9 areas.
+
+Re-cut at 2026-11-03 on the onboarding of `rota/foundation` `c5c579d2`, before
+any frame ruling: 694 `path`, 1,472 `symbol`, 261 `export`, 367 `variable`
+grains. A frame ruling re-pins the partition. Dry run 3 ended at 22 areas after
+its 16 rulings.
 
 ---
 
 ## What the partition says before anybody looks
 
-    .                            18 grains
-    src/icalendar             1,357
-    src/icalendar/cal            35
-    src/icalendar/parser         28
-    src/icalendar/parser/ical     8
-    src/icalendar/prop          229
-    src/icalendar/prop/dt        19
-    src/icalendar/prop/recur     11
-    src/icalendar/timezone       26
+    .                                    55 grains
+    docs/_include                         6
+    docs/_templates                       4
+    docs/contribute                       6
+    docs/contribute/documentation         4
+    docs/how-to                          12
+    docs/reference                        5
+    docs/reference/api                   82
+    docs/styles/config/vocabularies       4
+    docs/tutorials                        3
+    news                                 71
+    src/icalendar                     1,526
+    src/icalendar/cal                    35
+    src/icalendar/fuzzing/corpus         32
+    src/icalendar/parser                 28
+    src/icalendar/parser/ical             8
+    src/icalendar/prop                  229
+    src/icalendar/prop/dt                19
+    src/icalendar/prop/recur             11
+    src/icalendar/timezone               26
 
-**78% of the repository is one area.** That is a materially worse partition than
+`src/icalendar` holds 135 source grains and 1,391 attached test grains.
+`src/icalendar/prop` holds 186 attached test grains.
+
+**70% of the grains with an area are one area.** That is a materially worse partition than
 oauthlib's, where twelve areas split 279 grains, and it is the most interesting
 thing about this run before it starts: `src/icalendar` holds `attr.py` (2,624
 lines), `param.py` (849) and everything else that did not land in a subpackage.
-One survey session gets 1,357 grains and a context window.
+One survey session gets 1,526 grains and a context window.
 
 *Prediction:* the `src/icalendar` survey is thin — a couple of terms, a
 constraint or none — not because the model is weak but because the area is not a
@@ -62,7 +84,7 @@ the senses is written down in the source rather than inferred.
 *Expectation:* one or two. Three requires noticing across `cal`, `timezone` and
 the root area, which cannot see each other's context — the same test oauthlib's
 `nonce` posed and failed twice. The third sense is the hardest because `param.py`
-lives in the 1,357-grain area.
+lives in the 1,526-grain area.
 
 ### 2. `parameter` means two different things
 

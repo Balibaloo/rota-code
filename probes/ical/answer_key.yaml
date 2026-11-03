@@ -14,7 +14,8 @@ repository:
   root: D:/tmp/rota-live/icalendar
   commit: "9961924"
   shape: >-
-    258 py files, 23 areas, docs/ holds 118 prose files, 193 .ics fixtures;
+    258 py files, 20 areas (re-cut 2026-11-03 before any frame ruling; 23 on
+    the onboarding of 2026-08-24), docs/ holds 118 prose files, 193 .ics fixtures;
     README is rst; pyproject declares name icalendar, "RFC 5545 compatible
     parser and generator of iCalendar files", requires-python >=3.10,
     dependencies python-dateutil + tzdata, console script
