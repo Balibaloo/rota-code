@@ -188,13 +188,25 @@ def test_the_exports_bind_init_and_the_reexported_modules(ical_db):
             "src/icalendar/cal/__init__.py"} <= set(bound)
 
 
-def test_a_docs_claim_with_no_rule_binds_project_wide(ical_db):
-    """README.rst 9 says "supports" and names no standard and no import."""
+def test_a_docs_claim_that_cites_no_standard_binds_no_file(ical_db):
+    """README.rst 9 says "supports" and names no standard. The review's low
+    3: 56 such rows reached every source file and gave `parser/string.py`
+    7,096 characters of push. The row stays for the Architect only."""
     row = _one(ical_db, "path = 'README.rst' AND kind = 'doc_claim' "
                         "AND text LIKE '%supports multiple timezone%'")[0]
+    assert _bound(ical_db, row["id"]) == {}
+
+
+def test_a_claim_with_no_rule_binds_project_wide(ical_db):
+    """`requires-python` matches no placed rule, so it binds every source
+    file. The project-wide set was 73 candidates before the low 3 fix."""
+    row = _one(ical_db, "path = 'pyproject.toml' AND text LIKE 'requires-python%'")[0]
     bound = _bound(ical_db, row["id"])
     assert set(bound.values()) == {"project_wide"}
     assert set(bound) == set(harvest.Tree(ICAL).source())
+    wide = ical_db.execute("SELECT COUNT(DISTINCT witness_id) FROM candidate_bindings "
+                           "WHERE rule = 'project_wide'").fetchone()[0]
+    assert wide == 17
 
 
 def test_a_dependency_binds_its_importers(ical_db):
@@ -210,6 +222,87 @@ def test_a_second_run_at_the_same_commit_writes_nothing(ical_db):
     before = ical_db.total_changes
     assert harvest.record(ical_db, ICAL, RUN["head"]) == 0
     assert ical_db.total_changes == before
+
+
+def _small_tree(root: Path, a_imports: bool = False) -> Path:
+    """The review's fixture: one dependency that no file imports at first."""
+    (root / "pkg").mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_bytes(
+        b'[project]\nname = "pkg"\ndependencies = ["foolib"]\n')
+    (root / "pkg" / "__init__.py").write_bytes(b"X = 1\n")
+    (root / "pkg" / "a.py").write_bytes(
+        (b"import foolib\n" if a_imports else b"") + b"Y = 2\n")
+    # A definition, so the area is coded and constraint zero binds it.
+    (root / "pkg" / "b.py").write_bytes(b"def z():\n    return 3\n")
+    return root
+
+
+def _count(db, table):
+    return db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+
+
+def test_a_fault_in_the_record_leaves_nothing(tmp_path, monkeypatch):
+    """The review's high 1: a fault part way kept the rows before it, stamped
+    with the commit, so the next run at that commit wrote nothing for good."""
+    root = _small_tree(tmp_path / "proj")
+    db = init_db(tmp_path / "run.db")
+    real, calls = harvest.bind, [0]
+
+    def flaky(tree, c):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise RuntimeError("probe fault")
+        return real(tree, c)
+    monkeypatch.setattr(harvest, "bind", flaky)
+    try:
+        with pytest.raises(RuntimeError):
+            harvest.record(db, root, "A")
+        assert _count(db, "commitment_candidates") == 0
+        assert _count(db, "candidate_bindings") == 0
+        monkeypatch.setattr(harvest, "bind", real)
+        assert harvest.record(db, root, "A") == 2
+    finally:
+        db.close()
+
+
+def test_a_new_commit_replaces_the_bindings(tmp_path):
+    """The review's high 2: at commit A the dependency binds every source
+    file. At commit B `pkg/a.py` imports it, so it binds that file alone."""
+    root = _small_tree(tmp_path / "proj")
+    db = init_db(tmp_path / "run.db")
+    try:
+        harvest.record(db, root, "A")
+        dep = db.execute("SELECT id FROM commitment_candidates "
+                         "WHERE text LIKE '%foolib%'").fetchone()[0]
+        assert set(_bound(db, dep).values()) == {"project_wide"}
+        assert len(_bound(db, dep)) == 3
+        _small_tree(root, a_imports=True)
+        harvest.record(db, root, "B")
+        assert _bound(db, dep) == {"pkg/a.py": "dependency"}
+        # A candidate the new harvest does not find keeps no binding.
+        (root / "pyproject.toml").write_bytes(b'[project]\nname = "pkg"\n')
+        harvest.record(db, root, "C")
+        assert _bound(db, dep) == {}
+    finally:
+        db.close()
+
+
+def test_a_harvest_fault_does_not_stop_the_onboarding(tmp_path, monkeypatch):
+    """The review's low 9: the harvest is advisory. A fault becomes a stress
+    line, and constraint zero and the report still come."""
+    root = _small_tree(tmp_path / "proj")
+    db = init_db(tmp_path / "run.db")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("probe harvest fault")
+    monkeypatch.setattr(harvest, "record", boom)
+    try:
+        report = onboard(db, root)
+        assert report.candidates == 0
+        assert any("probe harvest fault" in s for s in report.stresses)
+        assert db.execute("SELECT 1 FROM constraints WHERE id = 'k0'").fetchone()
+    finally:
+        db.close()
 
 
 def test_a_bare_tree_yields_no_candidate_and_no_error(tmp_path):

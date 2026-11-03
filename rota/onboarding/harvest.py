@@ -513,6 +513,12 @@ def bind(tree: Tree, c: Candidate) -> tuple[str, set[str]]:
         cited |= _cites(tree, m.group(1), m.group(2))
     if cited:
         return "standard", cited
+    # A docs claim that cites no standard is mostly the docs' own tooling,
+    # such as "Sphinx supports". Bound project-wide, 56 such rows gave
+    # `parser/string.py` 7,096 characters of push (the review, low 3). The
+    # row stays for the Architect, and binds no file.
+    if c.kind == "doc_claim":
+        return "", set()
     return "project_wide", source
 
 
@@ -525,12 +531,35 @@ def record(conn: sqlite3.Connection, root: str | Path, commit: str) -> int:
     A record that holds rows of this commit already is current, so the call
     writes nothing. A row of an older commit that the new harvest finds again
     takes the new commit. A row it does not find keeps its old commit, so a
-    reader can tell it is stale."""
+    reader can tell it is stale, and it keeps no binding.
+
+    The bindings are the new harvest's only, so a rule that changed with the
+    tree does not leave the old rows beside the new ones (the review, high 2).
+    All the writes and the commit stamp land in one transaction, as
+    `indexer.build` does. A fault part way then leaves nothing, and the next
+    run harvests again (the review, high 1: 15.9 s in autocommit)."""
     if commit and conn.execute(
             "SELECT 1 FROM commitment_candidates WHERE commit_sha = ? LIMIT 1",
             (commit,)).fetchone():
         return 0
     tree = Tree(root)
+    # A caller inside its own transaction gets a savepoint instead.
+    own = not conn.in_transaction
+    conn.execute("BEGIN IMMEDIATE" if own else "SAVEPOINT harvest")
+    try:
+        written = _write(conn, tree, root, commit)
+    except BaseException:
+        conn.execute("ROLLBACK" if own else "ROLLBACK TO harvest")
+        if not own:
+            conn.execute("RELEASE harvest")
+        raise
+    conn.execute("COMMIT" if own else "RELEASE harvest")
+    return written
+
+
+def _write(conn: sqlite3.Connection, tree: Tree, root: str | Path,
+           commit: str) -> int:
+    conn.execute("DELETE FROM candidate_bindings")
     written = 0
     for c in harvest(root, tree):
         cur = conn.execute(
@@ -547,6 +576,6 @@ def record(conn: sqlite3.Connection, root: str | Path, commit: str) -> int:
         written += cur.rowcount
         rule, paths = bind(tree, c)
         conn.executemany(
-            "INSERT OR IGNORE INTO candidate_bindings (witness_id, path, rule) "
+            "INSERT INTO candidate_bindings (witness_id, path, rule) "
             "VALUES (?, ?, ?)", [(c.id, p, rule) for p in sorted(paths)])
     return written

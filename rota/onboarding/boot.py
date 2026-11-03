@@ -111,13 +111,22 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (key, value))
     # The commitment witnesses, after the indexer and with the commit, so a
-    # second onboard at the same commit writes nothing (frame 362).
-    candidates = harvest_mod.record(conn, root, commit)
+    # second onboard at the same commit writes nothing (frame 362). The
+    # harvest is advisory, so its fault becomes a stress line and the
+    # onboarding goes on with no candidates (the review of frame 362, low 9).
+    fault = ""
+    try:
+        candidates = harvest_mod.record(conn, root, commit)
+    except Exception as exc:
+        candidates, fault = 0, f"{type(exc).__name__}: {exc}"
     unsurveyed = refresh_constraint_zero(conn)
     out = OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
                         leaky=proposal.leaky(), words=words.words,
                         candidates=candidates)
     out.stresses = stresses(conn, out)
+    if fault:
+        out.stresses.append(f"the harvest of commitment witnesses failed, so "
+                            f"the run has no candidates: {fault[:300]}")
     return out
 
 
