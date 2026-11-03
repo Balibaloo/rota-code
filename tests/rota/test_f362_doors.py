@@ -134,9 +134,9 @@ def _fixture_db(tmp_path):
 
 
 def _survey(db, *areas):
-    for i, area in enumerate(areas):
+    for area in areas:
         db.execute("INSERT INTO survey_records (id, area, outcome) "
-                   "VALUES (?, ?, 'none_found')", (f"sv{i}", area))
+                   "VALUES (?, ?, 'none_found')", (f"sv_{area}", area))
     refresh_constraint_zero(db)
     db.commit()
 
@@ -193,3 +193,48 @@ def test_door3_one_unsurveyed_area_keeps_k0(tmp_path):
                "VALUES ('sv9', 'src/b', 'none_found')")
     db.commit()
     assert ZERO in constraints_for_grains(db, ["users_table"])
+
+
+def test_door3_a_partial_survey_adds_k0_until_the_area_has_a_record(tmp_path):
+    """Pass 1b: `k0` binds the area name `src/b`, and the exact match on
+    `src/b/two.py` missed it. Control before the pass: no `k0`."""
+    db = _fixture_db(tmp_path)
+    _survey(db, "src/a")
+    assert ZERO in constraints_for_grains(db, ["src/b/two.py"])
+    assert ZERO not in constraints_for_grains(db, ["src/a/one.py"])
+    _survey(db, "src/b")
+    assert ZERO not in constraints_for_grains(db, ["src/b/two.py"])
+
+
+def _structural_k0(db, monkeypatch, files):
+    from rota.core import worktrees
+
+    monkeypatch.setattr(worktrees, "batch_files", lambda conn, bid: list(files))
+    wake = Wake("architect", "tick:structural_review", refs=("bg_1",))
+    sb = session_sandbox(db, wake, batch_id="bg_1")
+    pushed = push_working_set("architect", sb, wake)
+    return [r for r in pushed["model.consult"] if r["id"] == ZERO]
+
+
+def test_door3_the_structural_review_k0_row_is_true_on_dry3(dry3, monkeypatch):
+    """The diff of `bg_1` is `caselessdict.py`, and its area has a survey
+    record. Control before the pass: "this area has not been surveyed".
+    The worktree of `bg_1` is gone, so the test gives the diff's files."""
+    rows = _structural_k0(dry3, monkeypatch, [CASELESS])
+    assert len(rows) == 1
+    assert rows[0]["headline"] == (
+        "no constraint binds this diff; every touched area has a survey record")
+    assert "unsurveyed areas" not in rows[0]
+    stored = dry3.execute("SELECT headline FROM constraints WHERE id = ?",
+                          (ZERO,)).fetchone()[0]
+    assert stored == "this area has not been surveyed"
+
+
+def test_door3_the_structural_k0_row_names_the_unsurveyed_area(dry3, monkeypatch):
+    dry3.execute("DELETE FROM survey_citations WHERE survey_id IN (SELECT id "
+                 "FROM survey_records WHERE area = 'src/icalendar')")
+    dry3.execute("DELETE FROM survey_records WHERE area = 'src/icalendar'")
+    dry3.commit()
+    rows = _structural_k0(dry3, monkeypatch, [CASELESS])
+    assert rows[0]["headline"] == "this area has not been surveyed"
+    assert rows[0]["unsurveyed areas"] == ["src/icalendar"]

@@ -3216,13 +3216,20 @@ def constraints_for_grains(conn: sqlite3.Connection, grains: Iterable[str]) -> l
         ):
             hits.add(r["id"])
 
-    # Frame 362, door 3: once every area has a survey, `k0` has no binding,
-    # and "unbound = global" showed "this area has not been surveyed" on
-    # surveyed code. Law 12 starves constraint zero by survey, so a call on
-    # surveyed areas only does not get it.
+    # Frame 362, door 3: `k0` binds area names, so the exact match above
+    # missed a file of an unsurveyed area. Once every area has a survey,
+    # `k0` has no binding, and "unbound = global" showed "this area has not
+    # been surveyed" on surveyed code. Law 12 starves constraint zero by
+    # survey, so `k0` is in the result exactly when a grain's area has no
+    # survey record. A grain of no known area leaves the fail-safe as it is.
     from ..onboarding.boot import ZERO
-    if ZERO in hits and grains and all_areas_surveyed(conn, grains):
-        hits.discard(ZERO)
+    if grains:
+        unread, unknown = unsurveyed_areas(conn, grains)
+        if unread and conn.execute("SELECT 1 FROM constraints WHERE id = ?",
+                                   (ZERO,)).fetchone():
+            hits.add(ZERO)
+        elif not unread and not unknown:
+            hits.discard(ZERO)
 
     return sorted(hits)
 
@@ -3246,12 +3253,22 @@ def grain_area(conn: sqlite3.Connection, grain: str) -> str | None:
     return None
 
 
+def unsurveyed_areas(conn: sqlite3.Connection,
+                     grains: Iterable[str]) -> tuple[list[str], bool]:
+    """The areas of `grains` with no survey record, sorted, and whether a
+    grain maps to no known area."""
+    surveyed = {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM survey_records")}
+    areas = [grain_area(conn, g) for g in grains]
+    unread = sorted({a for a in areas if a is not None and a not in surveyed})
+    return unread, any(a is None for a in areas)
+
+
 def all_areas_surveyed(conn: sqlite3.Connection, grains: Iterable[str]) -> bool:
     """True when every grain's area has a survey record. A grain with no
     known area counts as unsurveyed, so the fail-safe keeps `k0`."""
-    surveyed = {r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM survey_records")}
-    return all(grain_area(conn, g) in surveyed for g in grains)
+    unread, unknown = unsurveyed_areas(conn, grains)
+    return not unread and not unknown
 
 
 def constraint_zero_area_coverage(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:

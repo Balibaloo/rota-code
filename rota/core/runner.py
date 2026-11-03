@@ -4312,6 +4312,32 @@ def _index_test_files(conn, limit: int = 80) -> list[str]:
             if _is_test_file(conn, g)][:limit]
 
 
+ZERO_SURVEYED_HEADLINE = ("no constraint binds this diff; every touched area "
+                          "has a survey record")
+
+
+def _zero_row_for(conn, row: dict, files: list[str]) -> dict:
+    """
+    The pushed `k0` row, with a headline that is true for this diff.
+
+    Frame 362, pass 1b: the brief's exit names `k0`, so the row stays in the
+    structural review's push. On dry3 all 22 areas had a survey record, and
+    the stored headline "this area has not been surveyed" was false. The
+    stored row in `constraints` does not change.
+    """
+    from .scheduler import unsurveyed_areas
+
+    unread, unknown = unsurveyed_areas(conn, files)
+    out: dict[str, Any] = {}
+    for key, value in row.items():
+        if key == "headline" and not unread and not unknown:
+            value = ZERO_SURVEYED_HEADLINE
+        out[key] = value
+        if key == "headline" and unread:
+            out["unsurveyed areas"] = unread
+    return out
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4682,9 +4708,11 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 # when k0 binds areas away from this diff (finding 4).
                 keep = api._reaching_constraints(sb.ctx.conn, files) | {ZERO}
                 pushed["model.consult"] = [
-                    r for r in sb.call("model.consult")
+                    _zero_row_for(sb.ctx.conn, r, files)
+                    if r.get("id") == ZERO else r
+                    for r in sb.call("model.consult")
                     if isinstance(r, dict) and r.get("id") in keep]
-            except Exception:                              # noqa: BLE001
+            except Exception:                            # noqa: BLE001
                 pushed.pop("model.consult", None)
                 _log.warning("structural_review push: model.consult not "
                              "filtered for batch %r, so it is not pushed",
