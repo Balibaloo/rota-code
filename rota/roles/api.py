@@ -3965,8 +3965,9 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     pushed = witness_push(ctx.conn, ctx.area)[0]
     shown = [w["id"] for w in pushed]
     first = pushed[0] if pushed else None
-    # The headline names what the push gives: the path and the line.
-    head = f"{first['path']} line {first['line']}" if first else headline
+    # The headline names the path that the push gives, and no line, so a
+    # shift of the witness leaves the headline true.
+    head = f"{first['path']}: <what must hold>" if first else headline
     example = first["id"] if first else "<an id from [model.witnesses]>"
     form = (f"Write model.amend(headline={head!r}, text=\"<who outside "
             f"breaks and what they see>\", party=\"<who outside notices>\", behaviour=\"<what must hold>\", "
@@ -3999,13 +4000,36 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
         raise ValueError(
             f"{witness} binds no file of its own: the harvest bound it to the "
             f"whole project. Name the file of this area that keeps it. Write "
-            f"model.amend(headline=\"{mine['path']} line {mine['line']}\", "
+            f"model.amend(headline=\"{mine['path']}: <what must hold>\", "
             f"text=\"<who outside breaks and what they see>\", "
             f"bindings=[\"<a path of {ctx.area} that you opened>\"], party="
             f"\"{party}\", behaviour=\"{behaviour}\", witness=\"{witness}\").")
     return {"id": witness, "key": witness_key(row["kind"], row["path"], row["text"]),
             "path": row["path"], "party": party, "behaviour": behaviour,
             "placed": placed}
+
+
+def _statement_id(ctx: Ctx, slug: str, headline: str, stated: dict) -> str:
+    """The row id of a stated commitment. It holds no line number, so a
+    shift of the witness keeps the id (the review of pass 2b, point 8).
+
+    1. A row that states this witness key keeps its id.
+    2. A row with this headline and no current witness takes the statement.
+       That row has no witness yet, or an edit or a move broke its tie.
+    3. Otherwise the id derives from the witness key: kind, path and text."""
+    from ..onboarding.harvest import current_keys
+
+    row = ctx.conn.execute("SELECT id FROM constraints WHERE witness = ? "
+                           "ORDER BY id LIMIT 1", (stated["key"],)).fetchone()
+    if row:
+        return row["id"]
+    live = current_keys(ctx.conn)
+    for row in ctx.conn.execute(
+            "SELECT id, witness FROM constraints WHERE id = ? OR headline = ? "
+            "ORDER BY id", (slug[:120], headline.strip())):
+        if row["witness"] not in live:
+            return row["id"]
+    return "cw_" + stated["key"].removeprefix("wk_")
 
 
 @op("model", "amend")
@@ -4179,15 +4203,28 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
                 if len(w) >= 4 and w not in stop}
     mine = _stems(headline + " " + (text or ""))
     from ..onboarding import boot as _boot
+    from ..onboarding.harvest import current_keys
 
+    own = _statement_id(ctx, slug, headline, stated) if stated else slug[:120]
+    live = current_keys(ctx.conn) if stated else set()
     for row in ctx.conn.execute(
             "SELECT id, headline, witness FROM constraints WHERE id NOT IN (?, ?)",
-            (slug, _boot.ZERO)):
-        # Two statements of two witness lines are two commitments. Their
-        # headlines share the path words, as `<path> line <n>` asks.
-        if stated and row["witness"] and row["witness"] != stated["key"]:
+            (own, _boot.ZERO)):
+        # Two statements of two current witness lines are two commitments,
+        # and their headlines share the path words. A row whose witness is
+        # gone keeps its subject, so an edited line is restated, not stated
+        # twice (the review of pass 2b).
+        if (stated and row["witness"] and row["witness"] != stated["key"]
+                and row["witness"] in live):
             continue
         shared = mine & _stems(row["headline"])
+        if len(shared) >= 2 and stated and row["witness"]:
+            raise ValueError(
+                f"{row['id']} lost its witness line, and it states this "
+                f"subject: {row['headline']!r}. Restate it: write "
+                f"model.amend(headline={row['headline']!r}, party="
+                f"\"{stated['party']}\", behaviour=\"{stated['behaviour']}\", "
+                f"witness=\"{stated['id']}\"). Or decline the line.")
         if len(shared) >= 2:
             raise ValueError(
                 f"{row['id']} already governs this subject: "
@@ -4346,7 +4383,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"tunable default rather than a commitment, and the honest answer "
             f"is not to write it.")
 
-    id = slug[:120]
+    id = own
     values = {"headline": headline, "text": text,
               "is_global": 0 if (bindings or placed) else 1}
     if stated:

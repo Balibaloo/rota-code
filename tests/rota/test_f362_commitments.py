@@ -419,8 +419,8 @@ def test_the_brief_puts_the_witnesses_before_the_none_found_end():
     at = brief.index("[model.witnesses]`, when it is there")
     assert at < brief.index('outcome="none_found"')
     paragraph = brief[at:brief.index("\n\n", at)]
-    assert 'headline="<path> line <n>"' in paragraph
-    assert "::" not in paragraph
+    assert 'headline="<path>: <what must hold>"' in paragraph
+    assert "::" not in paragraph and "line <n>" not in paragraph
 
 
 def test_the_refusal_form_names_the_path_and_the_line(tree):
@@ -429,16 +429,17 @@ def test_the_refusal_form_names_the_path_and_the_line(tree):
     with pytest.raises(ValueError) as got:
         sb.call("model.amend", headline="anything here", text="Programs read it.",
                 party="other calendar programs", behaviour="lines fold")
-    assert "headline='src/pkg/fold.py line 7'" in str(got.value)
+    assert "headline='src/pkg/fold.py: <what must hold>'" in str(got.value)
 
 
 def test_two_witnesses_of_one_file_are_two_statements(tree):
     """The headline form shares the path words, so the subject check of
     `model.amend` must not refuse the second statement."""
     _, db = tree
-    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
-               "VALUES ('cc_0000000000aa', 'preservation', 'src/pkg/fold.py', 3, "
-               "'Folded lines round trip.')")
+    # The row of the harvest of `c1`, as `latest_commit` reads it.
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text, "
+               "commit_sha) VALUES ('cc_0000000000aa', 'preservation', "
+               "'src/pkg/fold.py', 3, 'Folded lines round trip.', 'c1')")
     db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
                "('cc_0000000000aa', 'src/pkg/fold.py', 'witness_file')")
     db.commit()
@@ -520,3 +521,87 @@ def test_a_falsified_statement_takes_its_candidate_out_of_the_push(tree, verdict
     assert (nd in ROW.findall(text)) is shown
     if shown:
         assert f"Constraint {out['id']} states it already." in text
+
+
+# ---------------------------------------------------------------------------
+# Pass 2c: the id holds no line, and an edited witness is restated once
+# ---------------------------------------------------------------------------
+
+HEAD = "src/pkg/fold.py: lines fold at 75 octets"
+
+
+def _state_as(db, headline, witness):
+    _, sb = _survey(db)
+    out = sb.call("model.amend", headline=headline,
+                  text="Other calendar programs read the folded lines.",
+                  party="other calendar programs",
+                  behaviour="lines fold at 75 octets", witness=witness)
+    _land(db, sb)
+    return out
+
+
+def test_the_id_comes_from_the_witness_key_and_a_shift_keeps_it(tree):
+    root, db = tree
+    out = _state_as(db, HEAD, _id(db, "numeric_default"))
+    key = db.execute("SELECT witness FROM constraints WHERE id = ?",
+                     (out["id"],)).fetchone()["witness"]
+    assert out["id"] == "cw_" + key.removeprefix("wk_")
+    _write(root / "src/pkg/fold.py", FOLD.replace(
+        '"""Lines as RFC 5545 folds them."""',
+        '"""Lines as RFC 5545 folds them."""\nimport os\nimport re\nimport sys'))
+    harvest.record(db, root, "c2")
+    db.commit()
+    # The shifted line has a new candidate id and the same key, so a
+    # second statement amends the same row.
+    again = _state_as(db, HEAD, _id(db, "numeric_default"))
+    assert again["id"] == out["id"]
+    assert db.execute("SELECT COUNT(*) FROM constraints WHERE party != ''"
+                      ).fetchone()[0] == 1
+
+
+def test_an_edited_witness_is_restated_and_not_stated_twice(tree):
+    """The review of pass 2b: a new headline for the edited line collided
+    with nothing, and two rows landed. The row that lost its witness keeps
+    its subject. The refusal gives the restate form, which amends that row."""
+    root, db = tree
+    out = _state_as(db, HEAD, _id(db, "numeric_default"))
+    _write(root / "src/pkg/fold.py", FOLD.replace("at most 75 octets",
+                                                  "at most 75 octets each"))
+    harvest.record(db, root, "c2")
+    db.commit()
+    new = _id(db, "numeric_default")
+    with pytest.raises(ValueError) as got:
+        _state_as(db, HEAD + " each", new)
+    msg = str(got.value)
+    assert f"{out['id']} lost its witness line" in msg
+    assert f"model.amend(headline={HEAD!r}" in msg and f'witness="{new}"' in msg
+    again = _state_as(db, HEAD, new)
+    assert again["id"] == out["id"]
+    rows = db.execute("SELECT id, witness FROM constraints WHERE party != ''"
+                      ).fetchall()
+    assert len(rows) == 1
+    assert harvest.witnessed(db, rows[0]["witness"])["id"] == new
+    assert api.lost_witnesses(db, "src/pkg") == []
+
+
+def test_the_review_probe_of_pass_2b_lands_one_constraint(tree):
+    """The probe `r362p2/p2b_tie.py`: state, edit, then state the edited
+    line under the headline `src/pkg/fold.py line 7 octets`."""
+    root, db = tree
+    _state_as(db, "src/pkg/fold.py line 7", _id(db, "numeric_default"))
+    _write(root / "src/pkg/fold.py", FOLD.replace("at most 75 octets",
+                                                  "at most 75 octets each"))
+    harvest.record(db, root, "c2")
+    db.commit()
+    with pytest.raises(ValueError):
+        _state_as(db, "src/pkg/fold.py line 7 octets", _id(db, "numeric_default"))
+    assert db.execute("SELECT COUNT(*) FROM constraints WHERE party != ''"
+                      ).fetchone()[0] == 1
+
+
+def test_the_brief_drops_symbol_and_opened_for_a_witness_line():
+    brief = (Path(api.__file__).parent / "prompts/architect/survey.md").read_text(
+        encoding="utf-8")
+    assert "Headline the surface as `path::symbol`, except a witness line" in brief
+    assert "you must have opened, except for a witness line" in brief
+    assert "A witness line needs no `bindings`" in brief
