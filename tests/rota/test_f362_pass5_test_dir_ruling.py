@@ -36,9 +36,14 @@ def _conn(tmp_path, *rulings):
 
 
 def _dry5(tmp_path, *more):
-    return _conn(tmp_path, ("src", "program", "observed"),
+    conn = _conn(tmp_path, ("src", "program", "observed"),
                  (".github", "attached", "observed"),
                  ("docs", "attached", "observed"), *more)
+    # Pass 5b: the cut needs a test-shaped file in the folder, by the index.
+    conn.execute("INSERT INTO code_index (grain, grain_kind) "
+                 "VALUES (?, 'path')", (TEST_FILE,))
+    conn.commit()
+    return conn
 
 
 def test_a_program_folder_ruling_stops_at_its_test_directory(tmp_path):
@@ -82,3 +87,34 @@ def test_the_doors_see_the_icalendar_test_files(tmp_path):
     assert api._test_dirs(indexed, conn) == {
         "src/icalendar/tests", "src/icalendar/tests/prop",
         "src/icalendar/tests/attr", ".github/workflows"}
+
+
+# Pass 5b, the review of pass 5 (plans/f362-review-pass5.md): point 2 and
+# lows 3, 5 and 7. The cut is the judge's. The principal rules what he
+# names, test folders included.
+
+
+def test_a_surface_ruling_stops_at_its_test_directory(tmp_path):
+    conn = _conn(tmp_path, ("api", "surface", "observed"))
+    assert kind_of(conn, "api/tests/test_schema.py") == "attached"
+    assert kind_of(conn, "api/schema.py") == "surface"
+
+
+def test_a_decided_ruling_above_the_test_directory_covers_it(tmp_path):
+    conn = _dry5(tmp_path, ("src/icalendar", "program", "decided"))
+    assert kind_of(conn, TEST_FILE) == "program"
+    assert not api._is_test_file(conn, TEST_FILE)
+
+
+def test_a_decided_program_ruling_inside_an_ignored_folder(tmp_path):
+    conn = _conn(tmp_path, ("vendor", "ignore", "observed"),
+                 ("vendor/lib", "program", "decided"))
+    assert kind_of(conn, "vendor/lib/tests/test_x.py") == "program"
+
+
+def test_a_test_named_folder_with_no_test_file_stays_program(tmp_path):
+    conn = _conn(tmp_path, ("django", "program", "observed"))
+    for g in ("django/test/client.py", "django/test/utils.py"):
+        conn.execute("INSERT INTO code_index (grain, grain_kind) "
+                     "VALUES (?, 'path')", (g,))
+    assert kind_of(conn, "django/test/client.py") == "program"

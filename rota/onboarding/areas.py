@@ -54,7 +54,12 @@ EXAMPLE_DIRS = {"example", "examples", "demo", "demos", "sample", "samples"}
 def ruling_for(conn, grain: str) -> str | None:
     """The frame's word on a grain, if it has one: the most specific ruling
     whose prefix covers the path, rulings outranking the judge at equal
-    depth. None means the heuristics decide, as they always did."""
+    depth. None means the heuristics decide, as they always did.
+
+    A judge's `program` or `surface` ruling stops at the first test folder
+    below its prefix, when the index holds a test-shaped file in that
+    folder. Below the cut, the result is None. A `decided` ruling covers
+    its whole prefix."""
     import sqlite3
 
     try:
@@ -63,27 +68,59 @@ def ruling_for(conn, grain: str) -> str | None:
             "FROM frame_rulings f JOIN frame_provenance p ON p.id = f.id"))
     except sqlite3.Error:
         return None
-    # Frame 362, pass 5: the judge rules the top-level entries only, so a
-    # `program` ruling on `src` never saw `src/icalendar/tests`. The ruling
-    # stops at the first test folder, and the heuristic decides below it.
-    # Frame 324 holds: the folder gives the kind, the basename the shape.
-    # An `ignore` ruling still covers its test folder, so ignored code
-    # gives no test to the harness.
-    parts = grain.split("/")[:-1]
-    cut = next((i for i, p in enumerate(parts) if p.lower() in TEST_DIRS),
-               None)
-    test_dir = "/".join(parts[:cut + 1]) if cut is not None else None
     best = None
     for r in rows:
         pre = r["prefix"].rstrip("/")
-        if (test_dir is not None and r["kind"] in PROGRAM_KINDS
-                and len(pre) < len(test_dir)):
-            continue
         if grain == pre or grain.startswith(pre + "/"):
             key = (len(pre), 1 if r["provenance"] == "decided" else 0)
             if best is None or key > best[0]:
-                best = (key, r["kind"])
-    return best[1] if best else None
+                best = (key, r["kind"], pre, r["provenance"])
+    if best is None:
+        return None
+    _, kind, pre, provenance = best
+    # Frame 362, pass 5: the judge rules the top-level entries only, so its
+    # `program` ruling on `src` never saw `src/icalendar/tests`. Pass 5b
+    # (review point 2): the principal rules what he names, test folders
+    # included, so his ruling has no cut. An `ignore` ruling keeps its test
+    # folder, so ignored code gives no test to the harness.
+    if provenance != "decided" and kind in PROGRAM_KINDS:
+        test_dir = _test_dir_below(pre, grain)
+        if test_dir is not None and _holds_a_test_file(conn, test_dir, grain):
+            return None
+    return kind
+
+
+def _test_dir_below(prefix: str, grain: str) -> str | None:
+    """The first test folder of `grain`, when it is below `prefix`. A
+    ruling at or below that folder covers it, so the result is None."""
+    parts = grain.split("/")[:-1]
+    cut = next((i for i, p in enumerate(parts) if p.lower() in TEST_DIRS),
+               None)
+    if cut is None:
+        return None
+    here = "/".join(parts[:cut + 1])
+    return here if len(here) > len(prefix) else None
+
+
+def _holds_a_test_file(conn, folder: str, grain: str) -> bool:
+    """The index holds a test-shaped file under `folder`, or `grain` is one."""
+    # Review pass 5, low 3: `django/test/client.py` is shipped program code.
+    # A test-named folder with no test-shaped file is not a test folder.
+    import sqlite3
+
+    from ..roles.api import _test_shaped
+
+    if _test_shaped(grain):
+        return True
+    try:
+        rows = conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "AND grain LIKE ?", (folder + "/%",))
+        # LIKE reads `_` as any character, so the prefix is checked again.
+        return any(r[0].startswith(folder + "/") and _test_shaped(r[0])
+                   for r in rows)
+    except sqlite3.Error:
+        return False
 
 
 # The values `kind_of` returns. They are the stored values of
@@ -205,7 +242,8 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     # The frame's rulings outrank the name heuristics, path by path. A grain
     # ruled `ignore` leaves the partition entirely; `attached` joins the
     # tests; `program` is surveyed even where a heuristic would attach it
-    # (docs that are the product); `surface` files, the brief's `boundary`,
+    # (docs that are the product), except below a test folder that a judge's
+    # ruling stops at (frame 362, `ruling_for`); `surface` files, the brief's `boundary`,
     # stay indexed and are the boundary phase's business, not an area's.
     # The stored value is `surface`, and this check read `boundary` until
     # frame 324, so a judged surface fell through to the heuristic.
