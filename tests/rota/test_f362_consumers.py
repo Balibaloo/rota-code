@@ -417,3 +417,87 @@ def test_every_fail_sentence_of_the_critic_names_the_commitment_route():
         text = " ".join((paths.PROMPTS / "critic" / name).read_text(
             encoding="utf-8").split())
         assert "the pushed commitment it breaks" in text, name
+
+
+# ---------------------------------------------------------------------------
+# Pass 3c: a guard test is the batch's own test
+# ---------------------------------------------------------------------------
+
+GUARD = "commitment fold_octets: a folded line holds at most 75 octets"
+
+
+def _red_guard(db, merged_other=False):
+    """A guard test of `fold_octets`, red at the batch's head."""
+    _state(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, commitment_id, path, "
+               "body) VALUES ('tst_octets', 'b1', NULL, 'fold_octets', "
+               "'tests/test_fold_octets.py', 'def test_octets():\n    assert False\n')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output) VALUES ('r1', 'b1', 'tst_octets', NULL, 'fail', "
+               "'tests/test_fold_octets.py:2: AssertionError')")
+    db.commit()
+
+
+def test_tests_load_names_the_commitment_of_a_guard_test(proj):
+    _, db = proj
+    _red_guard(db)
+    sb, _ = _push(db, "developer", "tick:tests_failing")
+    row = next(r for r in sb.call("tests.load") if r["id"] == "tst_octets")
+    assert row["guards"] == GUARD
+    assert row["criterion_id"] is None
+    assert "assert False" in row["body"]
+
+
+def test_the_fix_wake_lists_a_red_guard_test_as_the_batchs_own(proj):
+    _, db = proj
+    _red_guard(db)
+    _, pushed = _push(db, "developer", "tick:tests_failing")
+    shown = pushed["tests.load"]
+    assert [r["id"] for r in shown["the batch's tests, not passing"]] == ["tst_octets"]
+    assert "the project's own tests, not passing at your commit" not in shown
+
+
+def test_the_scheduler_readers_count_a_guard_test_as_the_batchs_own(proj):
+    from rota.core import scheduler
+
+    _, db = proj
+    _red_guard(db)
+    own, project = scheduler.park_reds(db, "b1")
+    assert [r["test_id"] for r in own] == ["tst_octets"] and project == []
+    assert "t:tst_octets:" in scheduler._park_versions(db, "b1")
+
+
+def test_the_harness_keeps_the_filter_of_a_merged_guard_test(proj):
+    from rota.core.harness import tester_paths
+
+    _, db = proj
+    _red_guard(db)
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b0', 'it', 'merged')")
+    db.execute("UPDATE tests SET batch_id = 'b0' WHERE id = 'tst_octets'")
+    db.commit()
+    assert tester_paths(db, "b1") == {"tests/test_fold_octets.py"}
+
+
+def test_the_green_at_head_refusal_names_the_commitment(proj):
+    from rota.core.sandbox import _green_at_head_refusal
+
+    _, db = proj
+    _red_guard(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_green', 'b1', NULL, 'tests/test_g.py', 'x')")
+    db.execute("UPDATE batches SET head_commit = 'h1' WHERE id = 'b1'")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output) VALUES ('r2', 'b1', 'tst_green', 'h1', 'pass', '1 passed')")
+    db.commit()
+    sb, _ = _push(db, "developer", "tick:tests_failing")
+    said = _green_at_head_refusal(sb.ctx, ["tst_green"])
+    assert said and f"tst_octets ({GUARD})" in said
+
+
+def test_the_park_page_shows_the_commitment_beside_the_guard_test(proj):
+    from rota.roles.principal import _park_page
+
+    _, db = proj
+    _red_guard(db)
+    text, _ = _park_page(db, "b1", ["b1", "it"])
+    assert "tests/test_fold_octets.py, which guards commitment fold_octets, failed" in text

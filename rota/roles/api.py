@@ -10666,6 +10666,15 @@ def _offered_path(ctx: Ctx, path: str, id: Any, criterion_id: str,
     return _beside_project_test(ctx, path, criterion_id, batch_id, id)
 
 
+def guard_words(conn: sqlite3.Connection, cid: str) -> str:
+    """A guard test's commitment as a reader shows it: the id and the
+    behaviour that the test guards."""
+    row = conn.execute("SELECT behaviour FROM constraints WHERE id = ?",
+                       (cid,)).fetchone()
+    return (f"commitment {cid}: {row['behaviour']}" if row and row["behaviour"]
+            else f"commitment {cid}")
+
+
 def _guarded_commitment(ctx: Ctx, ref: str, batch_id: str | None) -> dict | None:
     """The pushed commitment that `ref` names, or None when `ref` is not a
     stated commitment. A criterion id wins over a constraint id."""
@@ -12324,14 +12333,23 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     # its id across batches. Night 141 (frame 210): bg_1's attempt 3 beat
     # bg_2's attempt 1, and s198 read 35 of 35 passing while 2 were red.
     rows = _rows(ctx.conn.execute(
-        "SELECT t.id AS id, t.criterion_id AS criterion_id, t.path AS path, "
+        "SELECT t.id AS id, t.criterion_id AS criterion_id, "
+        "       t.commitment_id AS commitment_id, t.path AS path, "
         "       t.body AS body, r.result AS last_result, "
         "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said, "
         "       r.commit_sha AS run_sha "
         "FROM tests t "
         "LEFT JOIN latest_runs r ON r.test_id = t.id AND r.batch_id = t.batch_id "
         "WHERE t.batch_id = ? "
-        "ORDER BY t.criterion_id IS NULL, t.rowid", (bid,)))
+        "ORDER BY t.criterion_id IS NULL AND t.commitment_id IS NULL, t.rowid",
+        (bid,)))
+    # A guard test names its commitment and the behaviour where a criterion
+    # test names its criterion (the review of pass 3b). Other rows keep
+    # their keys, so the recorded prompts keep their bytes.
+    for row in rows:
+        cid = row.pop("commitment_id", None)
+        if cid:
+            row["guards"] = guard_words(ctx.conn, cid)
     # A run is a statement about one commit. Finding 66 (2026-09-14): the
     # 9B wrote the fix, loaded the tests, read the old red as its fix
     # failing, and started over until the loop cut it. The files that
@@ -12362,7 +12380,7 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
             # Night 103, s170: 34 inherited bodies, 460,000 characters, put the
             # batch's own tests behind the push cap. A green inherited body
             # tells the reader nothing, so the row names its file (frame 101).
-            if row.get("criterion_id") is None:
+            if row.get("criterion_id") is None and not row.get("guards"):
                 state = "passing" if row.get("last_result") == "pass" else "not run yet"
                 row["body"] = (f"{len(row.get('body') or '')} characters, {state}, "
                                f"not shown")

@@ -4668,8 +4668,10 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # 20,000 characters of `types.py`, and the Developer wrote an
             # essay about Choice and File. A project test with no criterion
             # fails because of the diff; the diff is what to push.
-            own = [r for r in red if r.get("criterion_id")]
-            project = [r for r in red if not r.get("criterion_id")]
+            # A guard test is the batch's own test (the review of pass 3b).
+            own = [r for r in red if r.get("criterion_id") or r.get("guards")]
+            project = [r for r in red
+                       if not r.get("criterion_id") and not r.get("guards")]
             # The thread on a red test is part of the red test. Night 106
             # (2026-10-02): no tick wake carried m109 to m115. The seat
             # learned of them from refusals only, and it sent the challenge

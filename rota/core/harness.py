@@ -73,7 +73,8 @@ def tester_paths(conn: sqlite3.Connection, batch_id: str) -> set[str]:
     """
     return {r["path"].replace("\\", "/") for r in conn.execute(
         "SELECT DISTINCT t.path FROM tests t JOIN batches b ON b.id = t.batch_id "
-        "WHERE t.criterion_id IS NOT NULL AND t.batch_id != ? "
+        "WHERE (t.criterion_id IS NOT NULL OR t.commitment_id IS NOT NULL) "
+        "AND t.batch_id != ? "
         "AND b.status = 'merged'", (batch_id,))}
 
 

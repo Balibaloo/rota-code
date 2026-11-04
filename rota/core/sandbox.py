@@ -1628,11 +1628,16 @@ def _green_at_head_refusal(ctx: api.Ctx, refs) -> str | None:
         return None
     last = next((ln.strip() for ln in reversed((run["output"] or "").splitlines())
                  if ln.strip()), "pass")
-    red = [f"{r['test_id']} ({r['criterion_id']})" for r in ctx.conn.execute(
-        "SELECT DISTINCT tr.test_id, t.criterion_id FROM latest_runs tr "
+    from ..roles.api import guard_words
+
+    # A guard test names its commitment and the behaviour (pass 3c).
+    red = [f"{r['test_id']} ({r['criterion_id'] or guard_words(ctx.conn, r['commitment_id'])})"
+           for r in ctx.conn.execute(
+        "SELECT DISTINCT tr.test_id, t.criterion_id, t.commitment_id FROM latest_runs tr "
         "JOIN tests t ON t.id = tr.test_id "
         "WHERE t.batch_id = ? AND tr.batch_id = t.batch_id "
-        "AND tr.result IN ('fail', 'error') AND t.criterion_id IS NOT NULL",
+        "AND tr.result IN ('fail', 'error') "
+        "AND (t.criterion_id IS NOT NULL OR t.commitment_id IS NOT NULL)",
         (ctx.batch_id,))]
     then = (" The failing tests of this batch: " + ", ".join(red[:3]) + "."
             if red else " No test of this batch with a criterion fails.")

@@ -2553,7 +2553,8 @@ def _park_page(conn: sqlite3.Connection, batch: str,
     order: list[str] = []
     checks = conn.execute(
         "SELECT id FROM tests WHERE batch_id = ? "
-        "AND criterion_id IS NOT NULL", (batch,)).fetchall()
+        "AND (criterion_id IS NOT NULL OR commitment_id IS NOT NULL)",
+        (batch,)).fetchall()
     tries = failing_attempt(conn, batch)
     if not own and park_untested(conn, batch):
         # No check exists to count, so the sentence names the Tester's
@@ -2573,7 +2574,10 @@ def _park_page(conn: sqlite3.Connection, batch: str,
                         (batch,)).fetchone()
     at_head = [r for r in own if head is None or head["head_commit"] is None
                or r.get("commit_sha") in (None, head["head_commit"])] or own
-    last = [f"{r['path'] or r['test_id']} failed: {_failure_line(r['output']) or 'no reason shown'}."
+    # A guard test shows its commitment id beside the test (pass 3c).
+    last = [f"{r['path'] or r['test_id']}"
+            + (f", which guards commitment {r['commitment_id']}," if r.get("commitment_id") else "")
+            + f" failed: {_failure_line(r['output']) or 'no reason shown'}."
             for r in at_head[:2]]
     if last:
         out.append("The last attempt: " + " ".join(last))

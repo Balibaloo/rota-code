@@ -2158,13 +2158,17 @@ def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list
     # test with a criterion: night 121's own test of cr_1 is an inherited
     # id, so the id's prefix does not decide (frame 142's design, 2.A).
     rows = conn.execute(
-        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM latest_runs r "
+        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id, "
+        "t.commitment_id FROM latest_runs r "
         "LEFT JOIN tests t ON t.id = r.test_id "
         "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
         + live_tests(conn, "r.test_id") +
         " ORDER BY r.test_id", (batch_id,)).fetchall()
-    own =[dict(r) for r in rows if r["criterion_id"] is not None]
-    project = [dict(r) for r in rows if r["criterion_id"] is None]
+    # A guard test of a commitment is the batch's own (pass 3c).
+    own = [dict(r) for r in rows
+           if r["criterion_id"] is not None or r["commitment_id"] is not None]
+    project = [dict(r) for r in rows
+               if r["criterion_id"] is None and r["commitment_id"] is None]
     return own, project
 
 
@@ -2498,7 +2502,7 @@ def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:
     # this change moved (observed: the scene `two_batches`, 2026-10-09).
     pairs += [f"t:{r['id']}:{r['version'] or 0}" for r in conn.execute(
         "SELECT id, version FROM tests WHERE batch_id = ? "
-        "AND criterion_id IS NOT NULL", (batch_id,))]
+        "AND (criterion_id IS NOT NULL OR commitment_id IS NOT NULL)", (batch_id,))]
     return ",".join(sorted(pairs))
 
 

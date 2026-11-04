@@ -33,7 +33,7 @@ LEAD_COLUMNS = {
     "batch_touch": ("batch_id", "grain", "grain_kind", "confidence"),
     "findings": ("id", "batch_id", "constraint_id", "status", "grain"),
     "test_runs": ("id", "batch_id", "test_id", "result", "attempt"),
-    "tests": ("id", "batch_id", "criterion_id", "path"),
+    "tests": ("id", "batch_id", "criterion_id", "commitment_id", "path"),
     "verdicts": ("id", "batch_id", "result", "failed_criterion", "reason",
                  "lines"),
     "ledger": ("id", "status", "author", "about_ref", "default_taken"),
