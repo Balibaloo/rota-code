@@ -134,6 +134,33 @@ def test_no_bound_commitment_adds_no_words(db):
                                      "to touch src/pkg/fold.py")
 
 
+def test_a_raw_file_without_the_columns_shows_no_part_and_raises_nothing(
+        db, tmp_path):
+    """A night's file that a test opens raw has no harvest tables and no
+    `witness` column. The page raised there (the gate on 9f1563fc)."""
+    import sqlite3
+
+    from rota.roles.api import commitments_held, touch_commitments
+
+    _state(db, "fold_octets", "other calendar programs",
+           "a folded line holds at most 75 octets")
+    plain = "the work for: fold at a space; expected to touch src/pkg/fold.py"
+    raw = sqlite3.connect(tmp_path / "rota.db")
+    raw.row_factory = sqlite3.Row
+    raw.execute("DROP TABLE candidate_bindings")
+    raw.commit()
+    assert not commitments_held(raw)
+    assert touch_commitments(raw, "b1") == []
+    assert touch_words(raw, "b1").startswith(plain)
+    assert "must keep" not in touch_words(raw, "b1")
+    for column in ("witness", "behaviour", "party"):
+        raw.execute(f"ALTER TABLE constraints DROP COLUMN {column}")
+    raw.commit()
+    assert touch_commitments(raw, "b1") == []
+    assert "must keep" not in touch_words(raw, "b1")
+    raw.close()
+
+
 def test_two_bound_commitments_follow_the_critics_order(db):
     # Stated in the reverse of the push's order, so the line cannot take
     # the order of the writes.

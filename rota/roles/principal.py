@@ -3392,8 +3392,11 @@ def touch_words(conn: sqlite3.Connection, batch_id: str,
     # A stated commitment reaches him in its own sentence below and in no
     # other part, so no other words of understanding reach him (design B,
     # section 3.5 and section 4.2, step 5).
+    from .api import commitments_held
+
     stated = {r["id"] for r in conn.execute(
-        "SELECT id FROM constraints WHERE witness != '' AND party != ''")}
+        "SELECT id FROM constraints WHERE witness != '' AND party != ''")
+              } if commitments_held(conn) else set()
     plain = [c for c in t["commitments"] if c["id"] not in stated]
     if plain:
         parts.append("commitments: " + ", ".join(

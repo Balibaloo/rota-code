@@ -4809,11 +4809,31 @@ def touch_commitments(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
     other page does (design B, section 4.2, step 5)."""
     from ..core import worktrees as _wt
 
+    if not commitments_held(conn):
+        return []
     try:
         diff = _wt.batch_files(conn, batch_id) or []
     except Exception:                                      # noqa: BLE001
         diff = []               # no worktree yet, so the touch set alone
     return [r for r in _bound_rows(conn, batch_id, diff)[1] if "party" in r]
+
+
+def commitments_held(conn: sqlite3.Connection) -> bool:
+    """Whether the file holds the stated-commitment columns and the harvest
+    tables. The page reads this before it reads a commitment.
+
+    A night's file that a test opens raw, with no `connect`, lacks them. The
+    page raised `no such column: witness` there, and four tests went red
+    (frame 362, the gate on 9f1563fc). Such a file holds no statement, so
+    the page shows none."""
+    from ..core.db import _has_column
+
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN "
+        "('commitment_candidates', 'candidate_bindings')")}
+    return (len(tables) == 2
+            and all(_has_column(conn, "constraints", c)
+                    for c in ("party", "behaviour", "witness")))
 
 
 # The words the push writes for a stated commitment whose witness tie broke.
