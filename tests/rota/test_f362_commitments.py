@@ -879,6 +879,48 @@ def test_the_survey_signature_hides_the_three_statement_arguments(tree):
                if s.startswith("model.amend("))
 
 
+def test_the_commitments_signature_hides_what_the_door_fills(tree):
+    """Pass 4e, rule 1: the mirror of the survey's hide. The mode asks for
+    the witness, the party and the behaviour only."""
+    _, db = tree
+    _, sb = _commitments(db)
+    assert ("model.amend(source_refs=None, party='', behaviour='', witness='')"
+            in sb.signatures())
+
+
+def test_the_commitments_door_drops_a_binding_and_a_headline_and_says_so(tree):
+    """Pass 4e, rule 2: the auth case's first call, a right triple with
+    `bindings=["Account"]`, was refused. The door fills both, so it drops
+    them and lands the statement."""
+    _, db = tree
+    _, sb = _commitments(db)
+    got = sb.call("model.amend", headline="Account class exported",
+                  text="from .accounts import Account", bindings=["Account"],
+                  witness=_id(db, "export"), party="importers of pkg",
+                  behaviour="the exported names stay importable")
+    assert got["note"].endswith("dropped headline, text, bindings: the "
+                                "commitments mode fills them from the witness line")
+    assert [w for w in sb.ctx.writes if w[0] == "constraints"]
+
+
+def test_a_dropped_argument_keeps_the_witness_refusals(tree):
+    """Pass 4e, rule 3: a call with no witness, and a mistyped id, keep
+    today's refusal with the pushed ids after the drop."""
+    _, db = tree
+    _, sb = _commitments(db)
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", headline="export", bindings=["Account"],
+                party="importers", behaviour="the names stay")
+    assert "names none" in str(got.value)
+    assert _id(db, "export") in str(got.value)
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", witness="cc_000000000000", bindings=["x"],
+                party="importers", behaviour="the names stay")
+    assert "is not a candidate that [model.witnesses] showed" in str(got.value)
+    assert _id(db, "export") in str(got.value)
+    assert not [w for w in sb.ctx.writes if w[0] == "constraints"]
+
+
 def test_a_commitments_record_is_no_role_survey(tree):
     """The review of pass 4b, low 3. Neither reader takes the record."""
     from rota.compare import _areas

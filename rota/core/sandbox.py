@@ -171,6 +171,13 @@ ARG_HINTS_BY_OP: dict[tuple[str, str], dict[str, str]] = {
 # takes them, so a recorded call keeps its answer (frame 362, pass 4c).
 SURVEY_HIDDEN = {"model.amend": ("party", "behaviour", "witness")}
 
+# The mirror for the commitments mode. Its door fills the headline, the text
+# and the bindings from the witness line, so the signature leaves them out
+# and the door drops them when they come (frame 362, pass 4e: 7 of 10
+# refusals of the four state cases were on these arguments).
+COMMITMENTS_HIDDEN = {"model.amend": ("headline", "text", "bindings")}
+HIDDEN_BY_MODE = {"survey": SURVEY_HIDDEN, "commitments": COMMITMENTS_HIDDEN}
+
 
 def _render_signature(fn: Callable, hidden: tuple[str, ...] = ()) -> str:
     import inspect
@@ -529,8 +536,8 @@ class Sandbox:
         # witness lines. The cold load filled `party`, `behaviour` and
         # `witness` on survey calls, and the three changed the survey's system
         # text from the green one (the review of pass 4b, points 4 and 5).
-        hide = (SURVEY_HIDDEN if self.ctx is not None
-                and api._wake_mode_key(self.ctx) == "survey" else {})
+        hide = (HIDDEN_BY_MODE.get(api._wake_mode_key(self.ctx), {})
+                if self.ctx is not None else {})
         for name in self.functions():
             artefact, fn = name.split(".", 1)
             impl = getattr(self[artefact], fn)
@@ -581,8 +588,11 @@ class Sandbox:
         # behaviour only. The door writes the headline from the witness line,
         # and the signature of the other modes stays as recorded (frame 362,
         # pass 4b).
+        dropped: list[str] = []
         if dotted == "model.amend" and api._wake_mode_key(self.ctx) == "commitments":
-            kwargs = {"headline": "", **kwargs}
+            dropped = [a for a in COMMITMENTS_HIDDEN[dotted] if a in kwargs]
+            kwargs = {**{a: v for a, v in kwargs.items() if a not in dropped},
+                      "headline": ""}
 
         problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)),
                                 ctx=self.ctx)
@@ -604,7 +614,13 @@ class Sandbox:
                 raise
 
         try:
-            return target(**kwargs)
+            out = target(**kwargs)
+            if dropped and isinstance(out, dict):
+                said = (f"dropped {', '.join(dropped)}: the commitments mode "
+                        f"fills them from the witness line")
+                out = {**out, "note": f"{out['note']} {said}" if out.get("note")
+                       else said}
+            return out
         except ValueError as exc:
             # The follow check of frame 144. The hook is None in a session,
             # so a seat meets the same refusal as before.
