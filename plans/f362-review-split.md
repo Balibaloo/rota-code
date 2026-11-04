@@ -146,3 +146,65 @@ All probe files are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/9
 ## 5. Usage against the cap
 
 About 100k tokens of input context and about 15k tokens of output, so about 115k in total. The cap was about 70k. The reads of `api.py` and of the cassettes history caused the overrun.
+
+## Second look, passes 4c to 4e
+
+Worktree `C:/Users/roman/rota_r362s`, detached at `c0ced085`. The worktree has no tracked change after the run. I ran no live model and no gate.
+
+### (a) Verdict
+
+**Fix.** Six of six earlier findings are fixed, and each has a test. The count of new findings is 3 high and 1 low. The suite gives 6500 passed, 0 failed.
+
+| Point | Verdict |
+|---|---|
+| 1 The six findings | Stands. All six are fixed. The outside cost note stays open, with no measure. |
+| 2 Root wake | Fix. The wake fires once and closes. A new harvest with a new project-wide line does not wake it again (high A). |
+| 3 Offer check | Fix in part. The piece is generic. The scalar door still offers a call that the same door refuses (low D). |
+| 4 Hide and drop | Fix. The note and the other modes hold. The drop breaks the restate form of a lost line (high C). |
+| 5 Tester header | Fix. A batch that nothing binds gets no commitment sentence. A batch that only a survey surface binds gets the ask (high B). |
+| 6 Suite | Stands. 6500 passed, 265 skipped, 13 xfailed, 0 failed in 360 s. 6497 + 3 new tests of pass 4e = 6500. |
+
+### (b) Findings
+
+Point 1, the six findings:
+
+- High 1, the project-wide binding: fixed. Tests: `test_one_session_states_the_project_wide_lines`, `test_the_root_binds_the_harvester_rows_of_a_project_wide_line`, `test_a_project_wide_line_is_not_in_the_push_of_an_area`, `test_a_surveyed_area_that_holds_only_project_wide_lines_gets_no_wake`.
+- Medium 1, the twin exemption: fixed. Test: `test_a_decided_row_that_contradicts_the_statement_is_its_twin`, in both modes.
+- Medium 2, the system text: fixed. The survey text is `41eb77dc` again. Test: `test_the_survey_signature_hides_the_three_statement_arguments`. The exported-name rate stays 1 of 5, and pass 4d shows the same input byte for byte.
+- Low 1: fixed. Pass 4c measured both cases, 5 of 5 each.
+- Low 2: fixed. Test: `test_the_witness_key_counts_the_lines_stated_and_the_refusals`.
+- Low 3: fixed. Test: `test_a_commitments_record_is_no_role_survey`.
+
+Point 2, the root wake. On a tree with no project-wide line, `any(...)` is false, so no root wake comes. On a tree with no git, `boot` harvests with commit `""`. `project_wide_witnesses` reads no commit, so the root wake comes as on a git tree.
+
+**High A. The root record closes the root wake for good.** `rota/core/scheduler.py:1166-1171` checks only that the record `commitments:@project-wide` exists. An area wake reads the area hash, but the root wake reads no hash. CONFIRMED by probe 1: after the record, one new project-wide line was unstated, and `_commitment_wakes` returned `[]`. So `onboarding_phase` also leaves the survey phase with the line unstated. Fix: wake the root while any project-wide line has no statement, or store the hash of the stated keys in the record and compare it.
+
+Point 3, the offer check. `_offer_checked` (`rota/roles/api.py:323`) takes any tuple of checks, so a third door can use it with no copy. `_exist_check` (`:348`) reads only a literal `_must_exist(ctx, "<table>", <name>)` in the op body, so a call in a helper or through a renamed variable is not seen. It passes a real id of the wrong table, as pass 4d says.
+
+**Low D. The scalar door offers a call that the same door refuses.** At `rota/core/sandbox.py:433`, the offer fixes the first scalar word only, and the loop returns. The offer does not go through the later scalar arguments or the enum check. CONFIRMED by probe 2: `code.source(start='top', end='bottom')` offers `start=1, end='bottom'`, and the resend is refused on `end`. `brief.segment` and `code.write` have the same shape. Fix: convert or replace every scalar word before the offer, then run the enum check on the offer as one more check.
+
+Point 4, the hide and the drop. The note names only the sent arguments. A positional headline is bound before the drop, so it is dropped and named too (probe 1). The survey mode keeps the binding guard: `bindings=["Account"]` is refused with "Account is not a grain in the index" (probe 1). The tests are `test_the_commitments_door_drops_a_binding_and_a_headline_and_says_so` and `test_a_dropped_argument_keeps_the_witness_refusals`. No test pins that another mode keeps a binding refusal. Probe 1 shows it.
+
+**High C. The drop breaks the restate form of a lost line.** The twin refusal at `rota/roles/api.py:4442` says "Restate it: write model.amend(headline=...)". The push of a lost row at `:4050` gives the same form. The commitments mode drops `headline` (`rota/core/sandbox.py:594`) and writes `<path>: <behaviour>`. A restatement with new behaviour words gets a new headline, and the guard refuses it again. CONFIRMED by probe 1: the literal follow of the refusal was refused with the same text. The lost row stayed alone. Before `fe491e81`, the seat's headline passed through. Fix: in the commitments mode, give the restate form without `headline`, and let the door take the lost row's id when the new witness restates it.
+
+Point 5, the Tester header. The paragraph is gone from `tests_missing.md`, and no Tester prompt file holds the word "commitment". An empty touch gives no block, and a batch with no bound row gets the note "No constraint binds the files of this batch", with the plain header.
+
+**High B. The ask reaches a batch that no commitment binds.** `bound_key` (`rota/core/runner.py:4220-4223`) picks the Tester header for any non-empty list. `bound_constraints` (`rota/roles/api.py:4771-4778`) lists every reaching constraint, which includes survey surfaces, decided rows and constraint zero before all areas are surveyed. So a batch that only a surface binds gets "Write a test that guards each pushed commitment ... Send the commitment's id as `criterion_id=`". Gate 5 measured that this sentence costs one of the two one-per-reply cases. CONFIRMED by reading. Fix: pick the Tester header only when one row of `bound` has a `witness` and a `party`.
+
+Point 6, the suite. `tests/rota` with `ROTA_DEV_DB` on a scratch file and `ROTA_MODEL=qwen3:8b` gave `6500 passed, 265 skipped, 13 xfailed`. It names no red. The handover timing red of pass 4d did not come back.
+
+Outside the points:
+
+- Outside, PLAUSIBLE. `onboarding_phase` now also calls `project_wide_witnesses`, and so `stated_commitments`, on each call (`rota/core/scheduler.py:1058`, `:1170`). Nobody measured the cost on a large run. No fix line until a measure.
+
+### (c) Probes
+
+All probe files are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/9f60e445-30b5-431b-b448-1ab48919fbaf/scratchpad/`.
+
+1. `test_r362t_probe.py` used the `tree` fixture of `test_f362_commitments.py`. It checked the root wake after a new line, the survey binding guard, a positional headline, and a restate of a lost line in the commitments mode.
+2. `r362t_scalar.py` listed the ops with two scalar arguments. `r362t_offer.py` sent `code.source` two scalar words and re-checked the offer.
+3. One pytest call ran the full `tests/rota` with `ROTA_DEV_DB=r362t_dev.db`.
+
+### (d) Usage
+
+About 90k tokens of input context and about 12k tokens of output, so about 102k in total. The cap was about 50k. The reads of the three pass reports and the probe cycles caused the overrun.
