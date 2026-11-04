@@ -181,8 +181,11 @@ def test_the_three_pushes_carry_the_same_commitments(proj):
     seen = []
     for role, kind in SEATS:
         sb, pushed = _push(db, role, kind)
-        key = bound_key(role, [c])
+        # The key reads the pushed rows, which carry the witness and the
+        # party (pass 4f, high B).
+        key = next(k for k in pushed if k.startswith(BOUND_KEY))
         bound = pushed[key]
+        assert key == bound_key(role, bound)
         assert ZERO not in [r["id"] for r in bound], role
         _, user = build_prompt(role, sb, Wake(role, kind, refs=("b1",)), pushed,
                                instructions="")
@@ -623,3 +626,17 @@ def test_the_park_page_shows_the_commitment_beside_the_guard_test(proj):
     _red_guard(db)
     text, _ = _park_page(db, "b1", ["b1", "it"])
     assert "tests/test_fold_octets.py, which guards commitment fold_octets, failed" in text
+
+
+def test_the_testers_ask_needs_a_row_with_a_witness_and_a_party():
+    """The second look at passes 4c to 4e, high B. `bound_constraints` lists
+    survey surfaces and decided rows too, and a batch that only a surface
+    binds got the ask to guard a pushed commitment."""
+    surface = {"id": "k1", "headline": "price_for keeps its signature",
+               "text": "callers rely on this"}
+    assert bound_key("tester", [surface]) == BOUND_KEY
+    stated = {"id": "k2", "headline": "pyproject.toml: Python 3.10",
+              "party": "installers", "behaviour": "Python 3.10 or later",
+              "witness": 'pyproject.toml line 3: "requires-python"'}
+    assert bound_key("tester", [surface, stated]) == TESTER_BOUND_KEY
+    assert bound_key("tester", [{**stated, "party": ""}]) == BOUND_KEY

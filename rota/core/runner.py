@@ -4218,9 +4218,14 @@ TESTER_BOUND_KEY = (
 
 
 def bound_key(role: str, bound) -> str:
-    """The header of the bound block for `role`."""
+    """The header of the bound block for `role`.
+
+    The Tester's ask names a pushed commitment, so a row with a witness and
+    a party must be in the block. A survey surface or a decided row alone
+    keeps the plain header (the second look at passes 4c to 4e, high B)."""
     return (TESTER_BOUND_KEY if role == "tester" and isinstance(bound, list)
-            and bound else BOUND_KEY)
+            and any(isinstance(r, dict) and r.get("witness") and r.get("party")
+                    for r in bound) else BOUND_KEY)
 
 
 def _old_tickets(conn, item_id: str, before_slice: bool) -> list:
