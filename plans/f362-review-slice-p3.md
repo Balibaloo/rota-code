@@ -48,3 +48,15 @@ The probe code is a `git archive f246ceca rota` copy at `C:/Users/roman/AppData/
 - Output tokens: about 12k.
 - Total: about 62k.
 - Sub-agents: none.
+
+## Pass 3b
+
+Verdict: fix. Commit `781dff33` is on top of `f246ceca`. The probe is `r362p3/p3b_ical.py`. It runs on a `git archive` copy at `r362p3/code3b/` and writes `r362p3/ical3b.db`.
+
+- High 1, fixed. CONFIRMED. The statement of `pyproject.toml` 42 from `src/icalendar/parser` now binds 5 files in 1 area. The statement before this commit bound 49 files in 8 areas.
+- Medium 2, fixed in part. CONFIRMED. The Developer's `verdict_failed` push now holds the commitment block, and the brief gives the `failed_commitment` route. Nothing yet handles a criterion that asks the Developer to break the commitment, so that batch still loops to `loop_cap`. Fix: add one sentence that sends this conflict to the Vision Keeper.
+- Medium 3, fixed in part. CONFIRMED. `tests.encode(criterion_id=<commitment id>)` stores `criterion_id = NULL` and `commitment_id = cw_99502ef494ad`. Fix: see the guard-test deviation below.
+- Medium 4, fixed. CONFIRMED. After the falsify, neither `_reaching_constraints` nor `constraints_for_grains` returns the row for `string.py`.
+- Low 5, fixed. CONFIRMED by reading. `base.md` 18 to 20, `review.md` 44 and `review.md` 56 now add "or the pushed commitment it breaks".
+- Deviation `_encode_guard`, fix. CONFIRMED. The red guard test holds the merge: with a pass verdict, `mergeable` returns "1 test(s) not passing". `tests_failing` wakes the Developer. But the Developer's `tests.load` lists the guard test under "the project's own tests, not passing at your commit". It adds "1 test(s) with no criterion are the project's", with no commitment id and no behaviour. The `tests_failing` push holds no commitment block. Other readers also take a NULL criterion to mean a project test: the sandbox red list (`sandbox.py` 1635), the park key (`scheduler.py` 2501) and the merged-test filter rule (`harness.py` 76). The page columns in `inspect_api.py` 36 have no `commitment_id`. Fix: read `commitment_id` in `tests.load`, and name the commitment there. Push the commitment block at `tick:tests_failing` when a red test guards a commitment. Add `OR commitment_id IS NOT NULL` to the three own-test filters and to the page columns.
+- Deviation `db.tables_of`, stand. CONFIRMED. The reader is the F22 one, from `794c2b01`. `_names_commitment` asks `among=["criteria", "constraints"]` and accepts only `["constraints"]`, so a criterion id still wins. The commitment fail and the guard encode both landed through it.
