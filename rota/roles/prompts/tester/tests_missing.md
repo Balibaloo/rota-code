@@ -65,5 +65,3 @@ know which it is, the sharper verdicts route directly: `ambiguous_word` to
 `criterion_span=` copied from the criterion, and it gets no test.
 Writing a test that passes trivially is worse than writing none, because it
 reports as coverage of a criterion nobody has pinned down.
-
-Write a test that guards each pushed commitment whose behaviour the change can reach, from its witness's input and output. Send the commitment's id as `criterion_id=`.

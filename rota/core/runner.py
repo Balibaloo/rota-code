@@ -4207,6 +4207,20 @@ RULED_CAP = 3
 START_RULED_KEY = "the principal's words on this change, newest last"
 # Frame 362, door 2: the key of the pushed constraint read.
 BOUND_KEY = "the constraints that bind the files of this batch"
+# The Tester's ask travels in the header of its block, so a batch that no
+# commitment binds keeps the Tester text from before the slice. The static
+# paragraph cost one of the two one-per-reply cases wherever it sat (frame
+# 362, gate 5).
+TESTER_BOUND_KEY = (
+    BOUND_KEY + ". Write a test that guards each pushed commitment whose "
+    "behaviour the change can reach, from its witness's input and output. "
+    "Send the commitment's id as `criterion_id=`")
+
+
+def bound_key(role: str, bound) -> str:
+    """The header of the bound block for `role`."""
+    return (TESTER_BOUND_KEY if role == "tester" and isinstance(bound, list)
+            and bound else BOUND_KEY)
 
 
 def _old_tickets(conn, item_id: str, before_slice: bool) -> list:
@@ -4470,7 +4484,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             last = max((i for i, k in enumerate(pushed) if k in block),
                        default=len(pushed) - 1)
             items = list(pushed.items())
-            items.insert(last + 1, (BOUND_KEY, bound))
+            items.insert(last + 1, (bound_key(role, bound), bound))
             pushed = dict(items)
 
     # One read needs an argument the *wake* already knows, and leaving it to

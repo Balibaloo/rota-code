@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from rota.core.db import init_db
-from rota.core.runner import BOUND_KEY, build_prompt, push_working_set, session_sandbox
+from rota.core.runner import BOUND_KEY, TESTER_BOUND_KEY, bound_key, build_prompt, push_working_set, session_sandbox
 from rota.core.scheduler import Wake
 from rota.onboarding import harvest
 from rota.onboarding.boot import ZERO, refresh_constraint_zero
@@ -181,11 +181,12 @@ def test_the_three_pushes_carry_the_same_commitments(proj):
     seen = []
     for role, kind in SEATS:
         sb, pushed = _push(db, role, kind)
-        bound = pushed[BOUND_KEY]
+        key = bound_key(role, [c])
+        bound = pushed[key]
         assert ZERO not in [r["id"] for r in bound], role
         _, user = build_prompt(role, sb, Wake(role, kind, refs=("b1",)), pushed,
                                instructions="")
-        assert f"[{BOUND_KEY}]" in user
+        assert f"[{key}]" in user
         seen.append(bound)
     assert seen[0] == seen[1] == seen[2]
     row = seen[0][0]
@@ -200,7 +201,7 @@ def test_two_contradicting_witnesses_both_show(proj):
     other = json.loads(c["contradicts"])
     assert other, "the fixture needs a contradiction"
     _, pushed = _push(db, "tester", "tick:tests_missing")
-    row = pushed[BOUND_KEY][0]
+    row = pushed[TESTER_BOUND_KEY][0]
     assert row["witness"].startswith("src/pkg/fold.py line ")
     assert len(row["contradicts"]) == 1
     assert row["contradicts"][0].startswith("docs/fold.rst line 4: ")
@@ -264,10 +265,15 @@ def test_the_critic_brief_carries_the_two_exceptions():
     assert ("Anything the diff does outside the criteria is a remark in the "
             "verdict's reason, never a fail, except a broken pushed "
             "commitment, which is a fail.") in flat
+    # The Tester's ask is in the header of its bound block, and its brief
+    # is the one from before the slice (frame 362, pass 4c).
     tester = (paths.PROMPTS / "tester" / "tests_missing.md").read_text(
         encoding="utf-8")
-    assert ("Write a test that guards each pushed commitment whose behaviour "
-            "the change can reach, from its witness's input and output.") in tester
+    ask = ("Write a test that guards each pushed commitment whose behaviour "
+           "the change can reach, from its witness's input and output.")
+    assert ask not in tester
+    assert ask in TESTER_BOUND_KEY
+    assert bound_key("tester", []) == bound_key("critic", [{"id": "k"}]) == BOUND_KEY
 
 
 # ---------------------------------------------------------------------------
