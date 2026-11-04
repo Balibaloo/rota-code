@@ -4434,7 +4434,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         account_off: list[str] = []
         if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
-            from ..roles.principal import _stalled_keys, code_targets, request_rows
+            from ..roles.principal import (_stalled_keys, code_targets, request_rows,
+                                           sent_attempts)
 
             # A row the model named is not the wake's row. A Liaison that named
             # a contested item on an agenda page let "ok" approve it, so the
@@ -4469,6 +4470,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             keys += [r for r in refs if r not in keys and rowless_key(ctx.conn, r)]
             if keys:
                 notes["stalled"] = _json.dumps(keys)
+                # The count of each key at the send, beside the keys. A later
+                # lift deletes the row, and dry4's m63 then said "after 0
+                # attempts" (frame 360, wall 14). The page reads this record.
+                counts = sent_attempts(ctx.conn, keys)
+                if counts:
+                    notes["attempts"] = _json.dumps(counts)
             # No ref rides a page unnumbered. A row the page does not number
             # leaves the refs, so a ruling of the page closes every row it
             # holds, and the dropped row stays open and countable (frame

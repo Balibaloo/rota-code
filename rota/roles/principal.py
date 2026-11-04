@@ -2017,7 +2017,8 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
 
 
 def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
-                   batch: str | None, keys: list[str]) -> int | None:
+                   batch: str | None, keys: list[str],
+                   sent: dict[str, int] | None = None) -> int | None:
     """The attempts of a `tests_missing` key of the page's `stalled` row,
     for a batch that holds the criterion, or None when no such key exists."""
     # The page's own keys, never the live quarantine. A live read put "gave
@@ -2041,9 +2042,7 @@ def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
     for key in sorted(keys or []):
         _, kind, keyed = key_parts(key)
         if kind == "tick:tests_missing" and set(keyed) & set(batches):
-            row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
-                               (key,)).fetchone()
-            return row["attempts"] if row else 0
+            return key_attempts(conn, key, sent)
     return None
 
 
@@ -2139,11 +2138,13 @@ def is_test_row(conn: sqlite3.Connection, ref: str) -> bool:
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   batch: str | None = None, code: dict | None = None,
-                  park: bool = False, stalled: list[str] | None = None) -> list[int]:
+                  park: bool = False, stalled: list[str] | None = None,
+                  sent: dict[str, int] | None = None) -> list[int]:
     """
     Render the request's rows of a page first: the principal's words, each
     item, its code line, and its criteria with their `check:` lines. Append
     to `out` and `order`, and return the line numbers of the items.
+    `sent` holds the counts of `stalled` that the send door recorded.
 
     `code` is the send door's stamp `code:<message id>`. A code line renders
     from it only, numbered under the item. An item with no stamp gets one
@@ -2232,7 +2233,8 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
             # note reads "none yet". A quarantined `tests_missing` key means
             # the team stopped trying. Night 136's m96 said nothing of cr_3
             # (frame 190's design, 2.5).
-            tries = None if park else _gave_up_tries(conn, r, batch, stalled or [])
+            tries = None if park else _gave_up_tries(conn, r, batch, stalled or [],
+                                                     sent)
             # A park page's row with no test says so in its one line, in
             # place of the expectation and the red mark (ruled: Roman,
             # 2026-11-01, the amendment of the park ruling's point 3).
@@ -2240,6 +2242,10 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                 out.append("     check: no test yet.")
             elif tries is None:
                 out.append("     check: none yet.")
+            elif not tries:
+                # No count was recorded, so the line says none (frame 360,
+                # wall 14).
+                out.append("     check: none. The team gave up writing it.")
             else:
                 out.append("     check: none. The team gave up writing it after "
                            f"{tries} tries.")
@@ -2282,10 +2288,11 @@ def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
     return "; ".join(_stalled_parts(conn, keys))
 
 
-def _stalled_parts(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
+def _stalled_parts(conn: sqlite3.Connection, keys: list[str],
+                   sent: dict[str, int] | None = None) -> list[str]:
     """The parts of `_stalled_words`, one per key."""
     return [_key_words(conn, key, kind, n)
-            for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys))]
+            for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys, sent))]
 
 
 def _retries_said(conn: sqlite3.Connection, key: str) -> str:
@@ -2304,7 +2311,8 @@ def _retries_said(conn: sqlite3.Connection, key: str) -> str:
             + ("once" if n == 1 else f"{n} times") + " before")
 
 
-def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
+def _gave_up_words(conn: sqlite3.Connection, keys: list[str],
+                   sent: dict[str, int] | None = None) -> list[str]:
     """'the team could not write the tests after 3 attempts', one part per
     key, with what the key is about."""
     # The page printed the kind's name, "tests_missing for b_3", at the end
@@ -2314,7 +2322,7 @@ def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
     from ..core.scheduler import key_parts
 
     out = []
-    for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
+    for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys, sent)):
         what = _key_about(conn, key)
         refs = key_parts(key)[2]
         batch = bool(refs) and all(tables_of(conn, r, among=("batches",)) for r in refs)
@@ -2350,7 +2358,10 @@ def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
     # `check_line`).
     from ..core.scheduler import key_parts, park_reds
 
-    tail = f"after {_tries(n)}"
+    # A quarantined key has at least one attempt, so 0 is a count nobody
+    # recorded. A page from before the record says no count, never "after 0
+    # attempts" (frame 360, wall 14).
+    tail = f" after {_tries(n)}" if n else ""
     if kind == "tests_failing":
         batch = next((r for r in key_parts(key)[2] if conn.execute(
             "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone()), None)
@@ -2368,11 +2379,11 @@ def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
                              if more else [])
             subject = (names[0] if len(names) == 1
                        else ", ".join(names[:-1]) + " and " + names[-1])
-            head = f"{subject} still fail{'s' if len(files) == 1 else ''} {tail}"
+            head = f"{subject} still fail{'s' if len(files) == 1 else ''}{tail}"
             error = next((errors[f] for f in shown if errors[f]), "")
             room = RED_CLAUSE_WORDS - len(head.split())
             return head + (f": {_cut_words(error, room)}" if error and room > 0 else "")
-    return f"{_tick_words(kind)}{f' for {what}' if what else ''} {tail}"
+    return f"{_tick_words(kind)}{f' for {what}' if what else ''}{tail}"
 
 
 def _cut_words(text: str, most: int) -> str:
@@ -2410,7 +2421,8 @@ def _ref_words(conn: sqlite3.Connection, ref: str) -> str:
 
 
 def _stuck_ticks(conn: sqlite3.Connection, batch: str,
-                 keys: list[str] | None = None) -> list[tuple[str, int]]:
+                 keys: list[str] | None = None,
+                 sent: dict[str, int] | None = None) -> list[tuple[str, int]]:
     """
     The batch's quarantined ticks as (kind, attempts), from `tick_attempts`.
 
@@ -2418,16 +2430,37 @@ def _stuck_ticks(conn: sqlite3.Connection, batch: str,
     batch. The stopped page and the shift page both read this, so the two
     pages cannot disagree. Night 160's m45 said "stopped work" on a green
     change, and m53 then said "nothing from you" (frame 312's provenance).
+    `sent` holds the counts the send door recorded for the page, from
+    `door_attempts`. A recorded count comes before the live row.
     """
     from ..core.scheduler import key_parts
 
     out = []
     for key in (_stalled_keys(conn, [batch]) if keys is None else keys):
-        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
-                           (key,)).fetchone()
         kind = key_parts(key)[1].replace("tick:", "")
-        out.append((kind, row["attempts"] if row else 0))
+        out.append((kind, key_attempts(conn, key, sent)))
     return out
+
+
+def key_attempts(conn: sqlite3.Connection, key: str,
+                 sent: dict[str, int] | None = None) -> int:
+    """The attempts of one quarantined key: the count the send door recorded,
+    else the live `tick_attempts` row, else 0 for a count nobody knows."""
+    # Dry4's m63 said "after 0 attempts". A later commit moved the head of
+    # bg_1, and the move lifted the key of s213's quarantine. So its row was
+    # gone at the read. The page shows the count at its send, as it shows the keys at
+    # its send (frame 360, wall 14). Law 1: the send door is the one writer.
+    if sent and key in sent:
+        return sent[key]
+    row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                       (key,)).fetchone()
+    return int(row["attempts"]) if row else 0
+
+
+def sent_attempts(conn: sqlite3.Connection, keys: list[str]) -> dict[str, int]:
+    """The live count of each key that has a row, for the send door to record
+    beside the keys of `stalled`."""
+    return {k: n for k in keys if (n := key_attempts(conn, k))}
 
 
 # A tick's kind as the principal reads it. The page contract shows his
@@ -3107,9 +3140,12 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     # came later (the diff review of 358fed11, finding 4).
     keys = (list(stalled) if stalled is not None
             else door_rows(conn, ask_id, "stalled")) if verb == "present" else []
+    # The counts the quarantined wake sent too, for the same reason. Dry4's
+    # m63 said "after 0 attempts" once a lift deleted the row (frame 360).
+    sent = door_attempts(conn, ask_id) if stalled is None else {}
     # A key the page carries as its own ref reaches no row, so no batch
     # line says it. It gets its own numbered line (frame 354: m3 had none).
-    gave_up = [(k, _gave_up_words(conn, [k])[0] + _retries_said(conn, k))
+    gave_up = [(k, _gave_up_words(conn, [k], sent)[0] + _retries_said(conn, k))
                for k in keys if k in refs]
     batch_keys = [k for k in keys if k not in refs]
 
@@ -3129,21 +3165,23 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         # (frame 190's design, 2.F, amendment 6). A review with no verdict
         # is no code fault. Night 160's m45 said "stopped work" on a change
         # whose 35 tests passed (frame 312's provenance, section 3).
-        ticks = _stuck_ticks(conn, batches[0], keys)
+        ticks = _stuck_ticks(conn, batches[0], keys, sent)
+        most = max(n for _, n in ticks) if ticks else 0
         if _review_only(ticks):
-            out.append(f"The review of this change stopped after "
-                       f"{_tries(max(n for _, n in ticks))} with no verdict. "
+            out.append("The review of this change stopped"
+                       + (f" after {_tries(most)}" if most else "")
+                       + " with no verdict. "
                        "Its tests passed at the review's last attempt.")
         else:
             out.append("The team stopped work on this change.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
-                              stalled=keys)
+                              stalled=keys, sent=sent)
         numbered(does)
         account_lines()
         # One sentence per key: m127's two keys in one sentence made 32
         # words (review of P12 pass 1, finding 1).
         out.append(" ".join(f"The team gave up: {p}."
-                            for p in _stalled_parts(conn, batch_keys)))
+                            for p in _stalled_parts(conn, batch_keys, sent)))
         out.append("The team expects to touch:")
         numbered(touches)
         gave_up_lines()
@@ -3153,7 +3191,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     elif verb == "present" and touches:
         out.append("Before I build this, here is what I expect to touch.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
-                              stalled=keys)
+                              stalled=keys, sent=sent)
         numbered(does)
         account_lines()
         out.append("The team expects to touch:")
@@ -3181,7 +3219,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         from .api import code_stamp
 
         asked = request_block(conn, refs, order, out, said=said,
-                              code=code_stamp(conn, ask_id), stalled=keys)
+                              code=code_stamp(conn, ask_id), stalled=keys,
+                              sent=sent)
         guessed = [n for n, r in enumerate(order, 1) if guess_item(r) is not None]
         account_lines(plan="What we are building:")
         if described:
@@ -3390,6 +3429,20 @@ def door_rows(conn: sqlite3.Connection, message_id: str | None, kind: str) -> li
     except (TypeError, ValueError):
         return []
     return [r for r in rows if isinstance(r, str)]
+
+
+def door_attempts(conn: sqlite3.Connection, message_id: str | None) -> dict[str, int]:
+    """The count of each `stalled` key that the send door recorded about a
+    message, as `attempts:<id>`. A page from before the record gets {}."""
+    row = conn.execute("SELECT value FROM config WHERE key = ?",
+                       (f"attempts:{message_id}",)).fetchone() if message_id else None
+    try:
+        counts = json.loads(row["value"]) if row else {}
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(counts, dict):
+        return {}
+    return {k: n for k, n in counts.items() if isinstance(n, int) and n > 0}
 
 
 def seen_order(conn: sqlite3.Connection, reply_id: str | None,
