@@ -164,6 +164,8 @@ class Tree:
                 self.files[path.relative_to(self.root).as_posix()] = path
         self._text: dict[str, str] = {}
         self._ast: dict[str, ast.Module | None] = {}
+        self._modules: dict[str, str] | None = None
+        self._scans: dict[str, tuple[set[str], dict, dict]] = {}
 
     def text(self, rel: str) -> str:
         if rel not in self._text:
@@ -208,16 +210,132 @@ class Tree:
 
     def modules(self) -> dict[str, str]:
         """The dotted module name of each source file, to its path."""
-        out = {}
-        for rel in self.source():
-            parts = rel[:-3].split("/")
-            if parts[0] == "src":
-                parts = parts[1:]
-            if parts[-1] == "__init__":
-                parts = parts[:-1]
-            if parts:
-                out[".".join(parts)] = rel
-        return out
+        if self._modules is None:
+            self._modules = {}
+            for rel in self.source():
+                name = _dotted(rel)
+                if name:
+                    self._modules[name] = rel
+        return self._modules
+
+    # ---- the call resolver ------------------------------------------------
+    # The binding rule and the indexer's `code_calls` read one module map and
+    # one import rule, so the two cannot disagree on one package (the shape
+    # design, section 3.2, the review, finding 10).
+
+    def absolute(self, rel: str, module: str | None, level: int) -> str:
+        """The dotted name that an import in `rel` names. A relative import
+        counts its dots up from the package of `rel`."""
+        if level == 0:
+            return module or ""
+        package = _dotted(rel).split(".") if _dotted(rel) else []
+        if not rel.endswith("__init__.py"):
+            package = package[:-1]
+        if level > 1:
+            package = package[:max(0, len(package) - (level - 1))]
+        return ".".join([*package, module] if module else package)
+
+    def _imports(self, rel: str) -> tuple[set[str], dict, dict]:
+        """The top-level names that `rel` defines, the names it binds by
+        `from` import as (module path or None, name), and the module aliases
+        it binds, each to a module path."""
+        if rel in self._scans:
+            return self._scans[rel]
+        mods = self.modules()
+        defs: set[str] = set()
+        froms: dict[str, tuple[str | None, str]] = {}
+        aliases: dict[str, str] = {}
+        module = self.tree(rel)
+        if module is not None:
+            for node in module.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                     ast.ClassDef)):
+                    defs.add(node.name)
+            for node in ast.walk(module):
+                if isinstance(node, ast.ImportFrom):
+                    base = self.absolute(rel, node.module, node.level)
+                    for a in node.names:
+                        sub = f"{base}.{a.name}" if base else a.name
+                        if sub in mods:
+                            aliases[a.asname or a.name] = mods[sub]
+                        else:
+                            froms[a.asname or a.name] = (mods.get(base), a.name)
+                elif isinstance(node, ast.Import):
+                    for a in node.names:
+                        if a.name not in mods:
+                            continue
+                        if a.asname:
+                            aliases[a.asname] = mods[a.name]
+                        else:
+                            head = a.name.split(".")[0]
+                            aliases[head] = mods.get(head, mods[a.name])
+        self._scans[rel] = (defs, froms, aliases)
+        return self._scans[rel]
+
+    def definer(self, rel: str | None, name: str, depth: int = 0) -> str | None:
+        """The file that defines `name` as module `rel` sees it, through the
+        re-exports of each `__init__.py` on the way. The depth cap stops an
+        import cycle."""
+        if rel is None or depth > 6:
+            return None
+        defs, froms, _ = self._imports(rel)
+        if name in defs:
+            return rel
+        hop = froms.get(name)
+        return self.definer(hop[0], hop[1], depth + 1) if hop else None
+
+    def calls(self, rel: str) -> set[tuple[str, str]]:
+        """The top-level definitions in other files that `rel` calls, as
+        (path, name). A call by a bare name and a call through a module
+        alias resolve. A call on `self`, on an instance or by a string does
+        not, so the set states less than the program does."""
+        module = self.tree(rel)
+        if module is None:
+            return set()
+        defs, froms, aliases = self._imports(rel)
+        mods = self.modules()
+        out: set[tuple[str, str]] = set()
+        for node in ast.walk(module):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if isinstance(func, ast.Name):
+                # A name the file defines is its own, as Python reads it.
+                if func.id in froms and func.id not in defs:
+                    path, name = froms[func.id]
+                    got = self.definer(path, name)
+                    if got:
+                        out.add((got, name))
+                continue
+            chain = []
+            while isinstance(func, ast.Attribute):
+                chain.append(func.attr)
+                func = func.value
+            if not chain or not isinstance(func, ast.Name):
+                continue
+            chain.reverse()
+            path, rest = aliases.get(func.id), chain
+            while path and len(rest) > 1:
+                sub = _dotted(path) + "." + rest[0]
+                if sub not in mods:
+                    break
+                path, rest = mods[sub], rest[1:]
+            if path and rest:
+                got = self.definer(path, rest[0])
+                if got:
+                    out.add((got, rest[0]))
+        return {(path, name) for path, name in out if path != rel}
+
+
+def _dotted(rel: str) -> str:
+    """The dotted module name of a Python path. A `src/` layout drops the
+    `src` part, and a package's `__init__.py` is the package."""
+    parts = rel[:-3].split("/")
+    if parts[0] == "src":
+        parts = parts[1:]
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
 
 
 def is_test(rel: str) -> bool:
@@ -527,9 +645,10 @@ def _reexported(tree: Tree, init: str) -> set[str]:
         if not isinstance(node, ast.ImportFrom):
             continue
         # The relative form and the absolute form inside the package both
-        # re-export. icalendar's `__init__.py` uses the absolute form.
+        # re-export. icalendar's `__init__.py` uses the absolute form. The
+        # relative form reads the import rule of `code_calls`.
         if node.level >= 1:
-            name = package + ("." + node.module if node.module else "")
+            name = tree.absolute(init, node.module, node.level)
         elif node.module and (node.module + ".").startswith(package + "."):
             name = node.module
         else:

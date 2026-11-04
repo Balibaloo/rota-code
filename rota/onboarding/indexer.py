@@ -286,6 +286,7 @@ class IndexReport:
     files: int = 0
     symbols: int = 0
     edges: int = 0
+    calls: int = 0
     unresolved: int = 0
     languages: dict[str, int] = field(default_factory=dict)
     skipped: list[str] = field(default_factory=list)
@@ -496,6 +497,8 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     for _, dst in edges:
         fan_in[dst] = fan_in.get(dst, 0) + 1
 
+    calls = _calls(root, facts)
+
     # The swap is a transaction, not a hopeful sequence. The connection runs
     # autocommit, so without the explicit BEGIN the DELETE landed instantly
     # and a death during the inserts left a half-empty index -- a
@@ -504,6 +507,7 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     conn.execute("BEGIN IMMEDIATE")
     try:
         conn.execute("DELETE FROM code_edges")
+        conn.execute("DELETE FROM code_calls")
         conn.execute("DELETE FROM code_index")
         for f in facts:
             conn.execute(
@@ -526,6 +530,8 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
                     report.symbols += 1
         conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
                          sorted(edges))
+        conn.executemany("INSERT INTO code_calls (src, dst_grain) VALUES (?, ?)",
+                         calls)
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
@@ -533,7 +539,37 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
 
     report.files = len(facts)
     report.edges = len(edges)
+    report.calls = len(calls)
     return report
+
+
+def _calls(root: Path, facts: list[FileFacts]) -> list[tuple[str, str]]:
+    """
+    Each resolved call from an indexed Python file to a top-level definition
+    in another file, as (file, grain).
+
+    The resolver is the harvester's, so the binding rule and this table read
+    one import rule (the shape design, section 3.2). A target the index does
+    not hold as a symbol grain is left out, so every row names a grain that
+    exists. A test file's calls stay: a reader that wants the program's
+    callers alone leaves the attached files out with `areas.is_attached`.
+    """
+    # Imported here: `harvest` imports this module at its top.
+    from .harvest import Tree
+
+    held = {f.path for f in facts}
+    grains = {f"{f.path}::{s[0]}" for f in facts for s in f.symbols
+              if s[1] not in BINDING_KINDS}
+    tree = Tree(root)
+    out: set[tuple[str, str]] = set()
+    for rel in tree.files:
+        if not rel.endswith(".py") or rel not in held:
+            continue
+        for path, name in tree.calls(rel):
+            grain = f"{path}::{name}"
+            if grain in grains:
+                out.add((rel, grain))
+    return sorted(out)
 
 
 def stamp_area_hashes(conn: sqlite3.Connection) -> int:

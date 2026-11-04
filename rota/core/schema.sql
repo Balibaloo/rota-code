@@ -515,6 +515,19 @@ CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to parti
     PRIMARY KEY (src, dst)
 );
 
+-- One row for each resolved call from a file to a top-level definition in
+-- another file, through `__init__.py` re-exports. `src` is the calling path,
+-- and `dst_grain` is the `path::name` grain of the definition. The indexer
+-- writes it in the swap that writes `code_edges`, and nothing else writes it
+-- (law 1). The rows stay out of `code_edges`, because `areas.propose` reads
+-- each edge as coupling, and a call row would move the partition (the shape
+-- design of frame 362, section 3.2).
+CREATE TABLE IF NOT EXISTS code_calls (
+    src        TEXT NOT NULL,
+    dst_grain  TEXT NOT NULL,
+    PRIMARY KEY (src, dst_grain)
+);
+
 -- The words the checkout declares, ranked by how loudly it declares them.
 -- Mechanical like the index and rebuilt with it: a directory name, a file
 -- name, a declared type, an authoring-surface key. The define phase of

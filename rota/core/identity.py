@@ -71,6 +71,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "code_index": ("content", "grains carry the source's content hash; the "
                               "indexer is the only writer"),
     "code_edges": ("content", "derived with the index, from the same parse"),
+    "code_calls": ("content", "derived with the index, from the same tree; "
+                              "the indexer is the only writer"),
     "commitment_candidates": ("content", "the id hashes the kind, the path, "
                                          "the line and the text in "
                                          "`harvest.candidate_id`"),

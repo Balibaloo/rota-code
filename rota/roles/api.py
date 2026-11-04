@@ -20413,7 +20413,7 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
     # result would cost a page for something no seat can act on.
     if not words:
         _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
-        return rows[:20]
+        return _shape_marked(ctx, rows[:20])
     hits = []
     for r in rows:
         stem = r["grain"].split("::")[-1]
@@ -20430,7 +20430,47 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
     _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows", stored=False)
     if not hits:
         _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
-    return hits[:40] or rows[:20]
+    return _shape_marked(ctx, hits[:40] or rows[:20])
+
+
+def _shape_marked(ctx: Ctx, rows: list[dict]) -> list[dict]:
+    """The guess's rows, each with its `copies` and its `entry_point`.
+
+    Dry run 4 matched "split" to `q_split` while the fold code was
+    `_foldline`, and nothing showed the Architect the shape before it bound
+    the request (`plans/dry4-read-2026-11-03.md`, section 8). So a row whose
+    name another project file defines lists those files, and a row whose file
+    starts a program run says why (the shape design, sections 3.1 and 3.5).
+    An empty field stays out of the row, so an unmarked row reads as before."""
+    from ..core.worktrees import WorktreeError, project_root
+    from ..onboarding import shape
+
+    copies = shape.copies(ctx.conn)
+    paths = {_grain_path(str(r.get("grain", ""))) for r in rows if r.get("grain")}
+    # A bare context of a direct call holds no batch, so the guard read takes
+    # the project root, and a run with no root reads no guard.
+    try:
+        root = (_worktree_of(ctx) if hasattr(ctx, "batch_id")
+                else project_root(ctx.conn))
+    except WorktreeError:
+        root = None
+    entries = shape.entry_points(ctx.conn, root, paths)
+    out = []
+    for r in rows:
+        grain = str(r.get("grain", ""))
+        if not grain:
+            out.append(r)
+            continue
+        path = _grain_path(grain)
+        defined = copies.get(grain.split("::")[-1], [])
+        other = [p for p in defined if p != path] if path in defined else []
+        mark = dict(r)
+        if other:
+            mark["copies"] = other
+        if path in entries:
+            mark["entry_point"] = entries[path]
+        out.append(mark)
+    return out
 
 
 @op("code", "source")
