@@ -428,7 +428,9 @@ def test_an_edit_of_the_witness_line_marks_the_constraint_unwitnessed(tree):
     db.commit()
     _, text = api.witness_push(db, "src/pkg")
     assert f"Constraint {out['id']} {LOST}" in text
-    assert "model.amend(headline='src/pkg/fold.py::fold'" in text
+    # The form names no headline, because the door takes the lost row's id
+    # (pass 4f, high C).
+    assert 'Restate it with model.amend(witness="<an id below>"' in text
     assert api.lost_witnesses(db, "src/pkg") == [
         {"id": out["id"], "headline": "src/pkg/fold.py::fold"}]
     # The commitments wake of the area shows the mark, so the seat restates.
@@ -660,6 +662,34 @@ def test_an_edited_witness_is_restated_and_not_stated_twice(tree):
     assert len(rows) == 1
     assert harvest.witnessed(db, rows[0]["witness"])["id"] == new
     assert api.lost_witnesses(db, "src/pkg") == []
+
+
+def test_the_commitments_mode_restates_a_lost_line_on_its_row(tree):
+    """Pass 4f, high C of the second look. The mode drops the headline and
+    writes `<path>: <behaviour>`, so the restate form with the old headline
+    met the twin refusal again. The push gives the form without a headline,
+    and the door takes the id of the lost row."""
+    root, db = tree
+    _, sb = _commitments(db)
+    out = sb.call("model.amend", witness=_id(db, "numeric_default"),
+                  party="other calendar programs",
+                  behaviour="lines fold at 75 octets")
+    _land(db, sb)
+    _write(root / "src/pkg/fold.py", FOLD.replace("at most 75 octets",
+                                                  "at most 75 octets each"))
+    harvest.record(db, root, "c2")
+    db.commit()
+    new = _id(db, "numeric_default")
+    text = api.witness_push(db, "src/pkg")[1]
+    assert f"Constraint {out['id']} lost its witness line" in text
+    assert "Restate it with model.amend(witness=" in text
+    _, sb = _commitments(db)
+    again = sb.call("model.amend", witness=new, party="other calendar programs",
+                    behaviour="lines fold at 75 octets each")
+    _land(db, sb)
+    assert again["id"] == out["id"]
+    rows = db.execute("SELECT id FROM constraints WHERE party != ''").fetchall()
+    assert [r["id"] for r in rows] == [out["id"]]
 
 
 def test_the_review_probe_of_pass_2b_lands_one_constraint(tree):

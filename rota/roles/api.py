@@ -4047,7 +4047,10 @@ def witness_push(conn: sqlite3.Connection, area: str,
     lines, kept = [head], []
     # A broken tie goes first, so the cut never takes it.
     for c in lost:
-        restate = (f"Restate it with model.amend(headline={c['headline']!r}, "
+        # The commitments mode drops a headline, and the door takes the
+        # lost row's id, so the form names none (the second look at passes
+        # 4c to 4e, high C).
+        restate = (f"Restate it with model.amend("
                    f"witness=\"<an id below>\", party=\"<who outside "
                    f"notices>\", behaviour=\"<what must hold>\"), or decline it."
                    if rows else "No line below can restate it, so decline it.")
@@ -4437,6 +4440,14 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
                 in {stated["path"], *stated["placed"]}):
             continue
         shared = mine & _stems(row["headline"])
+        if (len(shared) >= 2 and stated and row["witness"]
+                and _wake_mode_key(ctx) == "commitments"):
+            # The mode writes the headline from the new behaviour, so the
+            # old headline cannot reach rule 2 of `_statement_id`. The
+            # statement restates the lost row and takes its id (the second
+            # look at passes 4c to 4e, high C).
+            own = row["id"]
+            continue
         if len(shared) >= 2 and stated and row["witness"]:
             raise ValueError(
                 f"{row['id']} lost its witness line, and it states this "
