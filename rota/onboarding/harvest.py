@@ -355,6 +355,18 @@ class Tree:
                 func = func.value
             if not chain or not isinstance(func, ast.Name):
                 continue
+            # `Calendar.from_ical(text)` calls a method of a class that a
+            # `from` import binds. The method is the class's business, so the
+            # row names the class (review of S5, high 3: icalendar's
+            # `cli.py:133` wrote no row).
+            local = scoped.get(id(node), {})
+            bound = (local.get(func.id) if func.id in local
+                     else froms.get(func.id) if func.id not in defs else None)
+            if bound:
+                got = self.definer(bound[0], bound[1])
+                if got and self._is_class(got, bound[1]):
+                    out.add((got, bound[1]))
+                continue
             chain.reverse()
             path, rest = aliases.get(func.id), chain
             while path and len(rest) > 1:
@@ -367,6 +379,12 @@ class Tree:
                 if got:
                     out.add((got, rest[0]))
         return {(path, name) for path, name in out if path != rel}
+
+    def _is_class(self, rel: str, name: str) -> bool:
+        """Whether `rel` defines `name` as a class at the top level."""
+        module = self.tree(rel)
+        return module is not None and any(
+            isinstance(n, ast.ClassDef) and n.name == name for n in module.body)
 
 
 def _dotted(rel: str) -> str:

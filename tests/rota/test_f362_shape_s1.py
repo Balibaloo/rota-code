@@ -232,7 +232,9 @@ PINS = {
         "get_pager_file": ["src/click/_termui_impl.py", "src/click/termui.py"],
         "getchar": ["src/click/_termui_impl.py", "src/click/termui.py"],
         "raw_terminal": ["src/click/_termui_impl.py", "src/click/termui.py"]}),
-    "icalendarI": ("4f12af1e", 65, 34, {"main": [
+    # 65 and 34 before S5c. A class that a `from` import binds and a call
+    # reaches through an attribute writes a row since (review of S5, high 3).
+    "icalendarI": ("4f12af1e", 72, 39, {"main": [
         "src/icalendar/cli.py", "src/icalendar/fuzzing/ical_fuzzer.py",
         "src/icalendar/timezone/equivalent_timezone_ids.py"]}),
 }

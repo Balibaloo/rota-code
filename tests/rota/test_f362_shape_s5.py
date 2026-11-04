@@ -232,3 +232,11 @@ def test_a_wide_name_renders_under_the_result_limit(tmp_path):
     db.close()
     assert len(_render(rows)) <= RESULT_CHARS
     assert re.fullmatch(r"\d+ more rows share a word of the name", rows[-1]["note"])
+
+
+def test_a_program_caller_and_a_test_caller_land_apart(ask):
+    """Review of S5, high 3: `cli.py` calls `Calendar.from_ical(...)`, an
+    attribute call on a class that a `from` import binds, and no row said so."""
+    row = ask.call("model.shape", name="Calendar")[0]
+    assert row["callers"] == ["pkg/cli.py"]
+    assert row["test_callers"] == ["tests/test_cal.py"]
