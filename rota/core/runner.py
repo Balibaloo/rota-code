@@ -4455,6 +4455,12 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
 
         bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
         bound = bound_constraints(sb.ctx, bid) if bid else None
+        # The Critic's block exists for a pushed commitment only. A note that
+        # no constraint binds gave the review new lines. The challenge case
+        # fell to 2 of 5 with the note and is 3 of 5 without it (frame 362,
+        # gate 4). So a batch with no bound constraint gets no block.
+        if role == "critic" and not isinstance(bound, list):
+            bound = None
         if bound is not None:
             # Right after the criteria block, because the cut of a long
             # wake takes the last keys first (frame 362, review 1, finding 6).
