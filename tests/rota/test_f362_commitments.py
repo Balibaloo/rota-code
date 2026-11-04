@@ -287,6 +287,81 @@ def test_an_amend_without_a_statement_writes_no_party(tree):
 
 
 # ---------------------------------------------------------------------------
+# A1: a behaviour with no witness and no party is a plain surface
+# ---------------------------------------------------------------------------
+
+def test_a_behaviour_alone_is_a_plain_surface(tree):
+    """Rule 1. The behaviour is the body when text is empty. A given text
+    stays. The row writes none of the three commitment columns."""
+    _, db = tree
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    out = sb.call("model.amend", headline="src/pkg/fold.py::fold",
+                  behaviour="Other calendar programs read lines folded at 75",
+                  bindings=["src/pkg/fold.py"])
+    assert "witness" not in out
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["text"] == "Other calendar programs read lines folded at 75"
+    assert values["is_global"] == 0
+    assert not {"party", "behaviour", "witness"} & set(values)
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    sb.call("model.amend", headline="src/pkg/fold.py::fold",
+            text="Other calendar programs read the folded lines.",
+            behaviour="lines fold at 75 octets", bindings=["src/pkg/fold.py"])
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["text"] == "Other calendar programs read the folded lines."
+    assert not {"party", "behaviour", "witness"} & set(values)
+
+
+@pytest.mark.parametrize("extra, refusal", [
+    ({"party": "other calendar programs"}, "names none"),
+    ({"party": "other calendar programs", "behaviour": "lines fold"}, "names none"),
+    ({"witness": "<numeric_default>"}, "leaves one out"),
+])
+def test_a_party_or_a_witness_keeps_the_statement_guards(tree, extra, refusal):
+    """Rule 2. A party or a witness makes the call a statement, so a party
+    with no witness still names none."""
+    _, db = tree
+    if extra.get("witness") == "<numeric_default>":
+        extra = dict(extra, witness=_id(db, "numeric_default"))
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", headline="src/pkg/fold.py::fold",
+                text="Other calendar programs read the folded lines.",
+                bindings=["src/pkg/fold.py"], **extra)
+    assert refusal in str(got.value)
+    assert not sb.ctx.writes
+
+
+def test_the_run_7_surface_passes_the_other_guards(tree):
+    """Rule 3. Gate 4 run 7, step 1, in this fixture's names: a headline of
+    a path, a name and its kind, a party in text, a behaviour, a binding.
+    The kind guard matches a two-token headline only, so this one passes,
+    and the row carries the function name the survey key scores."""
+    _, db = tree
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    out = sb.call("model.amend", headline="src/pkg/fold.py: fold function",
+                  text="users of the pkg module",
+                  behaviour="fold splits a line at 75 octets",
+                  bindings=["src/pkg/fold.py"])
+    assert out["bindings"] == ["src/pkg/fold.py"]
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["is_global"] == 0
+    assert "fold" in values["headline"]
+    # The two-token form is still an inventory row.
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    with pytest.raises(ValueError, match="names a function"):
+        sb.call("model.amend", headline="fold function",
+                text="users of the pkg module",
+                behaviour="fold splits a line at 75 octets",
+                bindings=["src/pkg/fold.py"])
+
+
+# ---------------------------------------------------------------------------
 # The tie
 # ---------------------------------------------------------------------------
 

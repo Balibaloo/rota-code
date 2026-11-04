@@ -3995,7 +3995,10 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     from ..onboarding.harvest import witness_key
 
     party, behaviour, witness = ((s or "").strip() for s in (party, behaviour, witness))
-    if not (party or behaviour or witness):
+    # A behaviour alone is a plain surface, not a statement. Gate 4 run 7
+    # wrote ten right surfaces with bindings and a behaviour, and each one
+    # was refused as a statement that names no witness (frame 362, A1).
+    if not (party or witness):
         return None
     # Only the survey push of an area shows a witness id. With no area, a
     # project-wide candidate landed global and reached every diff (the
@@ -4102,7 +4105,9 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     With `party`, `behaviour` and `witness`, the row is a stated outside
     commitment (frame 362, pass 2). The witness is a candidate id from
     `[model.witnesses]`. The door stores the line-free `harvest.witness_key`,
-    so the tie survives an edit above the line.
+    so the tie survives an edit above the line. A `behaviour` with no
+    `party` and no `witness` is a plain surface: it is the body when `text`
+    is empty, and the row states nothing.
 
     The id derives from the headline, so writing the same commitment twice amends
     it. It used to be the role's to invent, and on the first foreign repository
@@ -4152,6 +4157,11 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     stated = _stated_commitment(ctx, headline, party, behaviour, witness, bindings)
     if stated and not (text or "").strip():
         text = f"{stated['party']} rely on this: {stated['behaviour']}"
+    # A plain surface keeps its behaviour as the body when it has no text.
+    # The three commitment columns stay empty, so no reader takes it for a
+    # statement (frame 362, A1).
+    if not stated and not (text or "").strip():
+        text = (behaviour or "").strip()
     # A name with its kind is an inventory row, not a promise. A survey wrote
     # eleven of them, one per public name, "total_of function" among them
     # (ruled: Roman, 2026-09-24 21:20, the survey desk gets this guard).
