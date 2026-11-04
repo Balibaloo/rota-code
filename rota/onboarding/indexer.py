@@ -616,6 +616,8 @@ class RefreshReport:
     index: IndexReport
     branch: str = ""
     commit: str = ""
+    # The faults that did not stop the refresh, one sentence each.
+    warnings: list = field(default_factory=list)
 
 
 def note_refresh_failure(conn: sqlite3.Connection, batch_id: str | None,
@@ -680,8 +682,23 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
             if value:
                 conn.execute("INSERT OR REPLACE INTO config (key, value) "
                              "VALUES (?, ?)", (key, value))
+        # The commitment witnesses of the merged commit, as boot records them
+        # after its index. Without this run the harvest rows describe the
+        # onboarding commit and `code_calls` the new one (the shape design,
+        # section 3.4). The harvest is advisory, so its fault is a warning
+        # and the refresh goes on (the review of frame 362, low 9).
+        warnings = []
+        from . import harvest
+
+        try:
+            harvest.record(conn, tree, commit)
+        except Exception as exc:
+            warnings.append(f"the harvest of commitment witnesses failed, so "
+                            f"the candidates describe an older commit: "
+                            f"{type(exc).__name__}: {str(exc)[:300]}")
         _refresh_worked(conn, batch_id)
-        return RefreshReport(index=report, branch=branch, commit=commit)
+        return RefreshReport(index=report, branch=branch, commit=commit,
+                             warnings=warnings)
 
     from . import areas as areas_mod
 

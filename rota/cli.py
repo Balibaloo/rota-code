@@ -695,6 +695,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         # the operator's refresh and the loop's cannot drift apart.
         done = indexer.refresh(conn, root, main=True)
         report, branch, commit = done.index, done.branch, done.commit
+        for line in done.warnings:
+            print(f"warning: {line}")
         conn.commit()
         reopened = sorted({w.refs[0] for w in tick_survey(conn)})
         from .tools.audit import orphaned_grain_refs

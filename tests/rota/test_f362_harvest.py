@@ -108,9 +108,11 @@ def test_the_dependencies_are_candidates(ical_db):
 
 
 def test_the_entry_point_is_a_candidate(ical_db):
-    """the_cli_preview_entry_point: the `[project.scripts]` line."""
+    """the_cli_preview_entry_point: the `[project.scripts]` line. Pass S2 of
+    the shape design moves it from `metadata` to `entry_point`."""
     row = _one(ical_db, "path = 'pyproject.toml' AND detail LIKE '%\"script\"%'")[0]
     assert row["line"] == 140 and "icalendar.cli:main" in row["text"]
+    assert row["kind"] == "entry_point"
 
 
 def test_the_round_trip_witness_names_vbroken(ical_db):
@@ -141,13 +143,15 @@ def test_the_counts_on_icalendar(ical_db):
     export for each `__init__.py`, ties a test witness to a module-level
     symbol named in code, reads the Sphinx `:rfc:` role as a standard, keeps
     issue citations in comments only, and adds the two "75 characters"
-    lines as candidates."""
+    lines as candidates. Pass S2 of the shape design moves the script row to
+    `entry_point`, adds the two guards that pass the guard filter, and adds
+    `testpaths` and the towncrier rule as `contribution` rows."""
     counts = dict(ical_db.execute(
         "SELECT kind, COUNT(*) FROM commitment_candidates GROUP BY kind").fetchall())
-    assert counts == {"metadata": 7, "doc_claim": 94, "preservation": 33,
+    assert counts == {"metadata": 6, "doc_claim": 94, "preservation": 33,
                       "numeric_default": 3, "issue_comment": 12, "export": 1,
-                      "test_witness": 35}
-    assert sum(counts.values()) == 185 == RUN["written"]
+                      "test_witness": 35, "entry_point": 3, "contribution": 2}
+    assert sum(counts.values()) == 189 == RUN["written"]
 
 
 def test_every_id_derives_from_the_content(ical_db):

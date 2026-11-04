@@ -427,6 +427,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         _widen_code_index_kinds(conn)
         _widen_ruled_ref_acts(conn)
         _widen_statement_states(conn)
+        _widen_candidate_kinds(conn)
         # The same for the description flag: 0 is every older item's truth, since
         # no seat could describe an item before the column existed.
         if not _has_column(conn, "items", "is_description"):
@@ -905,15 +906,36 @@ def _widen_statement_states(conn: sqlite3.Connection) -> None:
     _widen_to_dropped(conn, "items", ())
 
 
+def _widen_candidate_kinds(conn: sqlite3.Connection) -> None:
+    """
+    Give an older `commitment_candidates` the kinds `entry_point` and
+    `contribution`, and an older `candidate_bindings` the rule `contribution`.
+
+    Frame 362, the shape design, section 3.4. The harvester moves the script
+    rows out of `metadata` and adds the two kinds. SQLite cannot change a
+    CHECK in place, so each table is built again from the schema file, as
+    `_widen_statement_states` does. The rows copy as they are.
+    """
+    _widen_check(conn, "commitment_candidates", (), "'contribution'")
+    _widen_check(conn, "candidate_bindings", (), "'contribution'")
+
+
 def _widen_to_dropped(conn: sqlite3.Connection, table: str,
                       indexes: tuple[str, ...]) -> None:
     """Build `table` again from the schema file when its CHECK lacks
     `dropped`, and build its `indexes` again after it."""
+    _widen_check(conn, table, indexes, "'dropped'")
+
+
+def _widen_check(conn: sqlite3.Connection, table: str,
+                 indexes: tuple[str, ...], mark: str) -> None:
+    """Build `table` again from the schema file when its CHECK lacks the
+    word `mark`, and build its `indexes` again after it."""
     import re as _re
 
     row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
                        "AND name = ?", (table,)).fetchone()
-    if row is None or "'dropped'" in (row[0] or ""):
+    if row is None or mark in (row[0] or ""):
         return
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     create = _re.search(rf"CREATE TABLE IF NOT EXISTS {table} \(.*?\n\);",

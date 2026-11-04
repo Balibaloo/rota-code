@@ -282,7 +282,7 @@ CREATE TABLE IF NOT EXISTS constraint_bindings (
 
 -- The witness lines of the outside commitments a project makes (frame 362,
 -- design B step 2). Only `rota.onboarding.harvest` writes these two tables,
--- at boot, after the indexer (law 1). A row is a candidate, not a
+-- at boot and at each refresh of main, after the indexer (law 1). A row is a candidate, not a
 -- commitment: the Architect states a commitment as a `constraints` row.
 -- `commit_sha` is the project commit the harvest read, so a row of an older
 -- commit is stale, as a survey record goes stale.
@@ -290,7 +290,8 @@ CREATE TABLE IF NOT EXISTS commitment_candidates (
     id          TEXT PRIMARY KEY,           -- cc_ + sha256(kind, path, line, text), law 14
     kind        TEXT NOT NULL CHECK (kind IN ('metadata','doc_claim','preservation',
                                               'numeric_default','issue_comment',
-                                              'export','test_witness')),
+                                              'export','test_witness',
+                                              'entry_point','contribution')),
     path        TEXT NOT NULL,
     line        INTEGER NOT NULL,
     text        TEXT NOT NULL,              -- the line, copied from the file
@@ -310,7 +311,7 @@ CREATE TABLE IF NOT EXISTS candidate_bindings (
     path         TEXT NOT NULL,
     rule         TEXT NOT NULL CHECK (rule IN ('standard','dependency','entry_point',
                                                'exports','witness_file','symbol',
-                                               'project_wide')),
+                                               'project_wide','contribution')),
     PRIMARY KEY (witness_id, path)
 );
 

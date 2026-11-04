@@ -10,8 +10,8 @@ of step 4 then binds each candidate to source files, by its kind.
 The kinds are those of step 3, as the deep dive of the same date measured
 them in section 1 (5 of 5 key commitments on icalendar, 2 of 5 on click):
 
-    metadata          pyproject `name`, `description`, `requires-python`,
-                      each dependency and each `[project.scripts]` entry
+    metadata          pyproject `name`, `description`, `requires-python`
+                      and each dependency
     doc_claim         a README or docs line that names a standard, or says
                       compatible, supports, conforms or complies
     preservation      a docs line, a comment or a docstring line that says
@@ -23,6 +23,16 @@ them in section 1 (5 of 5 key commitments on icalendar, 2 of 5 on click):
                       candidate for each file
     test_witness      a test file that names a symbol that holds a numeric
                       default or a preservation line, for the Tester
+    entry_point       a file that a program run starts in: a script target
+                      of pyproject, a `__main__` guard that runs the file's
+                      own function, a `__main__.py`, a README run line
+    contribution      where the project takes a change in: the configured
+                      test paths, and the change-log rule
+
+The last two kinds are those of section 3.4 of
+`plans/design-onboarding-shape-2026-11-04.md`. The design names the second
+kind `intake`. That word is a mode of the brief role, so the kind takes
+`contribution` (one word, one job: `tests/rota/test_vocabulary.py`).
 
 Two witnesses that state one number in two units of one family are kept
 side by side: each one names the other in `contradicts`.
@@ -46,10 +56,10 @@ from pathlib import Path
 from . import indexer
 
 KINDS = ("metadata", "doc_claim", "preservation", "numeric_default",
-         "issue_comment", "export", "test_witness")
+         "issue_comment", "export", "test_witness", "entry_point", "contribution")
 
 RULES = ("standard", "dependency", "entry_point", "exports", "witness_file",
-         "symbol", "project_wide")
+         "symbol", "project_wide", "contribution")
 
 # The second form is the Sphinx role, as in ":rfc:`5545`".
 STD = re.compile(r"\b(RFC|PEP|ISO|IEEE|ECMA|POSIX)(?:[\s-]?|:`)(\d+)", re.I)
@@ -414,9 +424,212 @@ def _metadata(tree: Tree, out: list[Candidate]) -> None:
         name = re.split(r"[<>=!~;\[ ]", dep, maxsplit=1)[0].strip()
         add(find(r"[\"']" + re.escape(dep) + r"[\"']") or find(re.escape(name)),
             field="dependency", dep=name)
-    for script, target in (project.get("scripts", {}) or {}).items():
-        add(find(r"^\s*[\"']?" + re.escape(script) + r"[\"']?\s*="),
-            field="script", script=script, target=target)
+
+
+def _find(lines: list[str], pattern: str, start: int = 0) -> int:
+    """The number of the first line at or after `start` that matches."""
+    rx = re.compile(pattern)
+    return next((i for i, text in enumerate(lines, 1)
+                 if i > start and rx.search(text)), 0)
+
+
+def _entry_points(tree: Tree, out: list[Candidate]) -> None:
+    """The four forms of section 3.4, each at its witness line."""
+    if "pyproject.toml" in tree.files:
+        lines = tree.lines("pyproject.toml")
+        try:
+            project = tomllib.loads(tree.text("pyproject.toml")).get("project", {})
+        except tomllib.TOMLDecodeError:
+            project = {}
+        groups = [("scripts", project.get("scripts")),
+                  ("gui-scripts", project.get("gui-scripts"))]
+        groups += [(f"entry-points.{name}", table) for name, table in
+                   (project.get("entry-points", {}) or {}).items()]
+        for group, table in groups:
+            for script, target in (table or {}).items() if isinstance(
+                    table, dict) else ():
+                n = _find(lines, r"^\s*[\"']?" + re.escape(script) + r"[\"']?\s*=")
+                if n:
+                    out.append(Candidate("entry_point", "pyproject.toml", n,
+                                         lines[n - 1], detail={
+                                             "form": "script", "group": group,
+                                             "script": script, "target": target,
+                                             "doc": _target_doc(tree, target)}))
+    for rel in tree.source():
+        if rel.rsplit("/", 1)[-1] == "__main__.py":
+            lines = tree.lines(rel)
+            n = next((i for i, t in enumerate(lines, 1) if t.strip()), 0)
+            if n:
+                out.append(Candidate("entry_point", rel, n, lines[n - 1],
+                                     detail={"form": "main_module"}))
+            continue
+        n = entry_guard(rel, tree.tree(rel))
+        if n:
+            out.append(Candidate("entry_point", rel, n, tree.lines(rel)[n - 1],
+                                 detail={"form": "guard"}))
+    for rel in tree.docs():
+        if "/" in rel:
+            continue
+        for n, text in enumerate(tree.lines(rel), 1):
+            for m in RUN_LINE.finditer(text):
+                named = m.group(1).removeprefix("./")
+                # A run line of a file that the tree does not hold is an
+                # example, as `python hello.py` in click's README is.
+                if named in tree.files:
+                    out.append(Candidate("entry_point", rel, n, text,
+                                         detail={"form": "readme", "file": named}))
+
+
+# A README line that runs a file, as "Run it: `python main.py`".
+RUN_LINE = re.compile(r"\bpython3?\s+(?:-\w+\s+)*([\w./-]+\.py)\b")
+# A directory of fuzz harnesses, as icalendar's `fuzzing/`.
+FUZZ_DIR = re.compile(r"^fuzz", re.I)
+
+
+def _target_doc(tree: Tree, target: str) -> str:
+    """The first docstring line of a script target, so a reader can say what
+    the command does (the design, section 3.4)."""
+    module, _, name = str(target).partition(":")
+    rel = tree.modules().get(module.strip())
+    parsed = tree.tree(rel) if rel else None
+    if parsed is None:
+        return ""
+    for node in parsed.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
+                and node.name == name.strip().split(".")[0]:
+            doc = ast.get_docstring(node) or ""
+            return doc.strip().splitlines()[0] if doc.strip() else ""
+    return ""
+
+
+def _is_guard(node: ast.stmt) -> bool:
+    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+        return False
+    test = node.test
+    return (isinstance(test.left, ast.Name) and test.left.id == "__name__"
+            and len(test.comparators) == 1
+            and isinstance(test.comparators[0], ast.Constant)
+            and test.comparators[0].value == "__main__")
+
+
+def entry_guard(rel: str, module: ast.Module | None) -> int:
+    """The line of the `__main__` guard of `rel` when the guard is an entry
+    point, else 0.
+
+    The guard filter of section 6.1. A guard is an entry point when its body
+    calls a function that the file defines at the top level. A module demo
+    or a benchmark calls only imported names or names it defines in the
+    guard, as `cal/lazy.py` of icalendar does. A fuzz harness is never an
+    entry point: the file imports `atheris`, or a directory on its path
+    starts with "fuzz"."""
+    if module is None or any(FUZZ_DIR.match(p) for p in rel.split("/")[:-1]):
+        return 0
+    defs: set[str] = set()
+    for node in module.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            defs.add(node.name)
+        names = ([a.name for a in node.names] if isinstance(node, ast.Import)
+                 else [node.module or ""] if isinstance(node, ast.ImportFrom)
+                 else [])
+        if any(n.split(".")[0] == "atheris" for n in names):
+            return 0
+    for node in module.body:
+        if not _is_guard(node):
+            continue
+        for sub in node.body:
+            for call in ast.walk(sub):
+                if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                        and call.func.id in defs):
+                    return node.lineno
+    return 0
+
+
+# The pytest configuration files in the order pytest reads them, each with
+# the section that holds `testpaths`.
+PYTEST_CONFIGS = (("pytest.ini", "pytest"), ("pyproject.toml", ""),
+                  ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest"))
+UNRELEASED = re.compile(r"\bunreleased\b", re.I)
+# The lines of a change log that a heading search reads, from the top.
+CHANGE_LOG_REACH = 40
+
+
+def _contribution(tree: Tree, out: list[Candidate]) -> None:
+    """The configured test paths and the change-log rule, of section 3.4."""
+    for rel, section in PYTEST_CONFIGS:
+        paths = _testpaths(tree, rel, section)
+        if paths:
+            lines = tree.lines(rel)
+            n = _find(lines, r"^\s*testpaths\s*=")
+            # A TOML array over several lines is quoted to its close.
+            last = n
+            if n and lines[n - 1].rstrip().endswith("["):
+                last = _find(lines, r"^\s*\]", n) or n
+            if n:
+                out.append(Candidate("contribution", rel, n, "\n".join(lines[n - 1:last]),
+                                     detail={"form": "testpaths", "paths": paths}))
+            break
+    for rel in ("pyproject.toml", "towncrier.toml"):
+        if rel not in tree.files:
+            continue
+        try:
+            towncrier = tomllib.loads(tree.text(rel)).get("tool", {}).get(
+                "towncrier")
+        except tomllib.TOMLDecodeError:
+            continue
+        if not isinstance(towncrier, dict):
+            continue
+        lines = tree.lines(rel)
+        head = _find(lines, r"^\s*\[tool\.towncrier\]")
+        n = _find(lines, r"^\s*directory\s*=", head) or head
+        if n:
+            out.append(Candidate("contribution", rel, n, lines[n - 1], detail={
+                "form": "news_fragment",
+                "directory": str(towncrier.get("directory", "")),
+                "filename": str(towncrier.get("filename", "NEWS.rst"))}))
+            # A project with fragments says its change log is built, so the
+            # change-log file is not where a change goes.
+            return
+    for rel in sorted(r for r in tree.files if "/" not in r and HISTORY.match(r)):
+        lines = tree.lines(rel)[:CHANGE_LOG_REACH]
+        hit = next((i for i, t in enumerate(lines, 1) if UNRELEASED.search(t)), 0)
+        if not hit:
+            continue
+        n = next((i for i in range(hit, 0, -1) if _heading(lines, i)), hit)
+        out.append(Candidate("contribution", rel, n, lines[n - 1], detail={
+            "form": "change_log", "unreleased_line": hit}))
+
+
+def _heading(lines: list[str], n: int) -> bool:
+    """A Markdown heading, or a reST title with its underline below it."""
+    text = lines[n - 1]
+    if text.startswith("#"):
+        return True
+    below = lines[n].strip() if n < len(lines) else ""
+    return bool(text.strip()) and len(below) >= 3 and len(set(below)) == 1 \
+        and below[0] in "=-~^*+"
+
+
+def _testpaths(tree: Tree, rel: str, section: str) -> list[str]:
+    if rel not in tree.files:
+        return []
+    if rel == "pyproject.toml":
+        try:
+            got = (tomllib.loads(tree.text(rel)).get("tool", {}).get("pytest", {})
+                   .get("ini_options", {}).get("testpaths"))
+        except tomllib.TOMLDecodeError:
+            return []
+    else:
+        import configparser
+
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            parser.read_string(tree.text(rel))
+        except configparser.Error:
+            return []
+        got = parser.get(section, "testpaths", fallback="").split()
+    if isinstance(got, str):
+        got = got.split()
+    return [str(p) for p in got or []]
 
 
 def _docs(tree: Tree, out: list[Candidate]) -> None:
@@ -606,6 +819,8 @@ def harvest(root: str | Path, tree: Tree | None = None) -> list[Candidate]:
     tree = tree or Tree(root)
     out: list[Candidate] = []
     _metadata(tree, out)
+    _entry_points(tree, out)
+    _contribution(tree, out)
     _docs(tree, out)
     _source(tree, out)
     _exports(tree, out)
@@ -658,6 +873,25 @@ def _reexported(tree: Tree, init: str) -> set[str]:
     return out
 
 
+def _under(rel: str, folder: str) -> bool:
+    folder = folder.strip().strip("/").removeprefix("./")
+    return not folder or folder == "." or rel == folder or rel.startswith(folder + "/")
+
+
+def _contribution_files(tree: Tree, c: Candidate) -> set[str]:
+    """The test files that a `testpaths` row collects, or the change-log
+    files that a change-log row names."""
+    form = c.detail.get("form")
+    if form == "testpaths":
+        return {rel for rel in tree.tests()
+                if any(_under(rel, p) for p in c.detail.get("paths", []))}
+    if form == "news_fragment":
+        folder = c.detail.get("directory", "")
+        got = {rel for rel in tree.files if folder and _under(rel, folder)}
+        return got | ({c.detail.get("filename", "")} & set(tree.files))
+    return {c.path}
+
+
 def bind(tree: Tree, c: Candidate) -> tuple[str, set[str]]:
     """The rule of design B step 4, and the source files it binds."""
     source = set(tree.source())
@@ -666,14 +900,21 @@ def bind(tree: Tree, c: Candidate) -> tuple[str, set[str]]:
     if c.kind == "test_witness":
         held = c.detail.get("held_by", "")
         return ("symbol", {held}) if held in source else ("project_wide", source)
+    if c.kind == "entry_point":
+        form = c.detail.get("form")
+        if form == "script":
+            target = str(c.detail.get("target", "")).split(":")[0].strip()
+            mod = tree.modules().get(target)
+            return "entry_point", ({mod} if mod else set()) | {c.path}
+        if form == "readme":
+            return "entry_point", {c.detail.get("file", "")} & set(tree.files)
+        return "entry_point", {c.path}
+    if c.kind == "contribution":
+        return "contribution", _contribution_files(tree, c)
     if c.path in source:
         # A witness in a source file binds that file. The ranked callers of
         # step 5 come with the caller rule, a later slice.
         return "witness_file", {c.path}
-    if c.kind == "metadata" and c.detail.get("field") == "script":
-        target = str(c.detail.get("target", "")).split(":")[0]
-        mod = tree.modules().get(target)
-        return "entry_point", ({mod} if mod else set()) | {"pyproject.toml"}
     if c.kind == "metadata" and c.detail.get("field") == "dependency":
         got = _importers(tree, c.detail.get("dep", ""))
         if got:
