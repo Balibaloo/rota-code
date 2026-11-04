@@ -102,6 +102,30 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    session, the slice read as a note, `batches.depend`, the worked
    example on page 1. No page reads a clock; a page is a hold or a note.
    Defaults ship after Roman drives one batch on each path at the TUI.
+11. **The structure's model of the project** (ruled: Roman, 2026-11-04
+   00:07, frame 362, after his question of 2026-11-03 09:58, "the high
+   level capabilities, are they factored into the requirements?"). The
+   composition's sentence, "The structure holds a model of its shape,
+   terms, boundaries, and external commitments, as records observed from
+   the code", becomes a capability with three measures. First, answers:
+   what the tool can answer about the project from the records alone,
+   scored by the consult question set, `probes/consult.py`, against a
+   key. Second, future work: the trap tasks of
+   `plans/understanding-test-blind-2026-11-03.md`, a change that lands on
+   every copy of a behaviour, keeps every promise, or stops and says why,
+   scored on the merged diff and the page, with the records against the
+   records withheld. Third, operation: the share of delivery acts, by the
+   Developer, the Tester and the Critic, that cite a record. What exists
+   (read 2026-11-04): the index, the glossary, the description, the
+   survey records, a harvester of commitment witnesses (frame 362, slice
+   pass 1), and two keys written as controls and never run in the loop.
+   Owed: the shape layer, the up-front read of the copies of one
+   function, the shared helpers, the disagreements and the boundaries;
+   the commitment record and its push, the slice's passes 2 to 4; and the
+   blind test run on the three tiers. Design in
+   `plans/design-onboarding-2026-11-03.md`, section 3.B, with
+   `plans/design-onboarding-deep-dive-2026-11-03.md` and the blind test
+   page.
 The bands, by what measures each partial (ruled: Roman, 2026-09-17).
 Rides the gauntlet, no frame of its own: A7, D3, and A1's two cold walks.
 The night summary reports whether the chain fired: a stray touch judged,
@@ -110,6 +134,9 @@ pushed when the gauntlet closes: A1's register red, A5, E1, the seat as
 an exchange, in that order. Own campaign, after breadth: G1, with the
 language seam as its first half, and the principal's flow, stage 1.
 Struck as built: B5. Parked until a remote provider: F1.
+Added 2026-11-04 (ruled: Roman, frame 362): the structure's model of the
+project, 11, rides frame 362 and the dry runs, and the blind test is its
+own frame when the slice ends.
 
 Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
 B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.
