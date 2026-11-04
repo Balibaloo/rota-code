@@ -218,3 +218,48 @@ touched files hold no CR bytes.
 ### Usage of pass 5b
 
 About 18k input tokens and 4k output tokens, against the cap of 20k.
+
+## Pass 5c, `458a3ea2`
+
+Second look, 2026-11-04, read-only, cap 20k. Worktree `C:/Users/roman/rota_p362w`.
+
+### Verdict: fix
+
+The grouped run, the fix-loop predicates and the cut are correct. Finding 11 is fixed in
+part: the 2,000-character tail can hide a new red node at the head, so a file is wrongly
+excused (finding 12). The 5 test files of pass 5, 5b and 5c pass, 24 passed. The 8
+touched files hold no CR bytes.
+
+### The findings of pass 5 and 5b
+
+4. Fixed. `harness.run` and `record_base_run` share `_run_group` (`rota/core/harness.py:419-471`). Only a file that the summary names green and never red gets a grouped pass. Each other file runs alone.
+10. Fixed. `tests_failing`, `exhausted`, `scheduler.failing_attempt` and `park_reds` read `harness.drop_base_reds`, which is the reader that the gates use.
+3. Fixed. The cut needs a test-shaped file directly in a test folder on the path, or a test-shaped grain. `numpy/testing/overrides.py` stays `program`, and `numpy/testing/tests/test_utils.py` is `attached`.
+11. In part. A base-red file is excused only when its red node ids at the head are a subset of the base's. The node ids come from the tail of the output, so the rule is as strong as the tail (finding 12).
+
+### The two questions
+
+- A pass for a test that pytest never ran: no, with one exception. A file that the summary does not name runs alone. A deselected file and a file with no item give exit code 5 alone, which is `error`. A file skipped whole is `SKIPPED` in the group and exit code 0 alone, so both paths give `pass`, as before. `execute._local` does not cut stdout, so a red file with passing tests keeps its `FAILED` line and runs alone. The exception is the branch "exit code 0 and no summary" (`harness.py:456-458`). That branch passes every file, also a file that collected no item. That branch is reachable only when a project hides the summary, for example with `-p no:terminal` in `addopts` (finding 13).
+- The tail: losing a base node makes the rule hold a file, which is the safe side. Losing a head node excuses a file, which is the wrong side. Probe: a file with 40 base failures keeps 27 in the 2,000-character tail. A new failure that runs first is not in the head tail, and `now <= before` is True, so the file is excused.
+
+### New findings
+
+12. `rota/core/harness.py:576-608` (`_red_nodes`, `drop_base_reds`), high, CONFIRMED.
+    `_red_nodes` reads the stored output, which `_tail` cuts to 2,000 characters. About 27 `FAILED` lines fit.
+    A file with more red nodes than the tail holds hides a new red node of the head. Then the gates and the fix loop excuse a regression.
+    `test_parsing.py` holds 305 tests, so a wide break of `_foldline` reaches this size.
+    Fix: parse the red node ids from the whole stdout in `_run_one`, and store them beside the output, in the base record and the run row.
+
+13. `rota/core/harness.py:456-458`, low, PLAUSIBLE.
+    With exit code 0 and no summary line, every file of the group gets `pass`, with no proof that it ran.
+    Fix: drop the branch, so that a file that the summary does not name runs alone.
+
+### Probes of pass 5c
+
+- One inline `python -c` call with `harness._tail` and `harness._red_nodes` on a synthetic pytest output of 40 and 41 failures: 27 of 40 base nodes kept, the new head node not visible, and the subset True.
+- A reading of `execute._local` (`rota/core/execute.py:32-44`): stdout is whole.
+- In the worktree at `458a3ea2`: the 3 pass 5c test files, `test_f362_pass5b_base_red_gates.py` and `test_f362_pass5_test_dir_ruling.py`, 24 passed. `ROTA_DEV_DB` was `.../scratchpad/r5/dev5c.db`.
+
+### Usage of pass 5c
+
+About 17k input tokens and 4k output tokens, against the cap of 20k.
