@@ -103,16 +103,14 @@ def shape_for(conn, question: str) -> str:
     not reach. The rows come from `model.shape`'s body, mechanically, like
     `glossary_for`. A question that names no indexed name gets no block.
 
-    The block keeps a row only when the question names its grain name, export
-    name or command whole. Pass S5 measured 40 rows and about 5k characters
-    on each of the eight icalendar questions, because a word such as `get`
-    matched every `_get_*` helper (ruled: the coordinator, pass S5b)."""
-    from rota.roles.api import shape_names, shape_of
+    The block keeps tier 1 of `shape_of`: the rows whose name or command the
+    question writes as an identifier, case kept. Pass S5 measured 40 rows and
+    about 5k characters on each of the eight icalendar questions, because a
+    word such as `get` matched every `_get_*` helper (ruled: the coordinator,
+    passes S5b and S5c). The tier has no cap, so no cap drops a named row."""
+    from rota.roles.api import shape_of
 
-    rows, whole = shape_of(conn, question)
-    names = shape_names(question)
-    rows = [r for r in rows if r.get("command")
-            or r["grain"].split("::")[-1].lower() in names]
+    rows, rest = shape_of(conn, question)
     if not rows:
         return ""
     out = [SHAPE_HEAD]
@@ -134,8 +132,8 @@ def shape_for(conn, question: str) -> str:
                 more = f" and {len(files) - 3} more" if len(files) > 3 else ""
                 line += f"; {word} {', '.join(files[:3])}{more}"
         out.append(line)
-    if whole > len(rows):
-        out.append(f"and {whole - len(rows)} more rows match a word of the question")
+    if rest:
+        out.append(f"and {len(rest)} more rows match a word of the question")
     return "\n".join(out)
 
 

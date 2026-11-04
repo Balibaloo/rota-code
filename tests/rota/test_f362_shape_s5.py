@@ -26,6 +26,10 @@ SHAPE = {
     "pkg/fold.py": "def fold_line(text):\n    return text\n",
     "pkg/legacy.py": "def fold_line(text):\n    return text[:75]\n",
     "pkg/attr.py": "def _get_links():\n    return []\n",
+    "pkg/fmt.py": "def to_string(value):\n    return str(value)\n",
+    "pkg/enums.py": "class VALUE:\n    TEXT = 'TEXT'\n",
+    "tests/test_cal.py": ("from pkg.cal import Calendar\n\n\n"
+                          "def calendar():\n    return Calendar()\n"),
     "pkg/cli.py": ("from pkg.cal import Calendar\nfrom pkg.fold import fold_line\n\n\n"
                    "def main():\n    fold_line('a')\n    return Calendar.from_ical('x')\n"),
     "tests/test_fold.py": ("from pkg.fold import fold_line\n\n\n"
@@ -105,7 +109,8 @@ def test_an_export_grain_alone_is_its_own_row(tmp_path):
     db = init_db(tmp_path / "run.db")
     indexer.build(db, root)
     sb = build("architect", db, mode="ask")
-    rows = sb.call("model.shape", name="version_tag")
+    # The whole-name tier keeps the case (S5c): `version_tag` is a word hit.
+    rows = sb.call("model.shape", name="VERSION_TAG")
     db.close()
     assert [r["grain"] for r in rows] == ["pkg/__init__.py::VERSION_TAG"]
     assert rows[0]["exported"] == ["pkg/__init__.py"]
@@ -175,3 +180,55 @@ def test_everyday_words_with_no_whole_name_get_no_block(index):
     from probes.consult import shape_for
 
     assert shape_for(index, "How do the links get their line?") == ""
+
+
+# --- S5c: one rank rule, the whole name first --------------------------------
+
+def test_a_method_name_gets_the_note_first(ask):
+    """Review of S5, high 1: no row has the name `from_ical`."""
+    rows = ask.call("model.shape", name="from_ical")
+    assert rows[0] == {"note": "the index names no `from_ical`; it holds "
+                               "classes and functions, not methods"}
+
+
+def test_the_whole_name_keeps_its_case(ask):
+    """Review of S5, low 4: `Calendar` names the class, not the fixture."""
+    from probes.consult import shape_for
+
+    assert ask.call("model.shape", name="Calendar")[0]["grain"] == "pkg/cal.py::Calendar"
+    block = shape_for(ask.ctx.conn, "How do they get a Calendar object back?")
+    assert "tests/test_cal.py::calendar" not in block
+
+
+def test_value_does_not_name_the_class_VALUE(ask):
+    from probes.consult import shape_for
+
+    assert "note" in ask.call("model.shape", name="value")[0]
+    assert shape_for(ask.ctx.conn, "What is a value here?") == ""
+
+
+def test_a_dotted_part_ranks_first_and_feeds_no_word(ask):
+    """Review of S5, lows 2 and 5: the part `fold_line` is a whole name, and
+    `string` stays out of the words, as `code.vocabulary` keeps it out."""
+    rows = ask.call("model.shape", name="string.fold_line")
+    assert rows[0]["grain"].endswith("::fold_line")
+    assert not any(r.get("grain") == "pkg/fmt.py::to_string" for r in rows)
+
+
+def test_a_wide_name_renders_under_the_result_limit(tmp_path):
+    """Review of S5, high 2: a reply past 6000 characters lost its tail."""
+    import re
+
+    from rota.core.runner import RESULT_CHARS, _render
+
+    root = tmp_path / "t"
+    (root / "pkg").mkdir(parents=True)
+    body = "".join(f"def ical_part_{n}(text):\n    return text\n\n\n"
+                   for n in range(80))
+    (root / "pkg" / "parts.py").write_bytes(body.encode("utf-8"))
+    db = init_db(tmp_path / "run.db")
+    indexer.build(db, root)
+    rows = build("architect", db, mode="ask").call("model.shape", name="ical")
+    db.close()
+    assert len(_render(rows)) <= RESULT_CHARS
+    assert re.fullmatch(r"\d+ more rows share a word of the name", rows[-1]["note"])

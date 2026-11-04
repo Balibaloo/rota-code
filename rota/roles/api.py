@@ -5255,32 +5255,73 @@ def model_shape(ctx: Ctx, name: str) -> list[dict]:
     `name` has no default. The runner pushes each read that takes no argument
     (`push_working_set`), and a push of an empty name is a note on every wake.
     """
-    rows, whole = shape_of(ctx.conn, name)
-    _cut(ctx, "the names matching the shape", CALLABLE_HITS, whole, "rows",
-         stored=False)
-    if rows:
-        return rows
-    # The index holds functions, classes and exports. A method is inside its
-    # class, so `Class.method` finds the class.
-    return [{"note": f"no function, class, export or command in the index "
-                     f"shares a word "
-                     f"with {name!r}, so the index does not name it. Say so in "
-                     f"the answer."}]
+    from ..core.runner import RESULT_CHARS, _render
+
+    first, second = shape_of(ctx.conn, name)
+    rows = [_callers_short(r) for r in first + second]
+    if not first:
+        # Review of S5, high 1: 40 word hits and no note read as an answer.
+        # The index holds no method, so a method name lands here.
+        rows.insert(0, {"note": f"the index names no `{name}`; it holds "
+                                f"classes and functions, not methods"})
+    whole = len(rows)
+
+    def shown(k: int) -> list[dict]:
+        more = whole - k
+        return rows[:k] + ([{"note": f"{more} more rows share a word of the name"}]
+                           if more else [])
+
+    # Review of S5, high 2: a reply past `RESULT_CHARS` lost its tail in the
+    # middle of a row. So the reply drops whole rows and counts them.
+    kept = min(whole, CALLABLE_HITS)
+    while kept > 1 and len(_render(shown(kept), 10 ** 9)) > RESULT_CHARS:
+        kept -= 1
+    _cut(ctx, "the names matching the shape", kept, whole, "rows", stored=False)
+    return shown(kept)
+
+
+def _callers_short(row: dict) -> dict:
+    """The row with each caller list at three paths and a count, as the
+    consult probe shows it. One `Calendar` row listed 21 callers in full."""
+    out = dict(row)
+    for key in ("callers", "test_callers"):
+        files = out.get(key, [])
+        if len(files) > 3:
+            out[key] = files[:3] + [f"and {len(files) - 3} more"]
+    return out
+
+
+# An identifier as the text writes it: a run of word characters, and a dotted
+# run of them. The case stays, so `Calendar` is not `calendar`.
+_SHAPE_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
+
+
+def shape_idents(text: str) -> set[str]:
+    """The identifiers of `text`, case kept, with each part of a dotted one.
+
+    The whole-name tier of `shape_of` reads these. Review of S5, low 4: a
+    lowercased set kept `enums.py::VALUE` for the word "value" and the test
+    fixture `calendar` for `Calendar`."""
+    out: set[str] = set()
+    for token in _SHAPE_IDENT.findall(text or ""):
+        out.add(token)
+        out.update(token.split("."))
+    return out
 
 
 def shape_names(text: str) -> set[str]:
-    """The words of `text` that `shape_of` matches, lowercased.
+    """The words of `text` that the word tier of `shape_of` matches.
 
-    Each token gives itself whole, as `code.callables` takes it, and the words
-    that `code.vocabulary` splits from it. A dotted token also gives each part
-    whole, so `Calendar.from_ical` gives `calendar` and `from_ical`."""
+    Each token gives itself whole, lowercased, as `code.callables` takes it,
+    and the words that `code.vocabulary` splits from it. A dotted part feeds
+    the whole-name tier only, so `string` stays out as `_words_in` keeps it
+    out (review of S5, low 2)."""
     words = set()
     for token in (text or "").split():
         w = token.strip("`'\".,?:;()[]").lower()
-        for whole in {w, *re.split(r"[./]", w)}:
-            if len(whole) >= 3:
-                words.add(whole)
-                words.add(whole.rstrip("s"))
+        if len(w) >= 3:
+            words.add(w)
+            words.add(w.rstrip("s"))
         # The split reads the case, so it takes the token as written.
         for part in _words_in(token):
             words.add(part)
@@ -5288,42 +5329,47 @@ def shape_names(text: str) -> set[str]:
     return words
 
 
-def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
-    """The shape rows for the words of `text`, and the count before the cap.
+def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
+    """The shape rows for `text` in two tiers, with no cap.
 
-    `model.shape` and the consult probe's `shape_for` both read through this.
-    The words are the words of `code.callables`, and each identifier also
-    gives the words that `code.vocabulary` splits from it. So `from_ical` and
-    `Calendar.from_ical` reach the grains that hold `ical` and `calendar`.
-    A `root` of None reads the project root for the `__main__` guards."""
+    Tier 1 holds the rows whose name or command equals an identifier of
+    `text`, case kept. Tier 2 holds the other rows that share a word with
+    `text`, in the order of `_word_hits`. `model.shape` returns both tiers,
+    and the consult probe's `shape_for` keeps tier 1. A `root` of None reads
+    the project root for the `__main__` guards."""
     from ..core.worktrees import WorktreeError, project_root
     from ..onboarding import shape
 
-    words = shape_names(text)
-    if not words:
-        return [], 0
+    idents, words = shape_idents(text), shape_names(text)
+    if not idents and not words:
+        return [], []
     rows = _rows(conn.execute(
         "SELECT grain, grain_kind, sym_kind, fan_in, line_start, line_end "
         "FROM code_index WHERE grain_kind IN ('symbol', 'export') "
         "ORDER BY fan_in DESC"))
-    hits = _word_hits(_frame_ranked(conn, rows), words)
     # An export of a name that a definition holds is a field of the
     # definition's row, so the row count stays the count of places.
-    defined = {h["grain"].split("::")[-1] for h in hits
-               if h["grain_kind"] == "symbol"}
-    hits = [h for h in hits if h["grain_kind"] == "symbol"
-            or h["grain"].split("::")[-1] not in defined]
+    defined = {r["grain"].split("::")[-1] for r in rows
+               if r["grain_kind"] == "symbol"}
+    rows = [r for r in rows if r["grain_kind"] == "symbol"
+            or r["grain"].split("::")[-1] not in defined]
+    named = [r for r in rows if r["grain"].split("::")[-1] in idents]
     # A command that the question names leads, because the person named it
     # and the index names only the function it runs (section 4.1, Q8).
     commands = {grain: script for script, grain in shape.scripts(conn).items()
-                if script.lower() in words}
+                if script in idents}
     by_grain = {r["grain"]: r for r in rows}
     led = [by_grain[g] for g in commands if g in by_grain]
-    if led:
-        led = _frame_ranked(conn, led)
-        hits = led + [h for h in hits if h["grain"] not in commands]
-    whole = len(hits)
-    hits = hits[:CALLABLE_HITS]
+    first = led + [r for r in named if r["grain"] not in commands]
+    taken = {r["grain"] for r in first}
+    # The match runs before the frame's rank, so `kind_of` reads the hits
+    # only. Both sorts are stable, so the order is the order of a rank
+    # first (review of S5, low 6: the rank of all 269 paths took 1.38 s).
+    hits = [h for h in _word_hits(rows, words) if h["grain"] not in taken]
+    second = _word_hits(_frame_ranked(conn, hits), words)
+    first = _frame_ranked(conn, led) + _frame_ranked(
+        conn, [r for r in first if r["grain"] not in commands])
+    hits = first + second
     if root is None:
         try:
             root = project_root(conn)
@@ -5360,7 +5406,7 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
                    or r["grain_kind"] == "export"):
             row["exported"] = sorted(by)
         out.append(row)
-    return out, whole
+    return out[:len(first)], out[len(first):]
 
 
 def _re_split_paths(val: str) -> list[str]:
@@ -21163,7 +21209,7 @@ def _word_hits(rows: list[dict], words: set[str]) -> list[dict]:
     # Inside one kind, a symbol whose whole name is a word of the hint comes
     # first. Night 167's s280 had 40 rows at fan-in 0, and `clear`, the name
     # the principal wrote, was the ninth (frame 324).
-    hits.sort(key=lambda r: (_KIND_RANK.get(r["kind"], 4),
+    hits.sort(key=lambda r: (_KIND_RANK.get(r.get("kind"), 4),
                              r["grain"].split("::")[-1].lower() not in words))
     return hits
 
