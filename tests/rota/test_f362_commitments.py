@@ -884,8 +884,7 @@ def test_the_commitments_signature_hides_what_the_door_fills(tree):
     the witness, the party and the behaviour only."""
     _, db = tree
     _, sb = _commitments(db)
-    assert ("model.amend(source_refs=None, party='', behaviour='', witness='')"
-            in sb.signatures())
+    assert "model.amend(party='', behaviour='', witness='')" in sb.signatures()
 
 
 def test_the_commitments_door_drops_a_binding_and_a_headline_and_says_so(tree):
@@ -896,10 +895,10 @@ def test_the_commitments_door_drops_a_binding_and_a_headline_and_says_so(tree):
     _, sb = _commitments(db)
     got = sb.call("model.amend", headline="Account class exported",
                   text="from .accounts import Account", bindings=["Account"],
-                  witness=_id(db, "export"), party="importers of pkg",
+                  source_refs=["src/pkg/__init__.py"], witness=_id(db, "export"), party="importers of pkg",
                   behaviour="the exported names stay importable")
-    assert got["note"].endswith("dropped headline, text, bindings: the "
-                                "commitments mode fills them from the witness line")
+    assert got["note"].endswith("dropped headline, text, bindings, source_refs: "
+                                "the commitments mode fills them from the witness line")
     assert [w for w in sb.ctx.writes if w[0] == "constraints"]
 
 

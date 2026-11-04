@@ -171,11 +171,12 @@ ARG_HINTS_BY_OP: dict[tuple[str, str], dict[str, str]] = {
 # takes them, so a recorded call keeps its answer (frame 362, pass 4c).
 SURVEY_HIDDEN = {"model.amend": ("party", "behaviour", "witness")}
 
-# The mirror for the commitments mode. Its door fills the headline, the text
-# and the bindings from the witness line, so the signature leaves them out
+# The mirror for the commitments mode. Its door fills the headline, the text,
+# the bindings and the source refs from the witness line, so the signature leaves them out
 # and the door drops them when they come (frame 362, pass 4e: 7 of 10
 # refusals of the four state cases were on these arguments).
-COMMITMENTS_HIDDEN = {"model.amend": ("headline", "text", "bindings")}
+COMMITMENTS_HIDDEN = {"model.amend": ("headline", "text", "bindings",
+                                      "source_refs")}
 HIDDEN_BY_MODE = {"survey": SURVEY_HIDDEN, "commitments": COMMITMENTS_HIDDEN}
 
 
