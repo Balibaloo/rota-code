@@ -23887,6 +23887,40 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # stdin is captured -- and the Developer escalated three times against
     # an error that names the line. Under pytest a module the tests import
     # runs at import; the shape that works is the main guard.
+    # A retype one escape level too deep parses, so no later door sees it
+    # (dry run 5, wall 10: 43 of 60 added lines of 670629b3). The offer
+    # halves the doubled backslashes of those lines only.
+    _region = (lines[start:stop] if span else
+               target.read_text(encoding="utf-8", errors="replace").splitlines()
+               if target.exists() else [])
+    _deep = doubled_escape_lines(_region, text)
+    if len(_deep) >= 3:
+        _two = chr(92) * 2
+        _rows = text.splitlines()
+        _halved = "\n".join(r.replace(_two, chr(92)) if i in set(_deep) else r
+                            for i, r in enumerate(_rows))
+        if text.endswith("\n"):
+            _halved += "\n"
+
+        def _parses(a: dict):
+            if not path.endswith(".py"):
+                return None
+            try:
+                _ast_mod.parse(a["text"])
+            except (SyntaxError, ValueError):
+                return (". The text with those escapes halved does not parse, "
+                        "so write it again from the source", None)
+            return None
+        import ast as _ast_mod
+        raise ValueError(_offer_checked(
+            ctx,
+            f"{len(_deep)} of the {len(_rows)} lines you wrote equal lines of "
+            f"{path} once each doubled backslash is halved, such as line "
+            f"{_deep[0] + 1}: {_rows[_deep[0]].strip()!r}. The file holds one "
+            f"backslash where your text holds two. Write the source form, one "
+            f"backslash where {path} has one",
+            "code.write", {"path": wpath, "text": _halved, "start": start,
+                           "end": end}, (_parses,)))
     if path.endswith(".py"):
         import ast as _ast
         if not span:
@@ -27967,6 +28001,20 @@ def _repair_sentence(joined: list[int], crlf: set[int] = frozenset()) -> str:
         return f"{head} the four characters \\r\\n."
     return (f"{head} the two characters \\n, and as the four characters \\r\\n "
             f"on line{'s' if len(cr) > 1 else ''} {_names(cr)}.")
+
+
+def doubled_escape_lines(old_lines: list[str], text: str) -> list[int]:
+    """The indexes of the lines of `text` that are new and equal a line of
+    `old_lines` once each doubled backslash is halved.
+
+    Dry run 5, wall 10: s216 retyped `string.py` whole with two backslashes
+    for each one of the source, and the file parsed. 43 of its 60 added
+    lines meet this test, and the fold edit's own lines meet none."""
+    old = set(old_lines)
+    two = chr(92) * 2
+    return [i for i, line in enumerate(text.splitlines())
+            if line not in old and two in line
+            and line.replace(two, chr(92)) in old]
 
 
 def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
