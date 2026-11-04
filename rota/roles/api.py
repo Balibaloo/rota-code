@@ -4347,7 +4347,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         # against "at most 75" is a contradiction (the review of pass 4b,
         # medium 1).
         if (stated and not row["witness"] and "::" in row["headline"]
-                and row["headline"].split("::", 1)[0].strip()
+                and _grain_path(row["headline"].strip())
                 in {stated["path"], *stated["placed"]}):
             continue
         shared = mine & _stems(row["headline"])
