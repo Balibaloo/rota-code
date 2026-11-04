@@ -932,6 +932,10 @@ CREATE TABLE IF NOT EXISTS verdicts (
     reason            TEXT,
     lines             TEXT,                  -- a pass's JSON: criterion id to added line (frame 170)
     routes            TEXT,                  -- a pass's JSON: criterion id to 'added', 'kept' or 'test' (sprint 35 row 4)
+    -- A fail on a broken pushed commitment names its constraint here, and
+    -- `failed_criterion` stays NULL (frame 362, pass 3; ruling 3 of
+    -- 2026-11-03). No foreign key: `constraints` is the Architect's artefact.
+    failed_commitment TEXT,
     version          INTEGER NOT NULL DEFAULT 1
 );
 

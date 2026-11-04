@@ -3799,27 +3799,69 @@ def _area_files(conn: sqlite3.Connection, area: str) -> set[str]:
         "SELECT grain FROM code_index WHERE area = ?", (area,))}
 
 
+def stated_commitments(conn: sqlite3.Connection, files: list[str] | None = None
+                       ) -> tuple[list[dict], dict[str, str]]:
+    """The one rule that decides which stated commitments reach a seat.
+
+    A stated commitment is a constraint with a `party` and a `witness`. It
+    reaches a seat when its bindings reach `files`, as `_reaching_constraints`
+    decides, and no challenge verdict falsified it. With `files` None, the
+    touch is not checked. Each row holds `line`, the candidate of the latest
+    harvest that its witness key ties to. `line` is None when an edit or a
+    move broke the tie, and the push then marks the row lost.
+
+    The second value maps each falsified constraint to its witness key. The
+    survey push, the delivery push and the Critic's door all read this one
+    function (the review of pass 2, medium 3: a falsified row reached
+    `bound_constraints`, and ruling 3 of 2026-11-03 makes it a merge stop)."""
+    from ..onboarding.harvest import latest_commit, witness_key
+
+    reach = None if files is None else _reaching_constraints(conn, files)
+    current: dict[str, dict] = {}
+    commit = latest_commit(conn)
+    if commit is not None:
+        for r in conn.execute(
+                "SELECT id, kind, path, line, text, contradicts "
+                "FROM commitment_candidates WHERE commit_sha = ? "
+                "ORDER BY path, line, id", (commit,)):
+            current.setdefault(witness_key(r["kind"], r["path"], r["text"]),
+                               dict(r))
+    rows: list[dict] = []
+    falsified: dict[str, str] = {}
+    for r in conn.execute(
+            "SELECT c.id, c.headline, c.text, c.party, c.behaviour, c.witness, "
+            "h.verdict FROM constraints c "
+            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
+            "WHERE c.witness != '' AND c.party != '' ORDER BY c.id"):
+        if r["verdict"] == "falsified":
+            falsified[r["id"]] = r["witness"]
+            continue
+        if reach is not None and r["id"] not in reach:
+            continue
+        row = {k: r[k] for k in ("id", "headline", "text", "party",
+                                 "behaviour", "witness")}
+        row["line"] = current.get(r["witness"])
+        rows.append(row)
+    return rows, falsified
+
+
 def area_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
     """The candidates bound to the files of `area`, in the order of the cut.
 
     A candidate whose statement a challenge falsified is left out, as the
     deep dive's section 7 says: a line of source defeats it. A candidate
-    that a constraint states already names that constraint in `stated`."""
+    that a constraint states already names that constraint in `stated`.
+    `stated_commitments` decides both."""
     from ..onboarding.harvest import witness_key
 
     files = sorted(_area_files(conn, area))
     if not files:
         return []
+    rows_c, dropped = stated_commitments(conn)
+    falsified = set(dropped.values())
     stated: dict[str, str] = {}
-    falsified: set[str] = set()
-    for r in conn.execute(
-            "SELECT c.id, c.witness, h.verdict FROM constraints c "
-            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
-            "WHERE c.witness != '' ORDER BY c.id"):
-        if r["verdict"] == "falsified":
-            falsified.add(r["witness"])
-        else:
-            stated.setdefault(r["witness"], r["id"])
+    for c in rows_c:
+        stated.setdefault(c["witness"], c["id"])
     marks = ", ".join("?" for _ in files)
     rows: dict[str, dict] = {}
     for r in conn.execute(
@@ -3846,20 +3888,14 @@ def lost_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
     no candidate of the latest harvest holds the key. The edit also changes
     the area's content hash, so the next survey wake of the area shows the
     row and asks the Architect to restate it or decline it (the review of
-    pass 2, finding 1). A falsified statement is not listed."""
-    from ..onboarding.harvest import current_keys
-
+    pass 2, finding 1). A falsified statement is not listed, because
+    `stated_commitments` leaves it out."""
     files = _area_files(conn, area)
     if not files:
         return []
-    keys = current_keys(conn)
     out = []
-    for r in conn.execute(
-            "SELECT c.id, c.headline, c.witness FROM constraints c "
-            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
-            "WHERE c.witness != '' AND (h.verdict IS NULL OR h.verdict != 'falsified') "
-            "ORDER BY c.id"):
-        if r["witness"] in keys:
+    for r in stated_commitments(conn)[0]:
+        if r["line"] is not None:
             continue
         bound = {_grain_path(b["grain"]) for b in conn.execute(
             "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
@@ -4544,13 +4580,48 @@ def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict | None:
     # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
     if all_areas_surveyed(ctx.conn, files):
         ids.discard(ZERO)
+    commitments, falsified = stated_commitments(ctx.conn, files)
+    ids -= set(falsified)
     if not ids:
         return {"note": f"No constraint binds the files of this batch: "
                         f"{', '.join(files)}."}
+    shown = {c["id"]: _commitment_row(ctx.conn, c) for c in commitments}
     marks = ", ".join("?" for _ in ids)
-    return _rows(ctx.conn.execute(
+    return [shown.get(r["id"], r) for r in _rows(ctx.conn.execute(
         "SELECT id, headline, text FROM constraints "
-        f"WHERE id IN ({marks}) ORDER BY id", sorted(ids)))
+        f"WHERE id IN ({marks}) ORDER BY id", sorted(ids)))]
+
+
+# The words the push writes for a stated commitment whose witness tie broke.
+LOST_WITNESS = ("lost: an edit or a move changed the witness line. The next "
+                "survey restates the commitment or declines it.")
+
+
+def _witness_text(row: dict) -> str:
+    """One witness line as the push quotes it: the path, the line and the
+    quote."""
+    return f"{row['path']} line {row['line']}: {_quoted(row['text'])}"
+
+
+def _commitment_row(conn: sqlite3.Connection, c: dict) -> dict:
+    """A stated commitment as the delivery push shows it. The row holds the
+    party, the behaviour and the witness line, so a seat can check the
+    promise without a read (design B, section 4.2, steps 3 and 4). A
+    contradicting witness shows beside it, so the seat sees both units."""
+    row = {"id": c["id"], "headline": c["headline"], "text": c["text"],
+           "party": c["party"], "behaviour": c["behaviour"]}
+    line = c["line"]
+    if line is None:
+        row["witness"] = LOST_WITNESS
+        return row
+    row["witness"] = _witness_text(line)
+    ids = json.loads(line["contradicts"] or "[]")
+    if ids:
+        marks = ", ".join("?" for _ in ids)
+        row["contradicts"] = [_witness_text(o) for o in conn.execute(
+            "SELECT path, line, text FROM commitment_candidates "
+            f"WHERE id IN ({marks}) ORDER BY path, line", ids)]
+    return row
 
 
 def _diff_files(ctx: "Ctx", batch_id: str) -> list[str] | None:
@@ -17008,6 +17079,44 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
                    "does not encode it -- not a fail on the code"}
 
 
+def _pushed_commitment(ctx: Ctx, batch_id: str, cid: str) -> dict:
+    """The stated commitment `cid` as the review push showed it, or a refusal.
+
+    Ruling 3 of 2026-11-03 makes a broken outside promise a fail, and it
+    amends 13d138b2. A fail stands only on a commitment that the push
+    quoted, so `stated_commitments` decides it, as it decides the push."""
+    bound = bound_constraints(ctx, batch_id)
+    rows = [r for r in bound if "party" in r] if isinstance(bound, list) else []
+    hit = next((r for r in rows if r["id"] == cid), None)
+    if hit is None:
+        shown = [r["id"] for r in rows]
+        raise ValueError(
+            f"{cid!r} is not a commitment that the push showed for batch "
+            f"{batch_id}. A fail names a criterion of the batch or a pushed "
+            f"commitment. The pushed commitments are {_capped_ids(shown)}.")
+    if hit["witness"] == LOST_WITNESS:
+        raise ValueError(
+            f"The witness line of {cid!r} is lost, so a fail on it has no line "
+            f"to quote. Judge the criteria, and write the doubt in reason=.")
+    return hit
+
+
+def _commitment_reason(c: dict, reason: str) -> str:
+    """The reason of a fail on a commitment. It names the commitment and
+    quotes its witness line, so the Developer and the page show the promise.
+    The door adds the parts the seat left out, and never refuses for them:
+    a refusal of an optional argument loops the seat (frame 81)."""
+    reason = (reason or "").strip()
+    flat = " ".join(reason.split())
+    quote = c["witness"].split(": ", 1)[-1].strip('"').removesuffix(" ...")
+    parts = [reason] if reason else []
+    if c["id"] not in flat:
+        parts.append(f"The diff breaks the pushed commitment {c['id']}.")
+    if quote not in flat:
+        parts.append(f"Its witness is {c['witness']}")
+    return " ".join(parts)
+
+
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                   failed_criterion: str | None = None, reason: str = "",
@@ -17026,6 +17135,11 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     by Roman, frame 88, 2026-09-30). Never refused, on a pass or on a fail
     without one: an optional argument is filled on every call, and a refusal
     of it loops the seat (observed: frame 81, 2026-09-24).
+
+    `failed_criterion` can also name a commitment that the review push
+    showed. The fail then lands in `failed_commitment`, and its reason names
+    the commitment and quotes its witness line (ruling 3 of 2026-11-03,
+    which amends 13d138b2). A commitment has no test, so no claim is asked.
 
     The id is *derived* from the judge, the batch and the commit, because that is
     what a verdict is: one judgement, by one role, on one commit. `review` gates
@@ -17070,6 +17184,16 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
         raise ValueError(
             f"your verdict on batch {batch_id} at this commit already "
             f"landed, and one commit gets one verdict: end the session")
+    commitment = None
+    if (result == "fail" and failed_criterion
+            and not ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                                     (failed_criterion,)).fetchone()
+            and ctx.conn.execute("SELECT 1 FROM constraints WHERE id = ? "
+                                 "AND party != ''",
+                                 (failed_criterion,)).fetchone()):
+        commitment = _pushed_commitment(ctx, batch_id, failed_criterion)
+        reason = _commitment_reason(commitment, reason)
+        failed_criterion = None
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
         # A fail on a retired criterion sends the batch back for a criterion
@@ -17111,6 +17235,8 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     row = {"batch_id": batch_id, "result": result, "commit_sha": commit,
            "failed_criterion": failed_criterion, "reason": reason,
            "diff_ref": diff_ref}
+    if commitment is not None:
+        row["failed_commitment"] = commitment["id"]
     # A fail reads no lines and stores none. An optional argument that one
     # branch needs is ignored on the others, never refused (frame 81).
     if result == "pass":
@@ -18298,7 +18424,7 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     """
     bid = batch_id or ctx.batch_id
     cols = ("SELECT v.id, v.batch_id, v.commit_sha, v.result, "
-            "v.failed_criterion, v.reason FROM verdicts v ")
+            "v.failed_criterion, v.failed_commitment, v.reason FROM verdicts v ")
     at_head = _rows(ctx.conn.execute(
         cols + "JOIN batches b ON b.id = v.batch_id "
         "WHERE v.batch_id = ? AND v.commit_sha = b.head_commit "

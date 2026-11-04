@@ -37,7 +37,9 @@ Work through it in this order:
    about whether the test encodes the criterion is step 2, not this step
 4. **Is there anything here nobody asked for?** One judgement about the change as
    a whole, not a line-by-line audit. Work outside the criteria is a remark,
-   never a fail
+   never a fail, except a broken pushed commitment. A pushed commitment is a
+   row of the constraints that bind the files of this batch with a `witness`.
+   When the diff breaks its `behaviour`, that is a fail
 
 Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
 verdict per batch. A pass carries `lines=`: every criterion's id and its value
@@ -47,6 +49,8 @@ value that the diff or the last test run does not hold. A fail carries
 `reason=`: the criterion's words the diff does not meet as written and what
 the diff does instead, so the Developer reads the objection and not only the
 ref. A remark goes in `reason=` on either result, beside the lines of a pass.
+A fail on a pushed commitment sends its id as `failed_criterion=`. Its
+`reason=` quotes the witness line and says what the diff does instead.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the

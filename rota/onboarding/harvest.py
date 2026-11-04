@@ -972,6 +972,51 @@ def bind(tree: Tree, c: Candidate) -> tuple[str, set[str]]:
     return "project_wide", source
 
 
+def _standards(tree: Tree, c: Candidate) -> set[tuple[str, str]]:
+    """The standards that `c` cites and that a source file cites too."""
+    return {(m.group(1).upper(), m.group(2)) for m in STD.finditer(c.text)
+            if _cites(tree, m.group(1), m.group(2))}
+
+
+def bind_all(tree: Tree, cands: list[Candidate]) -> dict[str, tuple[str, set[str]]]:
+    """The rule and the files of each candidate, with one bound candidate per
+    cited standard.
+
+    The docs restate a standard on many lines. In `src/icalendar/parser`, 22
+    of 31 pushed lines were such restatements (the review of pass 1, low 4,
+    and of pass 2, medium 4). So for each standard, the first candidate of a
+    root file binds, the package metadata first. The other
+    candidates of that standard bind no file. Each row stays for the
+    Architect, as an unbound docs claim does."""
+    bound = {c.id: bind(tree, c) for c in cands}
+    first: dict[tuple[str, str], Candidate] = {}
+    cited: dict[str, set[tuple[str, str]]] = {}
+    for c in cands:
+        if bound[c.id][0] != "standard":
+            continue
+        cited[c.id] = _standards(tree, c)
+        for std in cited[c.id]:
+            held = first.get(std)
+            if held is None or _root_first(c) < _root_first(held):
+                first[std] = c
+    for c in cands:
+        if c.id not in cited:
+            continue
+        won = {std for std in cited[c.id] if first[std].id == c.id}
+        paths = set()
+        for kind, number in won:
+            paths |= _cites(tree, kind, number)
+        bound[c.id] = ("standard", paths) if paths else ("", set())
+    return bound
+
+
+def _root_first(c: Candidate) -> tuple[bool, int, str, int]:
+    """The order that picks the bound candidate of a standard. A root file
+    goes first. Of two root files, the package metadata goes before the
+    README, because it is the package's own statement."""
+    return ("/" in c.path, KINDS.index(c.kind), c.path, c.line)
+
+
 # ---- the record --------------------------------------------------------------------
 
 def record(conn: sqlite3.Connection, root: str | Path, commit: str) -> int:
@@ -1011,7 +1056,9 @@ def _write(conn: sqlite3.Connection, tree: Tree, root: str | Path,
            commit: str) -> int:
     conn.execute("DELETE FROM candidate_bindings")
     written = 0
-    for c in harvest(root, tree):
+    cands = harvest(root, tree)
+    bound = bind_all(tree, cands)
+    for c in cands:
         cur = conn.execute(
             "INSERT INTO commitment_candidates (id, kind, path, line, text, symbol, "
             "detail, contradicts, commit_sha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
@@ -1024,7 +1071,7 @@ def _write(conn: sqlite3.Connection, tree: Tree, root: str | Path,
              json.dumps(c.detail, sort_keys=True), json.dumps(sorted(c.contradicts)),
              commit))
         written += cur.rowcount
-        rule, paths = bind(tree, c)
+        rule, paths = bound[c.id]
         conn.executemany(
             "INSERT INTO candidate_bindings (witness_id, path, rule) "
             "VALUES (?, ?, ?)", [(c.id, p, rule) for p in sorted(paths)])

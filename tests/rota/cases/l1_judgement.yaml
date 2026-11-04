@@ -140,6 +140,141 @@
     # rewrites the test.
     writes: [criteria, tests]
 
+# Night 101 (2026-09-30): the Critic failed click's bg_1 for the trailing
+# newline that its criterion asks for. It read a purpose from the builder's
+# docstring. Roman ruled on 2026-09-30 that the criterion's words bind a fail
+# (13d138b2). Ruling 3 of 2026-11-03 adds one exception, a pushed commitment,
+# and this case holds the rule for a docstring that is not one (frame 362,
+# pass 3).
+- id: L1-CR-a-purpose-in-a-docstring-is-not-a-fail
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 4
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "echo_json next to echo"
+    edit:
+      src/billing/output.py: |
+        import json
+        import sys
+
+
+        def echo(message, file=None):
+            """Write a message and a newline to a stream, stdout by default."""
+            stream = file if file is not None else sys.stdout
+            stream.write(f"{message}\n")
+
+
+        def echo_json(obj, file=None):
+            """Write an object for scripts that parse it, byte for byte as
+            json.dumps gives it."""
+            echo(json.dumps(obj, separators=(",", ":")), file=file)
+  fixture:
+    items:
+      - {id: <i1>, text: "print an object as JSON next to echo", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add echo_json next to echo"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "echo_json(obj) writes obj as compact JSON on one line, followed by a newline",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_output.py,
+         body: "echo_json({'key': 'value'}, file=s); assert s.getvalue() == '{\"key\":\"value\"}\\n'"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
+  expect:
+    # The docstring says "byte for byte as json.dumps gives it", and the
+    # criterion asks for the newline. The criterion binds, so a pass.
+    writes:
+      verdicts: {count: 1, text_includes: ['"result": "pass"']}
+  forbidden:
+    writes: [criteria, tests, items]
+    recipients: [vision_keeper, architect, liaison]
+
+# Ruling 3 of 2026-11-03: a broken promise to outside programs stops the
+# merge, also when the request does not name it. The push quotes the
+# commitment and its witness line, so the Critic fails the diff on the
+# commitment, outside the criteria (frame 362, pass 3). The witness key is
+# `harvest.witness_key` of the candidate's kind, path and text.
+- id: L1-CR-a-broken-pushed-commitment-is-a-fail
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 4
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "plural says no items for zero"
+    edit:
+      src/notify/formatting.py: |
+        ELLIPSIS = chr(8230)
+
+
+        def truncate(text, limit=80):
+            return text if len(text) <= limit else text[: limit - 1] + ELLIPSIS
+
+
+        def plural(count, singular, plural_form=None):
+            if count == 0:
+                return f"no {plural_form or singular + 's'}"
+            if count == 1:
+                return f"1 {singular}"
+            return f"{count} {plural_form or singular + 's'}"
+  fixture:
+    items:
+      - {id: <i1>, text: "plural says no items for zero", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "plural of zero"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "plural(0, 'item') returns 'no items'",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: src/notify/formatting.py, grain_kind: path}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_formatting.py,
+         body: "assert plural(0, 'item') == 'no items'"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
+    commitment_candidates:
+      - {id: cc_41ef9c8a7252, kind: numeric_default, path: src/notify/formatting.py,
+         line: 4, text: "def truncate(text, limit=72):", symbol: truncate,
+         commit_sha: c1}
+    candidate_bindings:
+      - {witness_id: cc_41ef9c8a7252, path: src/notify/formatting.py, rule: witness_file}
+    constraints:
+      - {id: <k1>, headline: "src/notify/formatting.py: def truncate(text, limit=72)",
+         text: "Mail clients show at most 72 characters of a subject line.",
+         party: "the mail clients that show the subject line",
+         behaviour: "truncate returns at most 72 characters",
+         witness: wk_3d6a7794b9ee, provenance: observed, is_global: 0}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: src/notify/formatting.py, grain_kind: path, resolves: 1}
+  expect:
+    # The criterion is met. The diff moves the limit to 80, which no
+    # criterion names, and the pushed commitment says 72. So a fail that
+    # names the commitment.
+    writes:
+      verdicts: {count: 1, text_includes: ['"result": "fail"',
+                                           '"failed_commitment": "<k1>"']}
+  forbidden:
+    writes: [criteria, tests, items, constraints]
+
 # Night 174 (sprint 35 row 4): bg_2 changed clear() to return a bool, and
 # c_3_clear_prints_same said the printed output stays the same. No added line
 # meets such a criterion. The door refused the comment that stated it, and the

@@ -26,6 +26,8 @@ which is precisely the failure Critic cannot catch.
 
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 
+Write a test that guards each pushed commitment whose behaviour the change can reach, from its witness's input and output.
+
 **A test of a prompt gives the prompt a stream.** pytest captures stdin, so a
 call that reads it raises before any assertion. Give it an empty stream for
 EOF, `monkeypatch.setattr("sys.stdin", io.StringIO(""))`, or a line for an

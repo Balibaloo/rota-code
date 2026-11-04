@@ -470,6 +470,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
             if not _has_column(conn, "constraints", column):
                 conn.execute(f"ALTER TABLE constraints ADD COLUMN {column} "
                              f"TEXT NOT NULL DEFAULT ''")
+        # The same for a fail on a pushed commitment (frame 362, pass 3):
+        # NULL is every older verdict's truth, since no fail named one before.
+        if not _has_column(conn, "verdicts", "failed_commitment"):
+            conn.execute("ALTER TABLE verdicts ADD COLUMN failed_commitment TEXT")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))

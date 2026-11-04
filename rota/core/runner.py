@@ -3050,7 +3050,8 @@ def _batch_row(conn: sqlite3.Connection, ref: str) -> dict[str, Any] | None:
     verdict = conn.execute(
         # The commit travels beside the word. A pass on an older commit is
         # no pass on the head (frame 303, review 1, finding 2).
-        "SELECT result, commit_sha, failed_criterion, reason FROM verdicts "
+        "SELECT result, commit_sha, failed_criterion, failed_commitment, reason "
+        "FROM verdicts "
         "WHERE batch_id = ? ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
     if verdict:
         # Empty fields say nothing, so they stay out of the prompt.
@@ -4427,9 +4428,12 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # bind the batch's files unasked. The seat cannot send `model.load` an
     # id it never saw. The read is a push, because a tool here needs a line
     # in the mode's `.tools` file, and this frame changes no prompt file.
+    # The Critic's review gets the same read, so a broken pushed commitment
+    # is a fail it can see (frame 362, pass 3; ruling 3 of 2026-11-03).
     if wake is not None and (
             (role == "developer" and wake.kind == "tick:batch_start")
-            or (role == "tester" and wake.kind == "tick:tests_missing")):
+            or (role == "tester" and wake.kind == "tick:tests_missing")
+            or (role == "critic" and wake.kind == "tick:review")):
         from ..roles.api import RETIRED_NOTE_KEY, bound_constraints
 
         bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
