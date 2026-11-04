@@ -92,6 +92,46 @@ def glossary_for(conn, question: str) -> str:
     return "\n".join(out)
 
 
+SHAPE_HEAD = "[the shape -- where the named things live, their copies and callers]"
+
+
+def shape_for(conn, question: str) -> str:
+    """The Architect's shape rows for the names the question's words name.
+
+    Section 4.1 of the shape design: the probe gave the Architect the model
+    and the constraints only, so Q5 and Q8 named code that its artefact could
+    not reach. The rows come from `model.shape`'s body, mechanically, like
+    `glossary_for`. A question that names no indexed name gets no block."""
+    from rota.roles.api import shape_of
+
+    rows, whole = shape_of(conn, question)
+    if not rows:
+        return ""
+    out = [SHAPE_HEAD]
+    for r in rows:
+        # The span is 0-based with an end one past the definition, as
+        # `code.source` takes it. A reader counts lines from 1.
+        line = f"- {r['grain']} ({r['sym_kind']}, lines {r['start'] + 1}-{r['end']})"
+        if r.get("command"):
+            line += f"; the command `{r['command']}` runs it"
+        if r.get("entry_point"):
+            line += f"; entry point: {r['entry_point']}"
+        if r.get("exported"):
+            line += f"; exported by {', '.join(r['exported'])}"
+        if r.get("copies"):
+            line += f"; copies in {', '.join(r['copies'])}"
+        for key, word in (("callers", "called from"), ("test_callers", "tested from")):
+            files = r.get(key, [])
+            if files:
+                more = f" and {len(files) - 3} more" if len(files) > 3 else ""
+                line += f"; {word} {', '.join(files[:3])}{more}"
+        out.append(line)
+    if whole > len(rows):
+        out.append(f"({whole - len(rows)} more names share a word with the "
+                   f"question and are not shown)")
+    return "\n".join(out)
+
+
 CHARTER = {
     "vision_keeper": "You are Vision Keeper. You know what this program does for "
                      "the person using it -- behaviours, not mechanisms.",
@@ -128,6 +168,9 @@ def main(argv=None) -> int:
     for q, want in questions:
         parts = dict(fixed)
         parts["terminologist"] = glossary_for(conn, q)
+        shape = shape_for(conn, q)
+        if shape:
+            parts["architect"] = fixed["architect"] + "\n\n" + shape
         answers = []
         for role in ("vision_keeper", "terminologist", "architect"):
             artefact = parts[role]

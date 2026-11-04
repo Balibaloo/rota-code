@@ -33,7 +33,7 @@ SHAPE = {
 
 
 @pytest.fixture
-def ask(tmp_path):
+def index(tmp_path):
     root = tmp_path / "t"
     for rel, text in SHAPE.items():
         path = root / rel
@@ -45,8 +45,13 @@ def ask(tmp_path):
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                "('project_root', ?)", (str(root),))
     db.commit()
-    yield build("architect", db, mode="ask")
+    yield db
     db.close()
+
+
+@pytest.fixture
+def ask(index):
+    return build("architect", index, mode="ask")
 
 
 def test_a_hit_carries_its_file_copies_callers_and_export(ask):
@@ -109,3 +114,22 @@ def test_the_ask_mode_offers_the_op():
     tools = (Path(__file__).resolve().parents[2] / "rota" / "roles" / "prompts"
              / "architect" / "ask.tools").read_text(encoding="utf-8")
     assert "model.shape" in tools.split()
+
+
+# --- the consult probe -----------------------------------------------------------
+
+def test_the_probe_block_names_the_command_and_its_function(index):
+    """Section 4.1 and step 7: the consult probe's Architect sees the shape."""
+    from probes.consult import SHAPE_HEAD, shape_for
+
+    block = shape_for(index, "What does the `demo` command do?")
+    lines = block.splitlines()
+    assert lines[0] == SHAPE_HEAD
+    assert lines[1].startswith("- pkg/cli.py::main (function, lines 5-7)")
+    assert "the command `demo` runs it" in lines[1]
+
+
+def test_a_question_with_no_hit_adds_no_block(index):
+    from probes.consult import shape_for
+
+    assert shape_for(index, "Why zebra crossings?") == ""
