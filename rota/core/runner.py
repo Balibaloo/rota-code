@@ -4320,16 +4320,49 @@ def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str) -> dict[str, str]:
     return out
 
 
-def _index_test_files(conn, limit: int = 80) -> list[str]:
-    """The index's test files, in grain order, at most `limit` of them."""
+def _index_test_files(conn, limit: int = 80, touched=()) -> list[str]:
+    """The index's test files, at most `limit` of them. The files whose
+    definitions call a `touched` grain come first, then grain order. A cut
+    list ends with a row that counts the files it leaves out."""
     # F9 (ruled: Roman, 2026-10-26 20:37): the basename gives the shape and
     # the frame's kind gives the partition. A `tests/` prefix decides neither.
     from ..roles.api import _is_test_file
 
     rows = conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path' "
                         "ORDER BY grain")
-    return [g for g in (r["grain"] for r in rows)
-            if _is_test_file(conn, g)][:limit]
+    tests = [g for g in (r["grain"] for r in rows) if _is_test_file(conn, g)]
+    # Frame 362, pass 5b (review low 6): on dry run 5 the index holds 162
+    # test files, and grain order cut `test_parsing.py` from the push.
+    near = _callers_of(conn, touched)
+    tests = ([g for g in tests if g in near]
+             + [g for g in tests if g not in near])
+    if len(tests) <= limit:
+        return tests
+    return tests[:limit] + [f"and {len(tests) - limit} more test files "
+                            f"in the index"]
+
+
+def _callers_of(conn, touched) -> set[str]:
+    """The files whose definitions call a touched grain, by `code_calls`."""
+    import sqlite3
+
+    # F11: the path half of a grain has one reader.
+    from ..roles.api import _grain_path
+
+    want = [g for g in touched if g]
+    if not want:
+        return set()
+    try:
+        rows = conn.execute("SELECT src, dst_grain FROM code_calls").fetchall()
+    except sqlite3.Error:
+        return set()
+    out = set()
+    for src, dst in rows:
+        path = _grain_path(dst)
+        name = dst[len(path) + 2:]
+        if any(g in (dst, path, name) for g in want):
+            out.add(src)
+    return out
 
 
 # Another constraint can bind the diff beside `k0`, so the headline says
@@ -4810,7 +4843,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         from .scheduler import batch_relay
 
         if batch_relay(sb.ctx.conn, wake.message_id):
-            tests = _index_test_files(sb.ctx.conn)
+            # F35: the prediction has one reader, `predicted_rows`.
+            from .lifecycle import predicted_rows
+
+            touched = [r["grain"] for (bid,) in sb.ctx.conn.execute(
+                "SELECT j.value FROM json_each((SELECT body_refs FROM "
+                "messages WHERE id = ?)) j", (wake.message_id,))
+                for r in predicted_rows(sb.ctx.conn, bid)]
+            tests = _index_test_files(sb.ctx.conn, touched=touched)
             if tests:
                 pushed["the index's test files"] = tests
     # The guess names one request item, and its brief says a test path is one

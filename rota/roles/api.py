@@ -8831,7 +8831,13 @@ def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
             folder in dirs
             or any(d and folder.startswith(f"{d}/") for d in dirs)):
         return
-    named = sorted(dirs, key=lambda d: (d.count("/"), d)) or ["tests"]
+    from collections import Counter
+
+    # Frame 362, pass 5b (review high 2): a depth order put
+    # `.github/workflows`, with 1 test file, before `src/icalendar/tests`,
+    # with 111. The Tester wrote there (dry run 4 wall 16, dry run 5 wall 9).
+    count = Counter(g.rpartition("/")[0] for g in indexed if _test_shaped(g))
+    named = sorted(dirs, key=lambda d: (-count[d], d.count("/"), d)) or ["tests"]
     stem = path.rpartition("/")[2][:-3].lstrip("_") or "thing"
     example = f"{named[0]}/test_{stem}.py" if named[0] else f"test_{stem}.py"
     if example in indexed:
