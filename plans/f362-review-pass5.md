@@ -169,3 +169,52 @@ All are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/94cb1260-d
 - Input tokens: about 85k of context at the end, against the cap of about 60k. The timing runs and the gate reads took the excess.
 - Output tokens: about 14k.
 - Total: about 99k.
+
+## Pass 5b, `b81f9639`
+
+Second look, 2026-11-04, read-only, cap 20k. Finding 4 goes to pass 5c and is not reviewed here.
+
+### Verdict: fix
+
+The gates, the refusal order, the cut rule and the list cut are correct. One new high
+finding remains: the fix-loop predicates still wake the Developer for a test red at the
+base. The 6 touched test files pass with the frame 324 and F9 files, 44 passed. The 10
+touched files hold no CR bytes.
+
+### The findings of pass 5
+
+1. Fixed. `harness.reds_that_hold` (`rota/core/harness.py:475-489`) is the one reader for `predicates.review` and `lifecycle.mergeable`. `principal.touch_words` names the base-red files.
+2. Fixed. `_refuse_program_path` (`rota/roles/api.py:8640-8646`) ranks by the count of test files, so `src/icalendar/tests` (111 files) comes first.
+3. In part. `django/test/client.py` stays `program`. Probe: under a `numpy` judge ruling, `numpy/testing/overrides.py` is still `attached`, because `_holds_a_test_file` reads the whole subtree and finds `numpy/testing/tests/test_utils.py`. Fix: require a test-shaped file directly in the cut folder.
+5. Fixed by a different rule. A `decided` ruling now covers its whole prefix, so `vendor/lib/tests/test_x.py` is `program`. That follows "the principal rules what he names" and frame 324. My expectation of `attached` assumed the old cut for a `decided` ruling. The test is right. A judge ruling that the cut removes now gives the heuristic, not a shorter ruling.
+6. Fixed. `_callers_of` reads `code_calls.src`, which holds a file path. On `dry5.db`, `test_parsing.py` calls `string.py::_foldline`, so it comes first. The count row is a string inside a list of paths. That is acceptable.
+7. Fixed. The new cases pin the `surface` cut and a `decided` ruling above the test folder.
+8. Fixed. The `ruling_for` docstring names the cut. The `propose` comment names the exception.
+- Point 2 paragraph: the departure for a `decided` ruling above the test folder no longer exists. The remaining departure is for the judge's ruling only, which the brief's paragraph covers.
+
+### The two questions of the report
+
+- Any red result is excused, not only the same result. Both rules are too weak, because the excuse is per file. A Developer regression inside a base-red file passes both gates. On icalendar, `test_rfc_6868.py` and `test_issue_1445.py` are base-red files that parse content lines. A same-result rule would not catch a new failure in a file that already fails. See new finding 11.
+- The `vendor/lib` case: the expectation of `program` is right under the new rule. See finding 5 above.
+
+### New findings
+
+10. `rota/core/predicates.py:1137-1145` (`tests_failing`), `predicates.py:1215-1219` (`exhausted`) and `rota/core/scheduler.py:2238-2244` (`park_reds`), high. CONFIRMED by reading. The effect is PLAUSIBLE, because I ran no loop.
+    The three predicates read `latest_runs` for `fail` or `error` with `live_tests` only. They do not use `reds_that_hold`.
+    So the 5 base-red files wake the Developer at every head until the attempt cap or the challenge bound is reached. The batch can then stop as exhausted on tests it never broke.
+    Fix: make `tests_failing`, `exhausted` and `park_reds` drop `harness.base_red_ids`, as the gates do.
+
+11. `rota/core/harness.py:466-489`, low. PLAUSIBLE.
+    `base_red_ids` excuses a whole file by its id, for any red result at the head.
+    A new failure inside a base-red file holds no gate, and only the touch line tells the principal.
+    Fix: excuse a test only when `harness.error_line` of the head output equals that of the base output.
+
+### Probes of pass 5b
+
+- One inline `python -c` call: `kind_of` under a `numpy` judge ruling, with `numpy/testing/tests/test_utils.py` indexed. The result is `attached` for `overrides.py`.
+- One inline call on `dry5.db` read-only: `code_calls` rows for `_foldline` give file paths in `src`.
+- In the worktree at `b81f9639`: the 4 pass 5 and pass 5b test files, `test_frame324_one_reader.py` and `test_f9_test_file_one_reader.py`, 44 passed. `ROTA_DEV_DB` was `.../scratchpad/r5/dev5b.db`.
+
+### Usage of pass 5b
+
+About 18k input tokens and 4k output tokens, against the cap of 20k.
