@@ -1341,3 +1341,19 @@ def test_a_start_at_the_cap_whose_wake_is_still_ready_is_quarantined(dry1_turn15
     wake = Wake("developer", "tick:batch_start", refs=("bg_1",))
     assert quarantine_stalled(conn, [wake]) == []
     assert _start_count(conn) == (config.get(conn, "tick_attempt_cap"), 1)
+
+
+def test_a_rested_park_with_no_project_red_says_what_stopped_it(n133, monkeypatch):
+    """Dry run 5, wall 14: "Stuck: b_1 stops here. It breaks ." The removal
+    check stopped b_1, and `park_reds` gave no project row. The line says
+    what stopped the batch, and never an empty list."""
+    from rota.core import scheduler
+
+    n133.execute("UPDATE batches SET status = 'deferred' WHERE id = 'bg_2'")
+    _liaison_presents(n133, ITEM_133)
+    monkeypatch.setattr(scheduler, "park_reds", lambda conn, b: ([], []))
+    state = render_state(n133)
+    assert "It breaks ." not in state
+    line = next(x for x in state.splitlines() if x.startswith("Stuck: bg_2"))
+    assert line.startswith("Stuck: bg_2 stops here. ") and len(line) > len(
+        "Stuck: bg_2 stops here. A new commit on the change starts it again."), line

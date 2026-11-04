@@ -534,8 +534,17 @@ def _render_state(conn: sqlite3.Connection) -> str:
             own, project = park_reds(conn, b)
             if b in json.loads(row["body_refs"] or "[]"):
                 files = sorted({r["path"] or r["test_id"] for r in project})
-                return (f"Stuck: {b} stops here. It breaks {', '.join(files)}. "
-                        "A new commit on the change starts it again.")
+                if files:
+                    return (f"Stuck: {b} stops here. It breaks {', '.join(files)}. "
+                            "A new commit on the change starts it again.")
+                # No project red: another check stopped the batch. Dry run 5's
+                # removal check gave "It breaks ." (wall 14), so the line says
+                # what stopped it.
+                stopped = _stalled_words(conn, keys) if keys else ""
+                return (f"Stuck: {b} stops here. "
+                        + (f"{_capital(stopped)}. " if stopped else
+                           "No check of the project fails. ")
+                        + "A new commit on the change starts it again.")
             ruled = park_ruling(conn, mid) or {}
             if any(v != "approve" for v in ruled.values()):
                 return (f"Stuck: {b} is parked. The team rewrites the lines you "
