@@ -147,7 +147,35 @@ def connect(path: str | Path) -> sqlite3.Connection:
     # A file that no `init_db` of fact F4 opened has no `latest_runs` view.
     latest_runs_view(conn)
     message_columns(conn)
+    commitment_columns(conn)
     return conn
+
+
+def commitment_columns(conn: sqlite3.Connection) -> None:
+    """Give an older file the columns of frame 362.
+
+    `connect` calls this, so every opener of a run reads the columns, as in
+    `message_columns`. A table that the file does not hold yet gets them
+    from the schema."""
+    # A night copy that no `init_db` opened raised `no such column:
+    # t.commitment_id` in `scheduler.park_reds` (frame 362, gate 3).
+    have = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name IN ('constraints', 'verdicts', 'tests')")}
+    # The empty string is every older constraint's truth, since no door
+    # stated a party before the columns (pass 2).
+    for column in ("party", "behaviour", "witness"):
+        if "constraints" in have and not _has_column(conn, "constraints", column):
+            conn.execute(f"ALTER TABLE constraints ADD COLUMN {column} "
+                         f"TEXT NOT NULL DEFAULT ''")
+    # NULL is every older verdict's truth, since no fail named a commitment
+    # before the column (pass 3).
+    if "verdicts" in have and not _has_column(conn, "verdicts", "failed_commitment"):
+        conn.execute("ALTER TABLE verdicts ADD COLUMN failed_commitment TEXT")
+    # NULL is every older test's truth, since no test guarded a commitment
+    # before the column (pass 3b).
+    if "tests" in have and not _has_column(conn, "tests", "commitment_id"):
+        conn.execute("ALTER TABLE tests ADD COLUMN commitment_id TEXT")
 
 
 def message_columns(conn: sqlite3.Connection) -> None:
@@ -463,20 +491,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # batch's truth, since no door wrote a claim before the column.
         if not _has_column(conn, "batches", "claimed_head"):
             conn.execute("ALTER TABLE batches ADD COLUMN claimed_head TEXT")
-        # The same for a stated outside commitment (frame 362, pass 2): the
-        # empty string is every older constraint's truth, since no door
-        # stated a party before the columns.
-        for column in ("party", "behaviour", "witness"):
-            if not _has_column(conn, "constraints", column):
-                conn.execute(f"ALTER TABLE constraints ADD COLUMN {column} "
-                             f"TEXT NOT NULL DEFAULT ''")
-        # The same for a fail on a pushed commitment (frame 362, pass 3):
-        # NULL is every older verdict's truth, since no fail named one before.
-        if not _has_column(conn, "verdicts", "failed_commitment"):
-            conn.execute("ALTER TABLE verdicts ADD COLUMN failed_commitment TEXT")
-        # The same for a test that guards a pushed commitment (pass 3b).
-        if not _has_column(conn, "tests", "commitment_id"):
-            conn.execute("ALTER TABLE tests ADD COLUMN commitment_id TEXT")
+        # `connect` gives an older file the columns of frame 362.
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))

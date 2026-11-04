@@ -254,7 +254,7 @@
     commitment_candidates:
       - {id: cc_41ef9c8a7252, kind: numeric_default, path: src/notify/formatting.py,
          line: 4, text: "def truncate(text, limit=72):", symbol: truncate,
-         commit_sha: c1}
+         commit_sha: abc123}
     candidate_bindings:
       - {witness_id: cc_41ef9c8a7252, path: src/notify/formatting.py, rule: witness_file}
     constraints:

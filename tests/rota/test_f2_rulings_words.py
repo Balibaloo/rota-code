@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from rota.core import db
 from rota.roles import api
 
 NIGHT = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night172.db"
@@ -52,7 +53,6 @@ def night(tmp_path):
         conn = sqlite3.connect(tmp_path / f"{trigger}.db")
         src.backup(conn)
         src.close()
-        conn.row_factory = sqlite3.Row
         marks = ",".join("?" * len(drop))
         for (rid,) in conn.execute(
                 f"SELECT id FROM rulings WHERE reply_id IN ({marks})",
@@ -65,6 +65,10 @@ def night(tmp_path):
         conn.execute("DELETE FROM messages WHERE from_role = 'principal' "
                      "AND seq > ?", (seq,))
         conn.commit()
+        conn.close()
+        # A run opens its file through `db.connect`, which gives a night of
+        # an older schema the newer columns (frame 362, gate 3).
+        conn = db.connect(tmp_path / f"{trigger}.db")
         return api.Ctx(conn=conn, role="liaison", session_id="sX",
                        trigger=trigger, writes=[], outbound=[])
     return at
