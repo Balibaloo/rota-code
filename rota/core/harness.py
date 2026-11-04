@@ -155,9 +155,13 @@ def run(conn: sqlite3.Connection, batch_id: str,
     results: list[tuple[str, str]] = []
     output: dict[str, str] = {}
     tester = tester_paths(conn, batch_id)
+    # The project's tests run in one call. The Tester's tests run one by one.
+    project = [t for t in tests if not _own(t, tester)]
+    grouped = (_run_group(root, project, timeout, runner=runner, own=False)
+               if project else {})
     for t in tests:
-        verdict, said = _run_one(root, t["path"], timeout, runner=runner,
-                                 own=_own(t, tester))
+        verdict, said = grouped.get(t["id"]) or _run_one(
+            root, t["path"], timeout, runner=runner, own=_own(t, tester))
         results.append((t["id"], verdict))
         output[t["id"]] = said
 
@@ -393,6 +397,80 @@ def _run_one(root: Path, path: str, timeout: int,
     return "error", said
 
 
+# A line of pytest's short summary under `-rfEsxXp`: the word, an optional
+# count, then the node id or the `path:line:` of a skip. The group stops at
+# the first colon, so it holds the file of a pytest node id, not a grain.
+_SUMMARY = re.compile(
+    r"(PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)(?: \[\d+\])? ([^\s:]+)")
+_GREEN_WORDS = ("PASSED", "XFAIL", "SKIPPED")
+
+
+def _summary_files(text: str) -> dict[str, set[str]]:
+    """The files that pytest's short summary names, each with its words."""
+    named: dict[str, set[str]] = {}
+    for line in text.splitlines():
+        m = _SUMMARY.match(line)
+        if not m:
+            continue
+        named.setdefault(m.group(2), set()).add(m.group(1))
+    return named
+
+
+def _run_group(root: Path, group: list[dict], timeout: int, *,
+               runner: str | None, own: bool) -> dict[str, tuple[str, str]]:
+    """One pytest call for a group of test files. Each red file runs again.
+
+    Frame 362, review of pass 5, low 4: one child per file cost 263 s per
+    run on icalendar. The grouped call gives a pass to a file only when the
+    summary names it green and never red. Each other file runs alone, as
+    before, so each red row keeps its own output and its own word.
+    """
+    from . import execute
+    from .provision import python_for
+
+    try:
+        out = execute.run(
+            root, [python_for(root), "-m", "pytest",
+                   *[shlex.quote(t["path"]) for t in group],
+                   "-q", "--no-header",
+                   *(["-W", "ignore::DeprecationWarning"] if own else []),
+                   # A collection error interrupts the call and runs no test.
+                   # The flag runs the other files, and the summary names the
+                   # file that did not collect.
+                   "-p", PLUGIN, "--continue-on-collection-errors",
+                   "-rfEsxXp"],
+            timeout=timeout * len(group), runner=runner, env=plugin_env())
+    except KeyError:
+        out = None
+    done: dict[str, tuple[str, str]] = {}
+    if out is not None and not out.error and out.returncode in (EXIT_OK, EXIT_FAILED):
+        named = _summary_files(out.stdout or "")
+        by_path = {t["path"].replace("\\", "/"): t for t in group}
+
+        def owner(name: str) -> str | None:
+            # pytest names a node from its rootdir, which can sit below the root.
+            return next((p for p in by_path
+                         if p == name or p.endswith("/" + name)), None)
+
+        reds = [n for n, words in named.items() if not words <= set(_GREEN_WORDS)]
+        if out.returncode == EXIT_OK and not named:
+            # No summary at all on a green call: every file passed.
+            done = {t["id"]: ("pass", "") for t in group}
+        elif all(owner(n) for n in reds):
+            red_paths = {owner(n) for n in reds}
+            for name, words in named.items():
+                p = owner(name)
+                if p and p not in red_paths:
+                    lines = [ln for ln in (out.stdout or "").splitlines()
+                             if _SUMMARY.match(ln) and name in ln]
+                    done[by_path[p]["id"]] = ("pass", chr(10).join(lines))
+    for t in group:
+        if t["id"] not in done:
+            done[t["id"]] = _run_one(root, t["path"], timeout, runner=runner,
+                                     own=own)
+    return done
+
+
 def inherited_id(rel: str) -> str:
     """The id `inherit` gives the project's test at `rel`, a posix path.
 
@@ -522,13 +600,11 @@ def record_base_run(conn: sqlite3.Connection, batch_id: str, worktree: Path,
     the batch's own run gives it, so the base run and the batch's runs agree.
 
     One pytest call runs each filter group. A green group costs one child.
-    A red group runs again file by file, so each red row has its own output.
+    Each red file of a group runs again, so each red row has its own output.
     """
     import json
 
     from . import config as _config
-    from . import execute
-    from .provision import python_for
 
     wanted = set(test_ids)
     tests = [t for t in tests_for(conn, batch_id) if t["id"] in wanted]
@@ -540,26 +616,10 @@ def record_base_run(conn: sqlite3.Connection, batch_id: str, worktree: Path,
         group = [t for t in tests if _own(t, tester) == own]
         if not group:
             continue
-        try:
-            out = execute.run(
-                root, [python_for(root), "-m", "pytest",
-                       *[shlex.quote(t["path"]) for t in group],
-                       "-q", "--no-header",
-                       *(["-W", "ignore::DeprecationWarning"] if own else []),
-                       "-p", PLUGIN],
-                timeout=timeout * len(group), runner=runner, env=plugin_env())
-            green = not out.error and out.returncode == EXIT_OK
-        except KeyError:
-            green = False
-        if green:
-            for t in group:
-                record[t["id"]] = {"result": "pass"}
-            continue
-        for t in group:
-            verdict, said = _run_one(root, t["path"], timeout, runner=runner,
-                                     own=own)
-            record[t["id"]] = ({"result": verdict} if verdict == "pass"
-                               else {"result": verdict, "output": said})
+        for tid, (verdict, said) in _run_group(root, group, timeout,
+                                               runner=runner, own=own).items():
+            record[tid] = ({"result": verdict} if verdict == "pass"
+                           else {"result": verdict, "output": said})
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                  (_base_key(batch_id), json.dumps(record, sort_keys=True)))
     return record
