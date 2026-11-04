@@ -272,3 +272,5 @@ From `plans/f362-review-shape-design.md`, 2026-11-04, one change per finding:
 10. Low, the resolver: section 3.2 puts the call resolver beside `_reexported` on `harvest.Tree`, with one module map shared with the binding rule.
 
 The counts are marked as taken on the pinned commits in section 3 (observed: the review, point 1).
+
+From pass S2, 2026-11-04 (observed: commit 49b7b7a9 in rota_p362h): the `intake` kind is named `contribution`, because `intake` is a mode of the brief role and `test_vocabulary.py` refuses a word with two jobs. Its forms are testpaths, the towncrier fragment rule and a change-log file with an "Unreleased" heading. tips holds `testpaths`, so the page's "tips has no intake" is wrong: tips has 1 contribution row. A guard counts as an entry point only when it calls a function its own file defines at the top level, and a fuzzer file never counts; icalendar's guards go from 2 of 4 to 2 of 2 true.
