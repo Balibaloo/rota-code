@@ -5239,6 +5239,117 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
         f"WHERE c.id IN ({marks})", ids))
 
 
+@op("model", "shape")
+def model_shape(ctx: Ctx, name: str) -> list[dict]:
+    """
+    Where a name lives: each definition or export that shares a word with
+    `name`, with its file and span, its copies, its callers, its entry point
+    and its export. A pyproject command that `name` names leads.
+
+    The `ask` holds no code read, and Q5 of the icalendar set names
+    `from_ical`, which the Architect could not look up (the shape design,
+    section 3.5 item 2). The match is the match of `code.callables`, so the
+    ask and the guess find the same names. The command match is section 4.1's,
+    for Q8.
+
+    `name` has no default. The runner pushes each read that takes no argument
+    (`push_working_set`), and a push of an empty name is a note on every wake.
+    """
+    rows, whole = shape_of(ctx.conn, name)
+    _cut(ctx, "the names matching the shape", CALLABLE_HITS, whole, "rows",
+         stored=False)
+    if rows:
+        return rows
+    # The index holds functions, classes and exports. A method is inside its
+    # class, so `Class.method` finds the class.
+    return [{"note": f"no function, class, export or command in the index "
+                     f"shares a word "
+                     f"with {name!r}, so the index does not name it. Say so in "
+                     f"the answer."}]
+
+
+def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
+    """The shape rows for the words of `text`, and the count before the cap.
+
+    `model.shape` and the consult probe's `shape_for` both read through this.
+    The words are the words of `code.callables`, and each identifier also
+    gives the words that `code.vocabulary` splits from it. So `from_ical` and
+    `Calendar.from_ical` reach the grains that hold `ical` and `calendar`.
+    A `root` of None reads the project root for the `__main__` guards."""
+    from ..core.worktrees import WorktreeError, project_root
+    from ..onboarding import shape
+    from ..onboarding.areas import is_test
+
+    words = set()
+    for token in (text or "").split():
+        w = token.strip("`'\".,?:;()[]").lower()
+        if len(w) >= 3:
+            words.add(w)
+            words.add(w.rstrip("s"))
+        # The split reads the case, so it takes the token as written.
+        for part in _words_in(token):
+            words.add(part)
+            words.add(part.rstrip("s"))
+    if not words:
+        return [], 0
+    rows = _rows(conn.execute(
+        "SELECT grain, grain_kind, sym_kind, fan_in, line_start, line_end "
+        "FROM code_index WHERE grain_kind IN ('symbol', 'export') "
+        "ORDER BY fan_in DESC"))
+    hits = _word_hits(_frame_ranked(conn, rows), words)
+    # An export of a name that a definition holds is a field of the
+    # definition's row, so the row count stays the count of places.
+    defined = {h["grain"].split("::")[-1] for h in hits
+               if h["grain_kind"] == "symbol"}
+    hits = [h for h in hits if h["grain_kind"] == "symbol"
+            or h["grain"].split("::")[-1] not in defined]
+    # A command that the question names leads, because the person named it
+    # and the index names only the function it runs (section 4.1, Q8).
+    commands = {grain: script for script, grain in shape.scripts(conn).items()
+                if script.lower() in words}
+    by_grain = {r["grain"]: r for r in rows}
+    led = [by_grain[g] for g in commands if g in by_grain]
+    if led:
+        led = _frame_ranked(conn, led)
+        hits = led + [h for h in hits if h["grain"] not in commands]
+    whole = len(hits)
+    hits = hits[:CALLABLE_HITS]
+    if root is None:
+        try:
+            root = project_root(conn)
+        except WorktreeError:
+            root = None
+    marked = _copies_marked(conn, root, hits)
+    calls = shape.callers(conn, {h["grain"] for h in hits})
+    public = shape.exports(conn)
+    out = []
+    for r in marked:
+        grain, path = r["grain"], _grain_path(r["grain"])
+        stem = grain.split("::")[-1]
+        row = {"grain": grain, "kind": r["kind"], "sym_kind": r["sym_kind"],
+               "path": path, "start": r["line_start"], "end": r["line_end"],
+               "fan_in": r["fan_in"]}
+        if grain in commands:
+            row["command"] = commands[grain]
+        for key in ("copies", "entry_point"):
+            if key in r:
+                row[key] = r[key]
+        callers = calls.get(grain, [])
+        if [p for p in callers if not is_test(p)]:
+            row["callers"] = [p for p in callers if not is_test(p)]
+        if [p for p in callers if is_test(p)]:
+            row["test_callers"] = [p for p in callers if is_test(p)]
+        by, bound = public.get(stem, (set(), set()))
+        # The `exports` rule binds the file that `__all__` re-exports from.
+        # Of two copies, only the bound copy is the public one.
+        siblings = {path, *r.get("copies", [])}
+        if by and (path in bound or not (bound & siblings)
+                   or r["grain_kind"] == "export"):
+            row["exported"] = sorted(by)
+        out.append(row)
+    return out, whole
+
+
 def _re_split_paths(val: str) -> list[str]:
     import re as _re
 
@@ -21009,6 +21120,25 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
     if not words:
         _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
         return _shape_marked(ctx, rows[:20])
+    hits = _word_hits(rows, words)
+    _cut(ctx, "the symbols matching the hint", CALLABLE_HITS, len(hits), "rows",
+         stored=False)
+    if not hits:
+        _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
+    return _shape_marked(ctx, hits[:CALLABLE_HITS] or rows[:20])
+
+
+# The cap of a word match. `model.shape` keeps the cap of `code.callables`,
+# because the shape design names one match rule for both (section 3.5).
+CALLABLE_HITS = 40
+
+
+def _word_hits(rows: list[dict], words: set[str]) -> list[dict]:
+    """The rows whose name shares a word with `words`, in the match's order.
+
+    `code.callables` and `model.shape` both match through this, so the guess
+    and the ask find the same names (the shape design, section 3.5 item 2).
+    The rows come in kind order from `_frame_ranked`."""
     hits = []
     for r in rows:
         stem = r["grain"].split("::")[-1]
@@ -21022,26 +21152,13 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
     # the principal wrote, was the ninth (frame 324).
     hits.sort(key=lambda r: (_KIND_RANK.get(r["kind"], 4),
                              r["grain"].split("::")[-1].lower() not in words))
-    _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows", stored=False)
-    if not hits:
-        _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
-    return _shape_marked(ctx, hits[:40] or rows[:20])
+    return hits
 
 
 def _shape_marked(ctx: Ctx, rows: list[dict]) -> list[dict]:
-    """The guess's rows, each with its `copies` and its `entry_point`.
-
-    Dry run 4 matched "split" to `q_split` while the fold code was
-    `_foldline`, and nothing showed the Architect the shape before it bound
-    the request (`plans/dry4-read-2026-11-03.md`, section 8). So a row whose
-    name another project file defines lists those files, and a row whose file
-    starts a program run says why (the shape design, sections 3.1 and 3.5).
-    An empty field stays out of the row, so an unmarked row reads as before."""
+    """The guess's rows, each with its `copies` and its `entry_point`."""
     from ..core.worktrees import WorktreeError, project_root
-    from ..onboarding import shape
 
-    copies = shape.copies(ctx.conn)
-    paths = {_grain_path(str(r.get("grain", ""))) for r in rows if r.get("grain")}
     # A bare context of a direct call holds no batch, so the guard read takes
     # the project root, and a run with no root reads no guard.
     try:
@@ -21049,7 +21166,24 @@ def _shape_marked(ctx: Ctx, rows: list[dict]) -> list[dict]:
                 else project_root(ctx.conn))
     except WorktreeError:
         root = None
-    entries = shape.entry_points(ctx.conn, root, paths)
+    return _copies_marked(ctx.conn, root, rows)
+
+
+def _copies_marked(conn, root, rows: list[dict]) -> list[dict]:
+    """The rows, each with its `copies` and its `entry_point`.
+
+    Dry run 4 matched "split" to `q_split` while the fold code was
+    `_foldline`, and nothing showed the Architect the shape before it bound
+    the request (`plans/dry4-read-2026-11-03.md`, section 8). So a row whose
+    name another project file defines lists those files, and a row whose file
+    starts a program run says why (the shape design, sections 3.1 and 3.5).
+    An empty field stays out of the row, so an unmarked row reads as before.
+    A `root` of None reads no `__main__` guard from a file."""
+    from ..onboarding import shape
+
+    copies = shape.copies(conn)
+    paths = {_grain_path(str(r.get("grain", ""))) for r in rows if r.get("grain")}
+    entries = shape.entry_points(conn, root, paths)
     out = []
     for r in rows:
         grain = str(r.get("grain", ""))

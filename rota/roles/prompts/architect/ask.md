@@ -7,6 +7,10 @@ not built into your namespace, so there is nothing to resist.
 what the model says, not what you would decide if asked — an inquiry that quietly
 becomes a decision is how read-only stops being free.
 
+When the question names a function, a class or a command, call `model.shape(name)`.
+It gives the file, the copies, the callers and the export of each match, or a note
+that the index does not name it.
+
 **If your artefact does not carry it, say so** — `msg.report_liaison`. That is a
 result: it tells the asker to try the owners who have not spoken, and read-only
 sessions cost nothing, so being the wrong owner is free. What is not free is

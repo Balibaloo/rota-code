@@ -1,5 +1,6 @@
 model.consult
 model.load
+model.shape
 decisions.search
 msg.answer_liaison
 msg.report_liaison

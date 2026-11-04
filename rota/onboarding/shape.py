@@ -46,6 +46,71 @@ def copies(conn: sqlite3.Connection) -> dict[str, list[str]]:
             if len(paths) > 1}
 
 
+def callers(conn: sqlite3.Connection,
+            grains: set[str]) -> dict[str, list[str]]:
+    """Each grain of `grains` that another file calls, to the sorted paths of
+    the calling files.
+
+    The indexer writes `code_calls`, and this is its one reader (law 1). A
+    call through a re-export ends at the defining file, so the grain here is
+    the definition's (section 3.2)."""
+    out: dict[str, set[str]] = {}
+    for src, dst in conn.execute("SELECT src, dst_grain FROM code_calls"):
+        if dst in grains:
+            out.setdefault(dst, set()).add(src)
+    return {grain: sorted(paths) for grain, paths in sorted(out.items())}
+
+
+def exports(conn: sqlite3.Connection) -> dict[str, tuple[set[str], set[str]]]:
+    """Each public name, to the files that export it and the files that the
+    harvest binds to that export.
+
+    The first set comes from the `export` grains of the index and from the
+    file of each `export` candidate. The second set holds the files that the
+    `exports` rule bound to a candidate that lists the name. A reader that
+    holds copies of a name uses the second set to find the exported copy."""
+    out: dict[str, tuple[set[str], set[str]]] = {}
+    for (grain,) in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'export'"):
+        name = grain.partition("::")[2]
+        if name:
+            out.setdefault(name, (set(), set()))[0].add(grain_path(grain))
+    for path, detail, bound in conn.execute(
+            "SELECT c.path, c.detail, b.path FROM commitment_candidates c "
+            "LEFT JOIN candidate_bindings b ON b.witness_id = c.id "
+            "WHERE c.kind = 'export'"):
+        for name in json.loads(detail or "{}").get("names", []):
+            by, binds = out.setdefault(name, (set(), set()))
+            by.add(path)
+            if bound:
+                binds.add(bound)
+    return out
+
+
+def scripts(conn: sqlite3.Connection) -> dict[str, str]:
+    """Each command that a pyproject script line names, to the grain of the
+    function the command runs.
+
+    A person names the command, and the index names the function. Q8 of the
+    icalendar set asks about "the `icalendar` command", and only this row
+    joins the two (the shape design, section 4.1). The bound Python file of
+    the candidate gives the path half of the grain."""
+    out: dict[str, str] = {}
+    for detail, path in conn.execute(
+            "SELECT c.detail, b.path FROM commitment_candidates c "
+            "JOIN candidate_bindings b ON b.witness_id = c.id "
+            "WHERE c.kind = 'entry_point' AND b.path LIKE '%.py' "
+            "ORDER BY c.line"):
+        info = json.loads(detail or "{}")
+        target = info.get("target", "")
+        if info.get("form") != "script" or ":" not in target:
+            continue
+        func = target.rsplit(":", 1)[1].strip()
+        if func and info.get("script"):
+            out.setdefault(info["script"], f"{path}::{func}")
+    return out
+
+
 def entry_points(conn: sqlite3.Connection, root: str | Path | None,
                  paths: set[str]) -> dict[str, str]:
     """Of `paths`, each file that a program run starts in, to the reason.

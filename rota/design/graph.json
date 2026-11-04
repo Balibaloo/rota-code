@@ -551,6 +551,16 @@
       "depth": "body"
     },
     {
+      "s": "architect",
+      "t": "model",
+      "type": "reads",
+      "v": "shape",
+      "n": "where each definition that shares a word with the asked name lives",
+      "label": "ask: the shape of a name the question names",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
       "s": "vision_keeper",
       "t": "decisions",
       "type": "reads",

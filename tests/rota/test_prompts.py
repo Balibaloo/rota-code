@@ -716,7 +716,8 @@ def test_a_read_only_mode_offers_no_writes():
                       and not f.startswith("msg.")
                       and f.split(".")[1] not in (
                           "consult", "load", "list", "lookup", "search",
-                          "scan", "probe", "quote", "read", "diff", "source")}
+                          "scan", "probe", "quote", "read", "diff", "source",
+                          "shape")}
             if writes:
                 leaks[f"{role}/{mode}"] = sorted(writes)
     assert not leaks, leaks
