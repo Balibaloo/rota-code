@@ -4374,6 +4374,10 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed[name] = sb.call(name)
         except (TypeError, sandbox_mod.ArgumentError):
             continue     # needs to be told something; leave it to the model
+        # An area with no commitment candidate gets no block, so a survey
+        # prompt with nothing to state stays as it was (frame 362, pass 2).
+        if name == "model.witnesses" and pushed[name] is None:
+            del pushed[name]
     # The retired criteria get one line right after the rows, so no seat
     # names a line for them (frame 306, W-C1: night 165's s415 to s417).
     if isinstance(pushed.get("criteria.load"), list):

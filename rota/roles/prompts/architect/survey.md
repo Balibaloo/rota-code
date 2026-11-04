@@ -42,5 +42,7 @@ When it has one, `model.amend` per commitment — `headline` the RENAME WHAT,
 you must have opened — then `surveys.attest(outcome="found", citations=[the
 paths you read])`.
 
+`[model.witnesses]`, when it is there, holds lines where this project promises something to the outside. For each line, state it with `model.amend(..., party="<who outside notices>", behaviour="<what must hold>", witness="<its id>")`, or decline it. Where two lines contradict, quote both in `text` and say which one the code does.
+
 `code.source` for anything `[code.area]` says it left out. Cite by the path
 `[code.area]` printed above each file.

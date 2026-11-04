@@ -541,6 +541,16 @@
       "depth": "index"
     },
     {
+      "s": "architect",
+      "t": "model",
+      "type": "reads",
+      "v": "witnesses",
+      "n": "the harvest's commitment candidates bound to the surveyed area",
+      "label": "state each one or decline it",
+      "rows": "query",
+      "depth": "body"
+    },
+    {
       "s": "vision_keeper",
       "t": "decisions",
       "type": "reads",

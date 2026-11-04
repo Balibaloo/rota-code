@@ -97,6 +97,32 @@ def candidate_id(kind: str, path: str, line: int, text: str) -> str:
     return "cc_" + hashlib.sha256(key).hexdigest()[:12]
 
 
+def witness_key(kind: str, path: str, text: str) -> str:
+    """The tie from a stated commitment to its candidate, with no line.
+
+    The candidate id holds the line, so an edit above the witness gives the
+    same witness a new id (the review, low 8). This key holds the kind, the
+    path and the copied text only, so an unrelated edit keeps the tie. An
+    edit of the witness line itself breaks the tie, and that is correct:
+    the promise then needs a new statement. Two equal lines of one kind in
+    one file share a key, and a reader takes the first."""
+    key = f"{kind}|{path}|{text}".encode("utf-8")
+    return "wk_" + hashlib.sha256(key).hexdigest()[:12]
+
+
+def witnessed(conn: sqlite3.Connection, key: str) -> dict | None:
+    """The current candidate row that `key` ties to, or None. The row of the
+    latest harvest comes first, then the lowest line."""
+    if not key:
+        return None
+    for r in conn.execute(
+            "SELECT id, kind, path, line, text, commit_sha FROM commitment_candidates "
+            "ORDER BY rowid DESC, line"):
+        if witness_key(r["kind"], r["path"], r["text"]) == key:
+            return dict(r)
+    return None
+
+
 # ---- the tree ----------------------------------------------------------------
 
 class Tree:

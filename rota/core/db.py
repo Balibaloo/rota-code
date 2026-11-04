@@ -462,6 +462,13 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # batch's truth, since no door wrote a claim before the column.
         if not _has_column(conn, "batches", "claimed_head"):
             conn.execute("ALTER TABLE batches ADD COLUMN claimed_head TEXT")
+        # The same for a stated outside commitment (frame 362, pass 2): the
+        # empty string is every older constraint's truth, since no door
+        # stated a party before the columns.
+        for column in ("party", "behaviour", "witness"):
+            if not _has_column(conn, "constraints", column):
+                conn.execute(f"ALTER TABLE constraints ADD COLUMN {column} "
+                             f"TEXT NOT NULL DEFAULT ''")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))

@@ -3772,13 +3772,193 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
 # system model
 # ---------------------------------------------------------------------------
 
+# Who breaks must be outside. The parties that `model.amend` reads as
+# inside, in the headline and text, and in a stated `party`.
+_INSIDE_PARTY = (r"\b(maintainers?|developers?|other parts of the code"
+                 r"(?:base)?|the codebase|the build|test suite|the tests|"
+                 r"this (?:function|constant|type|class|component|file|"
+                 r"module)|the code inside|internal(?:ly)?|"
+                 r"the program'?s? (?:own )?(?:logic|code)|hardcoded in|"
+                 r"the [\w./-]+\.\w+ file)\b")
+
+# The budget of the `model.witnesses` push. The review measured 50
+# candidates and 4,213 characters on one file after pass 1b, and an area
+# holds several files (frame 362, pass 2).
+WITNESS_PUSH_CHARS = 6000
+# The order the cut keeps. The candidate's own file and a cited standard go
+# first, and the project-wide fallback goes last.
+WITNESS_RANK = ("witness_file", "standard", "symbol", "exports",
+                "entry_point", "dependency", "project_wide")
+# A long witness line is cut to this many characters in the push.
+WITNESS_TEXT_CHARS = 240
+
+
+def _area_files(conn: sqlite3.Connection, area: str) -> set[str]:
+    """The files of one area, from the index."""
+    return {_grain_path(r["grain"]) for r in conn.execute(
+        "SELECT grain FROM code_index WHERE area = ?", (area,))}
+
+
+def area_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
+    """The candidates bound to the files of `area`, in the order of the cut.
+
+    A candidate whose statement a challenge falsified is left out, as the
+    deep dive's section 7 says: a line of source defeats it. A candidate
+    that a constraint states already names that constraint in `stated`."""
+    from ..onboarding.harvest import witness_key
+
+    files = sorted(_area_files(conn, area))
+    if not files:
+        return []
+    stated: dict[str, str] = {}
+    falsified: set[str] = set()
+    for r in conn.execute(
+            "SELECT c.id, c.witness, h.verdict FROM constraints c "
+            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
+            "WHERE c.witness != '' ORDER BY c.id"):
+        if r["verdict"] == "falsified":
+            falsified.add(r["witness"])
+        else:
+            stated.setdefault(r["witness"], r["id"])
+    marks = ", ".join("?" for _ in files)
+    rows: dict[str, dict] = {}
+    for r in conn.execute(
+            "SELECT c.id, c.kind, c.path, c.line, c.text, c.contradicts, b.rule "
+            "FROM commitment_candidates c JOIN candidate_bindings b "
+            f"ON b.witness_id = c.id WHERE b.path IN ({marks}) "
+            "ORDER BY c.path, c.line, c.id", files):
+        key = witness_key(r["kind"], r["path"], r["text"])
+        if r["id"] in rows or key in falsified:
+            continue
+        rows[r["id"]] = {"id": r["id"], "kind": r["kind"], "path": r["path"],
+                         "line": r["line"], "text": r["text"], "rule": r["rule"],
+                         "contradicts": json.loads(r["contradicts"] or "[]"),
+                         "stated": stated.get(key, "")}
+    rank = {rule: i for i, rule in enumerate(WITNESS_RANK)}
+    return sorted(rows.values(), key=lambda w: (rank.get(w["rule"], len(rank)),
+                                                w["path"], w["line"]))
+
+
+def _quoted(text: str) -> str:
+    text = " ".join((text or "").split())
+    if len(text) > WITNESS_TEXT_CHARS:
+        text = text[:WITNESS_TEXT_CHARS] + " ..."
+    return f'"{text}"'
+
+
+def witness_push(conn: sqlite3.Connection, area: str,
+                 limit: int = WITNESS_PUSH_CHARS) -> tuple[list[dict], str]:
+    """The candidates the push shows for `area`, and the push text. The text
+    stays inside `limit`, and a cut ends with one line that counts it."""
+    rows = area_witnesses(conn, area)
+    if not rows:
+        return [], ""
+    other = {}
+    ids = sorted({i for w in rows for i in w["contradicts"]})
+    if ids:
+        marks = ", ".join("?" for _ in ids)
+        other = {r["id"]: r for r in conn.execute(
+            "SELECT id, path, line, text FROM commitment_candidates "
+            f"WHERE id IN ({marks})", ids)}
+    head = f"The harvest found {len(rows)} witness lines bound to the files of {area}."
+    lines, kept = [head], []
+    # The cut line is at most this long, so the text stays inside the limit.
+    room = limit - 200
+    size = len(head)
+    for w in rows:
+        block = [f"- {w['id']} {w['kind']}, {w['path']} line {w['line']}, "
+                 f"rule {w['rule']}: {_quoted(w['text'])}"]
+        for i in w["contradicts"]:
+            o = other.get(i)
+            if o is not None:
+                block.append(f"  It contradicts {i}, {o['path']} line {o['line']}: "
+                             f"{_quoted(o['text'])}")
+        if w["stated"]:
+            block.append(f"  Constraint {w['stated']} states it already.")
+        cost = sum(len(b) + 1 for b in block)
+        if size + cost > room:
+            break
+        lines += block
+        kept.append(w)
+        size += cost
+    cut = len(rows) - len(kept)
+    if cut:
+        lines.append(f"{cut} more candidates were cut to fit this push. The cut "
+                     f"takes the project-wide candidates first.")
+    return kept, "\n".join(lines)
+
+
+@op("model", "witnesses")
+def model_witnesses(ctx: Ctx) -> str | None:
+    """
+    The commitment candidates bound to the surveyed area, pushed unasked.
+
+    Frame 362, pass 2: the harvest writes the witness lines of outside
+    commitments, and the Architect's survey states each one or declines it.
+    The read takes no argument, because the area is the wake's. With no
+    area or no candidate, the read returns None and the push leaves it out.
+    """
+    if not ctx.area:
+        return None
+    _, text = witness_push(ctx.conn, ctx.area)
+    return text or None
+
+
+def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
+                       witness: str) -> dict | None:
+    """The checked statement of an outside commitment, or None when the
+    amend states none. A statement names all three parts, and its witness
+    is a candidate that the push showed. Each refusal shows the full form."""
+    from ..onboarding.harvest import witness_key
+
+    party, behaviour, witness = ((s or "").strip() for s in (party, behaviour, witness))
+    if not (party or behaviour or witness):
+        return None
+    shown = ([w["id"] for w in witness_push(ctx.conn, ctx.area)[0]]
+             if ctx.area else None)
+    example = shown[0] if shown else "<an id from [model.witnesses]>"
+    form = (f"Write model.amend(headline={headline!r}, text=\"<who outside "
+            f"breaks and what they see>\", party=\"<who outside notices>\", behaviour=\"<what must hold>\", "
+            f"witness=\"{example}\").")
+    if shown:
+        form += f" The witness is one of the ids that [model.witnesses] shows: {_capped_ids(shown, 8)}."
+    elif shown is not None:
+        form = ("[model.witnesses] shows no candidate for this area, so no "
+                "statement can cite a witness. Write the constraint with no "
+                "party, behaviour or witness.")
+    if not witness:
+        raise ValueError(f"a stated commitment cites the witness line it rests "
+                         f"on, and this one names none. {form}")
+    if not party or not behaviour:
+        raise ValueError(f"a stated commitment says who outside notices and what "
+                         f"must hold, and this one leaves one out. {form}")
+    row = ctx.conn.execute(
+        "SELECT id, kind, path, text FROM commitment_candidates WHERE id = ?",
+        (witness,)).fetchone()
+    if row is None or (shown is not None and witness not in shown):
+        raise ValueError(f"{witness!r} is not a candidate that [model.witnesses] "
+                         f"showed for this area. {form}")
+    placed = [r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM candidate_bindings WHERE witness_id = ? "
+        "AND rule != 'project_wide' ORDER BY path", (witness,))]
+    return {"id": witness, "key": witness_key(row["kind"], row["path"], row["text"]),
+            "path": row["path"], "party": party, "behaviour": behaviour,
+            "placed": placed}
+
+
 @op("model", "amend")
 def model_amend(ctx: Ctx, headline: str, text: str = "",
                 bindings: list[str] | None = None,
                 source_refs: list[str] | None = None,
+                party: str = "", behaviour: str = "", witness: str = "",
                 ) -> dict:
     """
     Write a constraint, and the grains it governs.
+
+    With `party`, `behaviour` and `witness`, the row is a stated outside
+    commitment (frame 362, pass 2). The witness is a candidate id from
+    `[model.witnesses]`. The door stores the line-free `harvest.witness_key`,
+    so the tie survives an edit above the line.
 
     The id derives from the headline, so writing the same commitment twice amends
     it. It used to be the role's to invent, and on the first foreign repository
@@ -3823,6 +4003,11 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         raise ValueError(
             f"{headline!r} is a label, not a headline. Say what is promised, "
             f"in the words the source uses at the place it is kept.")
+    # A stated commitment cites a witness line, or the door refuses it
+    # (frame 362, pass 2). Checked first, so the seat sees the full form.
+    stated = _stated_commitment(ctx, headline, party, behaviour, witness)
+    if stated and not (text or "").strip():
+        text = f"{stated['party']} rely on this: {stated['behaviour']}"
     # A name with its kind is an inventory row, not a promise. A survey wrote
     # eleven of them, one per public name, "total_of function" among them
     # (ruled: Roman, 2026-09-24 21:20, the survey desk gets this guard).
@@ -3875,12 +4060,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     # "the manifest.json file" as WHO BREAKS: the 14B Architect's root-area
     # pass wrote twelve of those around the one real commitment. Code, logic
     # and files of this repository are inside, however they are named.
-    inside = re.search(r"\b(maintainers?|developers?|other parts of the code"
-                       r"(?:base)?|the codebase|the build|test suite|the tests|"
-                       r"this (?:function|constant|type|class|component|file|"
-                       r"module)|the code inside|internal(?:ly)?|"
-                       r"the program'?s? (?:own )?(?:logic|code)|hardcoded in|"
-                       r"the [\w./-]+\.\w+ file)\b", saying)
+    inside = re.search(_INSIDE_PARTY, saying)
     outside = re.search(r"\b(users?|registry|obsidian|vault|notes?|another plugin|"
                         r"other plugin|external|api|npm|github|community|client|"
                         r"consumer|caller outside|downstream)\b", saying)
@@ -3891,6 +4071,10 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     disguised = re.search(r"who (?:import|imports|extend|extends|call|calls|"
                           r"use|uses|reference|references)\b|the import of\b",
                           saying)
+    # A stated party is the answer to "who outside", unless the party is
+    # itself an inside one.
+    if stated and not re.search(_INSIDE_PARTY, stated["party"].lower()):
+        outside = True
     if (inside and not outside) or disguised:
         # The last green survey wrote "Code that calls ..." in text. The
         # refusal names that form, so the seat does not guess a second time.
@@ -4038,7 +4222,11 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     # constraint by accident (the survey spike, 2026-09-15: qwen3:8b bound
     # every constraint it wrote, at file grain, under both wordings).
     surveyed = ctx.area or next((r for r in (ctx.wake_refs or ()) if "/" in str(r) and not str(r).startswith("@")), None)
-    if surveyed and not bindings:
+    # A stated commitment with no bindings of its own takes the candidate's
+    # placed bindings, as the deep dive's section 7 says. The harvest placed
+    # them from the tree, so no read check applies to them.
+    placed = stated["placed"] if stated and not bindings else []
+    if surveyed and not bindings and not placed:
         raise ValueError(
             f"a constraint from the survey of {surveyed} binds the grain that "
             f"keeps it: bindings=['{surveyed}/<file>.py::<name>'], a path "
@@ -4093,9 +4281,14 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"is not to write it.")
 
     id = slug[:120]
-    ctx.writes.append(("constraints", id, {
-        "headline": headline, "text": text,
-        "is_global": 0 if bindings else 1}))
+    values = {"headline": headline, "text": text,
+              "is_global": 0 if (bindings or placed) else 1}
+    if stated:
+        # Only a statement writes the three columns, so an amend without
+        # one keeps a party that an earlier statement wrote.
+        values.update(party=stated["party"], behaviour=stated["behaviour"],
+                      witness=stated["key"])
+    ctx.writes.append(("constraints", id, values))
     # The kind comes from the index row, so a future `table` row there is
     # stamped `table` with no change here. Every binding stamped `path` made
     # a table bind nothing (observed: frame 90's third diff review,
@@ -4115,7 +4308,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         kinds.setdefault(_fold(r["grain"]), "symbol"
                          if r["grain_kind"] in _BINDING_KINDS else r["grain_kind"])
         raw.setdefault(_fold(r["grain"]), r["grain"])
-    for grain in map(_fold, bindings or []):
+    for grain in map(_fold, list(bindings or []) + placed):
         # A symbol the indexer never emitted still passed the read check on
         # its file. With no index, a binding is a file the session read.
         kind = kinds.get(grain, "symbol" if "::" in grain else "path")
@@ -4126,11 +4319,18 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     # onboarding wake read.
     for ref in cited:
         stage_ref(ctx, "constraints", id, "reference", ref)
+    # The witness path is a grain the harvest read, so a statement rests on
+    # an observed line on every kind of wake (the deep dive, section 7).
+    if stated:
+        stage_ref(ctx, "constraints", id, "grain", stated["path"])
     stage_grain_refs(ctx, "constraints", id)
     # And the statements a delivery wake names, as `glossary.amend` does.
     for ref in named_statements(ctx):
         stage_ref(ctx, "constraints", id, "statement", ref)
-    out = {"id": id, "bindings": bindings or [], "source_refs": cited}
+    out = {"id": id, "bindings": list(bindings or []) + placed,
+           "source_refs": cited}
+    if stated:
+        out["witness"] = stated["id"]
     if dropped:
         out["not_cited"] = (
             f"{', '.join(dropped)} is not a reference on file, so the constraint "

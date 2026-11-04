@@ -239,13 +239,28 @@ CREATE TABLE IF NOT EXISTS business_rules (
 -- structural-review trigger and binding-filtered index reads.
 -- ---------------------------------------------------------------------------
 
+-- `party`, `behaviour` and `witness` hold a stated outside commitment
+-- (frame 362, pass 2, section 7 of the deep dive of 2026-11-03). Only the
+-- Architect writes the three columns, through `model.amend`. The harvester
+-- writes the candidate and never these columns (law 1). `party` names who
+-- outside notices, and `behaviour` says what must hold. An empty `party`
+-- marks a row that is not an outside commitment.
+--
+-- The tie to the candidate is `harvest.witness_key`: the kind, the path and
+-- the copied text, with no line. The candidate id holds the line, so an
+-- edit above the witness gives it a new id (the review, low 8). The key
+-- survives that edit, and `harvest.witnessed` finds the current row.
+
 CREATE TABLE IF NOT EXISTS constraints (
     id                   TEXT PRIMARY KEY,
     headline             TEXT NOT NULL,     -- the index row
     text                 TEXT,              -- fetched singly
     rationale_decision   TEXT REFERENCES decisions(id),
     is_global            INTEGER NOT NULL DEFAULT 0,
-    version              INTEGER NOT NULL DEFAULT 1
+    version              INTEGER NOT NULL DEFAULT 1,
+    party                TEXT NOT NULL DEFAULT '',
+    behaviour            TEXT NOT NULL DEFAULT '',
+    witness              TEXT NOT NULL DEFAULT ''
 );
 
 -- Bindings are rows, not a JSON blob: the structural trigger is a join.
