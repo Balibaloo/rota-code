@@ -257,10 +257,20 @@ class Tree:
         aliases: dict[str, str] = {}
         module = self.tree(rel)
         if module is not None:
-            for node in module.body:
+            # The index holds a definition under a module-level `if` or `try`,
+            # as click's `if WIN:` blocks. The resolver reads the same set, so
+            # `code_calls` and the copies query agree (review of S1, medium 2).
+            todo = list(module.body)
+            while todo:
+                node = todo.pop()
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                                      ast.ClassDef)):
                     defs.add(node.name)
+                elif isinstance(node, ast.If):
+                    todo += node.body + node.orelse
+                elif isinstance(node, ast.Try):
+                    todo += node.body + node.orelse + node.finalbody
+                    todo += [s for h in node.handlers for s in h.body]
             for node in ast.walk(module):
                 if isinstance(node, ast.ImportFrom):
                     base = self.absolute(rel, node.module, node.level)
@@ -304,12 +314,34 @@ class Tree:
             return set()
         defs, froms, aliases = self._imports(rel)
         mods = self.modules()
+        # A `from` import inside a function binds the name in that function
+        # only, so a call there reads it first. click's `termui.raw_terminal`
+        # calls the work through such an import (review of S1, medium 2 and
+        # low 4). The walk visits an outer function first, so the innermost
+        # scope wins.
+        scoped: dict[int, dict] = {}
+        for fn in ast.walk(module):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            scope = {a.asname or a.name: (mods.get(self.absolute(
+                rel, n.module, n.level)), a.name) for n in ast.walk(fn)
+                if isinstance(n, ast.ImportFrom) for a in n.names}
+            if scope:
+                scoped.update({id(c): scope for c in ast.walk(fn)
+                               if isinstance(c, ast.Call)})
         out: set[tuple[str, str]] = set()
         for node in ast.walk(module):
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
             if isinstance(func, ast.Name):
+                local = scoped.get(id(node), {})
+                if func.id in local:
+                    path, name = local[func.id]
+                    got = self.definer(path, name)
+                    if got:
+                        out.add((got, name))
+                    continue
                 # A name the file defines is its own, as Python reads it.
                 if func.id in froms and func.id not in defs:
                     path, name = froms[func.id]

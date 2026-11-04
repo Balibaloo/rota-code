@@ -5,6 +5,8 @@ The request is `item` in your working set. `code.probe` and
 once for the item.
 In a `code.callables` row, `copies` names the other files that define
 the same name, and `entry_point` says why a program run starts there.
+When a row has `copies`, name the copy whose file has an `entry_point`,
+or name both copies.
 
 Paths always. Symbols only where you are confident. A test path is one
 of `the index's test files`, or a new test file.

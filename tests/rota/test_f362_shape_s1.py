@@ -176,6 +176,42 @@ def test_the_guess_prompt_says_what_the_fields_mean():
     assert "`copies`" in text and "`entry_point`" in text
 
 
+def test_the_guess_prompt_says_which_copy_to_name():
+    """Review of S1, medium 1: the sentence gives a step, not only a meaning."""
+    text = (Path(__file__).resolve().parents[2] / "rota" / "roles" / "prompts"
+            / "architect" / "guess.md").read_text(encoding="utf-8")
+    assert ("When a row has `copies`, name the copy whose file has an "
+            "`entry_point`,\nor name both copies.") in text
+
+
+GUARDED = {
+    "pkg/__init__.py": "",
+    "pkg/impl.py": ("import sys\n\nif sys.platform == 'win32':\n"
+                    "    def raw():\n        return 1\nelse:\n"
+                    "    def raw():\n        return 2\n\n"
+                    "try:\n    def fast():\n        return 3\n"
+                    "except ImportError:\n    pass\n"),
+    "pkg/ui.py": ("from .impl import fast\n\n\ndef raw():\n"
+                  "    from .impl import raw as f\n    return f()\n\n\n"
+                  "def go():\n    return fast()\n"),
+    "pkg/sub/__init__.py": "from ..core import helper\n",
+    "pkg/core.py": "def helper():\n    return 0\n",
+}
+
+
+def test_a_call_reaches_a_definition_under_a_module_if_or_try(tmp_path):
+    """Review of S1, medium 2: the resolver reads the definitions that the
+    index holds, and a function-local import binds its own function."""
+    root = _tree(tmp_path / "t", GUARDED)
+    db = init_db(tmp_path / "run.db")
+    indexer.build(db, root)
+    assert {("pkg/ui.py", "pkg/impl.py::raw"),
+            ("pkg/ui.py", "pkg/impl.py::fast")} <= _calls(db)
+    # Review of S1, low 7: a two-dot relative re-export binds its target.
+    assert harvest._reexported(harvest.Tree(root), "pkg/sub/__init__.py") == {
+        "pkg/core.py"}
+
+
 # --- the pinned counts ------------------------------------------------------------
 
 SAMPLES = Path("D:/repos/_AI/sample_repos")
@@ -184,11 +220,13 @@ SAMPLES = Path("D:/repos/_AI/sample_repos")
 # helper columns are the resolved cross-file targets and those that two or
 # more files call, program files only. The click copies are 4, not the
 # design's 1: the index holds the defs under a module `if WIN:` block, and the
-# probe read the module body only.
+# probe read the module body only. Pass S3 resolves the definitions under
+# that block and the function-local imports, so click has 56 targets, not
+# the design's 54: `raw_terminal` and `get_pager_file` of `_termui_impl.py`.
 PINS = {
     "tipsI": ("ff1f65f", 0, 0, {"calculate_tip": ["main.py", "tip_calculator.py"],
                                 "display_results": ["main.py", "tip_calculator.py"]}),
-    "clickI": ("09c82f3", 54, 13, {
+    "clickI": ("09c82f3", 56, 13, {
         "_get_windows_console_stream": ["src/click/_compat.py",
                                         "src/click/_winconsole.py"],
         "get_pager_file": ["src/click/_termui_impl.py", "src/click/termui.py"],
@@ -228,3 +266,10 @@ def test_the_counts_on_the_pinned_trees(repo, tmp_path):
     assert len(callers) == targets
     assert sum(len(v) >= 2 for v in callers.values()) == shared
     assert shape.copies(db) == copies
+    # The resolver sees each copy that the index holds (review of S1, medium 2).
+    tree = harvest.Tree(root)
+    assert all(tree.definer(p, name) == p for name, ps in copies.items() for p in ps)
+    if repo == "clickI":
+        assert {("src/click/termui.py", "src/click/_termui_impl.py::raw_terminal"),
+                ("src/click/termui.py", "src/click/_termui_impl.py::get_pager_file")
+                } <= _calls(db)
