@@ -5278,7 +5278,6 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
     A `root` of None reads the project root for the `__main__` guards."""
     from ..core.worktrees import WorktreeError, project_root
     from ..onboarding import shape
-    from ..onboarding.areas import is_test
 
     words = set()
     for token in (text or "").split():
@@ -5334,11 +5333,14 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
         for key in ("copies", "entry_point"):
             if key in r:
                 row[key] = r[key]
-        callers = calls.get(grain, [])
-        if [p for p in callers if not is_test(p)]:
-            row["callers"] = [p for p in callers if not is_test(p)]
-        if [p for p in callers if is_test(p)]:
-            row["test_callers"] = [p for p in callers if is_test(p)]
+        # F9 and frame 324 (ruled: Roman, 2026-10-26 20:37): a door reads the
+        # test partition through `_is_test_file`, so the frame's kind decides.
+        tested = [p for p in calls.get(grain, []) if _is_test_file(conn, p)]
+        program = [p for p in calls.get(grain, []) if p not in tested]
+        if program:
+            row["callers"] = program
+        if tested:
+            row["test_callers"] = tested
         by, bound = public.get(stem, (set(), set()))
         # The `exports` rule binds the file that `__all__` re-exports from.
         # Of two copies, only the bound copy is the public one.

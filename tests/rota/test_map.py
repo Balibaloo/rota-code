@@ -141,8 +141,9 @@ def test_every_op_of_the_graph_joins_a_function(index):
     pairs = map_tool.op_table()
     # 92 with `batches.guess` (frame 298, pass 1). 93 with
     # `criteria.retire` (frame 306, pass 1b). 94 with `tests.retire`
-    # (frame 306, W-A). 95 with `model.witnesses` (frame 362, pass 2).
-    assert len(pairs) == 95
+    # (frame 306, W-A). 95 with `model.witnesses` (frame 362, pass 2). 96
+    # with `model.shape` (frame 362, shape pass S5).
+    assert len(pairs) == 96
     joined = map_tool.ops(index)
     assert set(pairs) == set(joined)
     # The five `cite` ops register in a loop with no decorator.
