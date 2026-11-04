@@ -73,8 +73,11 @@ def _constraints(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def _areas(conn: sqlite3.Connection) -> dict[str, str]:
+    # A commitments record shares the area of the survey, and its outcome
+    # overwrote the survey's (the review of pass 4b, low 3).
     return {r["area"]: r["outcome"] for r in conn.execute(
-        "SELECT area, outcome FROM survey_records ORDER BY area")}
+        "SELECT area, outcome FROM survey_records "
+        "WHERE id NOT LIKE 'commitments:%' ORDER BY area")}
 
 
 def _briefs(conn: sqlite3.Connection) -> set[str]:

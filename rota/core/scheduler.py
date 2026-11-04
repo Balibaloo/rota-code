@@ -656,12 +656,16 @@ REORIENT = "@reorient"
 CLAIM_PREFIX = "@claim:"
 BLINDSPOTS = "@blindspots"
 SURFACE_PREFIX = "@surface:"
+# The subject of the one commitments session for the project-wide witness
+# lines. The harvester binds such a line to the whole project, so no area
+# owns it (the review of pass 4b, high 1).
+PROJECT_WIDE = "@project-wide"
 # The whole set, for the ref door: a `@` ref is legal when it names an area
 # this run declared, and these are the subjects that are not directories.
 # `@surface:` belongs here, and was missed: `_boundary_wakes` wakes the
 # Architect on one, so the boundary session could ref its own subject and no
 # other session could name it (the diff review of 8ebbae1).
-PSEUDO_AREAS = (PROGRAM, PROSE, FRAME, REORIENT, BLINDSPOTS)
+PSEUDO_AREAS = (PROGRAM, PROSE, FRAME, REORIENT, BLINDSPOTS, PROJECT_WIDE)
 PSEUDO_AREA_PREFIXES = (TERM_PREFIX, CLAIM_PREFIX, SURFACE_PREFIX)
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
                     "tick:define", "tick:survey", "tick:commitments",
@@ -1153,6 +1157,18 @@ def _commitment_wakes(conn: sqlite3.Connection) -> list[Wake]:
         if fresh(done) or not witness_push(conn, area)[1]:
             continue
         out.append(Wake("architect", "tick:commitments", refs=(area,)))
+    # A project-wide line is stated once, in a session with no code area.
+    # The area sessions bound it to their own files, up to 422 rows for one
+    # line on icalendar, where the harvester binds 84 (the review of pass
+    # 4b, high 1). The wake needs a line that no statement covers.
+    if PROJECT_WIDE not in abandoned:
+        from ..roles.api import project_wide_witnesses
+
+        done = conn.execute("SELECT 1 FROM survey_records WHERE id = ?",
+                            (COMMITMENTS_PREFIX + PROJECT_WIDE,)).fetchone()
+        if not done and any(not w["stated"]
+                            for w in project_wide_witnesses(conn)):
+            out.append(Wake("architect", "tick:commitments", refs=(PROJECT_WIDE,)))
     return out
 
 

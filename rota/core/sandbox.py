@@ -167,13 +167,20 @@ ARG_HINTS_BY_OP: dict[tuple[str, str], dict[str, str]] = {
 }
 
 
-def _render_signature(fn: Callable) -> str:
+# The arguments that the survey mode's signature leaves out. The door still
+# takes them, so a recorded call keeps its answer (frame 362, pass 4c).
+SURVEY_HIDDEN = {"model.amend": ("party", "behaviour", "witness")}
+
+
+def _render_signature(fn: Callable, hidden: tuple[str, ...] = ()) -> str:
     import inspect
 
     params = []
     # A verb can show a slot in place of its default (frame 200, pass 5b).
     shown = getattr(fn, "__shown__", None) or {}
     for name, p in inspect.signature(fn).parameters.items():
+        if name in hidden:
+            continue
         if name in shown:
             params.append(f"{name}={shown[name]}")
         elif p.default is inspect.Parameter.empty:
@@ -515,10 +522,16 @@ class Sandbox:
         from what is actually callable.
         """
         out = []
+        # The survey asks for surfaces, and the commitments mode states the
+        # witness lines. The cold load filled `party`, `behaviour` and
+        # `witness` on survey calls, and the three changed the survey's system
+        # text from the green one (the review of pass 4b, points 4 and 5).
+        hide = (SURVEY_HIDDEN if self.ctx is not None
+                and api._wake_mode_key(self.ctx) == "survey" else {})
         for name in self.functions():
             artefact, fn = name.split(".", 1)
             impl = getattr(self[artefact], fn)
-            out.append(f"{name}({_render_signature(impl)})")
+            out.append(f"{name}({_render_signature(impl, hide.get(name, ()))})")
         return out
 
     def begin_reply(self) -> None:

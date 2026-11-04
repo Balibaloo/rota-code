@@ -1113,9 +1113,14 @@ def survey(sc: Scene, bind: bool = False) -> None:
     # The witness lines of an area get their own session after its survey
     # (frame 362, pass 4b). The scene states none of them.
     def no_statement(sc: Scene, wake: Wake) -> list[str]:
-        grain = sc.conn.execute(
+        # The project-wide session has no code area, so it cites the first
+        # path of the index.
+        row = sc.conn.execute(
             "SELECT grain FROM code_index WHERE area = ? AND grain_kind = 'path' "
-            "ORDER BY grain", (wake.refs[0],)).fetchone()["grain"]
+            "ORDER BY grain", (wake.refs[0],)).fetchone() or sc.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "ORDER BY grain").fetchone()
+        grain = row["grain"]
         return [f"TOOL: surveys.attest(outcome='none_found', citations=[{grain!r}])"]
     every(sc, "architect|tick:commitments", no_statement)
     play(sc, lambda conn: scheduler.onboarding_phase(conn) == "done")

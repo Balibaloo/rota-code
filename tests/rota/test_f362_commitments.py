@@ -180,11 +180,11 @@ def test_an_area_with_no_candidate_gets_no_block(tree):
 
 
 def test_the_push_cap_cuts_and_says_so(tree):
-    """60 long project-wide rows and 10 own-file rows on one area. The cut
+    """60 long dependency rows and 10 own-file rows on one area. The cut
     keeps every own-file row and counts the rest in one line."""
     _, db = tree
     for i in range(70):
-        rule = "witness_file" if i < 10 else "project_wide"
+        rule = "witness_file" if i < 10 else "dependency"
         cid = f"cc_{i:012x}"
         db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
                    "VALUES (?, 'doc_claim', 'docs/x.rst', ?, ?)",
@@ -199,10 +199,10 @@ def test_the_push_cap_cuts_and_says_so(tree):
     assert cut > 0
     assert text.splitlines()[-1] == (
         f"{cut} more candidates were cut to fit this push. The cut takes the "
-        f"project-wide candidates first.")
+        f"candidates of the last rule first.")
     rules = [w["rule"] for w in kept]
     # Ten rows and the harvest's own row keep the own-file rule, and the
-    # export goes before any project-wide row.
+    # export goes before any dependency row.
     assert rules.count("witness_file") == 11
     assert "exports" in rules
     assert rules == sorted(rules, key=api.WITNESS_RANK.index)
@@ -561,33 +561,21 @@ def test_a_statement_on_a_wake_with_no_area_is_refused(tree):
     assert not sb.ctx.writes
 
 
-def test_a_project_wide_only_witness_needs_a_binding(tree):
-    """A project-wide candidate has no placed file. With no binding from the
-    seat the door refuses with the form, so the row never lands global."""
+def test_a_project_wide_line_is_not_in_the_push_of_an_area(tree):
+    """The review of pass 4b, high 1. The one PROJECT_WIDE session states a
+    project-wide line, so an area's push leaves it out and its door refuses
+    the line as one the push did not show."""
     _, db = tree
-    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
-               "VALUES ('cc_0000000000bb', 'metadata', 'pyproject.toml', 3, "
-               "'requires-python = \">=3.10\"')")
-    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
-               "('cc_0000000000bb', 'src/pkg/fold.py', 'project_wide')")
-    db.commit()
-    kwargs = dict(headline="pyproject.toml line 3",
-                  text="Installers outside read the Python floor.",
-                  party="installers", behaviour="Python 3.10 or later",
-                  witness="cc_0000000000bb")
+    _project_wide(db)
+    ids = [w["id"] for w in api.witness_push(db, "src/pkg")[0]]
+    assert "cc_0000000000bb" not in ids and ids
     _, sb = _survey(db)
-    with pytest.raises(ValueError) as got:
-        sb.call("model.amend", **kwargs)
-    msg = str(got.value)
-    assert "binds no file of its own" in msg
-    assert 'bindings=["<a path of src/pkg that you opened>"]' in msg
+    with pytest.raises(ValueError, match="is not a candidate that"):
+        sb.call("model.amend", headline="pyproject.toml line 3",
+                text="Installers outside read the Python floor.",
+                party="installers", behaviour="Python 3.10 or later",
+                witness="cc_0000000000bb")
     assert not sb.ctx.writes
-    _, sb = _survey(db)
-    sb.ctx.opened = {"src/pkg/fold.py"}
-    out = sb.call("model.amend", bindings=["src/pkg/fold.py"], **kwargs)
-    assert out["bindings"] == ["src/pkg/fold.py"]
-    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
-    assert values["is_global"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -746,26 +734,81 @@ def test_the_mode_states_a_line_from_the_three_arguments(tree):
     assert values["is_global"] == 0
 
 
-def test_the_mode_binds_a_project_wide_line_to_the_area(tree):
-    """A project-wide line needs no bindings from this mode. The survey's
-    other modes keep the bindings guard."""
-    _, db = tree
+def _project_wide(db):
+    """One project-wide line, which the harvester binds to two source files
+    of two areas and to no test or data file."""
     db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
                "VALUES ('cc_0000000000bb', 'metadata', 'pyproject.toml', 3, "
                "'requires-python = \">=3.10\"')")
-    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
-               "('cc_0000000000bb', 'src/pkg/fold.py', 'project_wide')")
+    for path in ("src/pkg/fold.py", "src/other/thing.py"):
+        db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) "
+                   "VALUES ('cc_0000000000bb', ?, 'project_wide')", (path,))
     db.commit()
-    _, sb = _commitments(db)
+
+
+def test_one_session_states_the_project_wide_lines(tree):
+    """The review of pass 4b, high 1. The PROJECT_WIDE wake comes while a
+    project-wide line has no statement, and its push holds that line only."""
+    from rota.core.scheduler import (COMMITMENTS_PREFIX, PROJECT_WIDE,
+                                     _commitment_wakes)
+
+    _, db = tree
+    assert _commitment_wakes(db) == []
+    _project_wide(db)
+    assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
+    kept, text = api.witness_push(db, PROJECT_WIDE)
+    assert [w["id"] for w in kept] == ["cc_0000000000bb"]
+    assert text.startswith("The harvest found 1 witness lines that bind the whole project.")
+    _surveyed(db, PROJECT_WIDE, prefix=COMMITMENTS_PREFIX)
+    assert _commitment_wakes(db) == []
+
+
+def test_the_root_binds_the_harvester_rows_of_a_project_wide_line(tree):
+    """The statement binds the two files the harvester bound, not the files
+    of an area. A stated line wakes no PROJECT_WIDE session again."""
+    from rota.core.scheduler import PROJECT_WIDE, _commitment_wakes
+
+    _, db = tree
+    _project_wide(db)
+    _, sb = _commitments(db, PROJECT_WIDE)
     out = sb.call("model.amend", witness="cc_0000000000bb",
                   party="installers", behaviour="Python 3.10 or later")
-    assert sorted(out["bindings"]) == ["src/pkg/__init__.py", "src/pkg/fold.py"]
-    _, sb = _survey(db)
-    with pytest.raises(ValueError, match="binds no file of its own"):
-        sb.call("model.amend", headline="pyproject.toml line 3",
-                text="Installers outside read the Python floor.",
-                party="installers", behaviour="Python 3.10 or later",
-                witness="cc_0000000000bb")
+    assert sorted(out["bindings"]) == ["src/other/thing.py", "src/pkg/fold.py"]
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["headline"] == "pyproject.toml: Python 3.10 or later"
+    assert values["is_global"] == 0
+    _land(db, sb)
+    assert _commitment_wakes(db) == []
+
+
+@pytest.mark.parametrize("mode", ["commitments", "survey"])
+def test_a_decided_row_that_contradicts_the_statement_is_its_twin(tree, mode):
+    """The review of pass 4b, medium 1, probe 3. A row with no witness and
+    a `path: words` headline is a decided promise, not a survey surface.
+    The guard refuses "at most 75 octets" against "at most 80" in both
+    modes. A `path::symbol` surface of the same file is skipped."""
+    _, db = tree
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES ('k_other', "
+               "'src/pkg/fold.py: a folded line holds at most 80 octets', "
+               "'Other calendar programs read folded lines.')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
+               "VALUES ('k_other', 'src/pkg/fold.py', 'path')")
+    db.commit()
+    nd = _id(db, "numeric_default")
+    kw = dict(witness=nd, party="other calendar programs",
+              behaviour="a folded line holds at most 75 octets")
+    if mode == "commitments":
+        _, sb = _commitments(db)
+    else:
+        _, sb = _survey(db)
+        kw.update(headline="src/pkg/fold.py: a folded line holds at most 75 octets",
+                  text="Other calendar programs read the folded lines.")
+    with pytest.raises(ValueError, match="k_other already governs this subject"):
+        sb.call("model.amend", **kw)
+    db.execute("UPDATE constraints SET headline = 'src/pkg/fold.py::fold folded "
+               "line octets' WHERE id = 'k_other'")
+    db.commit()
+    assert sb.call("model.amend", **kw)["witness"] == nd
 
 
 def test_the_mode_refuses_a_call_with_no_witness_or_an_unknown_one(tree):
@@ -800,3 +843,60 @@ def test_the_mode_attests_its_own_record(tree):
     assert out["id"] == COMMITMENTS_PREFIX + "src/pkg"
     assert [i for t, i, _ in sb.ctx.writes if t == "survey_records"] == [
         COMMITMENTS_PREFIX + "src/pkg"]
+
+
+# ---------------------------------------------------------------------------
+# Pass 4c: the review of the split
+# ---------------------------------------------------------------------------
+
+def test_the_survey_signature_hides_the_three_statement_arguments(tree):
+    """The review of pass 4b, points 4 and 5. The survey's system text held
+    the three arguments, and that was its only difference from the green
+    one. The commitments mode keeps them."""
+    _, db = tree
+    _, sb = _survey(db)
+    assert "model.amend(headline, text='', bindings=None, source_refs=None)" \
+        in sb.signatures()
+    _, sb = _commitments(db)
+    assert any("party=''" in s for s in sb.signatures()
+               if s.startswith("model.amend("))
+
+
+def test_a_commitments_record_is_no_role_survey(tree):
+    """The review of pass 4b, low 3. Neither reader takes the record."""
+    from rota.compare import _areas
+    from rota.core.scheduler import COMMITMENTS_PREFIX
+
+    _, db = tree
+    db.execute("INSERT INTO survey_records (id, area, outcome, area_hash) "
+               "VALUES ('architect:src/pkg', 'src/pkg', 'found', '')")
+    db.execute("INSERT INTO survey_records (id, area, outcome, area_hash) "
+               "VALUES (?, 'src/pkg', 'none_found', '')",
+               (COMMITMENTS_PREFIX + "src/pkg",))
+    db.commit()
+    assert _areas(db) == {"src/pkg": "found"}
+    _, sb = _survey(db)
+    rows = sb.call("surveys.consult")
+    assert rows == [{"area": "src/pkg", "surveyed_by": ["architect"]}]
+
+
+def test_the_witness_key_counts_the_lines_stated_and_the_refusals(tree):
+    """The review of pass 4b, low 2. One of two lines stated is a miss, and
+    so is a refused amend."""
+    from rota.testkit.fixtures import _witnesses_stated
+
+    _, db = tree
+    case = {"expect": {"witnesses": {"stated": "all", "refused": 0}}}
+    wake, sb = _commitments(db)
+    sb.call("model.amend", witness=_id(db, "numeric_default"),
+            party="other calendar programs",
+            behaviour="a folded line holds at most 75 octets")
+    _land(db, sb)
+    got = _witnesses_stated(case, db, wake, {"model.amend": 1})
+    assert got[0].startswith("stated 1 of the 2 pushed witness lines")
+    assert got[1] == "1 model.amend calls were refused, and the key allows 0"
+    _, sb = _commitments(db)
+    sb.call("model.amend", witness=_id(db, "export"),
+            party="importers of the package", behaviour="fold is exported")
+    _land(db, sb)
+    assert _witnesses_stated(case, db, wake, {}) == []

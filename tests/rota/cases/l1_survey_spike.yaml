@@ -148,6 +148,7 @@
     writes:
       survey_records: {count: 1}
       constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+    witnesses: {stated: all, refused: 0}
   forbidden:
     writes: [glossary_terms, items, criteria, model_areas]
 
@@ -166,6 +167,7 @@
     writes:
       survey_records: {count: 1}
       constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+    witnesses: {stated: all, refused: 0}
   forbidden:
     writes: [glossary_terms, items, criteria, model_areas]
 
@@ -184,6 +186,7 @@
     writes:
       survey_records: {count: 1}
       constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+    witnesses: {stated: all, refused: 0}
   forbidden:
     writes: [glossary_terms, items, criteria, model_areas]
 
@@ -202,5 +205,6 @@
     writes:
       survey_records: {count: 1}
       constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+    witnesses: {stated: all, refused: 0}
   forbidden:
     writes: [glossary_terms, items, criteria, model_areas]

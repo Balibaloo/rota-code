@@ -3860,23 +3860,41 @@ def area_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
     deep dive's section 7 says: a line of source defeats it. A candidate
     that a constraint states already names that constraint in `stated`.
     `stated_commitments` decides both."""
-    from ..onboarding.harvest import witness_key
+    from ..core.scheduler import PROJECT_WIDE
 
+    if area == PROJECT_WIDE:
+        return project_wide_witnesses(conn)
     files = sorted(_area_files(conn, area))
     if not files:
         return []
+    marks = ", ".join("?" for _ in files)
+    # A project-wide line goes to the one session of PROJECT_WIDE, so an
+    # area pushes its placed lines only (the review of pass 4b, high 1).
+    return _witness_rows(conn, f"b.path IN ({marks}) AND b.rule != 'project_wide'",
+                         files)
+
+
+def project_wide_witnesses(conn: sqlite3.Connection) -> list[dict]:
+    """The candidates that the harvest bound to the whole project. One
+    session states them, and a statement binds the harvester's rows."""
+    return _witness_rows(conn, "b.rule = 'project_wide'", [])
+
+
+def _witness_rows(conn: sqlite3.Connection, where: str, params: list) -> list[dict]:
+    """The candidates whose bindings match `where`, in the order of the cut."""
+    from ..onboarding.harvest import witness_key
+
     rows_c, dropped = stated_commitments(conn)
     falsified = set(dropped.values())
     stated: dict[str, str] = {}
     for c in rows_c:
         stated.setdefault(c["witness"], c["id"])
-    marks = ", ".join("?" for _ in files)
     rows: dict[str, dict] = {}
     for r in conn.execute(
             "SELECT c.id, c.kind, c.path, c.line, c.text, c.contradicts, b.rule "
             "FROM commitment_candidates c JOIN candidate_bindings b "
-            f"ON b.witness_id = c.id WHERE b.path IN ({marks}) "
-            "ORDER BY c.path, c.line, c.id", files):
+            f"ON b.witness_id = c.id WHERE {where} "
+            "ORDER BY c.path, c.line, c.id", params):
         key = witness_key(r["kind"], r["path"], r["text"])
         if r["id"] in rows or key in falsified:
             continue
@@ -3935,7 +3953,11 @@ def witness_push(conn: sqlite3.Connection, area: str,
         other = {r["id"]: r for r in conn.execute(
             "SELECT id, path, line, text FROM commitment_candidates "
             f"WHERE id IN ({marks})", ids)}
-    head = f"The harvest found {len(rows)} witness lines bound to the files of {area}."
+    from ..core.scheduler import PROJECT_WIDE
+
+    head = (f"The harvest found {len(rows)} witness lines that bind the whole project."
+            if area == PROJECT_WIDE else
+            f"The harvest found {len(rows)} witness lines bound to the files of {area}.")
     lines, kept = [head], []
     # A broken tie goes first, so the cut never takes it.
     for c in lost:
@@ -3971,8 +3993,10 @@ def witness_push(conn: sqlite3.Connection, area: str,
         size += cost
     cut = len(rows) - len(kept)
     if cut:
+        # An area push holds no project-wide line now, so the cut names the
+        # rank it follows (the review of pass 4b, high 1).
         lines.append(f"{cut} more candidates were cut to fit this push. The cut "
-                     f"takes the project-wide candidates first.")
+                     f"takes the candidates of the last rule first.")
     return kept, "\n".join(lines)
 
 
@@ -4053,16 +4077,21 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     # 5545 line binds 49 files over 8 areas, and ruling 3 makes each of them
     # a merge stop (the review of pass 3, high 1). A statement of the same
     # line in another area adds that area's files to the same row.
+    from ..core.scheduler import PROJECT_WIDE
+
     area_files = _area_files(ctx.conn, ctx.area)
     placed = [r["path"] for r in ctx.conn.execute(
         "SELECT path FROM candidate_bindings WHERE witness_id = ? "
         "AND rule != 'project_wide' ORDER BY path", (witness,))
         if r["path"] in area_files]
-    if not placed and not bindings and mine:
-        # The commitments mode never asks for bindings. A project-wide line
-        # binds the files of the surveyed area, as pass 3b binds a placed
-        # line inside the area only (frame 362, pass 4b).
-        placed = sorted(area_files)
+    if ctx.area == PROJECT_WIDE:
+        # The harvester decided the reach of a project-wide line: its source
+        # files, with no test and no data file. An area's file list is wider,
+        # and the push cut decided which areas it held (the review of pass
+        # 4b, high 1).
+        placed = [r["path"] for r in ctx.conn.execute(
+            "SELECT path FROM candidate_bindings WHERE witness_id = ? "
+            "AND rule = 'project_wide' ORDER BY path", (witness,))]
     if not placed and not bindings:
         # The harvest bound the line project-wide, so no file of its own keeps
         # it. A statement with no binding would land global.
@@ -4311,10 +4340,15 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         if (stated and row["witness"] and row["witness"] != stated["key"]
                 and row["witness"] in live):
             continue
-        # In the commitments mode a surface of the survey is a different
-        # kind of row. Its subject words do not make a statement its twin
-        # (frame 362, pass 4b).
-        if stated and _wake_mode_key(ctx) == "commitments" and not row["witness"]:
+        # A survey surface, `<path>::<symbol>` with no witness, shares the
+        # path words of a statement on a line of the same file. It is a
+        # different kind of row, so only it is skipped. A decided or stated
+        # row with other words still meets the guard: "at most 80 octets"
+        # against "at most 75" is a contradiction (the review of pass 4b,
+        # medium 1).
+        if (stated and not row["witness"] and "::" in row["headline"]
+                and row["headline"].split("::", 1)[0].strip()
+                in {stated["path"], *stated["placed"]}):
             continue
         shared = mine & _stems(row["headline"])
         if len(shared) >= 2 and stated and row["witness"]:
@@ -5431,7 +5465,11 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # was refused three times on an existing repo and the run was
     # quarantined at the frame (tipsK, 2026-09-09).
     from ..core.scheduler import FRAME as _FRAME_AREA
-    if inside and not read and getattr(ctx, "area", None) != _FRAME_AREA:
+    from ..core.scheduler import PROJECT_WIDE as _PW_AREA
+    # The project-wide session reads its lines in the push, which quotes
+    # each one, so a cited file needs no open (frame 362, pass 4c).
+    if (inside and not read
+            and getattr(ctx, "area", None) not in (_FRAME_AREA, _PW_AREA)):
         raise ValueError(
             f"you cited {inside[:3]} and opened none of them. `code.survey` "
             f"lists an area; it does not show you what is in it, so a term "
@@ -5646,7 +5684,10 @@ def surveys_consult(ctx: Ctx) -> list[dict]:
     """
     rows = _rows(ctx.conn.execute(
         "SELECT area, GROUP_CONCAT(SUBSTR(id, 1, INSTR(id, ':') - 1)) AS by_role "
-        "FROM survey_records GROUP BY area ORDER BY area"))
+        # A commitments record is no role's survey, so it names no role
+        # (the review of pass 4b, low 3).
+        "FROM survey_records WHERE id NOT LIKE 'commitments:%' "
+        "GROUP BY area ORDER BY area"))
     return [{"area": r["area"], "surveyed_by": sorted((r["by_role"] or "").split(",")),
              } for r in rows]
 
@@ -19127,6 +19168,13 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
     area = area or ctx.area
     if not area:
         return {"error": "no area"}
+    from ..core.scheduler import PROJECT_WIDE
+
+    if area == PROJECT_WIDE:
+        # The project-wide session has no source of its own. The push leaves
+        # the read out, because its note asked for `none_found` (frame 362,
+        # pass 4c).
+        return None
 
     # The area's own files, and the ones it imports.
     #

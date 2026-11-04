@@ -1550,6 +1550,36 @@ def _body_code(source: str, name: str) -> str | None:
     return "\n".join(ast.unparse(s) for s in body)
 
 
+def _witnesses_stated(case: dict, conn: sqlite3.Connection, wake,
+                      refused: dict[str, int]) -> list[str]:
+    """The key `witnesses: {stated: all, refused: 0}` of a commitments case.
+
+    A run that stated 1 of 5 pushed lines passed the row count, and the store
+    case passed 5 of 5 with 3 refused calls in each run (the review of pass
+    4b, low 2). So the key counts each pushed line that no row states, and
+    each refused `model.amend`."""
+    spec = (case.get("expect") or {}).get("witnesses")
+    if not isinstance(spec, dict):
+        return []
+    from ..roles.api import witness_push
+
+    problems = []
+    area = wake.refs[0] if wake.refs else ""
+    if spec.get("stated") == "all":
+        pushed = witness_push(conn, area)[0]
+        missing = [w["id"] for w in pushed if not w["stated"]]
+        if missing or not pushed:
+            problems.append(f"stated {len(pushed) - len(missing)} of the "
+                            f"{len(pushed)} pushed witness lines; no row states "
+                            f"{missing}")
+    cap = spec.get("refused")
+    got = refused.get("model.amend", 0)
+    if cap is not None and got > int(cap):
+        problems.append(f"{got} model.amend calls were refused, and the key "
+                        f"allows {cap}")
+    return problems
+
+
 def _write_includes(case: dict, conn: sqlite3.Connection,
                     batch_id: str | None) -> list[str]:
     """
@@ -1706,6 +1736,7 @@ def _case_result(case, conn, db_path, backend, outcome, wake, before, seeded,
     problems += _first_call(case, outcome, scripted)
     problems += _no_call(case, outcome, scripted)
     problems += _write_includes(case, conn, _batch_of(conn, wake))
+    problems += _witnesses_stated(case, conn, wake, refused)
 
     if repo is not None:
         from . import gitfixture
