@@ -5300,14 +5300,27 @@ def _callers_short(row: dict) -> dict:
 _SHAPE_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 
-def shape_idents(text: str) -> set[str]:
+def shape_idents(text: str, prose: bool = False) -> set[str]:
     """The identifiers of `text`, case kept, with each part of a dotted one.
 
     The whole-name tier of `shape_rows` reads these. Review of S5, low 4: a
     lowercased set kept `enums.py::VALUE` for the word "value" and the test
-    fixture `calendar` for `Calendar`."""
+    fixture `calendar` for `Calendar`. With `prose`, a token counts only when
+    it looks like an identifier: backticks, `_` or `.`, a capital after its
+    first letter, or a capital first letter inside a sentence. Measured on
+    dry run 5: the word "component" of Q2 kept seven test fixtures."""
     out: set[str] = set()
-    for token in _SHAPE_IDENT.findall(text or ""):
+    text = text or ""
+    for m in _SHAPE_IDENT.finditer(text):
+        token = m.group(0)
+        if prose:
+            before, after = text[:m.start()], text[m.end():m.end() + 1]
+            ticked = before.endswith("`") and after == "`"
+            inside = bool(before.strip()) and not re.search(r"[.?!]\s*$", before)
+            if not (ticked or "_" in token or "." in token
+                    or re.search(r"[A-Z]", token[1:])
+                    or (token[0].isupper() and inside)):
+                continue
         out.add(token)
         out.update(token.split("."))
     return out
@@ -5333,18 +5346,20 @@ def shape_names(text: str) -> set[str]:
     return words
 
 
-def shape_rows(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
+def shape_rows(conn, text: str, root=None,
+               prose: bool = False) -> tuple[list[dict], list[dict]]:
     """The shape rows for `text` in two tiers, with no cap.
 
     Tier 1 holds the rows whose name or command equals an identifier of
     `text`, case kept. Tier 2 holds the other rows that share a word with
     `text`, in the order of `_word_hits`. `model.shape` returns both tiers,
-    and the consult probe's `shape_for` keeps tier 1. A `root` of None reads
+    and the consult probe's `shape_for` keeps tier 1 of a question, with
+    `prose`. A `root` of None reads
     the project root for the `__main__` guards."""
     from ..core.worktrees import WorktreeError, project_root
     from ..onboarding import shape
 
-    idents, words = shape_idents(text), shape_names(text)
+    idents, words = shape_idents(text, prose), shape_names(text)
     if not idents and not words:
         return [], []
     rows = _rows(conn.execute(

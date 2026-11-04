@@ -267,3 +267,13 @@ def test_a_file_s_own_all_marks_its_definition(tmp_path):
     rows = build("architect", db, mode="ask").call("model.shape", name="_foldline")
     db.close()
     assert rows[0]["exported"] == ["pkg/string.py"]
+
+
+def test_a_question_word_counts_only_when_it_looks_like_an_identifier(index):
+    """Measured on dry run 5: Q2's word "component" kept seven test fixtures.
+    In a question, a bare word names no grain. Backticks make it a name."""
+    from probes.consult import shape_for
+
+    assert shape_for(index, "Where is the calendar kept?") == ""
+    assert "tests/test_cal.py::calendar" in shape_for(index, "Where is `calendar` kept?")
+    assert "pkg/cal.py::Calendar" in shape_for(index, "How does a Calendar nest?")

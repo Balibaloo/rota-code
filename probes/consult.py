@@ -110,7 +110,7 @@ def shape_for(conn, question: str) -> str:
     passes S5b and S5c). The tier has no cap, so no cap drops a named row."""
     from rota.roles.api import shape_rows
 
-    rows, rest = shape_rows(conn, question)
+    rows, rest = shape_rows(conn, question, prose=True)
     if not rows:
         return ""
     out = [SHAPE_HEAD]
