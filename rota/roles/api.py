@@ -24840,7 +24840,7 @@ def _kin(o, n) -> bool:
 
 def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
                    owner: str, defpairs: dict, lost: list, defs: list,
-                   ren: dict | None = None) -> None:
+                   ren: dict | None = None, used: set | None = None) -> None:
     """Append to `lost` each statement of the old block `olds` that the new
     block `news` does not keep, as (owner, first line), and to `defs` each
     definition name that the new text lacks. A lost compound statement is
@@ -24850,7 +24850,7 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
 
     F7 tells a rewrite from a removal by the syntax trees, with no order
     and no line text (F7 review 1, findings 1, 2 and 5). Each old
-    statement takes one new statement of its block in three passes:
+    statement takes one new statement of its block in four passes:
 
     1. An equal statement, so a removed copy of a repeated statement is
        lost. A compound statement is equal when its header is equal.
@@ -24863,8 +24863,19 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
     3. An equal statement or a rewrite in a new block that runs on every
        path: a `with` or `try` body, a branch that is always true, a loop
        over one literal item, or both arms of a new `if` and `else` (review
-       2, finding 4). A statement that moves under a new branch or loop
-       that can skip it runs on fewer paths, so it is lost.
+       2, finding 4).
+    4. An equal statement in a block nested in the new block, at any depth
+       and outside a nested definition (frame 362). The pass runs after
+       the blocks of each pair compare, so a nested statement that an old
+       statement of its own block takes is not taken again. `used` holds
+       the new statements taken in the whole function for that reason.
+
+    Dry run 4's `_foldline` edit moved the three statements of an `else`
+    block into a new `if` in the same block, word for word. Each one is
+    still in the block, and only runs on fewer paths. A move out of a
+    block or to a sibling block stays lost, because the statement then
+    leaves its guard (F7 shapes 12 and 14). A rewrite under a new branch
+    or loop that can skip it also stays lost (review 2, shape 2g).
 
     A definition pairs as `_pair_defs` gives it. A definition with no new
     one of its name is lost by its `def` line, owned by its own name.
@@ -24877,7 +24888,8 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
     import ast as _ast
     defkinds = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
     wrappers = (_ast.With, _ast.AsyncWith, _ast.Try, getattr(_ast, "TryStar", _ast.Try))
-    used: set[int] = set()
+    if used is None:
+        used = set()
     later_pairs: list = []
     if ren is None:
         ren = {}
@@ -24894,8 +24906,9 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
                 return n
         return None
 
-    def sub(a: list, b: list) -> None:
-        _lost_in_block(a, b, ol, nl, owner, defpairs, lost, defs, ren)
+    def sub(a: list, b: list, taken: set | None = None) -> None:
+        _lost_in_block(a, b, ol, nl, owner, defpairs, lost, defs, ren,
+                       used if taken is None else taken)
 
     def pair(o, n) -> None:
         # The blocks of a pair compare after the passes, so a rename found
@@ -24913,9 +24926,13 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
                 and _ast.dump(alt[0].test) != _ast.dump(o.test)
                 and _ast.dump(alt[0].test) in _operands(n.test, (_ast.Or,))):
             # Review 1's probe 4: `if a:` and `elif b:` with one body
-            # merged into `if a or b:`.
+            # merged into `if a or b:`. Both old bodies read the one new
+            # body, so the second compare starts from the set before the first.
+            before = set(used)
             sub(o.body, n.body)
-            sub(alt[0].body, n.body)
+            again = set(before)
+            sub(alt[0].body, n.body, again)
+            used.update(again)
             sub(alt[0].orelse, n.orelse)
             return
         for f in _BLOCK_FIELDS:
@@ -24939,6 +24956,19 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
                 ren.setdefault(n.target.id, n.iter.elts[0])
                 kids = n.body
             out += kids + every_path(kids)
+        return out
+
+    def nested(block: list) -> list:
+        """The statements of the blocks nested in `block`, at any depth, the
+        shallow statements first. A nested definition is another function,
+        so the walk does not enter it."""
+        out: list = []
+        for n in block:
+            if isinstance(n, defkinds) or not _is_compound(n):
+                continue
+            for f in _BLOCK_FIELDS:
+                kids = getattr(n, f, None) or []
+                out += kids + nested(kids)
         return out
 
     def both_arms(o) -> bool:
@@ -25006,15 +25036,25 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
             later.append(o)
         else:
             pair(o, n)
+    moved: list = []
     for o in later:
         inner = every_path(news)
         n = find(o, inner, False) or find(o, inner, True)
         if n is not None:
             pair(o, n)
         elif not both_arms(o):
-            lost.append((owner, _stmt_head(o)))
+            moved.append(o)
     for o, n in later_pairs:
         walk_pair(o, n)
+    # Pass 4 runs last, so each nested block keeps its own statements first.
+    for o in moved:
+        n = find(o, nested(news), False)
+        if n is None:
+            lost.append((owner, _stmt_head(o)))
+            continue
+        used.add(id(n))
+        if _is_compound(o):
+            walk_pair(o, n)
 
 
 def _reads(node, name: str | None) -> bool:
