@@ -154,16 +154,18 @@ def run(conn: sqlite3.Connection, batch_id: str,
     runner = _config.get(conn, "runner")
     results: list[tuple[str, str]] = []
     output: dict[str, str] = {}
+    nodes: dict[str, list[str]] = {}
     tester = tester_paths(conn, batch_id)
     # The project's tests run in one call. The Tester's tests run one by one.
     project = [t for t in tests if not _own(t, tester)]
     grouped = (_run_group(root, project, timeout, runner=runner, own=False)
                if project else {})
     for t in tests:
-        verdict, said = grouped.get(t["id"]) or _run_one(
+        verdict, said, red = grouped.get(t["id"]) or _run_file(
             root, t["path"], timeout, runner=runner, own=_own(t, tester))
         results.append((t["id"], verdict))
         output[t["id"]] = said
+        nodes[t["id"]] = red
 
     head = lifecycle.head_of(conn, batch_id)
     # The red before this run: the run at this head when one exists, so a
@@ -190,7 +192,8 @@ def run(conn: sqlite3.Connection, batch_id: str,
     for test_id, result in results:
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head,
-                                  output=output.get(test_id, ""))
+                                  output=output.get(test_id, ""),
+                                  red_nodes=nodes.get(test_id))
     lift_on_red_move(conn, batch_id, head, before, same_head)
     return results
 
@@ -336,8 +339,16 @@ def _raise_lines(lines: list[str], at: int) -> list[str]:
 
 def _run_one(root: Path, path: str, timeout: int,
              runner: str | None = None, own: bool = False) -> tuple[str, str]:
+    """One test file: one word, and what the harness actually said."""
+    verdict, said, _ = _run_file(root, path, timeout, runner=runner, own=own)
+    return verdict, said
+
+
+def _run_file(root: Path, path: str, timeout: int, runner: str | None = None,
+              own: bool = False) -> tuple[str, str, list[str]]:
     """
-    One test file: one word, and what the harness actually said.
+    One test file: one word, what the harness actually said, and the red
+    node ids of the whole output.
 
     The word alone was all that was kept, and it left the Developer in
     `tests_failing` reading the test *body* and guessing what red looked like —
@@ -383,18 +394,22 @@ def _run_one(root: Path, path: str, timeout: int,
                    "-p", PLUGIN, "--show-capture=all", "--tb=auto"],
             timeout=timeout, runner=runner, env=plugin_env())
     except KeyError as exc:
-        return "error", str(exc)
+        return "error", str(exc), []
     if out.error:
-        return "error", out.error
+        return "error", out.error, []
 
     # Tail rather than head: pytest puts the summary and the failing assertion
     # at the end, and the beginning is collection chatter.
-    said = _tail(out.stdout or out.stderr or "")
+    whole = out.stdout or out.stderr or ""
+    said = _tail(whole)
+    # Review of pass 5c, finding 12: the tail holds about 27 FAILED lines.
+    # The names come from the whole output, so no red node falls off.
+    nodes = sorted(_red_nodes(whole))
     if out.returncode == EXIT_OK:
-        return "pass", said
+        return "pass", said, nodes
     if out.returncode == EXIT_FAILED and "No module named pytest" not in out.stderr:
-        return "fail", said
-    return "error", said
+        return "fail", said, nodes
+    return "error", said, nodes
 
 
 # A line of pytest's short summary under `-rfEsxXp`: the word, an optional
@@ -442,7 +457,7 @@ def _run_group(root: Path, group: list[dict], timeout: int, *,
             timeout=timeout * len(group), runner=runner, env=plugin_env())
     except KeyError:
         out = None
-    done: dict[str, tuple[str, str]] = {}
+    done: dict[str, tuple[str, str, list[str]]] = {}
     if out is not None and not out.error and out.returncode in (EXIT_OK, EXIT_FAILED):
         named = _summary_files(out.stdout or "")
         by_path = {t["path"].replace("\\", "/"): t for t in group}
@@ -453,21 +468,20 @@ def _run_group(root: Path, group: list[dict], timeout: int, *,
                          if p == name or p.endswith("/" + name)), None)
 
         reds = [n for n, words in named.items() if not words <= set(_GREEN_WORDS)]
-        if out.returncode == EXIT_OK and not named:
-            # No summary at all on a green call: every file passed.
-            done = {t["id"]: ("pass", "") for t in group}
-        elif all(owner(n) for n in reds):
+        # A green call with no summary gives no file a pass. Each file runs
+        # alone (review of pass 5c, finding 13).
+        if all(owner(n) for n in reds):
             red_paths = {owner(n) for n in reds}
             for name, words in named.items():
                 p = owner(name)
                 if p and p not in red_paths:
                     lines = [ln for ln in (out.stdout or "").splitlines()
                              if _SUMMARY.match(ln) and name in ln]
-                    done[by_path[p]["id"]] = ("pass", chr(10).join(lines))
+                    done[by_path[p]["id"]] = ("pass", chr(10).join(lines), [])
     for t in group:
         if t["id"] not in done:
-            done[t["id"]] = _run_one(root, t["path"], timeout, runner=runner,
-                                     own=own)
+            done[t["id"]] = _run_file(root, t["path"], timeout, runner=runner,
+                                      own=own)
     return done
 
 
@@ -579,6 +593,23 @@ def _red_nodes(text: str) -> set[str]:
             if m}
 
 
+def _head_nodes(conn: sqlite3.Connection, batch_id: str, test_id: str,
+                output: str) -> set[str]:
+    """The red nodes of the test's latest run: the stored names, else the
+    tail's, for a row from before the column."""
+    import json
+
+    from .db import _has_column
+
+    if _has_column(conn, "test_runs", "red_nodes"):
+        row = conn.execute(
+            "SELECT red_nodes FROM latest_runs WHERE batch_id = ? AND test_id = ?",
+            (batch_id, test_id)).fetchone()
+        if row is not None and row["red_nodes"] is not None:
+            return set(json.loads(row["red_nodes"]))
+    return _red_nodes(output)
+
+
 def drop_base_reds(conn: sqlite3.Connection, rows) -> list:
     """The red runs in `rows` that are the batch's to fix.
 
@@ -598,8 +629,12 @@ def drop_base_reds(conn: sqlite3.Connection, rows) -> list:
             cache[bid] = (base_run(conn, bid) or {}, base_red_ids(conn, bid))
         base, red_ids = cache[bid]
         if r["test_id"] in red_ids:
-            before = _red_nodes(base[r["test_id"]].get("output", ""))
-            now = _red_nodes(r["output"])
+            # The stored names of the whole output. A record from before
+            # pass 5d has none, so its tail is read (review of 5c, finding 12).
+            kept = base[r["test_id"]].get("nodes")
+            before = (set(kept) if kept is not None
+                      else _red_nodes(base[r["test_id"]].get("output", "")))
+            now = _head_nodes(conn, bid, r["test_id"], r["output"])
             # A head run that names no node, where the base named some, is
             # a new kind of red: a timeout or a crash.
             if now <= before and (now or not before):
@@ -657,10 +692,11 @@ def record_base_run(conn: sqlite3.Connection, batch_id: str, worktree: Path,
         group = [t for t in tests if _own(t, tester) == own]
         if not group:
             continue
-        for tid, (verdict, said) in _run_group(root, group, timeout,
+        for tid, (verdict, said, red) in _run_group(root, group, timeout,
                                                runner=runner, own=own).items():
             record[tid] = ({"result": verdict} if verdict == "pass"
-                           else {"result": verdict, "output": said})
+                           else {"result": verdict, "output": said,
+                                 "nodes": red})
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                  (_base_key(batch_id), json.dumps(record, sort_keys=True)))
     return record

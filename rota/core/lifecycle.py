@@ -412,7 +412,8 @@ def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
 
 def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
                     test_id: str, result: str, attempt: int = 1,
-                    commit_sha: str | None = None, output: str = "") -> None:
+                    commit_sha: str | None = None, output: str = "",
+                    red_nodes: list[str] | None = None) -> None:
     """
     One test, one outcome.
 
@@ -430,6 +431,11 @@ def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
         "INSERT OR REPLACE INTO test_runs "
         "(id, batch_id, test_id, commit_sha, result, attempt, output) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)", row)
+    if red_nodes is not None:
+        import json
+
+        conn.execute("UPDATE test_runs SET red_nodes = ? WHERE id = ?",
+                     (json.dumps(red_nodes), run_id))
     conn.execute(
         "INSERT INTO test_run_journal "
         "(id, batch_id, test_id, commit_sha, result, attempt, output) "

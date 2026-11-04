@@ -670,7 +670,11 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
     -- value it got. From a criterion and a body there is nothing to tell "the
     -- code is wrong" from "the test is wrong".
     output      TEXT NOT NULL DEFAULT '',
-    attempt     INTEGER NOT NULL DEFAULT 1
+    attempt     INTEGER NOT NULL DEFAULT 1,
+    -- The red node ids of the whole output, a JSON list. The output keeps
+    -- its last 2,000 characters, and a cut list excused a new red (frame
+    -- 362, review of pass 5c, finding 12). NULL: a row from before.
+    red_nodes   TEXT
 );
 
 -- The newest run of each test in each batch. Every door, gate and page that

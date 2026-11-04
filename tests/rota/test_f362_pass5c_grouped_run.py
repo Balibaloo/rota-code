@@ -111,4 +111,6 @@ def test_the_tester_tests_run_one_by_one(conn, monkeypatch):
     calls = _stub(monkeypatch, (harness.EXIT_OK, ""),
                   {f: (harness.EXIT_OK, "1 passed") for f in FILES})
     harness.run(conn, "b1")
-    assert sorted(calls) == [[f] for f in FILES]
+    # The project's one file has a grouped call that names nothing, so it
+    # runs alone too (pass 5d, finding 13).
+    assert sorted(calls) == [[FILES[0]], [FILES[0]], [FILES[1]], [FILES[2]]]

@@ -53,7 +53,9 @@ def _run(conn, monkeypatch, said: dict[str, str]) -> None:
         out = said.get(tid)
         return ("fail", out) if out is not None else ("pass", "1 passed")
 
-    monkeypatch.setattr(harness, "_run_one", one)
+    # `harness.run` calls `_run_file`, which adds the red node ids (frame
+    # 362, pass 5d). The stub names none.
+    monkeypatch.setattr(harness, "_run_file", lambda *a, **k: (*one(*a, **k), []))
     harness.run(conn, "b1")
     conn.commit()
 

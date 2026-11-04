@@ -161,7 +161,7 @@ def commitment_columns(conn: sqlite3.Connection) -> None:
     # t.commitment_id` in `scheduler.park_reds` (frame 362, gate 3).
     have = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' "
-        "AND name IN ('constraints', 'verdicts', 'tests')")}
+        "AND name IN ('constraints', 'verdicts', 'tests', 'test_runs')")}
     # The empty string is every older constraint's truth, since no door
     # stated a party before the columns (pass 2).
     for column in ("party", "behaviour", "witness"):
@@ -176,6 +176,10 @@ def commitment_columns(conn: sqlite3.Connection) -> None:
     # before the column (pass 3b).
     if "tests" in have and not _has_column(conn, "tests", "commitment_id"):
         conn.execute("ALTER TABLE tests ADD COLUMN commitment_id TEXT")
+    # NULL is every older run's truth: the subset rule then reads the tail
+    # (frame 362, review of pass 5c, finding 12).
+    if "test_runs" in have and not _has_column(conn, "test_runs", "red_nodes"):
+        conn.execute("ALTER TABLE test_runs ADD COLUMN red_nodes TEXT")
 
 
 def message_columns(conn: sqlite3.Connection) -> None:
