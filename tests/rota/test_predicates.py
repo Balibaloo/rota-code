@@ -903,8 +903,10 @@ def test_the_register_set_is_the_one_the_document_names():
     # plus `request_shift` 2026-10-10 (frame 193: a new request is owed one
     # shift question while an earlier request is open), plus `guess`
     # 2026-10-18 (frame 298's design, 4.1: a request item is owed the
-    # Architect's guess of its code at each item version).
-    assert len(P.REGISTER_ENTRIES) == 30
+    # Architect's guess of its code at each item version), plus
+    # `commitments` 2026-11-04 (frame 362, pass 4b: a surveyed area with a
+    # witness line is owed one session that states its lines).
+    assert len(P.REGISTER_ENTRIES) == 31
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):

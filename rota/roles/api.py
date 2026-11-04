@@ -3940,8 +3940,8 @@ def witness_push(conn: sqlite3.Connection, area: str,
     # A broken tie goes first, so the cut never takes it.
     for c in lost:
         restate = (f"Restate it with model.amend(headline={c['headline']!r}, "
-                   f"party=\"<who outside notices>\", behaviour=\"<what must "
-                   f"hold>\", witness=\"<an id below>\"), or decline it."
+                   f"witness=\"<an id below>\", party=\"<who outside "
+                   f"notices>\", behaviour=\"<what must hold>\"), or decline it."
                    if rows else "No line below can restate it, so decline it.")
         lines.append(f"Constraint {c['id']} lost its witness line: an edit or a "
                      f"move changed the line. {restate}")
@@ -3957,7 +3957,12 @@ def witness_push(conn: sqlite3.Connection, area: str,
                 block.append(f"  It contradicts {i}, {o['path']} line {o['line']}: "
                              f"{_quoted(o['text'])}")
         if w["stated"]:
-            block.append(f"  Constraint {w['stated']} states it already.")
+            # The row exists, so the push prints the form that restates it
+            # (frame 362, pass 4b).
+            block.append(f"  Constraint {w['stated']} states it already. To "
+                         f"restate it, write model.amend(witness=\"{w['id']}\", "
+                         f"party=\"<who outside notices>\", behaviour=\"<what "
+                         f"must hold>\").")
         cost = sum(len(b) + 1 for b in block)
         if size + cost > room:
             break
@@ -3998,7 +4003,10 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     # A behaviour alone is a plain surface, not a statement. Gate 4 run 7
     # wrote ten right surfaces with bindings and a behaviour, and each one
     # was refused as a statement that names no witness (frame 362, A1).
-    if not (party or witness):
+    # The commitments mode asks for a statement and nothing else, so a call
+    # there with no witness is refused with the pushed ids (frame 362, 4b).
+    mine = _wake_mode_key(ctx) == "commitments"
+    if not (party or witness) and not mine:
         return None
     # Only the survey push of an area shows a witness id. With no area, a
     # project-wide candidate landed global and reached every diff (the
@@ -4019,6 +4027,10 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     form = (f"Write model.amend(headline={head!r}, text=\"<who outside "
             f"breaks and what they see>\", party=\"<who outside notices>\", behaviour=\"<what must hold>\", "
             f"witness=\"{example}\").")
+    if mine:
+        # The mode's form names the three arguments its brief asks for.
+        form = (f"Write model.amend(witness=\"{example}\", party=\"<who "
+                f"outside notices>\", behaviour=\"<what must hold>\").")
     if shown:
         form += f" The witness is one of the ids that [model.witnesses] shows: {_capped_ids(shown, 8)}."
     else:
@@ -4046,6 +4058,11 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
         "SELECT path FROM candidate_bindings WHERE witness_id = ? "
         "AND rule != 'project_wide' ORDER BY path", (witness,))
         if r["path"] in area_files]
+    if not placed and not bindings and mine:
+        # The commitments mode never asks for bindings. A project-wide line
+        # binds the files of the surveyed area, as pass 3b binds a placed
+        # line inside the area only (frame 362, pass 4b).
+        placed = sorted(area_files)
     if not placed and not bindings:
         # The harvest bound the line project-wide, so no file of its own keeps
         # it. A statement with no binding would land global.
@@ -4139,6 +4156,15 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
 
     from ..onboarding import boot
 
+    # The commitments mode does not ask for a headline. The door writes the
+    # witness path and the behaviour, as the refusal form shows it (frame
+    # 362, pass 4b).
+    if _wake_mode_key(ctx) == "commitments" and not (headline or "").strip():
+        row = ctx.conn.execute(
+            "SELECT path FROM commitment_candidates WHERE id = ?",
+            ((witness or "").strip(),)).fetchone()
+        headline = (f"{row['path']}: {(behaviour or '').strip() or 'what must hold'}"
+                    if row else "a witness line")
     slug = re.sub(r"[^a-z0-9]+", "_", headline.strip().lower()).strip("_")
     if not slug:
         raise ValueError("a constraint needs a headline with a word in it")
@@ -4284,6 +4310,11 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         # twice (the review of pass 2b).
         if (stated and row["witness"] and row["witness"] != stated["key"]
                 and row["witness"] in live):
+            continue
+        # In the commitments mode a surface of the survey is a different
+        # kind of row. Its subject words do not make a statement its twin
+        # (frame 362, pass 4b).
+        if stated and _wake_mode_key(ctx) == "commitments" and not row["witness"]:
             continue
         shared = mine & _stems(row["headline"])
         if len(shared) >= 2 and stated and row["witness"]:
@@ -5488,8 +5519,13 @@ def surveys_attest(ctx: Ctx, outcome: str,
     several = len(group) > 1
     named = {_prose_path_of(ctx, a) for a in targets
              if any(_ledger_names(ctx, v, a) for v in mine)}
+    # A commitments session closes its own record, so its outcome never
+    # overwrites the survey's row of the same area (frame 362, pass 4b).
+    from ..core.scheduler import COMMITMENTS_PREFIX
+    prefix = (COMMITMENTS_PREFIX if _wake_mode_key(ctx) == "commitments"
+              else f"{ctx.role}:")
     for subject in targets:
-        id = f"{ctx.role}:{subject}"
+        id = f"{prefix}{subject}"
         own = _prose_path_of(ctx, subject)
         row_outcome = outcome
         if several and outcome == "found" and own not in named:
@@ -5518,7 +5554,7 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # Unresolved ones are still reported rather than fatal. The bar is showing
     # what you read, not spelling every path correctly, and a session that can
     # see what it got wrong can fix it.
-    out = {"id": f"{ctx.role}:{targets[0]}", "outcome": outcome,
+    out = {"id": f"{prefix}{targets[0]}", "outcome": outcome,
            "unresolved_citations": unknown}
     if len(group) > 1:
         out["closed"] = [_prose_path_of(ctx, t) for t in targets]

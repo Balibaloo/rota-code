@@ -1109,6 +1109,15 @@ def survey(sc: Scene, bind: bool = False) -> None:
         return [f"TOOL: surveys.attest(outcome='none_found', citations=[{grain!r}])"]
     every(sc, "terminologist|tick:survey", none_found)
     every(sc, "architect|tick:survey", none_found)
+
+    # The witness lines of an area get their own session after its survey
+    # (frame 362, pass 4b). The scene states none of them.
+    def no_statement(sc: Scene, wake: Wake) -> list[str]:
+        grain = sc.conn.execute(
+            "SELECT grain FROM code_index WHERE area = ? AND grain_kind = 'path' "
+            "ORDER BY grain", (wake.refs[0],)).fetchone()["grain"]
+        return [f"TOOL: surveys.attest(outcome='none_found', citations=[{grain!r}])"]
+    every(sc, "architect|tick:commitments", no_statement)
     play(sc, lambda conn: scheduler.onboarding_phase(conn) == "done")
 
 

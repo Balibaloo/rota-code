@@ -664,7 +664,8 @@ SURFACE_PREFIX = "@surface:"
 PSEUDO_AREAS = (PROGRAM, PROSE, FRAME, REORIENT, BLINDSPOTS)
 PSEUDO_AREA_PREFIXES = (TERM_PREFIX, CLAIM_PREFIX, SURFACE_PREFIX)
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
-                    "tick:define", "tick:survey", "tick:reorient",
+                    "tick:define", "tick:survey", "tick:commitments",
+                    "tick:reorient",
                     "tick:boundary", "tick:challenge", "tick:blindspot")
 
 
@@ -1050,7 +1051,7 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
         return "reconcile"
     if "define" in phases and pending_terms(conn):
         return "define"
-    if "survey" in phases and _survey_wakes(conn):
+    if "survey" in phases and (_survey_wakes(conn) or _commitment_wakes(conn)):
         return "survey"
     if "reorient" in phases and _reorient_wakes(conn):
         return "reorient"
@@ -1103,6 +1104,56 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     """The per-area survey pass, once the program is oriented and its words
     defined. `_survey_wakes` is the pass itself; this is the phase gate."""
     return _survey_wakes(conn) if onboarding_phase(conn) == "survey" else []
+
+
+# The record of a commitments session. It is not a role's survey record, so
+# no `<role>:%` reader counts it (frame 362, pass 4b).
+COMMITMENTS_PREFIX = "commitments:"
+
+
+def tick_commitments(conn: sqlite3.Connection) -> list[Wake]:
+    """The witness lines of a surveyed area, in a session of their own."""
+    return _commitment_wakes(conn) if onboarding_phase(conn) == "survey" else []
+
+
+def _commitment_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """One Architect session per area that its survey closed and whose
+    witness push holds a line, until the session attests.
+
+    The survey seat asked the 8B model for a surface and a stated commitment
+    in one wake, and the model mixed the two in every partial form (frame
+    362, pass 4b, the four survey cases of g5_live.db). So each wake asks
+    for one kind of call. The area hash decides freshness, as for a survey.
+    """
+    if "architect" not in survey_order():
+        return []
+    from ..roles.api import area_content_hash, witness_push
+
+    abandoned = _abandoned(conn, "tick:commitments")
+    out = []
+    for r in conn.execute(
+            "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL "
+            "ORDER BY (area = '.'), area").fetchall():
+        area = r["area"]
+        if area in abandoned:
+            continue
+        current = area_content_hash(conn, area)
+
+        def fresh(row) -> bool:
+            return row is not None and (current == "" or row["area_hash"] == current)
+
+        survey = conn.execute(
+            "SELECT area_hash FROM survey_records WHERE area = ? AND id LIKE "
+            "'architect:%' ORDER BY rowid DESC LIMIT 1", (area,)).fetchone()
+        if not fresh(survey):
+            continue
+        done = conn.execute(
+            "SELECT area_hash FROM survey_records WHERE id = ?",
+            (COMMITMENTS_PREFIX + area,)).fetchone()
+        if fresh(done) or not witness_push(conn, area)[1]:
+            continue
+        out.append(Wake("architect", "tick:commitments", refs=(area,)))
+    return out
 
 
 def _survey_wakes(conn: sqlite3.Connection) -> list[Wake]:

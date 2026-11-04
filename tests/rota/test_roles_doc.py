@@ -182,8 +182,10 @@ def test_every_predicate_is_either_spine_or_register():
     # `request_shift` (register: a new request is owed one shift question
     # while an earlier request is open -- frame 193, 2026-10-10). 48 with
     # `guess` (register: a request item is owed the Architect's guess of its
-    # code at each item version -- frame 298, 2026-10-18).
-    assert len(every) == 48, (
+    # code at each item version -- frame 298, 2026-10-18). 49 with
+    # `commitments` (register: a surveyed area with a witness line is owed
+    # one session that states its lines -- frame 362, pass 4b, 2026-11-04).
+    assert len(every) == 49, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

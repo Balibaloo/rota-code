@@ -1351,7 +1351,7 @@ def area_for(case: dict, wake: Wake) -> str | None:
     the reader of a prompt applies the same rule the run applied.
     """
     return (wake.refs[0]
-            if case.get("tick") in ("survey", "orient", "define") else None)
+            if case.get("tick") in ("survey", "commitments", "orient", "define") else None)
 
 
 def system_text_for(case: dict) -> str:
@@ -1773,7 +1773,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             conn, wake, backend=backends[-1], pins=pins,
             instructions=prompts_mod.compose(spec["role"], mode),
             batch_id=_batch_of(conn, wake),
-            area=wake.refs[0] if spec.get("tick") in ("survey", "orient", "define") else None)
+            area=wake.refs[0] if spec.get("tick") in ("survey", "commitments", "orient", "define") else None)
         return out, capture(conn, out.session_id, versions, messages_before=seen)
 
     # A first leg may name a message the fixture seeded, and one kind of chain

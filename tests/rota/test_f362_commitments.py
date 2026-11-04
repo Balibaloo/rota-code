@@ -81,6 +81,13 @@ def _survey(db, area="src/pkg"):
     return wake, sb
 
 
+def _commitments(db, area="src/pkg"):
+    """The wake of pass 4b that pushes the witness lines of a surveyed area."""
+    wake = Wake("architect", "tick:commitments", refs=(area,))
+    sb = session_sandbox(db, wake)
+    return wake, sb
+
+
 def _land(db, sb):
     """Apply the session's staged writes, as the pipeline does at commit."""
     for table, row_id, values in sb.ctx.writes:
@@ -145,9 +152,12 @@ def test_an_older_database_gets_the_columns(tmp_path):
 # The push
 # ---------------------------------------------------------------------------
 
-def test_the_survey_push_carries_the_area_candidates_and_no_others(tree):
+def test_the_commitments_push_carries_the_area_candidates_and_no_others(tree):
     _, db = tree
+    # Pass 4b: the survey asks for surfaces only, so its push has no block.
     wake, sb = _survey(db)
+    assert "model.witnesses" not in push_working_set("architect", sb, wake)
+    wake, sb = _commitments(db)
     pushed = push_working_set("architect", sb, wake)
     text = pushed["model.witnesses"]
     assert set(ROW.findall(text)) == {_id(db, "export"), _id(db, "numeric_default")}
@@ -164,7 +174,7 @@ def test_an_area_with_no_candidate_gets_no_block(tree):
     db.execute("INSERT INTO code_index (grain, grain_kind, area) "
                "VALUES ('src/empty/e.py', 'path', 'src/empty')")
     db.commit()
-    wake, sb = _survey(db, "src/empty")
+    wake, sb = _commitments(db, "src/empty")
     pushed = push_working_set("architect", sb, wake)
     assert "model.witnesses" not in pushed
 
@@ -421,8 +431,8 @@ def test_an_edit_of_the_witness_line_marks_the_constraint_unwitnessed(tree):
     assert "model.amend(headline='src/pkg/fold.py::fold'" in text
     assert api.lost_witnesses(db, "src/pkg") == [
         {"id": out["id"], "headline": "src/pkg/fold.py::fold"}]
-    # The survey wake of the area shows the mark, so the seat restates.
-    wake, sb2 = _survey(db)
+    # The commitments wake of the area shows the mark, so the seat restates.
+    wake, sb2 = _commitments(db)
     assert LOST in push_working_set("architect", sb2, wake)["model.witnesses"]
     again, _ = _state(db, _id(db, "numeric_default"))
     _land(db, again)
@@ -486,16 +496,21 @@ def test_witnessed_reads_the_latest_harvest_and_not_the_rowid(tree):
 # Pass 2b: the brief, and the door with no area
 # ---------------------------------------------------------------------------
 
-def test_the_brief_puts_the_witnesses_before_the_none_found_end():
-    """Review finding 5. A seat with witness lines must not stop at
-    `none_found`, and the headline form names the path and the line."""
-    brief = (Path(api.__file__).parent / "prompts/architect/survey.md").read_text(
+def test_the_commitments_brief_asks_for_the_three_arguments_only():
+    """Pass 4b. The witness lines move out of the survey brief into a mode
+    of their own, and that brief asks for one form of call. A seat with
+    witness lines must not stop at `none_found` (review finding 5)."""
+    prompts = Path(api.__file__).parent / "prompts/architect"
+    brief = (prompts / "commitments.md").read_text(encoding="utf-8")
+    assert len(brief.splitlines()) < 25
+    assert ('model.amend(witness="<its id>", party="<who outside notices>", '
+            'behaviour="<what must hold, with each name the line holds>")') in brief
+    assert brief.index("[model.witnesses]") < brief.index('outcome="none_found"')
+    assert "headline=" not in brief and "bindings=" not in brief
+    survey = (prompts / "survey.md").read_text(encoding="utf-8")
+    assert "witness" not in survey
+    assert "model.witnesses" not in (prompts / "survey.tools").read_text(
         encoding="utf-8")
-    at = brief.index("[model.witnesses]`, when it is there")
-    assert at < brief.index('outcome="none_found"')
-    paragraph = brief[at:brief.index("\n\n", at)]
-    assert 'headline="<path>: <what must hold>"' in paragraph
-    assert "::" not in paragraph and "line <n>" not in paragraph
 
 
 def test_the_refusal_form_names_the_path_and_the_line(tree):
@@ -674,9 +689,114 @@ def test_the_review_probe_of_pass_2b_lands_one_constraint(tree):
                       ).fetchone()[0] == 1
 
 
-def test_the_brief_drops_symbol_and_opened_for_a_witness_line():
+def test_the_survey_brief_is_the_surface_form_again():
+    """Pass 4b. The survey brief is the form before the slice."""
     brief = (Path(api.__file__).parent / "prompts/architect/survey.md").read_text(
         encoding="utf-8")
-    assert "Headline the surface as `path::symbol`, except a witness line" in brief
-    assert "you must have opened, except for a witness line" in brief
-    assert "A witness line needs no `bindings`" in brief
+    assert ("Headline the surface as `path::symbol`, put who outside breaks "
+            "in text") in brief
+    assert "you must have opened — then" in brief
+
+
+# ---------------------------------------------------------------------------
+# Pass 4b: the witness lines are stated in a mode of their own
+# ---------------------------------------------------------------------------
+
+def _surveyed(db, area="src/pkg", prefix="architect:"):
+    db.execute("INSERT INTO survey_records (id, area, outcome, area_hash) "
+               "VALUES (?, ?, 'found', ?)",
+               (prefix + area, area, api.area_content_hash(db, area)))
+    db.commit()
+
+
+def test_the_commitments_wake_follows_the_survey_of_an_area_with_a_witness(tree):
+    from rota.core.scheduler import COMMITMENTS_PREFIX, _commitment_wakes
+
+    _, db = tree
+    # No survey yet, so no wake.
+    assert _commitment_wakes(db) == []
+    _surveyed(db, "src/pkg")
+    wakes = _commitment_wakes(db)
+    assert [(w.role, w.kind, w.refs) for w in wakes] == [
+        ("architect", "tick:commitments", ("src/pkg",))]
+    # An area with no witness line gets no wake.
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/empty/e.py', 'path', 'src/empty')")
+    _surveyed(db, "src/empty")
+    assert [w.refs for w in _commitment_wakes(db)] == [("src/pkg",)]
+    # The session's own record closes it.
+    _surveyed(db, "src/pkg", prefix=COMMITMENTS_PREFIX)
+    assert _commitment_wakes(db) == []
+
+
+def test_the_mode_states_a_line_from_the_three_arguments(tree):
+    """The door writes the headline, the id and the bindings."""
+    _, db = tree
+    nd = _id(db, "numeric_default")
+    _, sb = _commitments(db)
+    assert api._wake_mode_key(sb.ctx) == "commitments"
+    out = sb.call("model.amend", witness=nd, party="other calendar programs",
+                  behaviour="a folded line holds at most 75 octets")
+    assert out["witness"] == nd
+    assert out["id"].startswith("cw_")
+    assert out["bindings"] == ["src/pkg/fold.py"]
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["headline"] == "src/pkg/fold.py: a folded line holds at most 75 octets"
+    assert values["party"] == "other calendar programs"
+    assert values["is_global"] == 0
+
+
+def test_the_mode_binds_a_project_wide_line_to_the_area(tree):
+    """A project-wide line needs no bindings from this mode. The survey's
+    other modes keep the bindings guard."""
+    _, db = tree
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
+               "VALUES ('cc_0000000000bb', 'metadata', 'pyproject.toml', 3, "
+               "'requires-python = \">=3.10\"')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
+               "('cc_0000000000bb', 'src/pkg/fold.py', 'project_wide')")
+    db.commit()
+    _, sb = _commitments(db)
+    out = sb.call("model.amend", witness="cc_0000000000bb",
+                  party="installers", behaviour="Python 3.10 or later")
+    assert sorted(out["bindings"]) == ["src/pkg/__init__.py", "src/pkg/fold.py"]
+    _, sb = _survey(db)
+    with pytest.raises(ValueError, match="binds no file of its own"):
+        sb.call("model.amend", headline="pyproject.toml line 3",
+                text="Installers outside read the Python floor.",
+                party="installers", behaviour="Python 3.10 or later",
+                witness="cc_0000000000bb")
+
+
+def test_the_mode_refuses_a_call_with_no_witness_or_an_unknown_one(tree):
+    _, db = tree
+    _, sb = _commitments(db)
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", party="other calendar programs",
+                behaviour="lines fold at 75 octets")
+    msg = str(got.value)
+    assert "names none" in msg
+    assert 'Write model.amend(witness="' in msg
+    assert _id(db, "numeric_default") in msg and _id(db, "export") in msg
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", witness="cc_000000000000",
+                party="other calendar programs", behaviour="lines fold")
+    assert "is not a candidate that [model.witnesses] showed" in str(got.value)
+    assert _id(db, "numeric_default") in str(got.value)
+    assert not [w for w in sb.ctx.writes if w[0] == "constraints"]
+
+
+def test_the_mode_attests_its_own_record(tree):
+    from rota.core.scheduler import COMMITMENTS_PREFIX
+
+    _, db = tree
+    _, sb = _commitments(db)
+    sb.call("code.area")
+    sb.call("model.amend", witness=_id(db, "numeric_default"),
+            party="other calendar programs",
+            behaviour="a folded line holds at most 75 octets")
+    out = sb.call("surveys.attest", outcome="found",
+                  citations=["src/pkg/fold.py"])
+    assert out["id"] == COMMITMENTS_PREFIX + "src/pkg"
+    assert [i for t, i, _ in sb.ctx.writes if t == "survey_records"] == [
+        COMMITMENTS_PREFIX + "src/pkg"]

@@ -946,7 +946,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             body.append(f"The word: {subject_word}")
         elif subject == PROGRAM:
             body.append("The subject: the whole program")
-        elif is_area(subject) and wake.kind == "tick:survey":
+        elif is_area(subject) and wake.kind in ("tick:survey", "tick:commitments"):
             body.append(f"The area: {subject}")
     if wake.kind.startswith("tick:") and wake.attempt >= 2:
         # A retry at temperature zero repeats the first session unless the

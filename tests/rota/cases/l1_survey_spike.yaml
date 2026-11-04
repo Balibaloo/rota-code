@@ -125,3 +125,82 @@
       constraints: {count: "1..9", text_includes: ['"is_global": 0'], text_includes_any: ["register", "find_by_email", "issue", "verify", "revoke"]}
   forbidden:
     writes: [glossary_terms, items, criteria]
+
+# Frame 362, pass 4b: the witness lines of a surveyed area are stated in a
+# session of their own, after the survey. The survey seat mixed a surface
+# and a statement in every partial form when one wake asked for both. The
+# four areas are the survey cases' areas that the harvest gives a witness
+# line. Pass: a statement that names the party, the behaviour and the
+# witness, bound to a file of the area.
+
+- id: L1-AR-state-the-witness-lines-of-the-catalog
+  tier: T1
+  role: architect
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
+  tick: commitments
+  tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
+  refs: [src/catalog]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      survey_records: {count: 1}
+      constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+  forbidden:
+    writes: [glossary_terms, items, criteria, model_areas]
+
+- id: L1-AR-state-the-witness-lines-of-the-store
+  tier: T1
+  role: architect
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
+  tick: commitments
+  tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
+  refs: [src/store]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      survey_records: {count: 1}
+      constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+  forbidden:
+    writes: [glossary_terms, items, criteria, model_areas]
+
+- id: L1-AR-state-the-witness-lines-of-the-billing-area
+  tier: T1
+  role: architect
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
+  tick: commitments
+  tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
+  refs: [src/billing]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      survey_records: {count: 1}
+      constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+  forbidden:
+    writes: [glossary_terms, items, criteria, model_areas]
+
+- id: L1-AR-state-the-witness-lines-of-the-auth-area
+  tier: T1
+  role: architect
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
+  tick: commitments
+  tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
+  refs: [src/auth]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      survey_records: {count: 1}
+      constraints: {count: "1..9", text_includes: ['"is_global": 0'], fields_nonempty: [party, behaviour, witness]}
+  forbidden:
+    writes: [glossary_terms, items, criteria, model_areas]

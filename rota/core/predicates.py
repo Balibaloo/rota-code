@@ -2185,6 +2185,14 @@ def survey(conn) -> list[Wake]:
     return tick_survey(conn)
 
 
+@predicate("commitments", wakes="architect", band="start")
+def commitments(conn) -> list[Wake]:
+    """Onboarding, after an area's Architect survey: its witness lines, each
+    stated or declined in a session of their own (frame 362, pass 4b)."""
+    from .scheduler import tick_commitments
+    return tick_commitments(conn)
+
+
 
 # ---------------------------------------------------------------------------
 # The register, as a set the code holds rather than a list a document keeps.
@@ -2239,7 +2247,7 @@ REGISTER_ENTRIES = frozenset({
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "finding_violated",
-    "checkpoint_invalid", "survey", "term_collision", "unresolved",
+    "checkpoint_invalid", "survey", "commitments", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
     "blindspot", "criterion_repair", "touch_note",
     # A parked batch is owed one ask to the principal until it is written

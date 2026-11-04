@@ -561,6 +561,12 @@ class Sandbox:
 
         if pos:
             kwargs = _bind_positional(target, pos, kwargs, dotted)
+        # The commitments mode asks for the witness, the party and the
+        # behaviour only. The door writes the headline from the witness line,
+        # and the signature of the other modes stays as recorded (frame 362,
+        # pass 4b).
+        if dotted == "model.amend" and api._wake_mode_key(self.ctx) == "commitments":
+            kwargs = {"headline": "", **kwargs}
 
         problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)),
                                 ctx=self.ctx)

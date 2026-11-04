@@ -30,7 +30,7 @@ the predicate exists to keep offering it until it is not.
     unresolved      orient           reconcile         define
     boundary        frame            reorient          challenge
     blindspot       criterion_repair touch_note       park_ask
-    request_shift   guess
+    request_shift   guess            commitments
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.
