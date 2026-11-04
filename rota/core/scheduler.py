@@ -1914,12 +1914,15 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     """The highest attempt among a batch's failing tests, or 0 when none fail."""
     # Each test's latest run only, as `tests_failing` and `exhausted` read it.
     # They skip a test of a retired criterion, so this count skips it too
-    # (frame 306, pass 2b).
-    row = conn.execute(
-        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM latest_runs "
-        "WHERE batch_id = ? AND result IN ('fail','error')"
-        + live_tests(conn, "test_id"), (batch_id,)).fetchone()
-    return int(row["att"] or 0)
+    # (frame 306, pass 2b). A test red at the base is skipped too (review
+    # of frame 362, pass 5b, finding 10).
+    from .harness import drop_base_reds
+
+    rows = drop_base_reds(conn, conn.execute(
+        "SELECT batch_id, test_id, output, COALESCE(attempt, 1) AS att "
+        "FROM latest_runs WHERE batch_id = ? AND result IN ('fail','error')"
+        + live_tests(conn, "test_id"), (batch_id,)).fetchall())
+    return max((int(r["att"]) for r in rows), default=0)
 
 
 def key_parts(key: str) -> tuple[str, str, tuple[str, ...]]:
@@ -2230,13 +2233,18 @@ def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list
     # The newest run per test, as `failing_attempt` reads it. "Own" is a
     # test with a criterion: night 121's own test of cr_1 is an inherited
     # id, so the id's prefix does not decide (frame 142's design, 2.A).
-    rows = conn.execute(
-        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id, "
-        "t.commitment_id FROM latest_runs r "
-        "LEFT JOIN tests t ON t.id = r.test_id "
-        "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
-        + live_tests(conn, "r.test_id") +
-        " ORDER BY r.test_id", (batch_id,)).fetchall()
+    # A test red at the base is not the batch's red, so it parks nothing
+    # (review of frame 362, pass 5b, finding 10). The dicts keep their keys.
+    from .harness import drop_base_reds
+
+    rows = [{k: r[k] for k in r.keys() if k != "batch_id"}
+            for r in drop_base_reds(conn, conn.execute(
+                "SELECT r.batch_id, r.test_id, r.output, r.commit_sha, t.path, "
+                "t.criterion_id, t.commitment_id FROM latest_runs r "
+                "LEFT JOIN tests t ON t.id = r.test_id "
+                "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
+                + live_tests(conn, "r.test_id") +
+                " ORDER BY r.test_id", (batch_id,)).fetchall())]
     # A guard test of a commitment is the batch's own (pass 3c).
     own = [dict(r) for r in rows
            if r["criterion_id"] is not None or r["commitment_id"] is not None]

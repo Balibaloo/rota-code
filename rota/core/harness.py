@@ -559,18 +559,53 @@ def reds_that_hold(conn: sqlite3.Connection, batch_id: str, commit: str,
     """
     from .scheduler import live_tests
 
-    # Frame 362, pass 5b (review high 1): 5 icalendar files are red at the
-    # base. The tree never proved them, so the batch did not break them.
-    # A Tester's test, and an inherited test with no red base record, hold.
-    excused = base_red_ids(conn, batch_id)
     # A red test of a retired criterion holds no gate. He dropped its line
     # (frame 306, pass 2, finding 2). The rule lives here, so the review
     # gate and the merge check agree (frame 362, pass 5b, deviation 3).
-    return [r["test_id"] for r in conn.execute(
-        "SELECT test_id FROM latest_runs WHERE batch_id = ? AND commit_sha = ? "
-        "AND result != 'pass'" + live_tests(conn, "test_id") + where,
-        (batch_id, commit))
-        if r["test_id"] not in excused]
+    rows = conn.execute(
+        "SELECT batch_id, test_id, output FROM latest_runs WHERE batch_id = ? "
+        "AND commit_sha = ? AND result != 'pass'" + live_tests(conn, "test_id")
+        + where, (batch_id, commit)).fetchall()
+    return [r["test_id"] for r in drop_base_reds(conn, rows)]
+
+
+# A line of pytest's short summary that names a red node.
+_RED_NODE = re.compile(r"(?:FAILED|ERROR) (\S+)")
+
+
+def _red_nodes(text: str) -> set[str]:
+    """The node ids that the FAILED and ERROR lines of a run name."""
+    return {m.group(1) for m in map(_RED_NODE.match, (text or "").splitlines())
+            if m}
+
+
+def drop_base_reds(conn: sqlite3.Connection, rows) -> list:
+    """The red runs in `rows` that are the batch's to fix.
+
+    Each row holds `batch_id`, `test_id` and `output`. The gates and the
+    fix loop ask this one function, so they never drift.
+    """
+    # Frame 362, pass 5b (review high 1): 5 icalendar files are red at the
+    # base. The tree never proved them, so the batch did not break them.
+    # A Tester's test, and an inherited test with no red base record, hold.
+    # Review of pass 5b, finding 11: an inherited test is a whole file. A
+    # file is excused only when its red nodes are among the base's.
+    cache: dict[str, tuple[dict, set[str]]] = {}
+    out = []
+    for r in rows:
+        bid = r["batch_id"]
+        if bid not in cache:
+            cache[bid] = (base_run(conn, bid) or {}, base_red_ids(conn, bid))
+        base, red_ids = cache[bid]
+        if r["test_id"] in red_ids:
+            before = _red_nodes(base[r["test_id"]].get("output", ""))
+            now = _red_nodes(r["output"])
+            # A head run that names no node, where the base named some, is
+            # a new kind of red: a timeout or a crash.
+            if now <= before and (now or not before):
+                continue
+        out.append(r)
+    return out
 
 
 def _base_key(batch_id: str) -> str:

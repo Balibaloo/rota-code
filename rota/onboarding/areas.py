@@ -84,40 +84,41 @@ def ruling_for(conn, grain: str) -> str | None:
     # included, so his ruling has no cut. An `ignore` ruling keeps its test
     # folder, so ignored code gives no test to the harness.
     if provenance != "decided" and kind in PROGRAM_KINDS:
-        test_dir = _test_dir_below(pre, grain)
-        if test_dir is not None and _holds_a_test_file(conn, test_dir, grain):
+        from ..roles.api import _test_shaped
+
+        dirs = _test_dirs_below(pre, grain)
+        if dirs and (_test_shaped(grain)
+                     or any(_holds_a_test_file(conn, d) for d in dirs)):
             return None
     return kind
 
 
-def _test_dir_below(prefix: str, grain: str) -> str | None:
-    """The first test folder of `grain`, when it is below `prefix`. A
-    ruling at or below that folder covers it, so the result is None."""
+def _test_dirs_below(prefix: str, grain: str) -> list[str]:
+    """The test folders on the path of `grain` below `prefix`. A ruling at
+    or below a folder covers it, so that folder is not in the list."""
     parts = grain.split("/")[:-1]
-    cut = next((i for i, p in enumerate(parts) if p.lower() in TEST_DIRS),
-               None)
-    if cut is None:
-        return None
-    here = "/".join(parts[:cut + 1])
-    return here if len(here) > len(prefix) else None
+    return [here for here in ("/".join(parts[:i + 1])
+                              for i, p in enumerate(parts) if p.lower() in TEST_DIRS)
+            if len(here) > len(prefix)]
 
 
-def _holds_a_test_file(conn, folder: str, grain: str) -> bool:
-    """The index holds a test-shaped file under `folder`, or `grain` is one."""
+def _holds_a_test_file(conn, folder: str) -> bool:
+    """The index holds a test-shaped file directly in `folder`."""
     # Review pass 5, low 3: `django/test/client.py` is shipped program code.
     # A test-named folder with no test-shaped file is not a test folder.
+    # Review of pass 5b, finding 3: a file below a child folder does not
+    # count, so `numpy/testing/overrides.py` stays program code.
     import sqlite3
 
     from ..roles.api import _test_shaped
 
-    if _test_shaped(grain):
-        return True
     try:
         rows = conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path' "
             "AND grain LIKE ?", (folder + "/%",))
         # LIKE reads `_` as any character, so the prefix is checked again.
-        return any(r[0].startswith(folder + "/") and _test_shaped(r[0])
+        return any(r[0].startswith(folder + "/")
+                   and "/" not in r[0][len(folder) + 1:] and _test_shaped(r[0])
                    for r in rows)
     except sqlite3.Error:
         return False

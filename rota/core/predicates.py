@@ -1134,24 +1134,33 @@ def tests_failing(conn) -> list[Wake]:
     # The harness tests running batches only. A revived key of a deferred
     # batch then loops without a bound (observed: the design review of frame
     # 83, 2026-09-24).
-    rows = conn.execute(
-        "SELECT DISTINCT r.batch_id AS bid, MAX(r.attempt) AS att FROM latest_runs r "
+    # A test red at the base is not the Developer's red. It woke him at
+    # every commit (review of frame 362, pass 5b, finding 10).
+    from .harness import drop_base_reds
+
+    reds = drop_base_reds(conn, conn.execute(
+        "SELECT r.batch_id, r.test_id, r.output, r.attempt FROM latest_runs r "
         "JOIN batches b ON b.id = r.batch_id AND b.status = 'running' "
         "WHERE r.result IN ('fail','error') "
         # A red test of a retired criterion wakes no fix. Night 163 looped
         # on the stop page that such a red led to (frame 306, pass 2b).
         + live_tests(conn, "r.test_id") +
-        " GROUP BY r.batch_id"
-    ).fetchall()
+        " ORDER BY r.batch_id"
+    ).fetchall())
+    # The highest attempt per batch. SQL's MAX skipped a NULL attempt.
+    att: dict[str, int | None] = {}
+    for r in reds:
+        had, now = att.get(r["batch_id"]), r["attempt"]
+        att[r["batch_id"]] = now if had is None else had if now is None else max(had, now)
     # The challenge bound of `stopped_bouncing` ends the fix loop too, or
     # the wake holds the frontier and `quiet_park` never fires below the
     # cap (review p1 of frame 278, H1).
     from .scheduler import challenged_reds
 
-    return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
-                 detail=f"attempt {r['att']}")
-            for r in rows if (r["att"] or 1) < cap
-            and not challenged_reds(conn, r["bid"])]
+    return [Wake("developer", "tick:tests_failing", refs=(bid,),
+                 detail=f"attempt {a}")
+            for bid, a in att.items() if (a or 1) < cap
+            and not challenged_reds(conn, bid)]
 
 
 @predicate("reopen", wakes="developer", band="fix",
@@ -1215,15 +1224,18 @@ def exhausted(conn) -> list[Wake]:
         return []
 
     cap = config.get(conn, "loop_cap")
-    rows = conn.execute(
+    from .harness import drop_base_reds
+
+    rows = [{"bid": r["batch_id"]} for r in drop_base_reds(conn, conn.execute(
         # Each test's latest run only, like tests_failing: a fail that a later
         # pass superseded is not an attempt still failing (2026-09-16 review).
-        "SELECT batch_id AS bid, MAX(attempt) AS att FROM latest_runs "
+        "SELECT batch_id, test_id, output FROM latest_runs "
         "WHERE result IN ('fail','error') "
         # A retired criterion's red climbs no ladder (frame 306, pass 2b).
-        + live_tests(conn, "test_id") +
-        " GROUP BY batch_id"
-    ).fetchall()
+        + live_tests(conn, "test_id")
+    ).fetchall())]
+    # A test red at the base climbs no ladder (review of frame 362, pass 5b,
+    # finding 10). `failing_attempt` reads the same rule for the cap.
 
     from .scheduler import failing_attempt, stop_detail, stopped_bouncing
 
