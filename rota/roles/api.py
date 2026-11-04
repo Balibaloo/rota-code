@@ -7168,7 +7168,9 @@ def _wake_mode_key(ctx: Ctx) -> str:
 
     wake = _ctx_wake(ctx)
     # A sandbox built with no wake has only its own mode to go on.
-    return ctx.mode if wake is None else _mode_key(wake, ctx.conn)
+    # A test's stand-in context can carry no mode (frame 362, pass 4b).
+    return (getattr(ctx, "mode", "normal") if wake is None
+            else _mode_key(wake, ctx.conn))
 
 
 def _ctx_wake(ctx: Ctx):
