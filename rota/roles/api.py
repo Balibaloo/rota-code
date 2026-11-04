@@ -5275,13 +5275,22 @@ def area_content_hash(conn, area: str) -> str:
 
 def project_wide_hash(conn) -> str:
     """The content of the root's push: a hash of the set of project-wide
-    witness ids. The root record stores it, so a later harvest with a new
+    witness keys that the harvest bound. The root record stores it, so a later harvest with a new
     line wakes the root again, and a declined push does not (gate of
     2026-11-04 on 1a1c6f6b, after the second look's high A). Empty when the
     harvest holds no project-wide line."""
     import hashlib
 
-    ids = sorted({w["id"] for w in project_wide_witnesses(conn)})
+    # The harvest's lines, by witness key, and not the push. A falsified
+    # statement takes its line out of the push, and in dry run 5 six such
+    # drops woke the root six more times (pass 4h, wall 5). The key holds no
+    # line number, so a shift does not wake the root either.
+    from ..onboarding.harvest import witness_key
+
+    ids = sorted({witness_key(r["kind"], r["path"], r["text"]) for r in conn.execute(
+        "SELECT c.kind, c.path, c.text FROM commitment_candidates c "
+        "JOIN candidate_bindings b ON b.witness_id = c.id "
+        "WHERE b.rule = 'project_wide'")})
     return hashlib.sha256("\n".join(ids).encode()).hexdigest()[:16] if ids else ""
 
 

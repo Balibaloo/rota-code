@@ -833,6 +833,35 @@ def test_a_new_project_wide_line_wakes_the_root_after_its_record(tree):
     assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
 
 
+def test_a_falsified_root_line_does_not_wake_the_root_again(tree):
+    """Pass 4h, wall 5 of dry run 5. The root wake fired 7 times, because
+    each falsified statement took its line out of the push. The pushed set
+    shrank from 17 to 11, so its hash changed 6 times, and an unstated line
+    reopened the wake. The record keys the harvest's lines, not the push."""
+    from rota.core.scheduler import (COMMITMENTS_PREFIX, PROJECT_WIDE,
+                                     _commitment_wakes)
+
+    _, db = tree
+    _project_wide(db)
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
+               "VALUES ('cc_0000000000dd', 'metadata', 'pyproject.toml', 5, "
+               "'readme = \"README.md\"')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) "
+               "VALUES ('cc_0000000000dd', 'src/pkg/fold.py', 'project_wide')")
+    db.commit()
+    _, sb = _commitments(db, PROJECT_WIDE)
+    out = sb.call("model.amend", witness="cc_0000000000bb", party="installers",
+                  behaviour="Python 3.10 or later")
+    sb.call("surveys.attest", outcome="found", citations=["pyproject.toml"])
+    _land(db, sb)
+    assert _commitment_wakes(db) == []
+    db.execute("INSERT INTO challenges (id, verdict, citation, quote) "
+               "VALUES (?, 'falsified', 'pyproject.toml', 'requires-python')",
+               (f"constraints:{out['id']}",))
+    db.commit()
+    assert _commitment_wakes(db) == []
+
+
 def test_a_surveyed_area_that_holds_only_project_wide_lines_gets_no_wake(tree):
     """Pass 4d. Three of the four state cases woke an area whose push was
     empty after 1b338c97. The wake condition reads the push, so the area
