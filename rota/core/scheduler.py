@@ -1160,14 +1160,14 @@ def _commitment_wakes(conn: sqlite3.Connection) -> list[Wake]:
     # A project-wide line is stated once, in a session with no code area.
     # The area sessions bound it to their own files, up to 422 rows for one
     # line on icalendar, where the harvester binds 84 (the review of pass
-    # 4b, high 1). The wake needs a line that no statement covers.
+    # 4b, high 1). The wake needs a line that no statement covers. The record
+    # does not close it, because a later harvest can add a line (the second
+    # look at passes 4c to 4e, high A). A seat that never states the line
+    # meets `_abandoned`.
     if PROJECT_WIDE not in abandoned:
         from ..roles.api import project_wide_witnesses
 
-        done = conn.execute("SELECT 1 FROM survey_records WHERE id = ?",
-                            (COMMITMENTS_PREFIX + PROJECT_WIDE,)).fetchone()
-        if not done and any(not w["stated"]
-                            for w in project_wide_witnesses(conn)):
+        if any(not w["stated"] for w in project_wide_witnesses(conn)):
             out.append(Wake("architect", "tick:commitments", refs=(PROJECT_WIDE,)))
     return out
 

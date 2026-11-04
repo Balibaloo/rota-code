@@ -759,8 +759,33 @@ def test_one_session_states_the_project_wide_lines(tree):
     kept, text = api.witness_push(db, PROJECT_WIDE)
     assert [w["id"] for w in kept] == ["cc_0000000000bb"]
     assert text.startswith("The harvest found 1 witness lines that bind the whole project.")
+    # The record alone no longer closes the wake: the line has no statement
+    # (pass 4f, high A).
+    _surveyed(db, PROJECT_WIDE, prefix=COMMITMENTS_PREFIX)
+    assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
+
+
+def test_a_new_project_wide_line_wakes_the_root_after_its_record(tree):
+    """Pass 4f, high A of the second look. The root record closed the root
+    wake for good, so a later harvest's new line stayed unstated."""
+    from rota.core.scheduler import (COMMITMENTS_PREFIX, PROJECT_WIDE,
+                                     _commitment_wakes)
+
+    _, db = tree
+    _project_wide(db)
+    _, sb = _commitments(db, PROJECT_WIDE)
+    sb.call("model.amend", witness="cc_0000000000bb", party="installers",
+            behaviour="Python 3.10 or later")
+    _land(db, sb)
     _surveyed(db, PROJECT_WIDE, prefix=COMMITMENTS_PREFIX)
     assert _commitment_wakes(db) == []
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
+               "VALUES ('cc_0000000000cc', 'metadata', 'pyproject.toml', 4, "
+               "'license = \"MIT\"')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) "
+               "VALUES ('cc_0000000000cc', 'src/pkg/fold.py', 'project_wide')")
+    db.commit()
+    assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
 
 
 def test_a_surveyed_area_that_holds_only_project_wide_lines_gets_no_wake(tree):
