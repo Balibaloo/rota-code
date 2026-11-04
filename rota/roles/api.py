@@ -18557,10 +18557,15 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         cols + "JOIN batches b ON b.id = v.batch_id "
         "WHERE v.batch_id = ? AND v.commit_sha = b.head_commit "
         "ORDER BY v.rowid DESC", (bid,)))
-    if at_head:
-        return at_head
-    return _rows(ctx.conn.execute(
+    rows = at_head or _rows(ctx.conn.execute(
         cols + "WHERE v.batch_id = ? ORDER BY v.rowid DESC", (bid,)))
+    # A fail on a criterion names no commitment. The empty field gave the
+    # Developer's read a new key for each such fail (frame 362, gate 4), so
+    # it stays out, as empty fields do in the runner's batch row.
+    for r in rows:
+        if r.get("failed_commitment") is None:
+            r.pop("failed_commitment", None)
+    return rows
 
 
 @op("verdicts", "rule")
