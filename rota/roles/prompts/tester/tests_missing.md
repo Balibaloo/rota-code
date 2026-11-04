@@ -26,8 +26,6 @@ which is precisely the failure Critic cannot catch.
 
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 
-Write a test that guards each pushed commitment whose behaviour the change can reach, from its witness's input and output. Send the commitment's id as `criterion_id=`.
-
 **A test of a prompt gives the prompt a stream.** pytest captures stdin, so a
 call that reads it raises before any assertion. Give it an empty stream for
 EOF, `monkeypatch.setattr("sys.stdin", io.StringIO(""))`, or a line for an
@@ -67,3 +65,5 @@ know which it is, the sharper verdicts route directly: `ambiguous_word` to
 `criterion_span=` copied from the criterion, and it gets no test.
 Writing a test that passes trivially is worse than writing none, because it
 reports as coverage of a criterion nobody has pinned down.
+
+Write a test that guards each pushed commitment whose behaviour the change can reach, from its witness's input and output. Send the commitment's id as `criterion_id=`.
