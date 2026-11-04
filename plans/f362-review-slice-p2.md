@@ -69,3 +69,13 @@ All probes are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/535
 - Output tokens: about 14k.
 - Total: about 79k.
 - Sub-agents: none.
+
+## Pass 2b
+
+Verdict: fix. Commit `935aa904` is on top of `7bd7f78b`. I did not move the worktree, because my rules forbid a git command that changes a tree. I read the commit with `git diff` and probed a `git archive` copy at `scratchpad/r362p2b/`. The probe is `scratchpad/r362p2/p2b_tie.py`.
+
+- Medium 1, fixed in part. CONFIRMED. After an edit, the push shows "Constraint src_pkg_fold_py_line_7 lost its witness line" with a restate form. After a move with the index rebuilt, `lost_witnesses` shows nothing, because the old file left `code_index`, and the area match then fails. Fix: list a lost constraint whose bindings no longer resolve in any area, or match on the witness path of the stale candidate.
+- Medium 2, fixed. CONFIRMED. `witnessed` reads only the latest harvest commit. It returns line 10 after the shift, line 7 after the shift back, and None after the edit and after the move.
+- Medium 5, fixed in part. The witnesses paragraph now comes at line 28, before the none_found branch, and it says "Do these lines first". Line 40 still says that a headline is `path::symbol`, and line 44 still asks for bindings "you must have opened". Fix: in lines 40 and 44, add "except a witness line, which takes `<path> line <n>` and needs no bindings".
+- Point 8, fixed in part. The headline form `<path> line <n>` uses only what the push prints, and the door accepts that form. The constraint id then holds a line number, so after a shift the id and the headline name a stale line. Fix: leave the line out of the headline form, and use `<path>` and the first words of the quote.
+- Deviation, fix. CONFIRMED. The edit made the old constraint lose its witness. The seat then stated the new line as `src/pkg/fold.py line 7 octets` and did not restate the old row. Both rows landed, with one subject stated twice. Before the deviation, the duplicate-subject check refused that pair, because the two headlines share their path words. Fix: skip the check only when the other row's witness key is still current, so a row that lost its witness keeps its subject.
