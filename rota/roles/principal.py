@@ -3423,6 +3423,18 @@ def touch_words(conn: sqlite3.Connection, batch_id: str,
     keep = [f"It must keep: {_clause(c['behaviour'])}, because "
             f"{_clause(c['party'])} depend on it."
             for c in touch_commitments(conn, batch_id)]
+    # The gates excuse a test red at the base, so he sees the record here
+    # (frame 362, pass 5b, review high 1).
+    from ..core.harness import base_red_ids
+
+    red = base_red_ids(conn, batch_id)
+    if red:
+        marks = ", ".join("?" for _ in red)
+        files = [r["path"] for r in conn.execute(
+            f"SELECT path FROM tests WHERE id IN ({marks}) ORDER BY path",
+            sorted(red))]
+        keep.append(f"{len(files)} of the repository's tests were red before "
+                    f"this change: {', '.join(files)}.")
     return "; ".join(parts) + ("." + "".join(" " + s for s in keep) if keep else "")
 
 

@@ -1125,13 +1125,12 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
 
     # A red test of a retired criterion holds no merge. He dropped its line
     # (frame 306, pass 2, finding 2).
+    # A test red at the base holds no merge (frame 362, pass 5b).
+    from .harness import reds_that_hold
     from .scheduler import live_tests
 
-    failing = conn.execute(
-        "SELECT COUNT(*) AS n FROM latest_runs "
-        "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'"
-        + live_tests(conn, "test_id"),
-        (batch_id, head)).fetchone()["n"]
+    failing = len(reds_that_hold(conn, batch_id, head,
+                                 live_tests(conn, "test_id")))
     if failing:
         return f"{failing} test(s) not passing"
 

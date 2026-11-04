@@ -463,6 +463,32 @@ def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str
     return found
 
 
+def base_red_ids(conn: sqlite3.Connection, batch_id: str) -> set[str]:
+    """The inherited tests of the batch that its base run records red."""
+    base = base_run(conn, batch_id) or {}
+    return {r["id"] for r in conn.execute(
+        "SELECT id FROM tests WHERE batch_id = ? AND criterion_id IS NULL",
+        (batch_id,))
+        if (base.get(r["id"]) or {}).get("result", "pass") != "pass"}
+
+
+def reds_that_hold(conn: sqlite3.Connection, batch_id: str, commit: str,
+                   where: str = "") -> list[str]:
+    """The test ids red at `commit` that hold the review and merge gates.
+
+    `where` adds an SQL condition on `test_id`. The review predicate and
+    `lifecycle.mergeable` both ask this one function, so they never drift.
+    """
+    # Frame 362, pass 5b (review high 1): 5 icalendar files are red at the
+    # base. The tree never proved them, so the batch did not break them.
+    # A Tester's test, and an inherited test with no red base record, hold.
+    excused = base_red_ids(conn, batch_id)
+    return [r["test_id"] for r in conn.execute(
+        "SELECT test_id FROM latest_runs WHERE batch_id = ? AND commit_sha = ? "
+        "AND result != 'pass'" + where, (batch_id, commit))
+        if r["test_id"] not in excused]
+
+
 def _base_key(batch_id: str) -> str:
     return f"base_run:{batch_id}"
 

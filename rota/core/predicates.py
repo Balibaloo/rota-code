@@ -1552,15 +1552,13 @@ def review(conn) -> list[Wake]:
     Per commit, not per batch. Guarding on "has a verdict" meant a batch that
     failed review could never pass: the Developer fixed it, committed, and
     nothing re-judged."""
+    from .harness import reds_that_hold
     from .scheduler import live_criteria, not_retired
     rows = conn.execute(
-        "SELECT b.id AS bid FROM batches b "
+        "SELECT b.id AS bid, b.head_commit AS head FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
         "  AND NOT EXISTS (SELECT 1 FROM verdicts v "
         "                  WHERE v.batch_id = b.id AND v.commit_sha = b.head_commit) "
-        "  AND NOT EXISTS (SELECT 1 FROM latest_runs r "
-        "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
-        "                    AND r.result != 'pass') "
         "  AND EXISTS (SELECT 1 FROM latest_runs r "
         "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit) "
         # law 8: the merge gate runs harness, then Critic, then Architect
@@ -1583,7 +1581,11 @@ def review(conn) -> list[Wake]:
         + not_retired(conn, "bt.ticket_id") + live_criteria(conn, "c.retired_by")
         + ")"
     ).fetchall()
-    return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
+    # A red test at the head holds the review. One helper decides for this
+    # gate and the merge check, and a test red at the base holds neither
+    # (frame 362, pass 5b).
+    return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows
+            if not reds_that_hold(conn, r["bid"], r["head"])]
 
 
 # A violated finding at the head commit, on a real constraint. Shared by the
