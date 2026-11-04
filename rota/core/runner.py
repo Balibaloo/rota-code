@@ -4340,6 +4340,20 @@ def _zero_row_for(conn, row: dict, files: list[str]) -> dict:
     return out
 
 
+def _fail_names_commitment(conn, batch_id: str | None) -> bool:
+    """Whether the fail at the batch's head names a pushed commitment. The
+    Developer's fix wake then gets the commitment block, so it sees the
+    behaviour and the witness that the fail quotes (the review of pass 3,
+    medium 2)."""
+    if not batch_id:
+        return False
+    return conn.execute(
+        "SELECT 1 FROM verdicts v JOIN batches b ON b.id = v.batch_id "
+        "WHERE v.batch_id = ? AND v.result = 'fail' "
+        "AND v.commit_sha IS b.head_commit "
+        "AND COALESCE(v.failed_commitment, '') != ''", (batch_id,)).fetchone() is not None
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4433,7 +4447,10 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     if wake is not None and (
             (role == "developer" and wake.kind == "tick:batch_start")
             or (role == "tester" and wake.kind == "tick:tests_missing")
-            or (role == "critic" and wake.kind == "tick:review")):
+            or (role == "critic" and wake.kind == "tick:review")
+            or (role == "developer" and wake.kind == "tick:verdict_failed"
+                and _fail_names_commitment(sb.ctx.conn, sb.ctx.batch_id
+                                           or (wake.refs[0] if wake.refs else None)))):
         from ..roles.api import RETIRED_NOTE_KEY, bound_constraints
 
         bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)

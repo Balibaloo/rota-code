@@ -3799,6 +3799,17 @@ def _area_files(conn: sqlite3.Connection, area: str) -> set[str]:
         "SELECT grain FROM code_index WHERE area = ?", (area,))}
 
 
+def falsified_commitments(conn: sqlite3.Connection) -> dict[str, str]:
+    """Each stated commitment that a challenge falsified, mapped to its
+    witness key. A line of source defeats the statement, so the row reaches
+    no seat. `stated_commitments`, `_reaching_constraints` and
+    `scheduler.constraints_for_grains` read this one query."""
+    return {r["id"]: r["witness"] for r in conn.execute(
+        "SELECT c.id, c.witness FROM constraints c "
+        "JOIN challenges h ON h.id = 'constraints:' || c.id "
+        "WHERE c.witness != '' AND c.party != '' AND h.verdict = 'falsified'")}
+
+
 def stated_commitments(conn: sqlite3.Connection, files: list[str] | None = None
                        ) -> tuple[list[dict], dict[str, str]]:
     """The one rule that decides which stated commitments reach a seat.
@@ -3827,14 +3838,11 @@ def stated_commitments(conn: sqlite3.Connection, files: list[str] | None = None
             current.setdefault(witness_key(r["kind"], r["path"], r["text"]),
                                dict(r))
     rows: list[dict] = []
-    falsified: dict[str, str] = {}
+    falsified = falsified_commitments(conn)
     for r in conn.execute(
-            "SELECT c.id, c.headline, c.text, c.party, c.behaviour, c.witness, "
-            "h.verdict FROM constraints c "
-            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
-            "WHERE c.witness != '' AND c.party != '' ORDER BY c.id"):
-        if r["verdict"] == "falsified":
-            falsified[r["id"]] = r["witness"]
+            "SELECT id, headline, text, party, behaviour, witness FROM constraints "
+            "WHERE witness != '' AND party != '' ORDER BY id"):
+        if r["id"] in falsified:
             continue
         if reach is not None and r["id"] not in reach:
             continue
@@ -4026,9 +4034,15 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     if row is None or witness not in shown:
         raise ValueError(f"{witness!r} is not a candidate that [model.witnesses] "
                          f"showed for this area. {form}")
+    # Only the placed bindings inside the surveyed area are copied. The RFC
+    # 5545 line binds 49 files over 8 areas, and ruling 3 makes each of them
+    # a merge stop (the review of pass 3, high 1). A statement of the same
+    # line in another area adds that area's files to the same row.
+    area_files = _area_files(ctx.conn, ctx.area)
     placed = [r["path"] for r in ctx.conn.execute(
         "SELECT path FROM candidate_bindings WHERE witness_id = ? "
-        "AND rule != 'project_wide' ORDER BY path", (witness,))]
+        "AND rule != 'project_wide' ORDER BY path", (witness,))
+        if r["path"] in area_files]
     if not placed and not bindings:
         # The harvest bound the line project-wide, so no file of its own keeps
         # it. A statement with no binding would land global.
@@ -4547,7 +4561,10 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
         if (r["grain_kind"] not in ("path", "symbol") or not r["resolves"]
                 or _grain_path(grain) in grains):
             hits.add(r["constraint_id"])
-    return hits
+    # A falsified stated commitment reaches no diff. Every reader of this
+    # function then shares the rule of `stated_commitments` (the review of
+    # pass 3, medium 4: the structural review still read the row).
+    return hits - set(falsified_commitments(conn))
 
 
 def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict | None:
@@ -10649,6 +10666,60 @@ def _offered_path(ctx: Ctx, path: str, id: Any, criterion_id: str,
     return _beside_project_test(ctx, path, criterion_id, batch_id, id)
 
 
+def _guarded_commitment(ctx: Ctx, ref: str, batch_id: str | None) -> dict | None:
+    """The pushed commitment that `ref` names, or None when `ref` is not a
+    stated commitment. A criterion id wins over a constraint id."""
+    if not _names_commitment(ctx.conn, ref):
+        return None
+    return _pushed_commitment(ctx, batch_id or ctx.batch_id, ref)
+
+
+def _names_commitment(conn: sqlite3.Connection, ref) -> bool:
+    """Whether `ref` names a stated commitment and no criterion. A criterion
+    id wins, so a seat's criterion ref keeps its old route (F22)."""
+    from ..core.db import tables_of
+
+    if tables_of(conn, ref, among=["criteria", "constraints"]) != ["constraints"]:
+        return False
+    return conn.execute("SELECT party FROM constraints WHERE id = ?",
+                        (ref,)).fetchone()["party"] != ""
+
+
+def _encode_guard(ctx: Ctx, id: str, c: dict, path: str, body: str,
+                  batch_id: str) -> dict:
+    """A test that guards a pushed commitment. The Tester writes it from the
+    witness's input and output, so no criterion and no triage stand behind
+    it. The checks are the ones every test row needs: a project path, a
+    Python file that is not a program file, and a body that pytest collects."""
+    import ast as _ast
+    import posixpath as _posixpath
+
+    path = _posixpath.normpath((path or "").replace("\\", "/"))
+    if (path.startswith("/") or re.match(r"[A-Za-z]:", path)
+            or path == ".." or path.startswith("../") or not path.endswith(".py")):
+        raise ValueError(
+            f"path {path!r} is not a test file inside the project. Name the "
+            f"file tests/test_<thing>.py")
+    if isinstance(id, str) and not id.strip(". "):
+        raise ValueError(f"id={id!r} is a placeholder, not an id. Give this "
+                         f"test an id of its own")
+    _refuse_program_path(ctx.conn, path)
+    try:
+        tree = _ast.parse(body)
+    except SyntaxError as exc:
+        raise Wall(f"the body is not Python ({exc.msg}, line {exc.lineno}). A "
+                   f"test is def test_...(): with assertions") from None
+    if not (any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and n.name.startswith("test") for n in _ast.walk(tree))
+            and any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))):
+        raise Wall("pytest will collect nothing from this body: it needs a "
+                   "def test_...(): with an assert")
+    ctx.writes.append(("tests", id, {
+        "batch_id": batch_id, "criterion_id": None, "commitment_id": c["id"],
+        "path": path, "body": body}))
+    return {"id": id, "guards": c["id"]}
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -10669,7 +10740,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     exist fails a foreign key *inside the transaction* and takes the session
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
+
+    `criterion_id` can also name a commitment that the push showed. The test
+    then guards the commitment, and the row stores it in `commitment_id`
+    (frame 362, the review of pass 3, medium 3).
     """
+    guarded = _guarded_commitment(ctx, criterion_id, batch_id)
+    if guarded is not None:
+        return _encode_guard(ctx, id, guarded, path, body,
+                             batch_id or ctx.batch_id)
     _refuse_retired(ctx, criterion_id)
     # One form of the path for every door and for the stored row. A row
     # stored with backslashes ran as `error no tests ran` in
@@ -17092,12 +17171,12 @@ def _pushed_commitment(ctx: Ctx, batch_id: str, cid: str) -> dict:
         shown = [r["id"] for r in rows]
         raise ValueError(
             f"{cid!r} is not a commitment that the push showed for batch "
-            f"{batch_id}. A fail names a criterion of the batch or a pushed "
-            f"commitment. The pushed commitments are {_capped_ids(shown)}.")
+            f"{batch_id}. A fail or a guard test names a criterion of the batch "
+            f"or a pushed commitment. The pushed commitments are {_capped_ids(shown)}.")
     if hit["witness"] == LOST_WITNESS:
         raise ValueError(
-            f"The witness line of {cid!r} is lost, so a fail on it has no line "
-            f"to quote. Judge the criteria, and write the doubt in reason=.")
+            f"The witness line of {cid!r} is lost, so a fail or a test on it "
+            f"has no line to stand on. Work on the criteria of the batch.")
     return hit
 
 
@@ -17186,11 +17265,7 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
             f"landed, and one commit gets one verdict: end the session")
     commitment = None
     if (result == "fail" and failed_criterion
-            and not ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
-                                     (failed_criterion,)).fetchone()
-            and ctx.conn.execute("SELECT 1 FROM constraints WHERE id = ? "
-                                 "AND party != ''",
-                                 (failed_criterion,)).fetchone()):
+            and _names_commitment(ctx.conn, failed_criterion)):
         commitment = _pushed_commitment(ctx, batch_id, failed_criterion)
         reason = _commitment_reason(commitment, reason)
         failed_criterion = None

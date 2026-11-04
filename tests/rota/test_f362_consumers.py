@@ -304,3 +304,116 @@ def test_one_candidate_binds_per_cited_standard_and_the_root_file_first(tmp_path
     assert by_path == {"README.rst": {"src/pkg/fold.py"},
                        "docs/b.rst": {"src/pkg/jcal.py"}}
     db.close()
+
+
+# ---------------------------------------------------------------------------
+# Pass 3b: the review of pass 3
+# ---------------------------------------------------------------------------
+
+def test_a_statement_copies_only_the_bindings_inside_the_surveyed_area(tmp_path):
+    """High 1: one statement of the RFC 5545 line copied 49 bindings over 8
+    areas on icalendar. A statement now binds the surveyed area's files."""
+    from rota.core.db import Write, _apply_write
+
+    root = tmp_path / "proj"
+    _write(root / "README.rst", "Pkg\n===\n\nPkg is compatible with RFC 5545.\n")
+    _write(root / "src/pkg/fold.py", FOLD)
+    _write(root / "src/other/thing.py", '"""As RFC 5545 says."""\n' + THING)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+               (str(root),))
+    for grain, area in (("src/pkg/fold.py", "src/pkg"),
+                        ("src/other/thing.py", "src/other")):
+        db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                   "VALUES (?, 'path', ?)", (grain, area))
+    harvest.record(db, root, "c1")
+    db.commit()
+    readme = _candidate(db, "doc_claim", "README.rst")
+    assert {r["path"] for r in db.execute(
+        "SELECT path FROM candidate_bindings WHERE witness_id = ?",
+        (readme["id"],))} == {"src/pkg/fold.py", "src/other/thing.py"}
+
+    def state(area):
+        sb = session_sandbox(db, Wake("architect", "tick:survey", refs=(area,)))
+        out = sb.call("model.amend", headline="README.rst: RFC 5545 calendars",
+                      text="Other calendar programs read the files.",
+                      party="other calendar programs",
+                      behaviour="the files follow RFC 5545", witness=readme["id"])
+        for table, row_id, values in sb.ctx.writes:
+            _apply_write(db, Write(table, row_id, values), "architect")
+        db.commit()
+        return out
+
+    out = state("src/pkg")
+    assert out["bindings"] == ["src/pkg/fold.py"]
+    # A statement of the same line in the other area adds that area's file.
+    again = state("src/other")
+    assert again["id"] == out["id"]
+    assert {r["grain"] for r in db.execute(
+        "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
+        (out["id"],))} == {"src/pkg/fold.py", "src/other/thing.py"}
+    db.close()
+
+
+def test_the_developer_fix_wake_carries_the_commitment_of_the_fail(proj):
+    """Medium 2: the fix wake after a commitment fail had no commitment
+    block, and its brief said that a fail names a criterion."""
+    _, db = proj
+    _state(db)
+    _, pushed = _push(db, "developer", "tick:verdict_failed")
+    assert BOUND_KEY not in pushed
+    db.execute("INSERT INTO verdicts (id, batch_id, result, failed_commitment, "
+               "reason) VALUES ('critic:b1:None', 'b1', 'fail', 'fold_octets', "
+               "'It counts characters.')")
+    db.commit()
+    _, pushed = _push(db, "developer", "tick:verdict_failed")
+    assert [r["id"] for r in pushed[BOUND_KEY]] == ["fold_octets"]
+    from rota import paths
+    brief = (paths.PROMPTS / "developer" / "verdict_failed.md").read_text(
+        encoding="utf-8")
+    assert "A fail names a criterion in `failed_criterion` or a pushed commitment" in brief
+
+
+def test_the_tester_files_a_test_that_guards_a_pushed_commitment(proj):
+    """Medium 3: `tests.encode` took a criterion only, so the Tester's
+    line had no door."""
+    _, db = proj
+    _state(db)
+    sb, _ = _push(db, "tester", "tick:tests_missing")
+    out = sb.call("tests.encode", id="tst_octets", criterion_id="fold_octets",
+                  path="tests/test_fold_octets.py",
+                  body="from pkg.fold import fold\n"
+                       "def test_octets():\n"
+                       "    assert all(len(p.encode()) <= 75 for p in [fold('a' * 80)])\n")
+    assert out == {"id": "tst_octets", "guards": "fold_octets"}
+    row = [v for t, _, v in sb.ctx.writes if t == "tests"][0]
+    assert row["criterion_id"] is None and row["commitment_id"] == "fold_octets"
+    _falsify(db)
+    sb, _ = _push(db, "tester", "tick:tests_missing")
+    with pytest.raises(ValueError, match="not a commitment that the push showed"):
+        sb.call("tests.encode", id="tst_octets", criterion_id="fold_octets",
+                path="tests/test_fold_octets.py",
+                body="def test_octets():\n    assert True\n")
+
+
+def test_the_structural_review_readers_drop_a_falsified_commitment(proj):
+    """Medium 4: `_reaching_constraints` and `constraints_for_grains` still
+    returned the falsified row."""
+    from rota.core.scheduler import constraints_for_grains
+
+    _, db = proj
+    _state(db)
+    assert "fold_octets" in api._reaching_constraints(db, ["src/pkg/fold.py"])
+    assert "fold_octets" in constraints_for_grains(db, ["src/pkg/fold.py"])
+    _falsify(db)
+    assert "fold_octets" not in api._reaching_constraints(db, ["src/pkg/fold.py"])
+    assert "fold_octets" not in constraints_for_grains(db, ["src/pkg/fold.py"])
+
+
+def test_every_fail_sentence_of_the_critic_names_the_commitment_route():
+    from rota import paths
+
+    for name in ("base.md", "review.md"):
+        text = " ".join((paths.PROMPTS / "critic" / name).read_text(
+            encoding="utf-8").split())
+        assert "the pushed commitment it breaks" in text, name

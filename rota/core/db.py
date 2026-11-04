@@ -474,6 +474,9 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # NULL is every older verdict's truth, since no fail named one before.
         if not _has_column(conn, "verdicts", "failed_commitment"):
             conn.execute("ALTER TABLE verdicts ADD COLUMN failed_commitment TEXT")
+        # The same for a test that guards a pushed commitment (pass 3b).
+        if not _has_column(conn, "tests", "commitment_id"):
+            conn.execute("ALTER TABLE tests ADD COLUMN commitment_id TEXT")
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))

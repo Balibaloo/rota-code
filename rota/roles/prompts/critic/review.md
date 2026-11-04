@@ -41,7 +41,8 @@ Work through it in this order:
    row of the constraints that bind the files of this batch with a `witness`.
    When the diff breaks its `behaviour`, that is a fail
 
-Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
+Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed or
+the pushed commitment it breaks. One
 verdict per batch. A pass carries `lines=`: every criterion's id and its value
 from step 1, as `lines={'<criterion id>': '<the line>'}` with one entry per
 criterion. The tool refuses a pass with a criterion that has no value, or a
@@ -52,7 +53,7 @@ ref. A remark goes in `reason=` on either result, beside the lines of a pass.
 A fail on a pushed commitment sends its id as `failed_criterion=`. Its
 `reason=` quotes the witness line and says what the diff does instead.
 
-A fail names its criterion and stops. You are not writing a review; you are
+A fail names its criterion, or the pushed commitment it breaks, and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the
 claim came back `False`, that is `msg.challenge_tester`, not a fail — refs
 naming the criterion and the test, `quotes=` copying the exact span of each,

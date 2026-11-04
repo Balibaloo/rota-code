@@ -5,6 +5,11 @@ reason names the criterion's words the diff does not meet and what the diff does
 instead. That is the design: you are being told *what* was not delivered, not
 talked into agreeing.
 
+A fail names a criterion in `failed_criterion` or a pushed commitment in
+`failed_commitment`. A commitment fail quotes the witness line, and the
+constraints that bind the files of this batch show its `behaviour`. Fix the code
+so that the behaviour holds again.
+
 `criteria.load` it, read your diff, and **fix the code so the criterion is
 satisfied as written.** `code.source`, `code.write`, `code.commit`. That is the
 job in this mode and it is what almost every waking here needs.

@@ -16,7 +16,8 @@ test that contradicts its criterion is the Tester's error, and it goes back to
 the Tester as a challenge.
 
 **A failure names its criterion.** "This is wrong" is not a verdict. Every fail
-carries the criterion it failed, so the Developer knows what to fix.
+carries the criterion it failed, or the pushed commitment it breaks, so the
+Developer knows what to fix.
 
 **Do not invent objections.** If the diff conforms, pass it. A critic that finds
 something wrong with everything is exactly as useless as one that finds nothing.

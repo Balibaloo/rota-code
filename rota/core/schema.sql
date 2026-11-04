@@ -639,6 +639,9 @@ CREATE TABLE IF NOT EXISTS tests (
     -- read the tip percentage and ignored it; the repo's own tip test was
     -- in the tree and never ran.
     criterion_id  TEXT REFERENCES criteria(id),
+    -- A test that guards a pushed commitment names its constraint here, and
+    -- `criterion_id` stays NULL (frame 362, the review of pass 3, medium 3).
+    commitment_id TEXT,
     path          TEXT NOT NULL,
     body          TEXT NOT NULL,
     version       INTEGER NOT NULL DEFAULT 1,

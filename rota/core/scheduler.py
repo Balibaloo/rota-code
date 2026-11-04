@@ -3237,6 +3237,10 @@ def constraints_for_grains(conn: sqlite3.Connection, grains: Iterable[str]) -> l
         elif not unread and not unknown:
             hits.discard(ZERO)
 
+    # A falsified stated commitment reaches no seat, the structural review
+    # included (the review of pass 3, medium 4). The rule is the roles'.
+    from ..roles.api import falsified_commitments
+    hits -= set(falsified_commitments(conn))
     return sorted(hits)
 
 
