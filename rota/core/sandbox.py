@@ -421,6 +421,11 @@ def validate_args(fn: Callable, kwargs: dict,
     # priority='high'). Text that the type reads is converted here. Any
     # other text is a refusal that names the form the argument takes.
     dotted = f"{op[0]}.{_verb_to_attr(op[1])}" if op else fn.__name__
+    # Every scalar word is read before the door offers. The offer fixed the
+    # first word only, and the same door refused the next one on resend (the
+    # second look at passes 4c to 4e, low D: `code.source(start='top',
+    # end='bottom')`).
+    said, offer = "", None
     for name, p in sig.parameters.items():
         kind = _scalar_kind(p.annotation)
         if kind is None or not isinstance(kwargs.get(name), str):
@@ -428,18 +433,32 @@ def validate_args(fn: Callable, kwargs: dict,
         got = _scalar_from_text(kind, kwargs[name])
         if got is not None:
             kwargs[name] = got
+            if offer is not None:
+                offer[name] = got
             continue
-        said = _scalar_refusal(name, kwargs[name], kind, dotted)
-        offer = {**kwargs, name: _SCALAR_EXAMPLE[kind]}
+        said += ("; " if said else "") + _scalar_refusal(
+            name, kwargs[name], kind, dotted)
+        offer = {**(offer if offer is not None else kwargs),
+                 name: _SCALAR_EXAMPLE[kind]}
+    if offer is not None:
         wrong = _scalar_id_fault(ctx, op, kwargs)
         if wrong:
             said += wrong[0]
             offer["id"] = wrong[1]
         # `_scalar_id_fault` judges the id. The other ids that the op's
-        # `_must_exist` reads go through the shared offer check (frame 211).
-        checks = (api._exist_check(ctx, op, skip=("id",)),) if op else ()
+        # `_must_exist` reads, and the enum words, go through the shared
+        # offer check (frame 211).
+        checks = ((api._exist_check(ctx, op, skip=("id",)),) if op else ()) + (
+            lambda a: (lambda e: None if e is None else (f"; {e}", None))(
+                _enum_problem(op, a)),)
         return api._offer_checked(ctx, said, dotted, offer, checks)
 
+    return _enum_problem(op, kwargs)
+
+
+def _enum_problem(op, kwargs: dict) -> str | None:
+    """The refusal of the first argument whose word is not one of its enum,
+    or None."""
     checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
         if allowed is None:
@@ -447,7 +466,6 @@ def validate_args(fn: Callable, kwargs: dict,
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
             said = ENUM_REFUSALS.get((*(op or ("", "")), key, kwargs[key]))
             return said or f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
-
     return None
 
 

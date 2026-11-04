@@ -15,6 +15,7 @@ import sqlite3
 
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.testkit import fixtures
+from tests.rota.test_night46_context import db  # noqa: F401
 
 CASES = pathlib.Path(__file__).resolve().parent / "cases"
 
@@ -78,3 +79,25 @@ def test_the_import_door_names_the_fault_that_the_run_finds_in_its_body(
     assert "the test uses sys and never imports it" in said, said
     assert "Before you send it, fix a second fault." in said, said
     assert "The test fails in its own arrange step" in said, said
+
+
+def test_the_scalar_door_reads_every_word_before_it_offers(db, tmp_path):
+    """The second look at passes 4c to 4e, low D. The offer fixed `start`
+    only, and the same door refused `end` on resend."""
+    import pytest
+
+    from rota.core import sandbox
+    from rota.testkit import gitfixture
+
+    repo = gitfixture.make(tmp_path, name="scalar_repo")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('project_root', ?)", (str(repo.root),))
+    sb = sandbox.build("architect", db)
+    sb.ctx.offers = []
+    with pytest.raises(sandbox.ArgumentError) as got:
+        sb.call("code.source", path="src/store/records.py", start="top",
+                end="bottom")
+    said = str(got.value)
+    assert "start='top' is a word" in said and "end='bottom' is a word" in said
+    (offer,) = sb.ctx.offers
+    assert offer.args["start"] == 1 and offer.args["end"] == 1
