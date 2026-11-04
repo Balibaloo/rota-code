@@ -27,6 +27,10 @@ def _developer(db, tmp_path):
     (root / PATH).parent.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     (root / PATH).write_text(BASE, encoding="utf-8", newline="")
+    # Another file uses the later definitions, as in icalendar.
+    (root / "src/icalendar/parser/__init__.py").write_text(
+        "from .string import _escape_string, _unescape_string, validate_token\n",
+        encoding="utf-8", newline="")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "99619246")
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'bg_3'", (str(root),))
@@ -56,3 +60,22 @@ def test_the_write_door_refuses_a_retype_one_escape_level_too_deep(db, tmp_path)
     assert (root / PATH).read_text(encoding="utf-8") == BASE
     (offer,) = [o for o in sb.ctx.offers if o.op == "code.write"]
     assert api.doubled_escape_lines(BASE.splitlines(), offer.args["text"]) == []
+
+
+def test_the_rewrite_refusal_offers_the_definition_the_seat_read_first(db, tmp_path):
+    """s216 seq 12 to 14: the seat read lines 118 to 156, `_foldline`, and
+    sent a span write from 118 to the end of the file. The refusal sent it to
+    the whole file first. It now offers `_foldline`'s span first."""
+    sb, root = _developer(db, tmp_path)
+    sb.ctx.offers = []
+    sb.call("code.source", path=PATH, start=118, end=156)
+    fold = "\n".join(BASE.splitlines()[118:156])
+    with pytest.raises(ValueError) as got:
+        sb.call("code.write", path=PATH, start=118, end=-1, text=fold)
+    said = str(got.value)
+    assert ("To change _foldline, write only start=118, end=156, the lines of "
+            "_foldline that you read") in said, said
+    assert said.index("start=118, end=156") < said.index("the whole file")
+    spans = [(o.args["start"], o.args["end"]) for o in sb.ctx.offers
+             if o.op == "code.write"]
+    assert spans[0] == (118, 156), spans

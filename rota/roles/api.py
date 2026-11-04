@@ -21146,6 +21146,11 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     end = min(end, len(lines))
     # The corrected spelling, so a citation of it resolves against the index.
     ctx.opened.add(_grain_path(path))
+    # The spans the seat read, newest last. The rewrite refusal offers the
+    # definition the seat read before the whole file (dry run 5, wall 10).
+    if not hasattr(ctx, "read_spans"):
+        ctx.read_spans = {}
+    ctx.read_spans.setdefault(_grain_path(path), []).append((start, end))
     getattr(ctx, "read_idents", set()).update(_idents_in(path))
     body = chr(10).join(lines[start:end])
     ctx.read_words.update(_words_in(path))
@@ -24533,6 +24538,28 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # time. The way out is a fact about the file, so say it:
                 # the line count, and the span that appends.
                 n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+                # Dry run 5, wall 10: s216 read lines 118 to 156, and this
+                # refusal sent it to the whole file first. The retype doubled
+                # every backslash. So the definition that the seat read comes
+                # first, and the whole file last.
+                read_def = _read_definition(ctx, wpath, old_tree, start, n_old)
+                if read_def:
+                    rn, rlo, rhi = read_def
+                    _send(f"start={rlo}, end={rhi}, the lines of {rn} that you "
+                          f"read", start=rlo, end=rhi, text=INVENT)
+                    _send(f"start={n_old}, end={n_old}, after the last line",
+                          start=n_old, end=n_old, text=INVENT)
+                    _fact(ctx, "span", (rlo, rhi), path=wpath, name=rn)
+                    _fact(ctx, "lines", n_old, path=wpath)
+                    raise ValueError(
+                        f"this rewrite of {path} drops "
+                        f"{', '.join(sorted(set(gone) | set(used)))}, and {why}. "
+                        f"To change {rn}, write only start={rlo}, end={rhi}, the "
+                        f"lines of {rn} that you read: that span replaces the "
+                        f"lines it holds now and keeps the rest of {path}. New "
+                        f"definitions go at start={n_old}, end={n_old}, after the "
+                        f"last line. Last, you can write the whole file with "
+                        f"every existing definition kept and your change added")
                 _send(f"the new definitions with start={n_old}, end={n_old}",
                       start=n_old, end=n_old, text=INVENT)
                 _send("is start=0, end=0", start=0, end=0, text=INVENT)
@@ -28001,6 +28028,31 @@ def _repair_sentence(joined: list[int], crlf: set[int] = frozenset()) -> str:
         return f"{head} the four characters \\r\\n."
     return (f"{head} the two characters \\n, and as the four characters \\r\\n "
             f"on line{'s' if len(cr) > 1 else ''} {_names(cr)}.")
+
+
+def _read_definition(ctx, path: str, old_tree, start: int,
+                     n_lines: int) -> tuple[str, int, int] | None:
+    """The top-level definition inside the newest span of `path` that the
+    seat read with `code.source`, as (name, start, end). A read of the whole
+    file names no definition. A definition that holds the write's start
+    wins."""
+    import ast as _a
+
+    for lo, hi in reversed((getattr(ctx, "read_spans", None) or {}).get(
+            _grain_path(path), [])):
+        if lo <= 0 and hi >= n_lines:
+            continue
+        defs = []
+        for n in getattr(old_tree, "body", []):
+            if not isinstance(n, (_a.FunctionDef, _a.AsyncFunctionDef, _a.ClassDef)):
+                continue
+            first = min([n.lineno] + [d.lineno for d in n.decorator_list]) - 1
+            last = getattr(n, "end_lineno", n.lineno)
+            if lo <= first and last <= hi:
+                defs.append((n.name, first, last))
+        if defs:
+            return next((d for d in defs if d[1] <= start < d[2]), defs[0])
+    return None
 
 
 def doubled_escape_lines(old_lines: list[str], text: str) -> list[int]:
