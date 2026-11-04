@@ -557,13 +557,19 @@ def reds_that_hold(conn: sqlite3.Connection, batch_id: str, commit: str,
     `where` adds an SQL condition on `test_id`. The review predicate and
     `lifecycle.mergeable` both ask this one function, so they never drift.
     """
+    from .scheduler import live_tests
+
     # Frame 362, pass 5b (review high 1): 5 icalendar files are red at the
     # base. The tree never proved them, so the batch did not break them.
     # A Tester's test, and an inherited test with no red base record, hold.
     excused = base_red_ids(conn, batch_id)
+    # A red test of a retired criterion holds no gate. He dropped its line
+    # (frame 306, pass 2, finding 2). The rule lives here, so the review
+    # gate and the merge check agree (frame 362, pass 5b, deviation 3).
     return [r["test_id"] for r in conn.execute(
         "SELECT test_id FROM latest_runs WHERE batch_id = ? AND commit_sha = ? "
-        "AND result != 'pass'" + where, (batch_id, commit))
+        "AND result != 'pass'" + live_tests(conn, "test_id") + where,
+        (batch_id, commit))
         if r["test_id"] not in excused]
 
 

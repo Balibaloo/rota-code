@@ -1123,14 +1123,12 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
             return f"touch strayed, unjudged: {s['paths']}"
         return f"touch strayed, a mistake still in the head commit: {s['paths']}"
 
-    # A red test of a retired criterion holds no merge. He dropped its line
-    # (frame 306, pass 2, finding 2).
-    # A test red at the base holds no merge (frame 362, pass 5b).
+    # A red test of a retired criterion holds no merge (frame 306, pass 2,
+    # finding 2). A test red at the base holds no merge (frame 362, pass
+    # 5b). `reds_that_hold` holds both rules for both gates.
     from .harness import reds_that_hold
-    from .scheduler import live_tests
 
-    failing = len(reds_that_hold(conn, batch_id, head,
-                                 live_tests(conn, "test_id")))
+    failing = len(reds_that_hold(conn, batch_id, head))
     if failing:
         return f"{failing} test(s) not passing"
 
