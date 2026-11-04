@@ -79,3 +79,49 @@ This agent cannot see a token counter, so the figures are estimates.
 - Input: about 95k tokens of context, against the cap of about 50k. I went over the cap. The causes are the reads of the diff, the probe outputs and the repeated attempts to write the report.
 - Output: about 18k tokens.
 - Total: about 113k tokens.
+
+## Pass S5c, `3bcabe71`
+
+Verdict: stand. Nine findings are fixed and three are fixed in part. None of the three needs work before the live consult measure. The resolver rows are true on the pinned tree. On icalendar the cut at 6000 characters falls between whole rows. One low finding is new.
+
+### The findings of S5, one line each
+
+1. Fixed. `model.shape("from_ical")` now starts with the note, and the rows that share a word follow it.
+2. Fixed. The op drops whole rows until the reply fits. On a fresh index of the pin, `Calendar` renders 5,818 characters and `from_ical` renders 5,971. Neither reply is cut.
+3. Fixed in part. The resolver now writes `cli.py` as a caller of `Calendar`. On `dry5.db` the test split is still wrong, because the frame rules `src` as program. Pass 5 owns that cause.
+4. Fixed in part. `shape_for` keeps tier 1 with no cap, so no cap drops a named row. Tier 2 still keeps test rows, so a fixture can be the second row of `model.shape("Calendar")`.
+5. Fixed. A dotted part feeds only tier 1, and `string._foldline` gives 5 rows again.
+6. Fixed in part. In the probe, the identifier rule drops a bare "icalendar". So "Does icalendar keep a broken line?" gets no block. The op keeps the plain rule, so `shape_rows(conn, "the icalendar parser")` still puts `cli.py::main` in tier 1. This is acceptable, because the Architect writes the name for the op.
+7. Fixed. The identifier rule with the case kept is built for questions (`prose=True`), and there is a test for each case.
+8. Fixed. `test_a_dotted_part_ranks_first_and_feeds_no_word` pins the split.
+9. Fixed. The match runs before `_frame_ranked`.
+10. Fixed. The docstring names the additions to the words of `code.callables`.
+11. Fixed. `shape.own_all` reads the `__all__` of each file that has a hit.
+12. Fixed. `shape_of` is now `shape_rows`.
+
+### The resolver row for `Class.method`
+
+The row is true, CONFIRMED. I built a fresh index of `icalendarI` at `99619246` with the code at `9c8ad879` and again with the code at `3bcabe71`. Then I compared the `code_calls` rows.
+
+- `Calendar` goes from 21 caller files to 44, not from 21 to 28. The figure 7 in the report is the count of new called targets in the S1 pins (65 to 72). It is not a count of callers of `Calendar`. On my index the rows go from 500 to 594, and the targets go from 114 to 117.
+- No row was removed. `Component` goes from 9 to 16, `Event` from 41 to 48, and `JCalParsingError` from 16 to 29.
+- I read three of the 23 new callers. `cal/lazy.py:10` has `from .calendar import Calendar`, and line 289 calls `Calendar.example(...)`. `tests/test_cli_tool.py:5` imports `Calendar` from `icalendar`, and line 100 calls `Calendar.from_ical(INPUT)`. `tests/prop/test_conference.py:5` does the same import, and line 135 calls `Calendar.from_ical(...)`. In all three, a `from` import binds the class and the code calls a method through it.
+
+### Whether the 6000-character cut can split a row
+
+On icalendar the cut does not split a row, CONFIRMED. The largest single row is 514 characters. The loop in `model_shape` stops at one row (`rota/roles/api.py`, `while kept > 1`). So a first row longer than 6000 characters still goes to `_render`, which cuts it in the middle.
+
+### New finding
+
+13. Low, PLAUSIBLE. `_callers_short` limits `callers` and `test_callers` to three paths each. It does not limit `copies` or `exported`. On icalendar the longest `copies` list has 2 paths, because `main` is in 3 files. A repository with many scripts that each define `main` can give one row longer than 6000 characters. That row is then cut in the middle.
+    Fix: limit `copies` and `exported` to three paths and a count, the same as the caller lists.
+
+### Probes for S5c
+
+The probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/94cb1260-d91d-4109-aa38-7528925f5f83/scratchpad/rv5/`. They ran on a `git archive` copy `s5c` of `3bcabe71`.
+
+- `q1_calls.py`: a fresh index of the pin, in `idx_old.db` and `idx_new.db`, and the `Calendar` callers of each. The results are `q1_old.json` and `q1_new.json`.
+- `q2_cut.py`: the largest `copies` list, and `model_shape` on `Calendar`, `from_ical` and `main`, with the rendered size and the largest row.
+- `q3_cmd.py`: the script match in the probe and in the op on `dry5.db`.
+
+Usage for S5c: about 22k input added, against the cap of 20k. About 4k output. These figures are estimates.
