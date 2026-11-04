@@ -63,9 +63,22 @@ def ruling_for(conn, grain: str) -> str | None:
             "FROM frame_rulings f JOIN frame_provenance p ON p.id = f.id"))
     except sqlite3.Error:
         return None
+    # Frame 362, pass 5: the judge rules the top-level entries only, so a
+    # `program` ruling on `src` never saw `src/icalendar/tests`. The ruling
+    # stops at the first test folder, and the heuristic decides below it.
+    # Frame 324 holds: the folder gives the kind, the basename the shape.
+    # An `ignore` ruling still covers its test folder, so ignored code
+    # gives no test to the harness.
+    parts = grain.split("/")[:-1]
+    cut = next((i for i, p in enumerate(parts) if p.lower() in TEST_DIRS),
+               None)
+    test_dir = "/".join(parts[:cut + 1]) if cut is not None else None
     best = None
     for r in rows:
         pre = r["prefix"].rstrip("/")
+        if (test_dir is not None and r["kind"] in PROGRAM_KINDS
+                and len(pre) < len(test_dir)):
+            continue
         if grain == pre or grain.startswith(pre + "/"):
             key = (len(pre), 1 if r["provenance"] == "decided" else 0)
             if best is None or key > best[0]:
@@ -77,6 +90,10 @@ def ruling_for(conn, grain: str) -> str | None:
 # `frame_rulings.kind`. The model-facing word `boundary` files as `surface`
 # (`_FRAME_KINDS` in rota/roles/api.py).
 KINDS = ("program", "attached", "ignore", "surface")
+
+# The kinds whose ruling stops at a test folder inside the ruled prefix.
+# Frame 362, pass 5: a test folder is not part of the program.
+PROGRAM_KINDS = ("program", "surface")
 
 
 def kind_of(conn, path: str) -> str:
