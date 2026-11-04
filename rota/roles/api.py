@@ -4757,36 +4757,63 @@ def bound_constraints(ctx: "Ctx", batch_id: str) -> list[dict] | dict | None:
     The files are the predicted touch set and the diff. The structural
     review's push reads the same `_reaching_constraints`.
     """
-    from ..core.lifecycle import grain_file, predicted_rows
-    from ..core.scheduler import all_areas_surveyed
-    from ..onboarding.boot import ZERO
-
-    files = [f for f in (grain_file(r) for r in predicted_rows(ctx.conn, batch_id))
-             if f]
     try:
-        files += _diff_files(ctx, batch_id) or []
+        diff = _diff_files(ctx, batch_id) or []
     except Exception:                                      # noqa: BLE001
-        pass                    # no worktree yet, so the touch set alone
-    files = list(dict.fromkeys(files))
+        diff = []               # no worktree yet, so the touch set alone
+    files, rows = _bound_rows(ctx.conn, batch_id, diff)
     if not files:
         # Nothing was checked, so the push says nothing (frame 362, pass 1e).
         # A note on the empty touch set turned the Tester of
         # L1-TS-an-outside-fact-is-the-researchers to the Vision Keeper, 2 of 5.
         return None
-    ids = _reaching_constraints(ctx.conn, files)
-    # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
-    if all_areas_surveyed(ctx.conn, files):
-        ids.discard(ZERO)
-    commitments, falsified = stated_commitments(ctx.conn, files)
-    ids -= set(falsified)
-    if not ids:
+    if not rows:
         return {"note": f"No constraint binds the files of this batch: "
                         f"{', '.join(files)}."}
-    shown = {c["id"]: _commitment_row(ctx.conn, c) for c in commitments}
+    return [_commitment_row(ctx.conn, r) if "party" in r else r for r in rows]
+
+
+def _bound_rows(conn: sqlite3.Connection, batch_id: str, diff: list[str]
+                ) -> tuple[list[str], list[dict]]:
+    """The files of `batch_id` and the constraints that bind them, in the
+    push's order. A stated commitment comes as the `stated_commitments` row,
+    so it holds `party`. The push and the touch line to the principal read
+    this one set (design B, section 4.2, step 5)."""
+    from ..core.lifecycle import grain_file, predicted_rows
+    from ..core.scheduler import all_areas_surveyed
+    from ..onboarding.boot import ZERO
+
+    files = [f for f in (grain_file(r) for r in predicted_rows(conn, batch_id))
+             if f]
+    files = list(dict.fromkeys(files + list(diff)))
+    if not files:
+        return files, []
+    ids = _reaching_constraints(conn, files)
+    # Law 12: a survey starves constraint zero, as in `constraints_for_grains`.
+    if all_areas_surveyed(conn, files):
+        ids.discard(ZERO)
+    commitments, falsified = stated_commitments(conn, files)
+    ids -= set(falsified)
+    if not ids:
+        return files, []
+    stated = {c["id"]: c for c in commitments}
     marks = ", ".join("?" for _ in ids)
-    return [shown.get(r["id"], r) for r in _rows(ctx.conn.execute(
+    return files, [stated.get(r["id"], r) for r in _rows(conn.execute(
         "SELECT id, headline, text FROM constraints "
         f"WHERE id IN ({marks}) ORDER BY id", sorted(ids)))]
+
+
+def touch_commitments(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
+    """The stated commitments that the Critic's push carries for `batch_id`,
+    in the push's order. The touch line to the principal shows them, and no
+    other page does (design B, section 4.2, step 5)."""
+    from ..core import worktrees as _wt
+
+    try:
+        diff = _wt.batch_files(conn, batch_id) or []
+    except Exception:                                      # noqa: BLE001
+        diff = []               # no worktree yet, so the touch set alone
+    return [r for r in _bound_rows(conn, batch_id, diff)[1] if "party" in r]
 
 
 # The words the push writes for a stated commitment whose witness tie broke.

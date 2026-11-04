@@ -730,11 +730,13 @@ def first_touch_shown(conn: sqlite3.Connection, batch_id: str) -> list[str] | No
     return None
 
 
-def first_touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
+def first_touch_words(conn: sqlite3.Connection, batch_id: str,
+                      omit: frozenset[str] | set[str] = frozenset()) -> str:
     """The lazy rows of a batch's first touch as one short line, or ''.
 
     The record wins over the live rule, so the note reads the same on every
-    render after its rows leave the open set."""
+    render after its rows leave the open set. A row about a ref in `omit`
+    is left out, because another part of the line shows that ref."""
     from .predicates import LAZY_WORDS
 
     ids = first_touch_shown(conn, batch_id)
@@ -742,9 +744,9 @@ def first_touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
         ids = first_touch_rows(conn, batch_id)
     words = []
     for ref in ids:
-        row = conn.execute("SELECT default_taken FROM ledger WHERE id = ?",
-                           (ref,)).fetchone()
-        if row:
+        row = conn.execute("SELECT default_taken, about_ref FROM ledger "
+                           "WHERE id = ?", (ref,)).fetchone()
+        if row and row["about_ref"] not in omit:
             words.append(row["default_taken"].removeprefix(LAZY_WORDS))
     if not words:
         return ""

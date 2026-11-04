@@ -3389,17 +3389,34 @@ def touch_words(conn: sqlite3.Connection, batch_id: str,
         parts.append("might touch " + ", ".join(t["possible"]))
     if t["unsurveyed"]:
         parts.append("unsurveyed ground: " + ", ".join(t["unsurveyed"]))
-    if t["commitments"]:
+    # A stated commitment reaches him in its own sentence below and in no
+    # other part, so no other words of understanding reach him (design B,
+    # section 3.5 and section 4.2, step 5).
+    stated = {r["id"] for r in conn.execute(
+        "SELECT id FROM constraints WHERE witness != '' AND party != ''")}
+    plain = [c for c in t["commitments"] if c["id"] not in stated]
+    if plain:
         parts.append("commitments: " + ", ".join(
-            f"{c['headline']} (bound to {c['bound_to']})"
-            for c in t["commitments"]))
+            f"{c['headline']} (bound to {c['bound_to']})" for c in plain))
     # The lazy rows wait for this moment, their first touch (frame 361).
     from ..core.lifecycle import first_touch_words
 
-    lazy = first_touch_words(conn, batch_id)
+    lazy = first_touch_words(conn, batch_id, omit=stated)
     if lazy:
         parts.append(lazy)
-    return "; ".join(parts)
+    from .api import touch_commitments
+
+    # One sentence per commitment, in the Critic's order, so he reads what
+    # the review holds the change to (frame 362, slice pass 4).
+    keep = [f"It must keep: {_clause(c['behaviour'])}, because "
+            f"{_clause(c['party'])} depend on it."
+            for c in touch_commitments(conn, batch_id)]
+    return "; ".join(parts) + ("." + "".join(" " + s for s in keep) if keep else "")
+
+
+def _clause(words: str) -> str:
+    """Seat words as a clause inside a sentence of the page."""
+    return (words or "").strip().rstrip(".").strip()
 
 
 def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
