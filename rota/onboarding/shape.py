@@ -14,6 +14,7 @@ import re
 import sqlite3
 from pathlib import Path
 
+from ..core.worktrees import grain_path
 from .areas import is_attached
 
 # A `__main__` guard as Python writes it, at the start of a line.
@@ -31,7 +32,8 @@ def copies(conn: sqlite3.Connection) -> dict[str, list[str]]:
     by: dict[str, set[str]] = {}
     for (grain,) in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'symbol'"):
-        path, _, name = grain.partition("::")
+        # The path half goes through the one reader (F11, frame 362 pass 1e).
+        path, name = grain_path(grain), grain.partition("::")[2]
         if not name or is_attached(path):
             continue
         if name.startswith("__") and name.endswith("__"):
