@@ -4053,7 +4053,15 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
             f"model.amend(headline=\"{mine['path']}: <what must hold>\", "
             f"text=\"<who outside breaks and what they see>\", "
             f"bindings=[\"<a path of {ctx.area} that you opened>\"], party="
-            f"\"{party}\", behaviour=\"{behaviour}\", witness=\"{witness}\").")
+            f"\"{party}\", behaviour=\"{behaviour}\", witness=\"{witness}\"). "
+            # The exported-name case stated function calls on the
+            # pyproject.toml line, then attested none_found (frame 362,
+            # gate 3). A surface of the code needs no witness line.
+            f"If the behaviour is not what the line at {mine['path']} says, "
+            f"the line is not its witness. Then write the surface with no "
+            f"witness: model.amend(headline=\"<path>::<symbol>\", "
+            f"text=\"<who outside breaks and what they see>\", "
+            f"bindings=[\"<that path>\"]).")
     return {"id": witness, "key": witness_key(row["kind"], row["path"], row["text"]),
             "path": row["path"], "party": party, "behaviour": behaviour,
             "placed": placed}
@@ -16598,22 +16606,6 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"{about_ref!r} is a ledger row. An assumption is about an "
             f"artefact, never about another assumption. If a ruling on it "
             f"left you nothing to do, you are done")
-    # A rota row under another table's name. A path or an entry as the
-    # subject stays legal: reconcile logs "README says X" about README.md
-    # under items, and that is the shape the design asks for.
-    # An id can live in two homes: `sentinel` is a constraint and a glossary
-    # term on nights 161 to 170. Any home that holds it is right (F22).
-    homes = _homes_of_ref(ctx.conn, about_ref)
-    home = homes[0] if homes else None
-    if home and about_table not in homes:
-        raise ValueError(_offer(
-            ctx,
-            f"{about_ref!r} is a row of {' and '.join(homes)}, not of "
-            f"{about_table}. "
-            f"about_ref and about_table name one row together; send "
-            f"about_table={home!r}",
-            "ledger.log", {"about_ref": about_ref, "about_table": home,
-                           "assumption": assumption, "kind": word}))
     _refuse_an_echo(ctx, about_ref)
     # brief: blindspot.md, say the actual thing: what went unread, and why
     # The blindspot brief's own rule, "Say the actual thing", held at the
@@ -16689,6 +16681,29 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"note>), and if a criterion is silent and you chose a reading, "
                 f"it is ledger.log(kind='default'), which holds nothing.",
                 call, {"refs": [about_ref], "question": assumption}))
+
+    # A rota row under another table's name. A path or an entry as the
+    # subject stays legal: reconcile logs "README says X" about README.md
+    # under items, and that is the shape the design asks for.
+    # An id can live in two homes: `sentinel` is a constraint and a glossary
+    # term on nights 161 to 170. Any home that holds it is right (F22).
+    # The check comes last, so its offer meets no later refusal. The offer
+    # with kind='scope' met the scope route above (frame 362, gate 3).
+    homes = _homes_of_ref(ctx.conn, about_ref)
+    home = homes[0] if homes else None
+    if home and about_table not in homes:
+        # A sentence in about_table is no table. The refusal read "not of
+        # truncated string ends in an ellipsis character" (frame 362, gate 3).
+        sent = (f", and about_table={about_table!r} names no table"
+                if about_table not in id_tables(ctx.conn)
+                else f", not of {about_table}")
+        raise ValueError(_offer(
+            ctx,
+            f"{about_ref!r} is a row of {' and '.join(homes)}{sent}. "
+            f"about_ref and about_table name one row together; send "
+            f"about_table={home!r}",
+            "ledger.log", {"about_ref": about_ref, "about_table": home,
+                           "assumption": assumption, "kind": word}))
 
     row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
     return {"id": row, **extra}
@@ -17558,7 +17573,14 @@ def _line_held(line: str, added: list[str]) -> bool:
         text = text[1:].strip()
     if text in added:
         return True
-    return len(text) >= _LINE_PART_MIN and any(text in a for a in added)
+    if len(text) >= _LINE_PART_MIN and any(text in a for a in added):
+        return True
+    # A seat writes its value in double quotes, so it swaps the double
+    # quotes of a line for single ones. Python reads both the same. The
+    # docstring case sent `separators=(',', ':')` for `(",", ":")` five
+    # times (frame 362, gate 3).
+    same = text.replace('"', "'")
+    return any(same == a.replace('"', "'") for a in added)
 
 
 # The kinds of line that do nothing a criterion can ask for, in the words
@@ -18128,6 +18150,19 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                 f"{gone} Send the pass again with lines= naming only "
                 f"{named}.")
         if key not in ids:
+            # A pushed commitment in lines= is a seat that judged it. The
+            # refusal names the fail route, because the generic words sent
+            # the seat to a fail on the criterion (frame 362, gate 3).
+            bound = bound_constraints(ctx, batch_id)
+            if isinstance(bound, list) and any(
+                    r["id"] == key and "party" in r for r in bound):
+                raise LinesRefusal(
+                    f"{key!r} is a pushed commitment, not a criterion, so a "
+                    f"pass names no line for it. If the diff breaks "
+                    f"{key}, send verdicts.emit(result='fail', "
+                    f"failed_criterion={key!r}, reason=<its witness line>). "
+                    f"If the diff keeps it, send the pass again with lines= "
+                    f"naming only {named}")
             raise LinesRefusal(
                 f"{key!r} is not a criterion of batch {batch_id}. Its criteria "
                 f"are {named}. Send the pass again with lines= naming each of "
