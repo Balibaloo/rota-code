@@ -25,6 +25,7 @@ SHAPE = {
                    "    def from_ical(cls, text):\n        return cls()\n"),
     "pkg/fold.py": "def fold_line(text):\n    return text\n",
     "pkg/legacy.py": "def fold_line(text):\n    return text[:75]\n",
+    "pkg/attr.py": "def _get_links():\n    return []\n",
     "pkg/cli.py": ("from pkg.cal import Calendar\nfrom pkg.fold import fold_line\n\n\n"
                    "def main():\n    fold_line('a')\n    return Calendar.from_ical('x')\n"),
     "tests/test_fold.py": ("from pkg.fold import fold_line\n\n\n"
@@ -133,3 +134,44 @@ def test_a_question_with_no_hit_adds_no_block(index):
     from probes.consult import shape_for
 
     assert shape_for(index, "Why zebra crossings?") == ""
+
+
+# --- S5b: the probe block keeps the names the question names whole ------------
+
+def _grains(block: str) -> list[str]:
+    return [line[2:].split(" ", 1)[0] for line in block.splitlines()
+            if line.startswith("- ")]
+
+
+def test_the_block_keeps_a_whole_name_and_drops_a_word_hit(index):
+    """Q1 on dry run 5: `get` matched the `_get_*` helpers of `attr.py`."""
+    from probes.consult import shape_for
+
+    block = shape_for(index, "How do they get a Calendar object back?")
+    assert _grains(block) == ["pkg/cal.py::Calendar"]
+    assert "pkg/attr.py::_get_links" not in block
+    assert block.splitlines()[-1].startswith("and ")
+    assert block.splitlines()[-1].endswith(" more rows match a word of the question")
+
+
+def test_the_block_keeps_a_class_method_and_its_class(index):
+    """Q5: the dotted name gives the class and the method name whole."""
+    from probes.consult import shape_for
+
+    block = shape_for(index, "A maintainer renames Calendar.from_ical. Who notices?")
+    assert "pkg/cal.py::Calendar" in _grains(block)
+
+
+def test_the_block_keeps_the_command_row(index):
+    """Q8: the command row stays, with the function it runs."""
+    from probes.consult import shape_for
+
+    block = shape_for(index, "What does the `demo` command a user gets do?")
+    assert _grains(block)[0] == "pkg/cli.py::main"
+    assert "the command `demo` runs it" in block
+
+
+def test_everyday_words_with_no_whole_name_get_no_block(index):
+    from probes.consult import shape_for
+
+    assert shape_for(index, "How do the links get their line?") == ""

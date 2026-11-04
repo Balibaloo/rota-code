@@ -101,10 +101,18 @@ def shape_for(conn, question: str) -> str:
     Section 4.1 of the shape design: the probe gave the Architect the model
     and the constraints only, so Q5 and Q8 named code that its artefact could
     not reach. The rows come from `model.shape`'s body, mechanically, like
-    `glossary_for`. A question that names no indexed name gets no block."""
-    from rota.roles.api import shape_of
+    `glossary_for`. A question that names no indexed name gets no block.
+
+    The block keeps a row only when the question names its grain name, export
+    name or command whole. Pass S5 measured 40 rows and about 5k characters
+    on each of the eight icalendar questions, because a word such as `get`
+    matched every `_get_*` helper (ruled: the coordinator, pass S5b)."""
+    from rota.roles.api import shape_names, shape_of
 
     rows, whole = shape_of(conn, question)
+    names = shape_names(question)
+    rows = [r for r in rows if r.get("command")
+            or r["grain"].split("::")[-1].lower() in names]
     if not rows:
         return ""
     out = [SHAPE_HEAD]
@@ -127,8 +135,7 @@ def shape_for(conn, question: str) -> str:
                 line += f"; {word} {', '.join(files[:3])}{more}"
         out.append(line)
     if whole > len(rows):
-        out.append(f"({whole - len(rows)} more names share a word with the "
-                   f"question and are not shown)")
+        out.append(f"and {whole - len(rows)} more rows match a word of the question")
     return "\n".join(out)
 
 

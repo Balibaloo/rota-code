@@ -5268,6 +5268,26 @@ def model_shape(ctx: Ctx, name: str) -> list[dict]:
                      f"the answer."}]
 
 
+def shape_names(text: str) -> set[str]:
+    """The words of `text` that `shape_of` matches, lowercased.
+
+    Each token gives itself whole, as `code.callables` takes it, and the words
+    that `code.vocabulary` splits from it. A dotted token also gives each part
+    whole, so `Calendar.from_ical` gives `calendar` and `from_ical`."""
+    words = set()
+    for token in (text or "").split():
+        w = token.strip("`'\".,?:;()[]").lower()
+        for whole in {w, *re.split(r"[./]", w)}:
+            if len(whole) >= 3:
+                words.add(whole)
+                words.add(whole.rstrip("s"))
+        # The split reads the case, so it takes the token as written.
+        for part in _words_in(token):
+            words.add(part)
+            words.add(part.rstrip("s"))
+    return words
+
+
 def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
     """The shape rows for the words of `text`, and the count before the cap.
 
@@ -5279,16 +5299,7 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], int]:
     from ..core.worktrees import WorktreeError, project_root
     from ..onboarding import shape
 
-    words = set()
-    for token in (text or "").split():
-        w = token.strip("`'\".,?:;()[]").lower()
-        if len(w) >= 3:
-            words.add(w)
-            words.add(w.rstrip("s"))
-        # The split reads the case, so it takes the token as written.
-        for part in _words_in(token):
-            words.add(part)
-            words.add(part.rstrip("s"))
+    words = shape_names(text)
     if not words:
         return [], 0
     rows = _rows(conn.execute(
