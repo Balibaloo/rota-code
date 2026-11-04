@@ -427,7 +427,10 @@ def validate_args(fn: Callable, kwargs: dict,
         if wrong:
             said += wrong[0]
             offer["id"] = wrong[1]
-        return api._offer(ctx, said, dotted, offer)
+        # `_scalar_id_fault` judges the id. The other ids that the op's
+        # `_must_exist` reads go through the shared offer check (frame 211).
+        checks = (api._exist_check(ctx, op, skip=("id",)),) if op else ()
+        return api._offer_checked(ctx, said, dotted, offer, checks)
 
     checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():

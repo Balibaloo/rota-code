@@ -315,6 +315,92 @@ def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
     return said
 
 
+# One check of an offer: None when the check admits the arguments, else the
+# words to add and the arguments that pass it, or None when only the seat
+# can fix them.
+OfferCheck = Callable[[dict], "tuple[str, dict | None] | None"]
+
+
+def _offer_checked(ctx, said: str, op: str, args: dict,
+                   checks: "tuple[OfferCheck, ...]" = (),
+                   then: tuple = ()) -> str:
+    """Send the offer of a refusal through the checks that follow it first.
+
+    Frame 211 (2026-10-12): "the door offers no call it refused in the same
+    reply". The gate of 2026-11-04 found two doors that did. So each check
+    reads the offered arguments. A fault adds its words to `said`, and one
+    refusal names both faults. A fault that the door can fix changes the
+    offer. A fault that only the seat can fix records no offer, because
+    frame 135's law admits only a call that the doors admit.
+    """
+    for check in checks:
+        got = check(args)
+        if got is None:
+            continue
+        words, fixed = got
+        said += words
+        if fixed is None:
+            return said
+        args = fixed
+    return _offer(ctx, said, op, args, then)
+
+
+def _exist_check(ctx, op: tuple[str, str], skip: tuple = ()) -> OfferCheck:
+    """The `_must_exist` calls of `op` as one offer check.
+
+    An offered id that names a row of no table is a placeholder or an
+    invention, and `_must_exist` refuses it on the resend. The check leaves
+    a real id of another table to the op, because some ops route such an id
+    elsewhere: a commitment id goes to `_pushed_commitment`. A table with one
+    candidate row gives that row to the offer. Otherwise the seat chooses.
+    """
+    import inspect as _inspect
+
+    from ..core.db import tables_of
+
+    impl = REGISTRY.get(op)
+    try:
+        src = _inspect.getsource(impl) if impl is not None else ""
+    except (OSError, TypeError):
+        src = ""
+    names = [(t, n) for t, n in re.findall(
+        r"""_must_exist\(ctx,\s*["'](\w+)["'],\s*(\w+)\)""", src)
+        if n not in skip]
+
+    def check(args: dict):
+        conn = getattr(ctx, "conn", None)
+        if conn is None:
+            return None
+        words, fixed, left = "", dict(args), False
+        for table, name in names:
+            v = fixed.get(name)
+            if not isinstance(v, str) or tables_of(conn, v):
+                continue
+            relayed = _relay_refs(ctx)
+            have = ([r[0] for r in conn.execute(
+                f"SELECT id FROM {table} WHERE id IN "
+                f"({', '.join('?' * len(relayed))}) ORDER BY id", relayed)]
+                if relayed else [r[0] for r in conn.execute(
+                    f"SELECT id FROM {table} ORDER BY id LIMIT 7")])
+            for h in have[:6]:
+                _fact(ctx, "row", h)
+            rows = (f"; {table} rows are {have[:6]}" if have
+                    else f"; there are no {table} rows at all")
+            if len(have) == 1:
+                fixed[name] = have[0]
+                words += (f". The {name} is wrong too: {v!r} is no row of "
+                          f"{table}{rows}. Send {name}={have[0]!r}")
+            else:
+                left = True
+                words += (f". The {name} is wrong too: {v!r} is no row of "
+                          f"{table}{rows}. Send the id of a row of {table}")
+        if not words:
+            return None
+        return words, (None if left else fixed)
+
+    return check
+
+
 @dataclass(frozen=True)
 class Fact:
     """One fact that a refusal quotes: an id, a path, a line, a span or an
@@ -11084,7 +11170,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # project-id door. A project id kept here met that door on the
             # next call, so the offer names a new id in one hop.
             _id = INVENT if _project_id_refused(ctx, id, path) else id
-            raise Wall(_offer(
+            _bid = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
+
+            # The run check of this door refused the offered body on resend
+            # (frame 211; ACT-TS-give-the-prompt-a-stream, 2026-11-04). So
+            # the body with the import line runs before the door offers it.
+            def _runs(a: dict):
+                ran = _arrange_run_refusal(ctx, _bid, criterion_id,
+                                           a["path"], a["body"])
+                return None if ran is None else (
+                    f". Before you send it, fix a second fault. {ran}", None)
+            raise Wall(_offer_checked(
                 ctx,
                 f"the test uses {unbound[0]} and never imports it: a NameError "
                 f"against any code. Add the line `import {unbound[0]}` at the "
@@ -11098,7 +11194,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                      f"project's own tests"),
                 "tests.encode", {"id": _id, "criterion_id": criterion_id,
                                  "path": _to, "body": f"import {unbound[0]}\n{body}",
-                                 "batch_id": batch_id}))
+                                 "batch_id": batch_id}, (_runs,)))
         # A Tester told to "import the function the surface names" invented
         # ledger, app and create_account five runs of five. The criterion
         # carries the surface, so the Wall names the import line.
