@@ -46,8 +46,17 @@ def _reindex_main(conn: sqlite3.Connection, batch_id: str) -> None:
     from . import worktrees
 
     try:
-        indexer.refresh(conn, worktrees.project_root(conn), main=True,
-                        batch_id=batch_id)
+        done = indexer.refresh(conn, worktrees.project_root(conn), main=True,
+                               batch_id=batch_id)
+        # A harvest fault is a warning, and `_refresh_worked` deletes the
+        # `index:<batch>` note. So the warning gets its own key, a sentence as
+        # the onboarding's stress lines are. A harvest that works makes every
+        # older note untrue, so it clears them all (review of S2, medium 1).
+        if done.warnings:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                         "(?, ?)", (f"harvest:{batch_id}", done.warnings[0]))
+        else:
+            conn.execute("DELETE FROM config WHERE key LIKE 'harvest:%'")
     except Exception as exc:                    # noqa: BLE001 -- best effort
         # Every exception, not a list of two. A parse error, a locked database
         # or a bug in the walk would otherwise escape after `status` already

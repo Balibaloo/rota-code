@@ -538,10 +538,13 @@ def _is_guard(node: ast.stmt) -> bool:
     if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
         return False
     test = node.test
-    return (isinstance(test.left, ast.Name) and test.left.id == "__name__"
-            and len(test.comparators) == 1
-            and isinstance(test.comparators[0], ast.Constant)
-            and test.comparators[0].value == "__main__")
+    if len(test.comparators) != 1:
+        return False
+    # Both orders, as `"__main__" == __name__` also runs (review of S2, low 2).
+    sides = {type(s).__name__: s for s in (test.left, test.comparators[0])}
+    name, value = sides.get("Name"), sides.get("Constant")
+    return (name is not None and value is not None and name.id == "__name__"
+            and value.value == "__main__")
 
 
 def entry_guard(rel: str, module: ast.Module | None) -> int:
@@ -558,9 +561,13 @@ def entry_guard(rel: str, module: ast.Module | None) -> int:
         return 0
     defs: set[str] = set()
     for node in module.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        # A top-level class runs the program too, as `App().run()` does, and
+        # so does a name from a relative import (review of S2, low 2).
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             defs.add(node.name)
-        names = ([a.name for a in node.names] if isinstance(node, ast.Import)
+        if isinstance(node, ast.ImportFrom) and node.level:
+            defs.update(a.asname or a.name for a in node.names)
+        names =([a.name for a in node.names] if isinstance(node, ast.Import)
                  else [node.module or ""] if isinstance(node, ast.ImportFrom)
                  else [])
         if any(n.split(".")[0] == "atheris" for n in names):
@@ -918,9 +925,9 @@ def _contribution_files(tree: Tree, c: Candidate) -> set[str]:
         return {rel for rel in tree.tests()
                 if any(_under(rel, p) for p in c.detail.get("paths", []))}
     if form == "news_fragment":
-        folder = c.detail.get("directory", "")
-        got = {rel for rel in tree.files if folder and _under(rel, folder)}
-        return got | ({c.detail.get("filename", "")} & set(tree.files))
+        # A change adds a new fragment, so no change touches the old ones.
+        # The row text names the directory (review of S2, low 3).
+        return {c.detail.get("filename", "")} & set(tree.files)
     return {c.path}
 
 

@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from rota.core import lifecycle
 from rota.core.db import init_db
 from rota.onboarding import boot, harvest, indexer, shape
 from rota.testkit import gitfixture
@@ -66,7 +67,7 @@ ENTRY = {
     # in the guard, as `cal/lazy.py` of icalendar does.
     "demo/lazy.py": ("import timeit\n\n\nclass Lazy:\n    pass\n\n\n"
                      "if __name__ == \"__main__\":\n    def bench():\n"
-                     "        return Lazy()\n    print(timeit.timeit(bench))\n"),
+                     "        return Lazy.__name__\n    print(timeit.timeit(bench))\n"),
     # A fuzz harness by its import, and one by its directory.
     "demo/fuzz_one.py": ("import atheris\n\n\ndef main():\n    atheris.Fuzz()\n\n\n"
                          "if __name__ == \"__main__\":\n    main()\n"),
@@ -169,8 +170,8 @@ def test_a_towncrier_rule_binds_its_fragments_and_hides_the_change_log(tmp_path)
     assert set(rows) == {"news_fragment", "testpaths"}
     news = rows["news_fragment"]
     assert news["text"] == 'directory = "news/"'
-    assert _bound(db, news["id"]) == {"news/123.bugfix": "contribution",
-                                      "CHANGES.rst": "contribution"}
+    # The old fragments are files no change touches (review of S2, low 3).
+    assert _bound(db, news["id"]) == {"CHANGES.rst": "contribution"}
     assert rows["testpaths"]["path"] == "tox.ini"
 
 
@@ -278,6 +279,31 @@ def test_a_harvest_fault_is_a_warning_and_the_refresh_goes_on(tmp_path, monkeypa
     assert done.commit and done.index.files
     [line] = done.warnings
     assert "OperationalError: disk I/O error" in line
+
+    # After a merge the warning is a record that outlives the index note
+    # (review of S2, medium 1), and a harvest that works clears it.
+    def note(key):
+        row = db.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+
+    lifecycle._reindex_main(db, "b1")
+    assert note("index:b1") is None
+    assert "OperationalError: disk I/O error" in note("harvest:b1")
+    monkeypatch.undo()
+    lifecycle._reindex_main(db, "b2")
+    assert note("harvest:b1") is None
+
+
+def test_the_guard_reads_a_class_a_relative_import_and_the_reversed_test(tmp_path):
+    """Review of S2, low 2."""
+    root = _tree(tmp_path / "t", {
+        "pkg/__init__.py": "", "pkg/cli.py": "def main():\n    pass\n",
+        "pkg/app.py": ("class App:\n    def run(self):\n        pass\n\n\n"
+                       "if '__main__' == __name__:\n    App().run()\n"),
+        "pkg/launch.py": ("from .cli import main\n\n"
+                          "if __name__ == '__main__':\n    main()\n")})
+    got = {c.path for c in harvest.harvest(root) if c.kind == "entry_point"}
+    assert got == {"pkg/app.py", "pkg/launch.py"}
 
 
 # --- the counts on the pinned trees ----------------------------------------------
