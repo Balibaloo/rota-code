@@ -17174,8 +17174,19 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
     between them a decision rather than a default. This is the decision,
     made its own call: `encodes=True` is what a fail verdict is allowed to
     stand on; `encodes=False` is what a challenge is for, not a code fail.
+
+    A pushed commitment id is accepted too, and the claim is kept under
+    that id. A commitment has no test, so its fail needs no claim.
     """
-    _must_exist(ctx, "criteria", criterion_id)
+    # At step 0 of gate 4 run 22 the seat claimed the commitment as it
+    # claims a criterion. The door keeps that claim and refuses no right
+    # act (frame 362, B2).
+    commitment = (ctx.batch_id is not None
+                  and _names_commitment(ctx.conn, criterion_id))
+    if commitment:
+        _pushed_commitment(ctx, ctx.batch_id, criterion_id)
+    else:
+        _must_exist(ctx, "criteria", criterion_id)
     # One claim per criterion, not reversible within the session. Measured
     # the day this landed: refused a fail on a criterion claimed False, and
     # the next turn reclaimed the same criterion True and the fail landed
@@ -17193,6 +17204,10 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
             f"encode the criterion, that is `msg.challenge_tester`, not a "
             f"second claim")
     ctx.verdict_claims[criterion_id] = bool(encodes)
+    if commitment:
+        return {"commitment_id": criterion_id, "encodes": bool(encodes),
+                "note": f"{criterion_id} is a pushed commitment. It has no "
+                        f"test, so a fail on it needs no claim."}
     if encodes:
         return {"criterion_id": criterion_id, "encodes": True}
     return {"criterion_id": criterion_id, "encodes": False,
@@ -17201,14 +17216,27 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
                    "does not encode it -- not a fail on the code"}
 
 
+def _pushed_rows(ctx: Ctx, batch_id: str) -> list[dict]:
+    """The stated commitments that the review push shows for `batch_id`.
+    The fail route, the pass door and the pass hold read this one set."""
+    bound = bound_constraints(ctx, batch_id)
+    return [r for r in bound if "party" in r] if isinstance(bound, list) else []
+
+
+def _passable_commitments(ctx: Ctx, batch_id: str) -> dict[str, dict]:
+    """The pushed commitments that a pass may name, by id. A lost witness
+    has no line to judge, so a pass names none for it."""
+    return {r["id"]: r for r in _pushed_rows(ctx, batch_id)
+            if r["witness"] != LOST_WITNESS}
+
+
 def _pushed_commitment(ctx: Ctx, batch_id: str, cid: str) -> dict:
     """The stated commitment `cid` as the review push showed it, or a refusal.
 
     Ruling 3 of 2026-11-03 makes a broken outside promise a fail, and it
     amends 13d138b2. A fail stands only on a commitment that the push
     quoted, so `stated_commitments` decides it, as it decides the push."""
-    bound = bound_constraints(ctx, batch_id)
-    rows = [r for r in bound if "party" in r] if isinstance(bound, list) else []
+    rows = _pushed_rows(ctx, batch_id)
     hit = next((r for r in rows if r["id"] == cid), None)
     if hit is None:
         shown = [r["id"] for r in rows]
@@ -18151,6 +18179,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
             f"lines={{'<criterion id>': '<the line>', '<criterion id>': "
             f"'<the line>'}}, one entry for each of {named}")
     lines = lines or {}
+    pushed = None
     for key in lines:
         # A retired criterion is still a criterion of the batch, so the
         # refusal names the ruling (frame 306, review of W-C1, finding 1).
@@ -18160,19 +18189,15 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                 f"{gone} Send the pass again with lines= naming only "
                 f"{named}.")
         if key not in ids:
-            # A pushed commitment in lines= is a seat that judged it. The
-            # refusal names the fail route, because the generic words sent
-            # the seat to a fail on the criterion (frame 362, gate 3).
-            bound = bound_constraints(ctx, batch_id)
-            if isinstance(bound, list) and any(
-                    r["id"] == key and "party" in r for r in bound):
-                raise LinesRefusal(
-                    f"{key!r} is a pushed commitment, not a criterion, so a "
-                    f"pass names no line for it. If the diff breaks "
-                    f"{key}, send verdicts.emit(result='fail', "
-                    f"failed_criterion={key!r}, reason=<its witness line>). "
-                    f"If the diff keeps it, send the pass again with lines= "
-                    f"naming only {named}")
+            # A pushed commitment in lines= is a seat that judged it, and
+            # the pass hold asks it its own question. The refusal sent the
+            # seat to a fail on the criterion (frame 362, gate 4, B2). The
+            # door checks no line of a commitment, because a kept promise
+            # can rest on a line the diff does not touch.
+            if pushed is None:
+                pushed = _passable_commitments(ctx, batch_id)
+            if key in pushed:
+                continue
             raise LinesRefusal(
                 f"{key!r} is not a criterion of batch {batch_id}. Its criteria "
                 f"are {named}. Send the pass again with lines= naming each of "
@@ -18456,6 +18481,11 @@ _HOLD_MORE = ("If a criterion needs more than one line, send the pass again "
 # "same" told the seat to keep its one line (F37 pass 2b).
 _HOLD_SAY = ("Say which in your own words, and in the same reply send the "
              "pass again or your own fail on the criterion.")
+# A fail on a pushed commitment names it as `failed_criterion`, and the
+# door routes it to `failed_commitment` (frame 362, B2).
+_HOLD_SAY_COMMITMENT = ("Say which in your own words, and in the same reply "
+                        "send the pass again or your own fail on the "
+                        "criterion or the commitment.")
 
 
 def _or_list(ids: list[str], last: str) -> str:
@@ -18494,8 +18524,15 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
     sent = {cid: parts for cid in texts
             if (parts := _line_parts(lines.get(cid)))
             and _route_of(parts) != "test"}
-    if not sent:
+    # Each pushed commitment gets its own question in the same hold. At
+    # step 0 of gate 4 run 22 the seat passed the commitment on the line
+    # that broke it, and no question put the two side by side (frame 362,
+    # B2). Its line is optional, so the first hold asks each commitment.
+    pushed = _passable_commitments(ctx, batch_id)
+    said = {k: _line_parts(lines.get(k)) or [] for k in pushed}
+    if not sent and not pushed:
         return
+    ask_k: dict[str, list[str]] = {}
     if ctx.pass_held:
         # A test or a caller that spent the hold leaves no lines on record.
         # A value that keeps every held line and adds lines answers the
@@ -18506,14 +18543,18 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
             return held != p and not (held and all(h in p for h in held))
         moved = {cid: p for cid, p in sent.items()
                  if ctx.held_lines and moved_from(ctx.held_lines.get(cid), p)}
-        if not moved:
+        ask_k = {k: p for k, p in said.items() if p and ctx.held_lines
+                 and moved_from(ctx.held_lines.get(k), p)}
+        if not moved and not ask_k:
             return
         ctx.pass_held_again = True
         ask = moved
     else:
         ctx.pass_held = True
         ask = sent
+        ask_k = said
     ctx.held_lines = {cid: list(p) for cid, p in sent.items()}
+    ctx.held_lines.update({k: list(p) for k, p in said.items() if p})
 
     def holds(parts: list[str]) -> str:
         if len(parts) == 1:
@@ -18521,21 +18562,41 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
         shown = ", then ".join(f"'{p}'" for p in parts)
         return f"Your lines hold {shown}. {_HOLD_QUESTION_MANY}"
 
-    ids = list(ask)
-    if len(ids) == 1:
+    def keeps(k: str, parts: list[str]) -> str:
+        # The question quotes the witness line and the behaviour beside the
+        # seat's own line, as cause 5 of `plans/wall-guide.md` asks.
+        c = pushed[k]
+        head = f"Commitment {k} rests on {c['witness']}."
+        if not parts:
+            return (f"{head} Does the diff keep that line and "
+                    f"\"{c['behaviour']}\"?")
+        if len(parts) == 1:
+            return (f"{head} Your line holds '{parts[0]}'. Does that line "
+                    f"keep \"{c['behaviour']}\"?")
+        shown = ", then ".join(f"'{p}'" for p in parts)
+        return (f"{head} Your lines hold {shown}. Do those lines keep "
+                f"\"{c['behaviour']}\"?")
+
+    ids = list(ask) + list(ask_k)
+    if len(ids) == 1 and not ask_k:
         cid = ids[0]
         body = f"The criterion says: \"{texts[cid]}\". {holds(ask[cid])}"
     else:
-        body = " ".join(f"Criterion {cid} says: \"{texts[cid]}\". "
-                        f"{holds(ask[cid])}" for cid in ids)
+        body = " ".join([f"Criterion {cid} says: \"{texts[cid]}\". "
+                         f"{holds(ask[cid])}" for cid in ask]
+                        + [keeps(k, p) for k, p in ask_k.items()])
     if any(len(p) == 1 for p in ask.values()):
         body = f"{body} {_HOLD_MORE}"
+    # A "no" on a commitment is the seat's own fail on it, the same path
+    # as a criterion's. The words change only when a commitment is asked,
+    # so no other recorded hold changes.
+    say = _HOLD_SAY_COMMITMENT if ask_k else _HOLD_SAY
     # The seat writes a fail itself, with its own claim when it needs one.
     # So the hold offers the pass route only (frame 201, sprint 18, pass 1).
-    _offer(ctx, _HOLD_SAY, "verdicts.emit",
+    _offer(ctx, say, "verdicts.emit",
            {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
     raise PassHeld(f"before the pass lands, answer for {_or_list(ids, 'and')}. "
-                   f"{body} {_HOLD_SAY}")
+                   f"{body} {say}")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

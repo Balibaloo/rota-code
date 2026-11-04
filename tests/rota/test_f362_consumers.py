@@ -420,6 +420,122 @@ def test_every_fail_sentence_of_the_critic_names_the_commitment_route():
 
 
 # ---------------------------------------------------------------------------
+# B2: a pushed commitment is a row of the Critic's pass hold
+# ---------------------------------------------------------------------------
+
+LIMIT_LINE = "def fold(line, limit=80):"
+CUT_LINE = "    return line[:limit]"
+
+
+@pytest.fixture
+def review(proj, tmp_path):
+    """Batch `b1` moves the fold limit to 80 and cuts the line at it. One
+    criterion asks for the cut, and the stated commitment says 75."""
+    from tests.rota.test_verdict_lines import _git
+
+    root, db = proj
+    _git(root, "init", "-q")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    tree = tmp_path / "batch"
+    _git(root, "worktree", "add", "-q", "-b", "batch/b1", str(tree))
+    after = FOLD.replace("def fold(line, limit=75):", LIMIT_LINE).replace(
+        "    return line\n", CUT_LINE + "\n")
+    (tree / "src/pkg/fold.py").write_bytes(after.encode())
+    _git(tree, "commit", "-q", "-am", "cut at the limit")
+    db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc123' "
+               "WHERE id = 'b1'", (str(tree),))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk1', 'it', 'cut the line')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('b1', 'tk1')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1', 'tk1', 'fold cuts the line at its limit')")
+    db.commit()
+    c = _state(db)
+    sb, _ = _push(db, "critic", "tick:review")
+    return db, sb, c
+
+
+def _hold(sb, lines) -> str:
+    with pytest.raises(api.PassHeld) as got:
+        sb.call("verdicts.emit", batch_id="b1", result="pass", lines=lines)
+    assert not [w for w in sb.ctx.writes if w[0] == "verdicts"]
+    return str(got.value)
+
+
+def test_a_pass_line_on_a_pushed_commitment_is_accepted(review):
+    """Rule 1. The pass door refused `lines={k: ...}`. It now accepts the
+    entry, and the pass lands after the hold with the line on record."""
+    db, sb, _ = review
+    lines = {"c1": CUT_LINE.strip(), "fold_octets": LIMIT_LINE}
+    _hold(sb, lines)
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass", lines=lines)
+    assert out["result"] == "pass"
+    row = [v for t, _, v in sb.ctx.writes if t == "verdicts"][0]
+    assert json.loads(row["lines"])["fold_octets"] == LIMIT_LINE
+    # The routes stay the criteria's.
+    assert set(json.loads(row["routes"])) == {"c1"}
+    # A key that is neither a criterion nor a pushed commitment still fails.
+    sb2, _ = _push(db, "critic", "tick:review")
+    with pytest.raises(api.LinesRefusal, match="is not a criterion of batch"):
+        sb2.call("verdicts.emit", batch_id="b1", result="pass",
+                 lines={"c1": CUT_LINE.strip(), "nothing": LIMIT_LINE})
+
+
+def test_the_hold_asks_the_commitment_its_own_question(review):
+    """Rule 2. One question per commitment inside the one hold. It quotes
+    the witness line, the seat's line and the behaviour."""
+    _, sb, c = review
+    said = _hold(sb, {"c1": CUT_LINE.strip(), "fold_octets": LIMIT_LINE})
+    assert said.startswith("before the pass lands, answer for c1 and fold_octets.")
+    assert 'Criterion c1 says: "fold cuts the line at its limit".' in said
+    assert (f"Commitment fold_octets rests on src/pkg/fold.py line {c['line']}: "
+            in said)
+    assert c["text"].strip() in said
+    assert (f"Your line holds '{LIMIT_LINE}'. Does that line keep "
+            f"\"a folded line holds at most 75 octets\"?") in said
+    assert said.count("Commitment fold_octets") == 1
+    # A pass that names no line for the commitment still gets its question.
+    sb2, _ = _push(sb.ctx.conn, "critic", "tick:review")
+    said = _hold(sb2, {"c1": CUT_LINE.strip()})
+    assert ("Does the diff keep that line and \"a folded line holds at most "
+            "75 octets\"?") in said
+
+
+def test_a_claim_on_a_pushed_commitment_is_kept_under_its_id(review):
+    """Rule 3. `claim_encodes` refused the commitment id as no criterion.
+    It now keeps the claim under the commitment and writes no row."""
+    db, sb, _ = review
+    out = sb.call("verdicts.claim_encodes", criterion_id="fold_octets",
+                  encodes=True)
+    assert out["commitment_id"] == "fold_octets"
+    assert sb.ctx.verdict_claims["fold_octets"] is True
+    assert not db.execute("SELECT 1 FROM criteria WHERE id = 'fold_octets'"
+                          ).fetchone()
+    assert not sb.ctx.writes
+    with pytest.raises(ValueError):
+        sb.call("verdicts.claim_encodes", criterion_id="no_such_row",
+                encodes=True)
+
+
+def test_a_no_at_the_hold_is_the_seats_fail_on_the_commitment(review):
+    """Rule 4. The hold names the fail on the commitment. The seat's fail
+    takes the route that a fail on a commitment takes today."""
+    _, sb, c = review
+    said = _hold(sb, {"c1": CUT_LINE.strip(), "fold_octets": LIMIT_LINE})
+    assert said.endswith("send the pass again or your own fail on the "
+                         "criterion or the commitment.")
+    sb.call("verdicts.emit", batch_id="b1", result="fail",
+            failed_criterion="fold_octets",
+            reason="The diff moves the limit to 80.")
+    row = [v for t, _, v in sb.ctx.writes if t == "verdicts"][0]
+    assert row["failed_commitment"] == "fold_octets"
+    assert row["failed_criterion"] is None
+    assert c["text"].strip() in row["reason"]
+
+
+# ---------------------------------------------------------------------------
 # Pass 3c: a guard test is the batch's own test
 # ---------------------------------------------------------------------------
 
