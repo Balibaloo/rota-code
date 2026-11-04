@@ -28082,10 +28082,14 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
     note = ""
     if (exc.msg or "").startswith(_BROKEN_STRING):
         # The seat wrote \n in its call already, and the tool decoded it.
-        # The form that passes is the escaped backslash (the review of edd3638).
-        note += (" In your call write the newline escape inside a string as a "
-                 "backslash, a backslash and n, \\\\n, because the tool decodes "
-                 "one \\n into a line break.")
+        # The doubled form fixed night 99 and led the restore sessions of dry
+        # run 5 (s221, s225, s226) to retype the source one level too deep.
+        # A triple-quoted argument keeps the source form, as the parse
+        # error's own hint says (the read of walls 10 and 11, O1).
+        note += (" The tool decodes a newline escape inside a double-quoted "
+                 "argument into a line break. Put the text between triple "
+                 "quotes, text='''...''', with the lines as the source has "
+                 "them, no escaping.")
     # Night 99 (2026-09-30): s133 sent `\"\"\"` at turns 14 and 15, and a
     # backslash outside a string does not parse. A line inside a
     # triple-quoted string may hold the same characters as its own text.

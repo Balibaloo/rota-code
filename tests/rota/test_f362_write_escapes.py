@@ -79,3 +79,14 @@ def test_the_rewrite_refusal_offers_the_definition_the_seat_read_first(db, tmp_p
     spans = [(o.args["start"], o.args["end"]) for o in sb.ctx.offers
              if o.op == "code.write"]
     assert spans[0] == (118, 156), spans
+
+
+def test_the_escape_note_asks_for_the_source_form_and_not_the_doubled_form():
+    """The read of walls 10 and 11, O1: the note told the seat to write the
+    newline escape doubled, and the three restore sessions s221, s225 and
+    s226 wrote none of their 10 parsed writes equal to the base. The note
+    now asks for the lines as the source has them, between triple quotes."""
+    broken = 'def f():\n    return "a\nb"\n'
+    note = api._escape_note(broken, None)
+    assert "triple quotes" in note and "as the source has them" in note, note
+    assert "\\\\n" not in note, note

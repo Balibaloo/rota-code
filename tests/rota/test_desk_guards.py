@@ -4705,9 +4705,11 @@ def test_a_broken_string_the_next_line_does_not_close_is_refused(db, tmp_path):
         _write(db, tmp_path, 1, 1, "def f(out):\n    out += \"\n    return out\n")
     msg = str(err.value)
     assert "Your text itself does not parse: line 2 of it, counting from 1" in msg
-    assert ("In your call write the newline escape inside a string as a backslash, "
-            "a backslash and n, \\\\n, because the tool decodes one \\n into a line "
-            "break.") in msg
+    # Pass 4i: the note asks for the source form, not the doubled form.
+    assert ("The tool decodes a newline escape inside a double-quoted argument "
+            "into a line break. Put the text between triple quotes, "
+            "text='''...''', with the lines as the source has them, no "
+            "escaping.") in msg
     assert f.read_text() == "import os\n"
 
 
