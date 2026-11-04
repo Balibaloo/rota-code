@@ -103,14 +103,14 @@ def shape_for(conn, question: str) -> str:
     not reach. The rows come from `model.shape`'s body, mechanically, like
     `glossary_for`. A question that names no indexed name gets no block.
 
-    The block keeps tier 1 of `shape_of`: the rows whose name or command the
+    The block keeps tier 1 of `shape_rows`: the rows whose name or command the
     question writes as an identifier, case kept. Pass S5 measured 40 rows and
     about 5k characters on each of the eight icalendar questions, because a
     word such as `get` matched every `_get_*` helper (ruled: the coordinator,
     passes S5b and S5c). The tier has no cap, so no cap drops a named row."""
-    from rota.roles.api import shape_of
+    from rota.roles.api import shape_rows
 
-    rows, rest = shape_of(conn, question)
+    rows, rest = shape_rows(conn, question)
     if not rows:
         return ""
     out = [SHAPE_HEAD]

@@ -5244,20 +5244,24 @@ def model_shape(ctx: Ctx, name: str) -> list[dict]:
     """
     Where a name lives: each definition or export that shares a word with
     `name`, with its file and span, its copies, its callers, its entry point
-    and its export. A pyproject command that `name` names leads.
+    and its export. The rows whose name or command equals an identifier of
+    `name` come first, then the word hits.
 
     The `ask` holds no code read, and Q5 of the icalendar set names
     `from_ical`, which the Architect could not look up (the shape design,
-    section 3.5 item 2). The match is the match of `code.callables`, so the
-    ask and the guess find the same names. The command match is section 4.1's,
-    for Q8.
+    section 3.5 item 2). The words are a superset of the words of
+    `code.callables`. The additions are the `code.vocabulary` split of each
+    token, the `export` grains, the identifiers with their case for the first
+    tier, and the pyproject script names of section 4.1, for Q8. So
+    `code.callables(hint="from_ical")` falls back to its 20 rows, and this op
+    finds the rows that hold `ical`.
 
     `name` has no default. The runner pushes each read that takes no argument
     (`push_working_set`), and a push of an empty name is a note on every wake.
     """
     from ..core.runner import RESULT_CHARS, _render
 
-    first, second = shape_of(ctx.conn, name)
+    first, second = shape_rows(ctx.conn, name)
     rows = [_callers_short(r) for r in first + second]
     if not first:
         # Review of S5, high 1: 40 word hits and no note read as an answer.
@@ -5299,7 +5303,7 @@ _SHAPE_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
 def shape_idents(text: str) -> set[str]:
     """The identifiers of `text`, case kept, with each part of a dotted one.
 
-    The whole-name tier of `shape_of` reads these. Review of S5, low 4: a
+    The whole-name tier of `shape_rows` reads these. Review of S5, low 4: a
     lowercased set kept `enums.py::VALUE` for the word "value" and the test
     fixture `calendar` for `Calendar`."""
     out: set[str] = set()
@@ -5310,7 +5314,7 @@ def shape_idents(text: str) -> set[str]:
 
 
 def shape_names(text: str) -> set[str]:
-    """The words of `text` that the word tier of `shape_of` matches.
+    """The words of `text` that the word tier of `shape_rows` matches.
 
     Each token gives itself whole, lowercased, as `code.callables` takes it,
     and the words that `code.vocabulary` splits from it. A dotted part feeds
@@ -5329,7 +5333,7 @@ def shape_names(text: str) -> set[str]:
     return words
 
 
-def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
+def shape_rows(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
     """The shape rows for `text` in two tiers, with no cap.
 
     Tier 1 holds the rows whose name or command equals an identifier of
@@ -5354,8 +5358,10 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
     rows = [r for r in rows if r["grain_kind"] == "symbol"
             or r["grain"].split("::")[-1] not in defined]
     named = [r for r in rows if r["grain"].split("::")[-1] in idents]
-    # A command that the question names leads, because the person named it
-    # and the index names only the function it runs (section 4.1, Q8).
+    # A command that the question names joins tier 1, because the index
+    # names only the function it runs (section 4.1, Q8). It comes after the
+    # named rows: a script that shares the package's name matched every
+    # question that named the project (review of S5, low 3).
     commands = {grain: script for script, grain in shape.scripts(conn).items()
                 if script in idents}
     by_grain = {r["grain"]: r for r in rows}
@@ -5367,8 +5373,8 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
     # first (review of S5, low 6: the rank of all 269 paths took 1.38 s).
     hits = [h for h in _word_hits(rows, words) if h["grain"] not in taken]
     second = _word_hits(_frame_ranked(conn, hits), words)
-    first = _frame_ranked(conn, led) + _frame_ranked(
-        conn, [r for r in first if r["grain"] not in commands])
+    first = _frame_ranked(conn, [r for r in first if r["grain"] not in commands]
+                          ) + _frame_ranked(conn, led)
     hits = first + second
     if root is None:
         try:
@@ -5378,6 +5384,7 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
     marked = _copies_marked(conn, root, hits)
     calls = shape.callers(conn, {h["grain"] for h in hits})
     public = shape.exports(conn)
+    own = shape.own_all(conn, root, {_grain_path(h["grain"]) for h in hits})
     out = []
     for r in marked:
         grain, path = r["grain"], _grain_path(r["grain"])
@@ -5399,6 +5406,8 @@ def shape_of(conn, text: str, root=None) -> tuple[list[dict], list[dict]]:
         if tested:
             row["test_callers"] = tested
         by, bound = public.get(stem, (set(), set()))
+        if stem in own.get(path, ()):
+            by = by | {path}
         # The `exports` rule binds the file that `__all__` re-exports from.
         # Of two copies, only the bound copy is the public one.
         siblings = {path, *r.get("copies", [])}

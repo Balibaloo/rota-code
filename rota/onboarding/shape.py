@@ -87,6 +87,38 @@ def exports(conn: sqlite3.Connection) -> dict[str, tuple[set[str], set[str]]]:
     return out
 
 
+def own_all(conn: sqlite3.Connection, root: str | Path | None,
+            paths: set[str]) -> dict[str, set[str]]:
+    """Each file of `paths` that has an `__all__`, to the names it lists.
+
+    The indexer writes no `export` grain for a name that the same file
+    defines, because the grain would be the definition's grain. So
+    `string.py`'s own `__all__` entry `_foldline` was not seen (review of
+    S5, outside the points, finding 11). The list comes from the file under
+    `root`, for the files that the index says hold an `__all__`."""
+    held = {grain_path(g) for (g,) in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'variable' "
+        "AND grain LIKE '%::\\_\\_all\\_\\_' ESCAPE '\\'")}
+    out: dict[str, set[str]] = {}
+    if root is None:
+        return out
+    for path in sorted(paths & held):
+        try:
+            module = ast.parse((Path(root) / path).read_text(
+                encoding="utf-8", errors="replace"))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in module.body:
+            if (isinstance(node, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "__all__"
+                            for t in node.targets)
+                    and isinstance(node.value, (ast.List, ast.Tuple))):
+                out.setdefault(path, set()).update(
+                    e.value for e in node.value.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str))
+    return out
+
+
 def scripts(conn: sqlite3.Connection) -> dict[str, str]:
     """Each command that a pyproject script line names, to the grain of the
     function the command runs.

@@ -240,3 +240,30 @@ def test_a_program_caller_and_a_test_caller_land_apart(ask):
     row = ask.call("model.shape", name="Calendar")[0]
     assert row["callers"] == ["pkg/cli.py"]
     assert row["test_callers"] == ["tests/test_cal.py"]
+
+
+# --- S5c, section 3 ------------------------------------------------------------
+
+def test_a_command_row_comes_after_the_named_rows(ask):
+    """Review of S5, low 3: the command row ranks after tier 1, never first."""
+    rows = ask.call("model.shape", name="`demo` and fold_line")
+    grains = [r.get("grain") for r in rows]
+    assert grains[0].endswith("::fold_line")
+    assert grains.index("pkg/cli.py::main") > grains.index("pkg/legacy.py::fold_line")
+
+
+def test_a_file_s_own_all_marks_its_definition(tmp_path):
+    """Review of S5, finding 11: `string.py` lists `_foldline` in its own
+    `__all__`, and the index holds no export grain for a defined name."""
+    root = tmp_path / "t"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "string.py").write_bytes(
+        b'__all__ = ["_foldline"]\n\n\ndef _foldline(text):\n    return text\n')
+    db = init_db(tmp_path / "run.db")
+    indexer.build(db, root)
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('project_root', ?)", (str(root),))
+    db.commit()
+    rows = build("architect", db, mode="ask").call("model.shape", name="_foldline")
+    db.close()
+    assert rows[0]["exported"] == ["pkg/string.py"]
