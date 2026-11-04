@@ -763,6 +763,23 @@ def test_one_session_states_the_project_wide_lines(tree):
     assert _commitment_wakes(db) == []
 
 
+def test_a_surveyed_area_that_holds_only_project_wide_lines_gets_no_wake(tree):
+    """Pass 4d. Three of the four state cases woke an area whose push was
+    empty after 1b338c97. The wake condition reads the push, so the area
+    gets no wake, and only the root states its lines."""
+    from rota.core.scheduler import PROJECT_WIDE, _commitment_wakes
+
+    _, db = tree
+    _project_wide(db)
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/bare/b.py', 'path', 'src/bare')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) "
+               "VALUES ('cc_0000000000bb', 'src/bare/b.py', 'project_wide')")
+    _surveyed(db, "src/bare")
+    assert api.witness_push(db, "src/bare")[0] == []
+    assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
+
+
 def test_the_root_binds_the_harvester_rows_of_a_project_wide_line(tree):
     """The statement binds the two files the harvester bound, not the files
     of an area. A stated line wakes no PROJECT_WIDE session again."""

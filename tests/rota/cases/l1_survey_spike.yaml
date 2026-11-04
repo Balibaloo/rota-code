@@ -132,6 +132,13 @@
 # four areas are the survey cases' areas that the harvest gives a witness
 # line. Pass: a statement that names the party, the behaviour and the
 # witness, bound to a file of the area.
+#
+# Pass 4d: after 1b338c97 one root session states the project-wide lines.
+# The sample repository holds two, both in pyproject.toml, and one placed
+# line, the `__all__` of src/store. The catalog and billing cases wake the
+# root with the sample's two lines. The store and auth cases wake an area
+# with a placed line. The auth area holds none, so its case adds an
+# `__all__` to src/auth/__init__.py, in the form that src/store uses.
 
 - id: L1-AR-state-the-witness-lines-of-the-catalog
   tier: T1
@@ -141,7 +148,8 @@
   pass: 1
   tick: commitments
   tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
-  refs: [src/catalog]
+  # The root wake: the project-wide lines of the sample repository.
+  refs: ['@project-wide']
   repo:
     onboard: true
   expect:
@@ -179,7 +187,8 @@
   pass: 1
   tick: commitments
   tick_unseedable: areas and witness lines are created by repo onboarding, not by fixture rows
-  refs: [src/billing]
+  # The root wake: the project-wide lines of the sample repository.
+  refs: ['@project-wide']
   repo:
     onboard: true
   expect:
@@ -201,6 +210,12 @@
   refs: [src/auth]
   repo:
     onboard: true
+    change:
+      src/auth/__init__.py: |
+        from .accounts import Account, find_by_email, register
+        from .sessions import issue, revoke, verify
+
+        __all__ = ["Account", "find_by_email", "register", "issue", "revoke", "verify"]
   expect:
     writes:
       survey_records: {count: 1}

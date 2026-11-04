@@ -1000,9 +1000,15 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
 
             for rel, body in spec["change"].items():
                 repo.edit(repo.root, rel, body)
-            repo.commit_in(repo.root, "the tree moved past the survey")
+            moved = repo.commit_in(repo.root, "the tree moved past the survey")
             indexer.build(conn, repo.root)
             boot.repin(conn, repo.root)
+            # `rota refresh` harvests the moved tree after its index (the
+            # review of frame 362, low 9). Without this run a line that the
+            # change adds is no witness (frame 362, pass 4d).
+            from ..onboarding import harvest
+
+            harvest.record(conn, repo.root, moved)
 
     batch_id = spec.get("batch") if isinstance(spec, dict) else None
     if batch_id:
