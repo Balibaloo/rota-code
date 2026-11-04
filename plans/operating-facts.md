@@ -703,6 +703,8 @@ kept because they carry the measurements that argued for the change.
 
 ## The build session's tools
 
+- A gate line `rerecorded <case>: STALE -> STALE` with no word about the server means the Ollama server did not answer, and the gate treats a server that does not answer as a free card (observed: 2026-11-04 01:27 to 01:41, frame 362, 17 Architect cases, 123 `unreachable` misses in the register and no live row). Before a gate with stale cases, run `curl -s 127.0.0.1:11434/api/version`. When it fails and `tasklist` shows no `ollama.exe`, start the tray app, `%LOCALAPPDATA%\Programs\Ollama\ollama app.exe`, and wait about 20 seconds for the port. The re-record then runs on the next gate. Meta workflow.
+
 Facts about the assistant's own harness and shell, the meta workflow.
 
 - The console codepage is cp1252. A print of a transcript with one non-Latin character dies with `UnicodeEncodeError: 'charmap' codec can't encode character`. Run python with `PYTHONIOENCODING=utf-8` (observed: 2026-09-23).
