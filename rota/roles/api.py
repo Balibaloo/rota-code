@@ -3839,6 +3839,36 @@ def area_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
                                                 w["path"], w["line"]))
 
 
+def lost_witnesses(conn: sqlite3.Connection, area: str) -> list[dict]:
+    """The stated commitments bound to `area` whose tie is broken.
+
+    An edit or a move of the witness line changes its text or its path, so
+    no candidate of the latest harvest holds the key. The edit also changes
+    the area's content hash, so the next survey wake of the area shows the
+    row and asks the Architect to restate it or decline it (the review of
+    pass 2, finding 1). A falsified statement is not listed."""
+    from ..onboarding.harvest import current_keys
+
+    files = _area_files(conn, area)
+    if not files:
+        return []
+    keys = current_keys(conn)
+    out = []
+    for r in conn.execute(
+            "SELECT c.id, c.headline, c.witness FROM constraints c "
+            "LEFT JOIN challenges h ON h.id = 'constraints:' || c.id "
+            "WHERE c.witness != '' AND (h.verdict IS NULL OR h.verdict != 'falsified') "
+            "ORDER BY c.id"):
+        if r["witness"] in keys:
+            continue
+        bound = {_grain_path(b["grain"]) for b in conn.execute(
+            "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
+            (r["id"],))}
+        if bound & files:
+            out.append({"id": r["id"], "headline": r["headline"]})
+    return out
+
+
 def _quoted(text: str) -> str:
     text = " ".join((text or "").split())
     if len(text) > WITNESS_TEXT_CHARS:
@@ -3851,7 +3881,8 @@ def witness_push(conn: sqlite3.Connection, area: str,
     """The candidates the push shows for `area`, and the push text. The text
     stays inside `limit`, and a cut ends with one line that counts it."""
     rows = area_witnesses(conn, area)
-    if not rows:
+    lost = lost_witnesses(conn, area)
+    if not rows and not lost:
         return [], ""
     other = {}
     ids = sorted({i for w in rows for i in w["contradicts"]})
@@ -3862,9 +3893,17 @@ def witness_push(conn: sqlite3.Connection, area: str,
             f"WHERE id IN ({marks})", ids)}
     head = f"The harvest found {len(rows)} witness lines bound to the files of {area}."
     lines, kept = [head], []
+    # A broken tie goes first, so the cut never takes it.
+    for c in lost:
+        restate = (f"Restate it with model.amend(headline={c['headline']!r}, "
+                   f"party=\"<who outside notices>\", behaviour=\"<what must "
+                   f"hold>\", witness=\"<an id below>\"), or decline it."
+                   if rows else "No line below can restate it, so decline it.")
+        lines.append(f"Constraint {c['id']} lost its witness line: an edit or a "
+                     f"move changed the line. {restate}")
     # The cut line is at most this long, so the text stays inside the limit.
     room = limit - 200
-    size = len(head)
+    size = sum(len(x) + 1 for x in lines)
     for w in rows:
         block = [f"- {w['id']} {w['kind']}, {w['path']} line {w['line']}, "
                  f"rule {w['rule']}: {_quoted(w['text'])}"]
@@ -3905,7 +3944,7 @@ def model_witnesses(ctx: Ctx) -> str | None:
 
 
 def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
-                       witness: str) -> dict | None:
+                       witness: str, bindings: list[str] | None = None) -> dict | None:
     """The checked statement of an outside commitment, or None when the
     amend states none. A statement names all three parts, and its witness
     is a candidate that the push showed. Each refusal shows the full form."""
@@ -3914,15 +3953,27 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     party, behaviour, witness = ((s or "").strip() for s in (party, behaviour, witness))
     if not (party or behaviour or witness):
         return None
-    shown = ([w["id"] for w in witness_push(ctx.conn, ctx.area)[0]]
-             if ctx.area else None)
-    example = shown[0] if shown else "<an id from [model.witnesses]>"
-    form = (f"Write model.amend(headline={headline!r}, text=\"<who outside "
+    # Only the survey push of an area shows a witness id. With no area, a
+    # project-wide candidate landed global and reached every diff (the
+    # review of pass 2, finding 6).
+    if not ctx.area:
+        raise ValueError(
+            "a stated commitment cites a witness that [model.witnesses] showed, "
+            "and only the survey of an area shows one. Write "
+            f"model.amend(headline={headline!r}, text=\"<who outside breaks and "
+            "what they see>\") with no party, behaviour or witness.")
+    pushed = witness_push(ctx.conn, ctx.area)[0]
+    shown = [w["id"] for w in pushed]
+    first = pushed[0] if pushed else None
+    # The headline names what the push gives: the path and the line.
+    head = f"{first['path']} line {first['line']}" if first else headline
+    example = first["id"] if first else "<an id from [model.witnesses]>"
+    form = (f"Write model.amend(headline={head!r}, text=\"<who outside "
             f"breaks and what they see>\", party=\"<who outside notices>\", behaviour=\"<what must hold>\", "
             f"witness=\"{example}\").")
     if shown:
         form += f" The witness is one of the ids that [model.witnesses] shows: {_capped_ids(shown, 8)}."
-    elif shown is not None:
+    else:
         form = ("[model.witnesses] shows no candidate for this area, so no "
                 "statement can cite a witness. Write the constraint with no "
                 "party, behaviour or witness.")
@@ -3935,12 +3986,23 @@ def _stated_commitment(ctx: Ctx, headline: str, party: str, behaviour: str,
     row = ctx.conn.execute(
         "SELECT id, kind, path, text FROM commitment_candidates WHERE id = ?",
         (witness,)).fetchone()
-    if row is None or (shown is not None and witness not in shown):
+    if row is None or witness not in shown:
         raise ValueError(f"{witness!r} is not a candidate that [model.witnesses] "
                          f"showed for this area. {form}")
     placed = [r["path"] for r in ctx.conn.execute(
         "SELECT path FROM candidate_bindings WHERE witness_id = ? "
         "AND rule != 'project_wide' ORDER BY path", (witness,))]
+    if not placed and not bindings:
+        # The harvest bound the line project-wide, so no file of its own keeps
+        # it. A statement with no binding would land global.
+        mine = next(w for w in pushed if w["id"] == witness)
+        raise ValueError(
+            f"{witness} binds no file of its own: the harvest bound it to the "
+            f"whole project. Name the file of this area that keeps it. Write "
+            f"model.amend(headline=\"{mine['path']} line {mine['line']}\", "
+            f"text=\"<who outside breaks and what they see>\", "
+            f"bindings=[\"<a path of {ctx.area} that you opened>\"], party="
+            f"\"{party}\", behaviour=\"{behaviour}\", witness=\"{witness}\").")
     return {"id": witness, "key": witness_key(row["kind"], row["path"], row["text"]),
             "path": row["path"], "party": party, "behaviour": behaviour,
             "placed": placed}
@@ -4005,7 +4067,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"in the words the source uses at the place it is kept.")
     # A stated commitment cites a witness line, or the door refuses it
     # (frame 362, pass 2). Checked first, so the seat sees the full form.
-    stated = _stated_commitment(ctx, headline, party, behaviour, witness)
+    stated = _stated_commitment(ctx, headline, party, behaviour, witness, bindings)
     if stated and not (text or "").strip():
         text = f"{stated['party']} rely on this: {stated['behaviour']}"
     # A name with its kind is an inventory row, not a promise. A survey wrote
@@ -4119,8 +4181,12 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     from ..onboarding import boot as _boot
 
     for row in ctx.conn.execute(
-            "SELECT id, headline FROM constraints WHERE id NOT IN (?, ?)",
+            "SELECT id, headline, witness FROM constraints WHERE id NOT IN (?, ?)",
             (slug, _boot.ZERO)):
+        # Two statements of two witness lines are two commitments. Their
+        # headlines share the path words, as `<path> line <n>` asks.
+        if stated and row["witness"] and row["witness"] != stated["key"]:
+            continue
         shared = mine & _stems(row["headline"])
         if len(shared) >= 2:
             raise ValueError(

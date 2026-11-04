@@ -324,6 +324,182 @@ def test_an_edit_of_the_witness_line_breaks_the_tie(tree):
 
 
 # ---------------------------------------------------------------------------
+# Pass 2b: the broken tie is marked, and `witnessed` reads the latest harvest
+# ---------------------------------------------------------------------------
+
+LOST = "lost its witness line"
+
+
+def test_an_edit_of_the_witness_line_marks_the_constraint_unwitnessed(tree):
+    """Review finding 1. The push names the constraint, and its own headline
+    in the restate form keeps the row id. A restatement mends the tie."""
+    root, db = tree
+    sb, out = _state(db, _id(db, "numeric_default"))
+    _land(db, sb)
+    assert LOST not in api.witness_push(db, "src/pkg")[1]
+    _write(root / "src/pkg/fold.py", FOLD.replace("at most 75 octets",
+                                                  "at most 75 octets, always"))
+    harvest.record(db, root, "c2")
+    db.commit()
+    _, text = api.witness_push(db, "src/pkg")
+    assert f"Constraint {out['id']} {LOST}" in text
+    assert "model.amend(headline='src/pkg/fold.py::fold'" in text
+    assert api.lost_witnesses(db, "src/pkg") == [
+        {"id": out["id"], "headline": "src/pkg/fold.py::fold"}]
+    # The survey wake of the area shows the mark, so the seat restates.
+    wake, sb2 = _survey(db)
+    assert LOST in push_working_set("architect", sb2, wake)["model.witnesses"]
+    again, _ = _state(db, _id(db, "numeric_default"))
+    _land(db, again)
+    assert api.lost_witnesses(db, "src/pkg") == []
+
+
+def test_a_move_of_the_witness_line_marks_the_constraint_unwitnessed(tree):
+    root, db = tree
+    sb, out = _state(db, _id(db, "numeric_default"))
+    _land(db, sb)
+    _write(root / "src/pkg/fold.py", "def fold(line):\n    return line\n")
+    _write(root / "src/pkg/other.py", FOLD)
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/pkg/other.py', 'path', 'src/pkg')")
+    harvest.record(db, root, "c2")
+    db.commit()
+    assert [c["id"] for c in api.lost_witnesses(db, "src/pkg")] == [out["id"]]
+
+
+def test_a_falsified_constraint_is_not_marked_lost(tree):
+    root, db = tree
+    sb, out = _state(db, _id(db, "numeric_default"))
+    _land(db, sb)
+    db.execute("INSERT INTO challenges (id, verdict) VALUES (?, 'falsified')",
+               (f"constraints:{out['id']}",))
+    _write(root / "src/pkg/fold.py", FOLD.replace("75 octets", "76 octets"))
+    harvest.record(db, root, "c2")
+    db.commit()
+    assert api.lost_witnesses(db, "src/pkg") == []
+
+
+def test_witnessed_reads_the_latest_harvest_and_not_the_rowid(tree):
+    """Review finding 2. A shift and a shift back leave a stale row with
+    the highest rowid. `witnessed` returns the line of the latest commit."""
+    root, db = tree
+    sb, out = _state(db, _id(db, "numeric_default"))
+    _land(db, sb)
+    key = db.execute("SELECT witness FROM constraints WHERE id = ?",
+                     (out["id"],)).fetchone()["witness"]
+    _write(root / "src/pkg/fold.py", FOLD.replace(
+        '"""Lines as RFC 5545 folds them."""',
+        '"""Lines as RFC 5545 folds them."""\nimport os\nimport re\nimport sys'))
+    harvest.record(db, root, "c2")
+    _write(root / "src/pkg/fold.py", FOLD)
+    harvest.record(db, root, "c3")
+    db.commit()
+    assert harvest.latest_commit(db) == "c3"
+    got = harvest.witnessed(db, key)
+    assert (got["line"], got["commit_sha"]) == (7, "c3")
+    # The stale row of `c2` is still on file, at the highest rowid.
+    stale = db.execute("SELECT line, commit_sha FROM commitment_candidates "
+                       "ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert tuple(stale) == (10, "c2")
+    _write(root / "src/pkg/fold.py", FOLD.replace("75 octets", "76 octets"))
+    harvest.record(db, root, "c4")
+    db.commit()
+    assert harvest.witnessed(db, key) is None
+
+
+# ---------------------------------------------------------------------------
+# Pass 2b: the brief, and the door with no area
+# ---------------------------------------------------------------------------
+
+def test_the_brief_puts_the_witnesses_before_the_none_found_end():
+    """Review finding 5. A seat with witness lines must not stop at
+    `none_found`, and the headline form names the path and the line."""
+    brief = (Path(api.__file__).parent / "prompts/architect/survey.md").read_text(
+        encoding="utf-8")
+    at = brief.index("[model.witnesses]`, when it is there")
+    assert at < brief.index('outcome="none_found"')
+    paragraph = brief[at:brief.index("\n\n", at)]
+    assert 'headline="<path> line <n>"' in paragraph
+    assert "::" not in paragraph
+
+
+def test_the_refusal_form_names_the_path_and_the_line(tree):
+    _, db = tree
+    _, sb = _survey(db)
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", headline="anything here", text="Programs read it.",
+                party="other calendar programs", behaviour="lines fold")
+    assert "headline='src/pkg/fold.py line 7'" in str(got.value)
+
+
+def test_two_witnesses_of_one_file_are_two_statements(tree):
+    """The headline form shares the path words, so the subject check of
+    `model.amend` must not refuse the second statement."""
+    _, db = tree
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
+               "VALUES ('cc_0000000000aa', 'preservation', 'src/pkg/fold.py', 3, "
+               "'Folded lines round trip.')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
+               "('cc_0000000000aa', 'src/pkg/fold.py', 'witness_file')")
+    db.commit()
+    for cid, line in ((_id(db, "numeric_default"), 7), ("cc_0000000000aa", 3)):
+        _, sb = _survey(db)
+        sb.call("model.amend", headline=f"src/pkg/fold.py line {line}",
+                text="Other calendar programs read the folded lines.",
+                party="other calendar programs", behaviour="lines fold",
+                witness=cid)
+        _land(db, sb)
+    assert db.execute("SELECT COUNT(*) FROM constraints WHERE witness != ''"
+                      ).fetchone()[0] == 2
+
+
+def test_a_statement_on_a_wake_with_no_area_is_refused(tree):
+    """Review finding 6. Only the survey push shows a witness id. The
+    refusal shows the form without the three parts, and nothing lands."""
+    _, db = tree
+    _, sb = _survey(db)
+    sb.ctx.area = None
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", headline="src/pkg/fold.py line 7",
+                text="Other calendar programs read the folded lines.",
+                party="other calendar programs", behaviour="lines fold",
+                witness=_id(db, "numeric_default"))
+    msg = str(got.value)
+    assert "only the survey of an area shows one" in msg
+    assert "with no party, behaviour or witness" in msg
+    assert not sb.ctx.writes
+
+
+def test_a_project_wide_only_witness_needs_a_binding(tree):
+    """A project-wide candidate has no placed file. With no binding from the
+    seat the door refuses with the form, so the row never lands global."""
+    _, db = tree
+    db.execute("INSERT INTO commitment_candidates (id, kind, path, line, text) "
+               "VALUES ('cc_0000000000bb', 'metadata', 'pyproject.toml', 3, "
+               "'requires-python = \">=3.10\"')")
+    db.execute("INSERT INTO candidate_bindings (witness_id, path, rule) VALUES "
+               "('cc_0000000000bb', 'src/pkg/fold.py', 'project_wide')")
+    db.commit()
+    kwargs = dict(headline="pyproject.toml line 3",
+                  text="Installers outside read the Python floor.",
+                  party="installers", behaviour="Python 3.10 or later",
+                  witness="cc_0000000000bb")
+    _, sb = _survey(db)
+    with pytest.raises(ValueError) as got:
+        sb.call("model.amend", **kwargs)
+    msg = str(got.value)
+    assert "binds no file of its own" in msg
+    assert 'bindings=["<a path of src/pkg that you opened>"]' in msg
+    assert not sb.ctx.writes
+    _, sb = _survey(db)
+    sb.ctx.opened = {"src/pkg/fold.py"}
+    out = sb.call("model.amend", bindings=["src/pkg/fold.py"], **kwargs)
+    assert out["bindings"] == ["src/pkg/fold.py"]
+    values = [v for t, _, v in sb.ctx.writes if t == "constraints"][0]
+    assert values["is_global"] == 0
+
+
+# ---------------------------------------------------------------------------
 # The challenge verdict
 # ---------------------------------------------------------------------------
 

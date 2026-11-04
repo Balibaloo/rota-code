@@ -110,14 +110,39 @@ def witness_key(kind: str, path: str, text: str) -> str:
     return "wk_" + hashlib.sha256(key).hexdigest()[:12]
 
 
+def latest_commit(conn: sqlite3.Connection) -> str | None:
+    """The commit of the latest harvest, or None when no harvest bound a row.
+
+    `_write` replaces every binding on each harvest, so a bound candidate
+    always carries the latest commit. A rowid cannot say this, because an
+    upsert keeps the rowid of a row that an older harvest wrote (the review
+    of pass 2, finding 2)."""
+    row = conn.execute(
+        "SELECT c.commit_sha FROM candidate_bindings b "
+        "JOIN commitment_candidates c ON c.id = b.witness_id LIMIT 1").fetchone()
+    return row["commit_sha"] if row else None
+
+
+def current_keys(conn: sqlite3.Connection) -> set[str]:
+    """The witness keys of the candidates of the latest harvest."""
+    commit = latest_commit(conn)
+    if commit is None:
+        return set()
+    return {witness_key(r["kind"], r["path"], r["text"]) for r in conn.execute(
+        "SELECT kind, path, text FROM commitment_candidates WHERE commit_sha = ?",
+        (commit,))}
+
+
 def witnessed(conn: sqlite3.Connection, key: str) -> dict | None:
-    """The current candidate row that `key` ties to, or None. The row of the
-    latest harvest comes first, then the lowest line."""
-    if not key:
+    """The candidate row of the latest harvest that `key` ties to, or None.
+    None means the tie is broken: an edit or a move of the witness line
+    changed its text or its path. Of two equal lines, the lower one wins."""
+    commit = latest_commit(conn)
+    if not key or commit is None:
         return None
     for r in conn.execute(
             "SELECT id, kind, path, line, text, commit_sha FROM commitment_candidates "
-            "ORDER BY rowid DESC, line"):
+            "WHERE commit_sha = ? ORDER BY path, line, id", (commit,)):
         if witness_key(r["kind"], r["path"], r["text"]) == key:
             return dict(r)
     return None

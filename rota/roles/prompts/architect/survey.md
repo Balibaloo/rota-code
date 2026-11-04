@@ -25,6 +25,8 @@ Answer it in three lines before you write anything, for each candidate:
     WHO BREAKS:    who outside this repository, by name
     WHAT HAPPENS:  the error they see, or the silence they do not
 
+`[model.witnesses]`, when it is there, holds lines where this project promises something to the outside. Do these lines first. For each line, state it with `model.amend(headline="<path> line <n>", party="<who outside notices>", behaviour="<what must hold>", witness="<its id>")`, with the path, the line and the id that the line prints, or decline it. Where two lines contradict, quote both in `text` and say which one the code does. A constraint that lost its witness line gets the same choice.
+
 A candidate whose WHO BREAKS is only "a maintainer" or "the build" is
 inside, and is not a constraint. A build script, a settings panel, a layout
 you would not have chosen — nobody outside notices if those change. Name
@@ -41,8 +43,6 @@ When it has one, `model.amend` per commitment — `headline` the RENAME WHAT,
 `text` the WHO BREAKS and WHAT HAPPENS, `bindings` the paths that keep it, which
 you must have opened — then `surveys.attest(outcome="found", citations=[the
 paths you read])`.
-
-`[model.witnesses]`, when it is there, holds lines where this project promises something to the outside. For each line, state it with `model.amend(..., party="<who outside notices>", behaviour="<what must hold>", witness="<its id>")`, or decline it. Where two lines contradict, quote both in `text` and say which one the code does.
 
 `code.source` for anything `[code.area]` says it left out. Cite by the path
 `[code.area]` printed above each file.
