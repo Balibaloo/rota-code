@@ -789,10 +789,25 @@ def test_one_session_states_the_project_wide_lines(tree):
     kept, text = api.witness_push(db, PROJECT_WIDE)
     assert [w["id"] for w in kept] == ["cc_0000000000bb"]
     assert text.startswith("The harvest found 1 witness lines that bind the whole project.")
-    # The record alone no longer closes the wake: the line has no statement
-    # (pass 4f, high A).
+    # The record holds the hash of the pushed set, so it closes the wake
+    # while the set stays the same (pass 4g).
     _surveyed(db, PROJECT_WIDE, prefix=COMMITMENTS_PREFIX)
+    assert _commitment_wakes(db) == []
+
+
+def test_a_declined_root_push_does_not_wake_the_root_twice(tree):
+    """Pass 4g. After 8087b0da a root session that attested none_found woke
+    again, met the abandoned rule, and 186 scene tests lost their script."""
+    from rota.core.scheduler import PROJECT_WIDE, _commitment_wakes
+
+    _, db = tree
+    _project_wide(db)
     assert [w.refs for w in _commitment_wakes(db)] == [(PROJECT_WIDE,)]
+    _, sb = _commitments(db, PROJECT_WIDE)
+    sb.call("surveys.attest", outcome="none_found", citations=[])
+    _land(db, sb)
+    assert not db.execute("SELECT 1 FROM constraints WHERE party != ''").fetchone()
+    assert _commitment_wakes(db) == []
 
 
 def test_a_new_project_wide_line_wakes_the_root_after_its_record(tree):

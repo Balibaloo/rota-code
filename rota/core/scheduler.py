@@ -1161,13 +1161,19 @@ def _commitment_wakes(conn: sqlite3.Connection) -> list[Wake]:
     # The area sessions bound it to their own files, up to 422 rows for one
     # line on icalendar, where the harvester binds 84 (the review of pass
     # 4b, high 1). The wake needs a line that no statement covers. The record
-    # does not close it, because a later harvest can add a line (the second
-    # look at passes 4c to 4e, high A). A seat that never states the line
-    # meets `_abandoned`.
+    # holds the hash of the pushed set of lines, so a later harvest with a new
+    # line wakes the root again (the second look at passes 4c to 4e, high A),
+    # and a session that declines every line closes the wake (the gate of
+    # 2026-11-04 on 1a1c6f6b: 186 scenes met an abandoned root wake).
     if PROJECT_WIDE not in abandoned:
         from ..roles.api import project_wide_witnesses
 
-        if any(not w["stated"] for w in project_wide_witnesses(conn)):
+        current = area_content_hash(conn, PROJECT_WIDE)
+        done = conn.execute("SELECT area_hash FROM survey_records WHERE id = ?",
+                            (COMMITMENTS_PREFIX + PROJECT_WIDE,)).fetchone()
+        closed = done is not None and done["area_hash"] == current
+        if not closed and any(not w["stated"]
+                              for w in project_wide_witnesses(conn)):
             out.append(Wake("architect", "tick:commitments", refs=(PROJECT_WIDE,)))
     return out
 

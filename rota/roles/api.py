@@ -5217,9 +5217,25 @@ def area_content_hash(conn, area: str) -> str:
     current. That is why `core.boot` stamps the table when it opens a database
     that has areas and no stamps: unstamped is quiet, not loud.
     """
+    from ..core.scheduler import PROJECT_WIDE
+
+    if area == PROJECT_WIDE:
+        return project_wide_hash(conn)
     row = conn.execute("SELECT hash FROM area_hashes WHERE area = ?",
                        (area,)).fetchone()
     return (row["hash"] if row else "") or ""
+
+
+def project_wide_hash(conn) -> str:
+    """The content of the root's push: a hash of the set of project-wide
+    witness ids. The root record stores it, so a later harvest with a new
+    line wakes the root again, and a declined push does not (gate of
+    2026-11-04 on 1a1c6f6b, after the second look's high A). Empty when the
+    harvest holds no project-wide line."""
+    import hashlib
+
+    ids = sorted({w["id"] for w in project_wide_witnesses(conn)})
+    return hashlib.sha256("\n".join(ids).encode()).hexdigest()[:16] if ids else ""
 
 
 @op("surveys", "attest")
