@@ -92,3 +92,54 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029
 ### (d) Usage
 
 The harness shows no counter. This look used about 30k input tokens of context and about 8k output tokens. The total for both looks is about 155k.
+
+## Third look, a2c4552b
+
+### The result
+
+Verdict: accept, with one high follow-up at `ensure_env` (U4). S1 to S5 and the triage skip are fixed, and my probes give the expected result at `a2c4552b`. The fixture door and the import door now read the right sources. Each door still has a small gap in both directions (U1 to U3). The 16 door test files pass: 716 passed in 80 s. My count differs from the 837 of the implementer, because the sets of 11 files from the second look differ. The cost is small (point 4).
+
+### (a) Verdict on each point
+
+1. All fixed:
+   - S1: fixed. A guard test with `assert True` is refused, and a `pytest.raises` guard test and a `TestCase` guard test land.
+   - S2: fixed. A conftest fixture (R6) and a class-level `parametrize` (R7) land.
+   - S3: fixed. The nested `Test` class (R9) lands.
+   - S4: fixed. `self.assertEqual(1, 1)` (R5) is refused.
+   - S5: fixed. A bare call of `fail_safe` (R8) is refused as a test that checks nothing.
+   - The triage skip: fixed in both directions. T1 to T5 are accepted. `test_triage_fork.py` holds night 91, and it passes, because that criterion has no surface ref.
+2. The fixture door, in both directions:
+   - Good tests that are still refused: a fixture that the test module imports (F2), and a fixture that the body renames with `name=` (F3). See U1.
+   - Names admitted that no source gives as a fixture: `pytest` and `Calendar` (F6, F7). The door admits them because a conftest imports them. See U2.
+   - `mocker` and `criterion_id` are still refused, and both refusals are right. No conftest gives either name, and rota's interpreter has no `pytest-mock`. That interpreter runs the tests when the worktree has no `.venv`. A worktree whose `.venv` holds `pytest-mock` admits `mocker`, and that is also right.
+3. The import door, in both directions:
+   - `billing`, `utils`, `app` and `numpy` are refused (I1, I2, I3, I10).
+   - `dateutil`, `hypothesis`, `pytz` and `yaml` land (I6 to I9). `yaml` lands because rota's interpreter holds it.
+   - The invented modules `date` and `cal` land, because each is a part of a declared name: `python-dateutil` and `sphinx-icalendar` (I4, I5). See U3.
+   - `ensure_env` (`rota/core/provision.py` 85-132) installs `pytest`, `[project].dependencies` and the project itself, editable, with `--no-deps`. A project can declare its test packages in these places: `[project.optional-dependencies]` extras such as `test` or `dev`, the PEP 735 `[dependency-groups]` (icalendar uses the group `test`), poetry groups, `tests_require` and the extras in `setup.cfg` or `setup.py`, requirements files, and the `deps` of `tox.ini`. The fix belongs at `ensure_env` (U4).
+4. The cost, measured in one process on the icalendar layout with the `pyproject.toml` of icalendar at `99619246`:
+   - The fixture door: the first call that reads the plugin sources takes 0.36 s. Later calls take 0.011 s, against 0.005 s at `bd10fb23`. The plugin read is cached by the mtime of the folder.
+   - The import door: 0.02 s to admit and 0.06 s to refuse, against 0.05 s at `bd10fb23`.
+   - So the cost is about 0.4 s for each process, and it needs no fix.
+5. New defects: U1 to U3 and U5. The test files pass.
+
+### (b) Findings
+
+- U1. `rota/roles/api.py` 12187-12193 (`own`) and 12199-12271, the fixture door. Low. CONFIRMED (probe_p3 F2, F3). Two good tests get "the file give[s] no fixture of that name". The first takes a fixture that the test module imports from `icalendar.tests.helpers`. The second takes a fixture that the body defines with `@pytest.fixture(name=...)`. pytest registers both. Fix: build `own` from `_fixture_defs(tree)` and the names that the body imports, as the conftest read does.
+- U2. `rota/roles/api.py` 23648-23660, `_path_conftest_fixtures`. Low. CONFIRMED (F6, F7). The conftest of icalendar holds `import pytest`, so a test that takes the fixture `pytest` lands. A plain `import x` binds a module, and a module is never a fixture, so that admit is certainly wrong. Fix: give no fixture name for a plain `import` statement, and keep the names of `from ... import`.
+- U3. `rota/roles/api.py` 12430-12432, the declared-name match. Low. CONFIRMED (I4, I5). `m.lower() in d` is a substring match, so `import date` and `import cal` land on icalendar. No source gives either module. Fix: read the import names from `top_level.txt` or `RECORD` of installed distributions. For a declared name that is not installed, match a whole `_` segment, or the name with a `py` prefix removed.
+- U4. `rota/core/provision.py` 43-54 and 85-132, `declared_dependencies` and `ensure_env`. High. CONFIRMED by a code read and probe I6. The door now admits `import hypothesis` on icalendar. `ensure_env` installs only `[project].dependencies`, so the test errors at collection. The implementer saw that error in a run. Fix at `ensure_env`: install the `test` dependency group (`pip install --group test`, pip 25.1 or later) and the `test`, `tests` and `testing` extras. Until that fix, the door admits a declared name that is not installed only when no environment exists yet.
+- U5. `rota/roles/api.py` 23663-23720, `_harness_site_dirs`. Low. PLAUSIBLE, from fault 6 of the implementer. A case tree has no `.venv`, so the door reads the site folder of rota. A package added to rota's venv then changes recorded door results with no change of code. Fix: in a case run, read the site folders from a fixed list that the case records.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029756dd-9273-4a54-95d8-2da05a2bfe52/scratchpad/rd362/`. Each probe called no model.
+
+- `probe_p2.py`, `probe_triage.py` and `test_probe_guard2.py` ran again at `a2c4552b`.
+- `probe_p3.py`: F1 to F8 and I1 to I10, each call timed, on the icalendar layout with its real `pyproject.toml`. `CODE_ROOT` selects the code.
+- `old_bd10/`: `git archive bd10fb23` of `rota/` and the test helper. `probe_p3.py` ran on it for the timing before the change. No git command changed the worktree.
+- Suite: 16 door files with `-p no:cacheprovider`. Result: 716 passed in 80 s.
+
+### (d) Usage
+
+The harness shows no counter. This look used about 30k input tokens of context and about 9k output tokens. The total for the three looks is about 195k.
