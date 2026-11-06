@@ -815,7 +815,21 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     # -- which is how qwen2.5 writes every call -- had `\n` outside any
     # string, failed the strict parse, and fell to the lenient one, which
     # took `term` to be everything to the closing bracket.
-    safe = _quote_bare_keywords(_escape_newlines_in_quotes(args_str))
+    #
+    # Frame 362, dry run 6c: the list is first read as it is written. The
+    # two rewrites exist to make a list parse, so a list that Python reads
+    # needs neither. Their scans are not Python's: s186's `'''\` and a line
+    # break became a literal `\n`, and s194's `pass` after `\\'` became
+    # `'pass'` (frame 155). A list that Python reads holds no bare `pass`,
+    # and its line breaks in strings are already the value's line breaks,
+    # so the rewrites can change no wanted value of such a list.
+    try:
+        written = ast.parse(f"_f({args_str})", mode="eval")
+    except (SyntaxError, ValueError):
+        written = None
+    safe = args_str
+    if written is None or not isinstance(written.body, ast.Call):
+        safe = _quote_bare_keywords(_escape_newlines_in_quotes(args_str))
     try:
         expr = ast.parse(f"_f({safe})", mode="eval")
     except SyntaxError:
