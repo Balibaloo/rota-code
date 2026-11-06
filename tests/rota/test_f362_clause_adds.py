@@ -302,13 +302,66 @@ def test_a_line_key_that_lands_a_row_beside_clause_adds_is_refused(
     keys = {"2": line_value, "c2": "add", "c3": "add", "rest": "approve"}
     # Pass 2: one refusal names every clause add of the line, and its way
     # out lands in one call (review of 0c5e4a4d, finding 3).
+    # Pass 3: the key faults line 2, so the text offers the ask and no
+    # approve (second look, finding B).
     with pytest.raises(ValueError, match=(
-            r"^line 2: the line key gives .*, and c2, c3 add to line 2\. One "
-            r"ruling holds one option per line\. Key line 2 \"approve\"")):
+            r"^line 2: the line key gives '(drop|other)', and c2, c3 add to "
+            r"line 2\. One ruling holds one option per line, and the key "
+            r"faults line 2\. Call rulings\.rule\(ask=\.\.\.\)")) as refusal:
         sb.call("rulings.rule", rulings=keys)
-    sb.call("rulings.rule", rulings={**keys, "2": "approve"})
-    assert _rows(sb)["calculate_tip"]["words"] == words[len("Line 2 is "
-                                                            "wrong. "):]
+    assert "approve" not in str(refusal.value)
+    sb.call("rulings.rule", ask="Line 2 is wrong, and the page leaves out "
+                                "the tax. Which one do you mean?")
+    assert not _rows(sb)
+
+
+@pytest.mark.parametrize("words, quote, row", [
+    ("Use the follow-up rule.", "up rule.", "follow-up rule."),
+    ("Use the follow-up rule.", "Use the follow", "Use the follow-up"),
+    ("Don't round the tax.", "t round the tax.", "Don't round the tax."),
+    ("Don’t round the tax.", "t round the tax.",
+     "Don’t round the tax."),
+    ("The fold is in string.py now.", "py now.", "string.py now."),
+    ("The fold is in string.py now.", "The fold is in string.",
+     "The fold is in string.py"),
+    ("The fold is in string.py now.", "ring.p", "string.py"),
+    ("The fold is _foldline here.", "foldline here.", "_foldline here."),
+    ("Call parse_args first.", "args first.", "parse_args first."),
+    ("Round to 3.14 always.", "14 always.", "3.14 always."),
+    ("Cap the tip at 1,000 dollars.", "000 dollars.", "1,000 dollars."),
+    ("Add a note “Tax” to it.", "Tax” to it.",
+     "“Tax” to it."),
+    ("The page leaves out the tax", "The page leaves out the ta",
+     "The page leaves out the tax")])
+def test_a_quote_runs_to_the_white_space_of_his_word(
+        db, words, quote, row):  # noqa: F811
+    """Second look, finding A. The word stopped at a hyphen, an apostrophe,
+    an underscore, a dot, a comma and a curly quote."""
+    got = _add_row(db, "Drop line 3. " + words, {"c2": "add " + quote})
+    assert got["words"] == row
+
+
+def test_a_quote_of_the_first_word_runs_to_the_start_of_his_reply(
+        db):  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words="The page leaves out the tax. Drop line 3.")
+    sb.call("rulings.rule", rulings={
+        "3": "drop", "c1": "add he page leaves out the tax.",
+        "rest": "approve"})
+    assert _rows(sb)["calculate_tip"]["words"] == "The page leaves out the tax."
+
+
+def test_the_refusal_offers_the_approve_only_beside_a_key_that_is_no_fault():
+    """Finding B, the other branch. A stopped step's `drop` lands approve,
+    so the text can offer the approve. No add line holds such a key today."""
+    fault = api._displaced_text(11, "drop", "request", ["c2", "c3"])
+    ok = api._displaced_text(4, "drop", "step", ["c2"])
+    assert "approve" not in fault and "ask=" in fault
+    assert ok == ('line 4: the line key gives \'drop\', and c2 add to line 4. '
+                  'One ruling holds one option per line. Key line 4 '
+                  '"approve" to keep the adds, or call rulings.rule(ask=...) '
+                  'with no rulings.')
+    assert len(fault) < 200 and len(ok) < 200
 
 
 def test_a_line_add_and_a_clause_add_on_one_line_join(db):  # noqa: F811
@@ -523,11 +576,10 @@ def test_the_named_way_out_lands_in_one_call_on_n174_m53_m58(tmp_path):
                 r"line 11\. ")) as refusal:
             sb.call("rulings.rule", rulings=keys)
         assert len(str(refusal.value)) < 250
-        sb.call("rulings.rule", rulings={**keys, "11": "approve"})
-    row = next(w[2] for w in sb.ctx.writes
-               if w[0] == "ruled_refs" and w[2].get("line") == 11)
-    assert (row["verdict"], row["act"]) == ("approve", "add")
-    # His reply writes both in lower case, and the row keeps his spelling.
-    his = case["inbound"]["body_text"]
-    assert c3.lower() in row["words"] and c2[1:-1] in row["words"]
-    assert _in_his_order(his, row["words"])
+        assert "approve" not in str(refusal.value)
+        # Pass 3: the way out is the ask, which the case expects.
+        out = sb.call("rulings.rule", ask="Do you want lines 1 to 12 "
+                                          "dropped, or the docstring example "
+                                          "added?")
+    assert out is not None
+    assert not [w for w in sb.ctx.writes if w[0] == "ruled_refs"]

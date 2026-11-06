@@ -15739,6 +15739,24 @@ def _one_option_text(n: int, other: str, other_value, add: str,
             f"rulings.rule(ask=...) with no rulings.")
 
 
+def _displaced_text(n: int, name: str, kind: str, displaced: list[str]
+                    ) -> str:
+    """The refusal of a line key that lands a row on the add line beside
+    clause adds. Each way out lands in one call. The text offers no
+    verdict that the seat's own key contradicts. An approve beside a fault
+    key ruled against his words on n174-m53-m58, where his first clause
+    drops the lines (second look of frame 362, finding B)."""
+    head = (f"line {n}: the line key gives {name!r}, and "
+            f"{', '.join(displaced)} add to line {n}. One ruling holds one "
+            f"option per line")
+    rows = _STEP_ROWS if kind == "step" else _OPTION_ROWS
+    if (rows.get(name) or ("contest",))[0] in ("contest", "revise"):
+        return (f"{head}, and the key faults line {n}. Call "
+                f"rulings.rule(ask=...) with no rulings.")
+    return (f"{head}. Key line {n} \"approve\" to keep the adds, or call "
+            f"rulings.rule(ask=...) with no rulings.")
+
+
 def page_clauses(his: str, size: int,
                  menu: dict[int, tuple[str, list[str]]] | None = None,
                  offsets: bool = False) -> list[dict]:
@@ -15893,8 +15911,11 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         near = [(clause_at[k], clause_at[k] + len(c["words"]))
                 for k, c in enumerate(clauses, 1)
                 if clause_at[k] < end and clause_at[k] + len(c["words"]) > start]
-        return bool(near) and _holds_clauses(
-            (his or "")[min(s for s, _ in near):max(e for _, e in near)], words)
+        # The region also holds the words, which can run past a clause edge
+        # to the white space.
+        return bool(near) and _holds_clauses((his or "")[
+            min(start, *(s for s, _ in near)):max(end, *(e for _, e in near))],
+            words)
     adds = _add_lines(menu)
     # The lines that the reply rules itself: a clause has the line as its
     # subject, and `_line_reading` reads a fault or a match there. On those
@@ -16081,15 +16102,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             continue
         raise ValueError(text)
     if displaced:
-        # The way out lands in one call: an approve on the line lets every
-        # clause add ride, and the ask fits words that ask for no add.
-        raise ValueError(
-            f"line {adds[0]}: the line key gives "
-            f"{_key_name(by_line[adds[0]])!r}, and {', '.join(displaced)} "
-            f"add to "
-            f"line {adds[0]}. One ruling holds one option per line. Key line "
-            f"{adds[0]} \"approve\" to keep the adds, or call "
-            f"rulings.rule(ask=...) with no rulings.")
+        raise ValueError(_displaced_text(
+            adds[0], _key_name(by_line[adds[0]]), menu[adds[0]][0], displaced))
     # The clauses with no lines whose quote a line key carries.
     quoted: set[int] = set()
     for n in sorted(by_line):
@@ -16226,13 +16240,19 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     # A quote that cuts a word lands with the whole word.
                     # "he page leaves out the t" landed as the row (review
                     # of 0c5e4a4d, finding 2). A part of whole words stays.
+                    # His word runs to the white space, because a stop at a
+                    # hyphen, a dot or an apostrophe cut "string.py" and
+                    # "Don't" (second look, finding A). A sentence mark past
+                    # the quote's own edge is no part of his word.
                     start, end, full = *place, his or ""
-                    while start > 0 and full[start - 1].isalnum() \
-                            and full[start].isalnum():
+                    while start > 0 and not full[start - 1].isspace():
                         start -= 1
-                    while end < len(full) and full[end].isalnum() \
-                            and full[end - 1].isalnum():
+                    while end < len(full) and not full[end].isspace():
                         end += 1
+                    while end > place[1] and full[end - 1] in ".,;:!?":
+                        end -= 1
+                    while start < place[0] and full[start] in ".,;:!?":
+                        start += 1
                     said, at = full[start:end], start
                 elif not (own and act == "add"):
                     said = given
