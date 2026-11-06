@@ -105,3 +105,39 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029
 ### (g) Usage
 
 The harness shows no token counts. The estimate for the second look is about 30k input tokens and 5k output tokens.
+
+## Third look, 3ebc5ac5
+
+### Result
+
+**Verdict: fix before the pick.** Finding 1 is high. The new approval check in `owed` also opens the equal-set door. A reply that contests line 1 and line 2 together lets the Architect stamp the set he called wrong, and the contest then ends for good. The fix is one line, and the 39 tests stay green with it. The other points hold. No model was called, no gate ran, and no tracked file was edited except this page.
+
+### (a) The verdict on each point
+
+1. Fails for `contested` and `pending`. The code writes 5 item statuses: `draft`, `pending`, `approved`, `contested` and `dropped`. An owed contest can be live in `draft` and `approved`. In `pending` and `contested` the contest must hold, because the request comes back. In `dropped` it ends correctly. `next_batch` and `cancel` already hold every batch of an item that is not `approved`, so the check gives no batch a start. But the door `_refuse_the_contested_set` also reads `owed`, and it opens (finding 1).
+2. Confirmed. I ran the strict reading: a ruling on a closed batch never replaces, carried or not. On the migrated dry 6b copies with `b_1` merged or abandoned, it owes r_m27 again and wakes `tick:guess` with m28 for a done item. The implementer's test `test_a_rewritten_contest_on_a_closed_batch_owes_nothing` goes red under it. At the commit: w7 owes r_m27 and gives `[]`. w8 and the final database stamp `m44`, owe nothing and give `['b_1']`.
+3. No wrong wake, hold or park page. His line-1 contest moves the approval, and that lift deletes the spent owed key (probe: `probe_back.py`). After the rewrite and his approve of version 2, r_m27 is owed again with a fresh bound of 3. The guess tick carries m28 and his version 1 words. The new batch waits for one stamped guess. The Architect writes a guess for version 2 in any case, so the cost is the stamp only.
+4. On the recorded rows of dry 6b the page shows "tried 1 time". The count is s145 on the relay m29. The recorded ticks carry no verdict in their refs, so none count. The number is false when one verdict contests the guess of two requests: the page of one request counts the ticks of both (finding 2). The other sentences hold in the worst case. Line 2 and the give-up line now have landing tests.
+5. Confirmed. Each of the 7 new tests turns red under its planted fault (probe: `mutate.py`). The two landing tests use `parse_reply`, `land` and a scripted Liaison session that calls `rulings.rule`. They write no ruling row by hand. The fixture r_m27 and the spent key of `_spend` are hand-built setup.
+6. Small. One `frontier` read on the final dry 6b copy calls `owed` 14 times. One call takes 0.11 ms at `822311e0` and 0.15 ms at `3ebc5ac5`. One read takes about 690 ms at both commits, and the difference is in the noise.
+
+### (b) Findings
+
+1. `rota/core/scheduler.py` 1899 to 1901, with `rota/roles/api.py` 9150 to 9163. Severity high. CONFIRMED. The approval check makes `owed` give None for a `contested` or `pending` item. So `_refuse_the_contested_set` admits the set he contested. The relay path of `owed_ruling` still stamps the verdict, and the stamp ends the contest for good. Probe `probe_contested.py`: r_m27 holds `{guess: contest, item: contest}`, and the item is `contested`. The Architect's relay session on m29 sends the old 6-grain guess. At `822311e0` the door refuses it. At `3ebc5ac5` it lands with `m28`. After his approve of version 2, `owed` gives None, the guess tick has no verdict, and `next_batch` gives `['b_1']`. Fix: return None only when the approval is `dropped`. With that change all 39 tests pass, except the first assert of the `[other ...]` give-up case. Its later asserts pass (probe: `droponly.py`).
+2. `rota/core/scheduler.py` 1974 to 1991. Severity low. CONFIRMED. `owed_tries` matches the verdict only, and not the item. One reply that contests the guess of two requests has one verdict. Probe `probe_tries.py`: the page of the first request says "tried 7 times". Its own tries are 4. Fix: count a tick only when `refs[0]` is the item or one of its batches.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/rv362/`.
+
+- `head2/`, `head3/`: a `git archive` of `822311e0` and `3ebc5ac5`. `head3s/` is `head3/` with the strict closed-batch rule (`strict.py`). Its test file gave `1 failed, 38 passed`.
+- `chk.py`: `init_db` on copies of w7, w8 and the final dry 6b database. It prints the stamps, `owed` and `next_batch`. `merged.py` sets `b_1` merged or abandoned in a rolled-back transaction, and prints `owed` and the guess wakes for both readings.
+- `mutate.py`: 6 planted faults on copies of `head3/`, and the 7 new tests for each. Each fault turns 1 or 2 of them red. `head3/` itself gives `7 passed`.
+- `probe_contested.py`: the door under a `contested` item, at both commits. `droponly.py`: the fix of finding 1 with the whole test file and that probe.
+- `probe_back.py`: the park page, his line-1 contest through the landing door, then version 2 approved by `write_state`.
+- `tries.py`: `owed_tries` on the dry 6b copies. `probe_tries.py`: one verdict on two requests.
+- `cost.py`: 20 `frontier` reads and 1000 `owed` calls on the final copy at each commit.
+
+### (d) Usage
+
+The harness shows no token counts. The estimate for the third look is about 85k input tokens and 12k output tokens, about 97k in total.
