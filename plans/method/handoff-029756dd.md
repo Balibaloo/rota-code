@@ -21,7 +21,7 @@ Left for one small pass 3 before the pick, each low: the backfill stamps nothing
 
 ## What comes next, in order
 
-1. Read the last status lines of frame 362 for the gate that started at about 11:10 and for the review of slice 1. The first gate of today gave 3 new reds, and all three are mended.
+1. The three changes are accepted on the checkout. The second gate of today is clean: 32 failed and 7,162 passed against the baseline's 34 and 6,465, new reds 0, reds gone 2, stale 0, 1,174.9 s. The first gate gave 3 new reds, and all three are mended.
 2. Close slice 1: the review's findings, a second look, the pick, the gate. Three annotate cases go stale, because `annotate.md` changed. The park page is new text that the principal reads: read it in the implementer's report before the pick.
 3. One live arm as evidence: dry run 6b's turn 6 again, with the true models by role and port 11436. The design page, section 7.2, has the facts.
 4. Then a dry run from zero on the 3080 alone, with no router and without `ROTA_ONESHOT`, as the last note says. Watch the demand side, the seeded break, and the starts after a contest.
