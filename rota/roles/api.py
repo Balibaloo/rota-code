@@ -9164,6 +9164,39 @@ def _request_rows(ctx: Ctx, criterion_id: str) -> list[tuple[str, str]]:
     return rows
 
 
+def _a_surface_gives_a_value(ctx: Ctx, criterion_id: str) -> bool:
+    """Whether the code of a surface ref of the criterion gives a value in
+    the tree that the tests run against. A `path::name` ref reads its own
+    file, and a bare name reads every definer, as a method call does."""
+    import ast as _ast
+
+    row = ctx.conn.execute("SELECT surface_refs FROM criteria WHERE id = ?",
+                           (criterion_id,)).fetchone()
+    try:
+        refs = json.loads(row["surface_refs"] or "[]") if row else []
+    except ValueError:
+        return False
+    _in_batch, read = _run_tree_reader(ctx)
+    for ref in refs if isinstance(refs, list) else []:
+        if not isinstance(ref, str) or not ref.strip():
+            continue
+        name = ref.rsplit("::", 1)[-1].rsplit(".", 1)[-1]
+        where = _grain_path(ref) if "::" in ref else ""
+        src = read(where) if where.endswith(".py") else None
+        if src is not None:
+            try:
+                node = _last_binding(src, name)
+            except SyntaxError:
+                node = None
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                if _gives_a_value(node):
+                    return True
+                continue
+        if _surface_gives_a_value(ctx, name, None, True, read):
+            return True
+    return False
+
+
 def _contradiction_offer(ctx: Ctx, criterion_id: str, crit_text: str,
                          request: list[tuple[str, str]]) -> str | None:
     """
@@ -9190,6 +9223,14 @@ def _contradiction_offer(ctx: Ctx, criterion_id: str, crit_text: str,
         rw = _first_verb(req_words, r_says)
         if (cw and rw and not _first_verb(crit_words, c_other)
                 and not _first_verb(req_words, r_other)):
+            # Frame 362, pass 2 (review finding 7): "the serialized output"
+            # and "returns" disagree in words only when the surface's code
+            # gives a value. The code is the fact, so no offer is made. A
+            # request that says "prints" against a criterion that says
+            # "returns" keeps the offer: the code shows today, and the
+            # request can ask for a change (night 91).
+            if c_says is PRINTS and _a_surface_gives_a_value(ctx, criterion_id):
+                return None
             row = next(name for name, ws in req if rw in ws)
             return _offer(
                 ctx,
@@ -10631,34 +10672,74 @@ def _definition_of(tree, test_path: str, name: str, refs: list[str],
     return None
 
 
+def _ends_in_return(stmts) -> bool:
+    """Whether every path through `stmts` ends in a `return` or a `raise`.
+    A loop or a `match` is read as a path that can fall through."""
+    import ast as _ast
+
+    if not stmts:
+        return False
+    last = stmts[-1]
+    if isinstance(last, (_ast.Return, _ast.Raise)):
+        return True
+    if isinstance(last, _ast.If):
+        return _ends_in_return(last.body) and _ends_in_return(last.orelse)
+    if isinstance(last, (_ast.With, _ast.AsyncWith)):
+        return _ends_in_return(last.body)
+    if isinstance(last, _ast.Try):
+        tried = _ends_in_return(last.body) or _ends_in_return(last.orelse)
+        return _ends_in_return(last.finalbody) or (
+            tried and all(_ends_in_return(h.body) for h in last.handlers))
+    return False
+
+
 def _gives_a_value(node) -> bool:
-    """Whether the `def` `node` returns a value: a `return` of something
-    other than None, or a `yield`, in its own body. A nested `def`, class
-    or lambda returns for itself. A decorator decides what a call returns,
-    so a decorated `def` proves nothing, except for `staticmethod` and
-    `classmethod`."""
+    """Whether a call of the `def` `node` gives a value.
+
+    A plain `def` gives one when every path ends in a `return` or a `raise`,
+    and no `return` gives None or what a print or a write gave. A generator
+    gives one when a `yield` has a value. A nested `def`, class or lambda
+    returns for itself. Frame 362, pass 2 (review finding 1): `return
+    print(...)` and a default branch that prints opened the loop of clickI
+    night 28 again. A decorator keeps the value, except click's `command`
+    and `group`, whose call runs a command."""
     import ast as _ast
 
     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         return False
-    if any(not (isinstance(d, _ast.Name)
-                and d.id in ("staticmethod", "classmethod"))
-           for d in node.decorator_list):
+
+    def last_name(f) -> str:
+        f = f.func if isinstance(f, _ast.Call) else f
+        return (f.attr if isinstance(f, _ast.Attribute)
+                else getattr(f, "id", ""))
+
+    if any(last_name(d) in ("command", "group") for d in node.decorator_list):
         return False
+    returns, yields, printed = [], [], set()
     todo = list(node.body)
     while todo:
         n = todo.pop()
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
                           _ast.ClassDef, _ast.Lambda)):
             continue
-        if isinstance(n, (_ast.Yield, _ast.YieldFrom)):
-            return True
-        if (isinstance(n, _ast.Return) and n.value is not None
-                and not (isinstance(n.value, _ast.Constant)
-                         and n.value.value is None)):
-            return True
+        if isinstance(n, _ast.Return):
+            returns.append(n)
+        elif isinstance(n, (_ast.Yield, _ast.YieldFrom)):
+            yields.append(n)
+        elif (isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call)
+              and last_name(n.value) in ("print", "write")):
+            printed |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
         todo.extend(_ast.iter_child_nodes(n))
-    return False
+
+    def none(v) -> bool:
+        return (v is None or (isinstance(v, _ast.Constant) and v.value is None)
+                or (isinstance(v, _ast.Call) and last_name(v) in ("print", "write"))
+                or (isinstance(v, _ast.Name) and v.id in printed))
+
+    if yields:
+        return any(not none(y.value) for y in yields)
+    return (bool(returns) and not any(none(r.value) for r in returns)
+            and _ends_in_return(node.body))
 
 
 def _is_stub(node) -> bool:
@@ -10672,14 +10753,39 @@ def _is_stub(node) -> bool:
                or isinstance(s, _ast.Raise) for s in node.body)
 
 
+def _followed_def(module: str, level: int, orig: str, from_path: str,
+                  read: Callable[[str], str | None]):
+    """The `def` that `from <module> import <orig>` in `from_path` reaches,
+    through at most four re-exports, or None."""
+    import ast as _ast
+
+    for _ in range(4):
+        found = _defined_in(module, level, orig, from_path, read)
+        if found is None:
+            return None
+        where, node, _src = found
+        if not isinstance(node, _ast.ImportFrom):
+            return node if isinstance(node, (_ast.FunctionDef,
+                                             _ast.AsyncFunctionDef)) else None
+        alias = next((a for a in node.names if (a.asname or a.name) == orig), None)
+        if alias is None:
+            return None
+        module, level, orig, from_path = (node.module or "", node.level,
+                                          alias.name, where)
+    return None
+
+
 def _surface_gives_a_value(ctx: Ctx, name: str, defined, as_method: bool,
-                           read: Callable[[str], str | None]) -> bool:
+                           read: Callable[[str], str | None], tree=None,
+                           test_path: str = "", receiver: str | None = None) -> bool:
     """Whether the code of the surface `name` returns a value, in the tree
     that the test runs against.
 
     `defined` is what `_definition_of` found, and it decides when it is a
-    `def`. A method call such as `cal.to_ical()` names no module, and the
-    index holds no method row. So every `def name` of the program files
+    `def`. A call on a module that the test imports, or a name that a module
+    re-exports, goes through `_defined_in` (frame 362, pass 2, review
+    finding 2). A method call such as `cal.to_ical()` names no module, and
+    the index holds no method row. So every `def name` of the program files
     that `definers_of` finds must return a value, and a stub declares none.
     No definition, or a file that does not read or parse, proves nothing.
     """
@@ -10687,8 +10793,27 @@ def _surface_gives_a_value(ctx: Ctx, name: str, defined, as_method: bool,
 
     if defined is not None:
         return _gives_a_value(defined[2])
+    modules: dict[str, tuple[str, int]] = {}
+    for n in _ast.walk(tree) if tree is not None else ():
+        if isinstance(n, _ast.Import):
+            for a in n.names:
+                modules[a.asname or a.name.split(".")[0]] = (
+                    a.name if a.asname else a.name.split(".")[0], 0)
+    imported = _imported_names(tree) if tree is not None else {}
+    if as_method and receiver in modules:
+        node = _followed_def(f"{modules[receiver][0]}", 0, name, test_path, read)
+        return _gives_a_value(node)
+    if as_method and receiver in imported:
+        module, level, orig = imported[receiver]
+        node = _followed_def(".".join(p for p in (module, orig) if p), level,
+                             name, test_path, read)
+        if node is not None:
+            return _gives_a_value(node)
     if not as_method:
-        return False
+        if name not in imported:
+            return False
+        module, level, orig = imported[name]
+        return _gives_a_value(_followed_def(module, level, orig, test_path, read))
     try:
         files = definers_of(ctx.conn, name, defs_only=True,
                             lenient_root=_worktree_of(ctx))
@@ -10706,6 +10831,14 @@ def _surface_gives_a_value(ctx: Ctx, name: str, defined, as_method: bool,
         defs += [n for n in _ast.walk(found)
                  if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                  and n.name == name and not _is_stub(n)]
+    # A base `def` whose body is `pass` is overridden when another `def`
+    # of the name exists (frame 362, pass 2, review finding 2).
+    real = [n for n in defs if not all(
+        isinstance(s, _ast.Pass) or (isinstance(s, _ast.Expr)
+                                     and isinstance(s.value, _ast.Constant))
+        for s in n.body)]
+    if real:
+        defs = real
     return bool(defs) and all(_gives_a_value(n) for n in defs)
 
 
@@ -11158,27 +11291,111 @@ def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
     return candidate
 
 
+_CHECK_WORDS = ("assert", "raises", "warns", "fail")
+
+
 def _holds_a_check(tree) -> bool:
-    """Whether the test body `tree` checks a result: an `assert`, a
-    `pytest.raises`, `pytest.warns` or `pytest.fail` call, a
-    `self.assert...` or `self.fail` call, or a mock's `assert_...` call.
-    A `with pytest.raises(...)` block holds the call, so it counts."""
+    """Whether the test body `tree` checks a result: an `assert`, a raise of
+    an `AssertionError`, or a call whose name holds a word of
+    `_CHECK_WORDS`, such as `pytest.raises`, `self.assertEqual` or a mock's
+    `assert_called_once_with`. A bare name reads through the imports of the
+    body, so `from pytest import raises as r` makes `r(...)` a check.
+    Frame 362, pass 2: an unknown name with such a word is admitted, because
+    the door refuses only what it is certain of."""
     import ast as _ast
+
+    bound: dict[str, str] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            for a in n.names:
+                bound[a.asname or a.name.split(".")[0]] = a.name
+
+    def word(f) -> str:
+        if isinstance(f, _ast.Call):
+            f = f.func
+        if isinstance(f, _ast.Attribute):
+            return f.attr.lower()
+        if isinstance(f, _ast.Name):
+            return bound.get(f.id, f.id).rsplit(".", 1)[-1].lower()
+        return ""
 
     for n in _ast.walk(tree):
         if isinstance(n, _ast.Assert):
             return True
-        if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)):
-            continue
-        attr = n.func.attr
-        owner = n.func.value.id if isinstance(n.func.value, _ast.Name) else None
-        if owner == "pytest" and attr in ("raises", "warns", "fail"):
+        if isinstance(n, _ast.Call) and any(w in word(n.func) for w in _CHECK_WORDS):
             return True
-        if owner == "self" and (attr.startswith("assert") or attr == "fail"):
-            return True
-        if attr.startswith("assert_"):
+        if isinstance(n, _ast.Raise) and n.exc is not None and any(
+                w in word(n.exc) for w in ("assert", "fail")):
             return True
     return False
+
+
+def _collected_tests(tree) -> list:
+    """The test functions and test methods of the body that pytest collects
+    by its default rules, or may collect.
+
+    A `def test...` counts at module level and in a class that pytest
+    collects, unless it is a fixture. A class counts when its name starts
+    with `Test` and it has no `__init__`, or when it has a base other than
+    `object`, which can be a `unittest.TestCase`. Frame 362, pass 2 (review
+    finding 6): an `async def` test counts, because a plugin decides it.
+    """
+    import ast as _ast
+
+    def is_fixture(fn) -> bool:
+        for d in fn.decorator_list:
+            d = d.func if isinstance(d, _ast.Call) else d
+            name = d.attr if isinstance(d, _ast.Attribute) else getattr(d, "id", "")
+            if name == "fixture":
+                return True
+        return False
+
+    def tests_in(stmts) -> list:
+        return [s for s in stmts
+                if isinstance(s, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and s.name.startswith("test") and not is_fixture(s)]
+
+    out: list = []
+    todo = list(tree.body)
+    while todo:
+        s = todo.pop(0)
+        if isinstance(s, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            out += tests_in([s])
+        elif isinstance(s, _ast.ClassDef):
+            bases = [b for b in s.bases
+                     if not (isinstance(b, _ast.Name) and b.id == "object")]
+            init = any(isinstance(m, _ast.FunctionDef) and m.name == "__init__"
+                       for m in s.body)
+            if bases or (s.name.startswith("Test") and not init):
+                out += tests_in(s.body)
+        elif isinstance(s, (_ast.If, _ast.Try, _ast.With)):
+            # A test defined under a module-level `if`, `try` or `with` is
+            # still a module attribute.
+            todo += [c for c in _ast.iter_child_nodes(s) if isinstance(c, _ast.stmt)]
+    return out
+
+
+def _collect_refusal(tree) -> str | None:
+    """The collect door's refusal of a test body, or None.
+
+    Two facts, and each text says its own (frame 362). One text refused 12
+    good tests on dry runs 3 and 6c, because pytest collects a
+    `pytest.raises` test and a `unittest.TestCase` method with no
+    `assert` statement. Both paths of tests.encode read this one door.
+    """
+    if not _collected_tests(tree):
+        return ("pytest collects nothing from this body: it holds no test "
+                "that pytest collects, a def test_...() at module level that "
+                "is not a fixture or a test_ method of a Test class or a "
+                "TestCase. A sentence about the criterion is the criterion "
+                "again, not a test of it")
+    if not _holds_a_check(tree):
+        return ("pytest collects this body, and the test checks nothing: it "
+                "holds no assert, no raise of AssertionError and no call whose "
+                "name holds assert, raises, warns or fail, such as "
+                "pytest.raises or self.assertEqual. Add a check of what the "
+                "criterion says")
+    return None
 
 
 def _project_holder(ctx: Ctx, path: str, batch_id: str | None) -> str | None:
@@ -11297,11 +11514,11 @@ def _encode_guard(ctx: Ctx, id: str, c: dict, path: str, body: str,
     except SyntaxError as exc:
         raise Wall(f"the body is not Python ({exc.msg}, line {exc.lineno}). A "
                    f"test is def test_...(): with assertions") from None
-    if not (any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-                and n.name.startswith("test") for n in _ast.walk(tree))
-            and any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))):
-        raise Wall("pytest will collect nothing from this body: it needs a "
-                   "def test_...(): with an assert")
+    # Frame 362, pass 2 (review finding 3): one door, one text, on both
+    # paths of tests.encode.
+    refused = _collect_refusal(tree)
+    if refused:
+        raise Wall(refused)
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": None, "commitment_id": c["id"],
         "path": path, "body": body}))
@@ -11442,22 +11659,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"assertions, not a description of one") from None
     from ..core import fence as _fence
     _fence.check(path, tree, _criteria_texts(ctx))
-    has_test = any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-                   and n.name.startswith("test") for n in _ast.walk(tree))
-    # Two facts, and each text says its own. The one text refused 12 good
-    # tests on dry runs 3 and 6c: pytest collects a `pytest.raises` test and
-    # a `unittest.TestCase` method with no `assert` statement.
-    if not has_test:
-        raise Wall(
-            "pytest collects nothing from this body: it holds no "
-            "def test_...(). A sentence about the criterion is the criterion "
-            "again, not a test of it")
-    if not _holds_a_check(tree):
-        raise Wall(
-            "pytest collects this body, and the test checks nothing: it holds "
-            "no assert, no pytest.raises or pytest.warns, no pytest.fail, no "
-            "self.assert... or self.fail call and no mock assert_... call. "
-            "Add a check of what the criterion says")
+    refused = _collect_refusal(tree)
+    if refused:
+        raise Wall(refused)
 
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
     # And a third harness fact, from walk nine: `assert test_valid_input()`
@@ -11900,9 +12104,30 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     for fn in (n for n in _ast.walk(tree)
                if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                and n.name.startswith("test")):
+        # Frame 362, pass 2 (review finding 8): `parametrize` gives its
+        # argnames, and the door refused every parametrized test. Any other
+        # decorator but a mark, such as `given` or `patch`, may give
+        # arguments, so the door is not certain and admits the test.
+        given = set()
+        doubt = False
+        for d in fn.decorator_list:
+            dotted = _ast.unparse(d.func if isinstance(d, _ast.Call) else d)
+            if dotted.rsplit(".", 1)[-1] == "parametrize" and isinstance(d, _ast.Call):
+                names = d.args[0] if d.args else None
+                if isinstance(names, _ast.Constant) and isinstance(names.value, str):
+                    given |= {p.strip() for p in names.value.split(",")}
+                elif isinstance(names, (_ast.List, _ast.Tuple)):
+                    given |= {e.value for e in names.elts
+                              if isinstance(e, _ast.Constant)}
+                else:
+                    doubt = True
+            elif ".mark." not in f".{dotted}.":
+                doubt = True
+        if doubt:
+            continue
         unknown = [a.arg for a in fn.args.args
                    if a.arg not in builtin_fixtures and a.arg not in own
-                   and a.arg != "self"]
+                   and a.arg not in given and a.arg != "self"]
         if unknown:
             raise Wall(
                 f"{fn.name} takes {unknown[0]!r}, and the harness has no such "
@@ -11912,11 +12137,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"lambda _='': 'Alice')), capsys for printed output, or "
                 f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
+    tested = {a: a.test for a in asserts}
+    # Frame 362, pass 2 (review finding 5): the collect door admits a
+    # `TestCase`, so `self.assertTrue(True)` reaches this door. The one
+    # argument of a truth assert is its test, as the test of an `assert`.
+    for n in _ast.walk(tree):
+        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name) and n.func.value.id == "self"
+                and n.func.attr in ("assertTrue", "assertFalse", "assertIsNone",
+                                    "assertIsNotNone") and n.args):
+            asserts.append(n)
+            tested[n] = n.args[0]
     # law 8: gates are predicates; a test that cannot fail is no gate
     # Fact F14: `assert_cannot_fail` holds every rule. The door decides
     # which kind refuses alone, and in which order the walls fire.
     checks_by_raise = body_checks_by_raise(tree)
-    reasons = {a: assert_cannot_fail(a.test, tree, body)
+    reasons = {a: assert_cannot_fail(tested[a], tree, body)
                for a in asserts}
     # `id` is the test id parameter here, so the maps key on the node.
     kinds = {k: {kind for kind, _ in v} for k, v in reasons.items()}
@@ -11988,7 +12224,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # Walk thirteen: `assert print(...) == "Hello Alice!"` -- the print
         # moved inside a comparison and the guard on the bare call missed it.
         if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
-               and n.func.id == "print" for n in _ast.walk(a.test)):
+               and n.func.id == "print" for n in _ast.walk(tested[a])):
             # The fact and no recipe (Roman, 2026-09-15: the capsys clause
             # was the stdin family again; night 80's Tester wrote the shape
             # it was handed and no command ran).
@@ -12410,6 +12646,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     surface_now = {s.rsplit("::", 1)[-1] for s in surface_refs}
     uses_return = None
     as_method = False
+    receiver = None
     for node in _ast.walk(tree):
         call = None
         if isinstance(node, _ast.Assign) and isinstance(node.value, _ast.Call):
@@ -12425,6 +12662,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if name in surface_now:
                 uses_return = name
                 as_method = isinstance(fn, _ast.Attribute)
+                receiver = (fn.value.id if as_method and isinstance(fn.value, _ast.Name)
+                            else None)
                 break
     # The criterion's words say what prints, and the function's kind says
     # what a call returns. Frame 177: on night 128 this door refused 5
@@ -12441,7 +12680,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # whose code returns a value passes this door. A surface not in the tree,
     # or with no return value, keeps the word rule of clickI nights 28 to 45.
     if uses_return and _surface_gives_a_value(ctx, uses_return, defined,
-                                              as_method, read):
+                                              as_method, read, tree, path,
+                                              receiver):
         uses_return = None
 
     def _def_fact(where: str, node, src: str) -> None:
