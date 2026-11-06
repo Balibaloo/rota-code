@@ -232,7 +232,8 @@ def pull(dest: Path = paths.DEV_DB, manifest: Manifest | None = None,
     # A pull cut during the index build leaves committed frames in
     # `.part-wal`. SQLite replays them onto the next snapshot and spoils it
     # (observed: the review of 2c294581, frame 362). So no side file stays.
-    for stale in (gz, part, Path(str(part) + "-wal"), Path(str(part) + "-shm")):
+    for stale in (gz, part, Path(str(part) + "-wal"), Path(str(part) + "-shm"),
+                  Path(str(part) + "-journal")):
         if stale.exists():
             stale.unlink()
 
@@ -277,7 +278,8 @@ def pull(dest: Path = paths.DEV_DB, manifest: Manifest | None = None,
             print(f"cassettes: warning: {part.name} got no seq index: {e}",
                   file=sys.stderr)
     # A read-only open of a WAL-headered file still creates -wal and -shm.
-    for side in (Path(str(part) + "-wal"), Path(str(part) + "-shm")):
+    for side in (Path(str(part) + "-wal"), Path(str(part) + "-shm"),
+                 Path(str(part) + "-journal")):
         if side.exists():
             side.unlink()
     if check != "ok":

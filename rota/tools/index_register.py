@@ -47,7 +47,8 @@ def missing(path: str | Path) -> list[str]:
     when the register is ready (the review of 2c294581, frame 362).
     """
     uri = Path(path).resolve().as_uri().replace("file:///", "file:/")
-    conn = sqlite3.connect(f"{uri}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"{uri}?mode=ro", uri=True,
+                           timeout=float(REGISTER_WAIT.default))
     try:
         mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
         held = {r[0] for r in conn.execute(
