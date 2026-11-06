@@ -165,19 +165,29 @@ def _read_line(resp: http.client.HTTPResponse) -> bytes:
     return buf
 
 
-def test_tags_hold_both_servers_models_with_the_default_entry_first(rig):
-    first, second, router, _ = rig
+def get(router, path: str):
     conn = http.client.HTTPConnection("127.0.0.1", router.server_address[1],
                                       timeout=10)
-    conn.request("GET", "/api/tags")
-    models = json.loads(conn.getresponse().read())["models"]
-    assert [m["name"] for m in models] == [
+    conn.request("GET", path)
+    return json.loads(conn.getresponse().read())
+
+
+def test_tags_hold_both_servers_models_once_each(rig):
+    _, _, router, _ = rig
+    assert [m["name"] for m in get(router, "/api/tags")["models"]] == [
         "qwen3.5:9b", "gemma4:12b-it-qat", "gemma4:26b"]
-    assert models[1]["server"] == "first"
-    conn = http.client.HTTPConnection("127.0.0.1", router.server_address[1],
-                                      timeout=10)
-    conn.request("GET", "/api/version")
-    assert json.loads(conn.getresponse().read()) == {"version": "first"}
+    assert get(router, "/api/version") == {"version": "first"}
+
+
+def test_a_model_both_servers_list_keeps_the_picked_servers_entry(rig):
+    # discover.py reads `context_length` from /api/ps, so the entry must come
+    # from the server that runs the model, not from the first server listed.
+    _, second, router, _ = rig
+    second.models.insert(0, "qwen3.5:9b")
+    for path in ("/api/ps", "/api/tags"):
+        by_name = {m["name"]: m["server"] for m in get(router, path)["models"]}
+        assert by_name == {"qwen3.5:9b": "first", "gemma4:12b-it-qat": "second",
+                           "gemma4:26b": "second"}
 
 
 def test_a_client_that_closes_early_closes_the_upstream(rig):

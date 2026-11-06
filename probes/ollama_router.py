@@ -17,7 +17,8 @@ Usage:
 - A request whose JSON body holds `model` goes to that model's server. The
   body passes unchanged. A request with no model goes to the default.
 - `GET /api/tags` and `GET /api/ps` return the union of the servers' lists.
-  For a name that two servers hold, the default's entry stays.
+  For a name that two servers hold, the entry of the server that the router
+  picks for that name stays.
 - The reply streams through chunk by chunk, with the upstream status and
   headers.
 - When the client closes its connection, the router closes the upstream
@@ -93,8 +94,12 @@ def fetch_json(url: str, path: str, timeout: float) -> dict | None:
         return None
 
 
-def union(servers: list[str], path: str, timeout: float = 4.0) -> dict | None:
+def union(servers: list[str], path: str, owner=None,
+          timeout: float = 4.0) -> dict | None:
     """The servers' `models` lists joined, one entry per name, in server order.
+    For a name that two servers list, the entry of `owner(name)` stays. The
+    router sends the model there, and `discover.py` reads `context_length`
+    from `/api/ps`, so only that server's entry is true for the model.
     The fetches run at once, so one slow server costs one timeout in total."""
     found: dict[int, dict | None] = {}
 
@@ -110,15 +115,13 @@ def union(servers: list[str], path: str, timeout: float = 4.0) -> dict | None:
     bodies = [found.get(i) for i in range(len(servers))]
     if all(b is None for b in bodies):
         return None
-    models, seen = [], set()
-    for body in bodies:
+    chosen: dict[str, dict] = {}  # insertion order is the first sighting
+    for url, body in zip(servers, bodies):
         for entry in (body or {}).get("models") or []:
             name = entry.get("name") or entry.get("model")
-            if name in seen:
-                continue
-            seen.add(name)
-            models.append(entry)
-    return {"models": models}
+            if name not in chosen or (owner and owner(name) == url):
+                chosen[name] = entry
+    return {"models": list(chosen.values())}
 
 
 def watch_client(sock: socket.socket, upstream: http.client.HTTPConnection,
@@ -220,7 +223,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
 
         if self.command == "GET" and path in UNION_PATHS:
-            joined = union(self.server.servers(), self.path)
+            joined = union(self.server.servers(), self.path,
+                           owner=lambda name: pick(name, self.server.routes,
+                                                   self.server.default))
             if joined is None:
                 self.send_body(502, b'{"error":"no server answered"}',
                                "application/json")
