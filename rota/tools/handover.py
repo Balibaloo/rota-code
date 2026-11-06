@@ -447,8 +447,9 @@ class Box:
         history this tool was built from, both times to a usage limit. A
         claim with no receipt is therefore not a frame that is moving, and
         after a while it must move again. The age counts from `claimed_at`,
-        the time the claim reached its session, and from `t` for a claim
-        written before that key existed.
+        the time the claim reached its session. A claim written before that
+        key existed counts from the file's modification time, and from `t`
+        when the file's time cannot be read.
         """
         if older_than <= 0:
             return []
@@ -458,7 +459,7 @@ class Box:
             claim = self.soft(path, "claim")
             if not claim:
                 continue
-            claimed_at = _claimed_at(claim, now)
+            claimed_at = _claimed_at(claim, path, now)
             if now - claimed_at < older_than:
                 continue
             sid = path.stem
@@ -518,18 +519,28 @@ class Box:
         return target
 
 
-def _claimed_at(claim: dict, default: float) -> float:
+def _claimed_at(claim: dict, path: Path, default: float) -> float:
     """The time the claim was written to its session, the reclaim clock's start.
 
-    `t` is the post time, and a drought vacancy keeps it for hours. A claim
-    from before 2026-11-06 has no `claimed_at`, so `t` answers in its place.
+    `t` is the post time, and a drought vacancy keeps it for hours. A watcher
+    that armed before 2026-11-06 runs the old code for up to one day, and
+    its claims have no `claimed_at`. Every claim file comes from an exclusive
+    create, and no rename moves an older file into the claims directory. So
+    the file's modification time is the claim time, and `t` answers only
+    when the file's time cannot be read.
     """
-    for key in ("claimed_at", "t"):
-        try:
-            return float(claim[key])
-        except (KeyError, TypeError, ValueError):
-            continue
-    return default
+    try:
+        return float(claim["claimed_at"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        pass
+    try:
+        return float(claim["t"])
+    except (KeyError, TypeError, ValueError):
+        return default
 
 
 def _post_vacancy(box: Box, args: argparse.Namespace) -> int:

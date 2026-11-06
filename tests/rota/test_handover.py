@@ -729,6 +729,8 @@ def test_a_reclaim_evicts_only_a_registration_older_than_the_claim(box):
         _write_json(api.claim_file(sid),
                     {"frame": "7", "commit": "abc1234", "t": now - 3600,
                      "iso": "an hour ago"})
+        # A claim with no `claimed_at` reads its age from the file's time.
+        os.utime(api.claim_file(sid), (now - 3600, now - 3600))
 
     scene("aaaa1111", now - 7200)      # armed before the claim: spent
     scene("bbbb2222", now - 60)        # armed after it: a live watcher's seat
@@ -806,6 +808,37 @@ def test_an_untaken_drought_claim_still_goes_back_after_the_reclaim(box):
     age_the_claim(box, "aaaa1111", handover.RECLAIM + 1)
     assert len(api.reclaim(handover.RECLAIM)) == 1
     assert len(vacancies(box)) == 1, "the frame is back in the queue"
+
+
+def test_a_reclaim_evicts_the_spent_watcher_of_a_drought_claim(box):
+    """The watcher armed after the post and before the claim, then exited.
+
+    Its arm is newer than the post time `t`, so a check on `t` kept the
+    spent registration and offered it as a free standby.
+    """
+    post_old_vacancy(box, 2 * handover.RECLAIM)
+    thread, result = arm(box, "aaaa1111", wait=10)
+    thread.join(timeout=5)
+    assert result.get("code") == 0, "the standby took the old vacancy"
+    age_the_claim(box, "aaaa1111", handover.RECLAIM + 60)
+    api = handover.Box(box)
+    assert len(api.reclaim(handover.RECLAIM)) == 1, "nobody took it, so it goes back"
+    assert not api.peer_file("aaaa1111").exists(), \
+        "the spent watcher left the reserve"
+
+
+def test_a_claim_with_no_claim_time_reads_its_age_from_the_file(box):
+    """A watcher that armed before `claimed_at` existed runs the old code for a day.
+
+    Its drought claim has the old post time `t` and no `claimed_at`. The
+    exclusive create gave the file a fresh modification time, so it stays.
+    """
+    api = handover.Box(box)
+    _write_json(api.claim_file("aaaa1111"),
+                {"frame": "7", "commit": "abc1234", "from_sid": "ffff9999",
+                 "t": time.time() - 2 * handover.RECLAIM, "iso": "long ago"})
+    assert api.reclaim(handover.RECLAIM) == [], "the claim is new, whatever `t` says"
+    assert claim(box, "aaaa1111").exists()
 
 
 def test_a_newer_watcher_retires_the_older_one(box):
