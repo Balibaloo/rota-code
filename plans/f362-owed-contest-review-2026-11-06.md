@@ -141,3 +141,33 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2
 ### (d) Usage
 
 The harness shows no token counts. The estimate for the third look is about 85k input tokens and 12k output tokens, about 97k in total.
+
+## Fourth look, 153dd09a
+
+### Result
+
+**Verdict: pick.** Both findings of the third look are fixed. I found no new finding. The test file gives `42 passed`. No model was called, no gate ran, and no tracked file was edited except this page.
+
+### (a) The points
+
+1. Fixed. The probe `probe_contested.py` now gives "REFUSED the principal contested this set". After his approve of version 2, r_m27 is owed, the guess tick carries m28, and `next_batch` gives `[]`. Both give-up cases pass. In each case `b_1` goes to `do:cancel`, `park_ask` gives `[]`, no `tick:guess` fires, and the page is answered. A contested or `pending` item gets no guess wake, because `guess` reads `draft` and `approved` only. `next_batch` and `cancel` hold its batches. I also probed a give-up on a batch-line park page (`probe_batchline.py`). The spent key `tick:annotate|b_1,m40` names no item, so the approval change does not lift it. But `b_1` is abandoned, so `park_ask` gives `[]` and no second page comes. At `3ebc5ac5` that state woke `tick:annotate` on `b_1` before the cancel. At `153dd09a` it wakes nothing. After the cancel, the older r_m27 is owed again, and after version 2 it gives one guess tick with m28. The `tick:quarantined` wake on `b_1` in that probe is the same at both commits. It comes from my hand-spent key, which no report covered.
+2. Fixed. On the final dry 6b copy each verdict counts 1 try: m28 counts s145 on m29, m40 counts s169, m42 counts s171 and m44 counts s172. So the page still says "tried 1 time". Every recorded relay to the Architect names `guess:<item>` or `b_1`. I found no recorded relay that the new filter leaves out. A relay whose refs name none of the item's refs is not counted. Such a session cannot stamp the write either, because `owed_ruling` needs the ref in the relay. So that gap is PLAUSIBLE only, and the page stays true.
+3. Confirmed (probe: `mutate4.py`). The old wide approval check turns 3 cases red: both door cases and the `[other ...]` give-up case. No dropped check turns `[drop]` red. A tick count with no item filter turns the count test red, and a relay count with no item filter does too.
+4. Holds. w7 owes r_m27 and gives `[]`. w8 and the final database stamp `m44`, owe nothing and give `['b_1']`.
+
+### (b) Findings
+
+None.
+
+### (c) Probes
+
+The probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/rv362/`.
+
+- `head4/`: a `git archive` of `153dd09a`. `chk.py head4` ran the dry 6b checks.
+- `relays.py`: the Architect relays of dry 6b, their sessions and `owed_tries` for each verdict.
+- `probe_contested.py` and `probe_batchline.py`, at `head3/` and `head4/`.
+- `mutate4.py`: 4 planted faults, and the 5 new or changed cases for each.
+
+### (d) Usage
+
+The harness shows no token counts. The estimate for the fourth look is about 25k input tokens and 4k output tokens.
