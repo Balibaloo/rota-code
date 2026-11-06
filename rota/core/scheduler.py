@@ -1868,6 +1868,135 @@ def schedule_order(conn: sqlite3.Connection) -> list[str]:
         raise UnsatisfiableSchedule(str(exc)) from exc
 
 
+# A verdict word that asks the owner for a new row (frame 362, the one rule).
+OWED_VERBS = ("contest", "revise")
+# The ticks that carry an owed verdict in their refs, by code line.
+OWED_TICKS = {"guess": "tick:guess", "batch": "tick:annotate"}
+
+
+def owed(conn: sqlite3.Connection, ref: str) -> dict | None:
+    """
+    The contest or revise of his on the code line of `ref` that no row of
+    the line's owner rests on yet, or None.
+
+    `ref` is an item, its key `guess:<item>` or one of its batches. The
+    guess line and the batch line are two refs of one fact, so the newest
+    landed ruling on either one stands. A ruling with no verdict routes
+    nothing, so it is never owed. A row rests on the ruling when its
+    `ruling_id` holds the verdict. The fact is derived on each read and
+    never stored (frame 362, the one rule).
+    """
+    from .db import GUESS_REF, _has_column, guess_item
+
+    item = guess_item(ref)
+    if item is None:
+        row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                           (ref,)).fetchone()
+        item = row["item_id"] if row else ref
+    batches = {r["id"]: r["status"] for r in conn.execute(
+        "SELECT id, status FROM batches WHERE item_id = ?", (item,))}
+    key = f"{GUESS_REF}{item}"
+    newest = None
+    for r in conn.execute(
+            "SELECT id, per_item, verdict_id, words FROM rulings "
+            "WHERE status = 'landed' AND verdict_id IS NOT NULL ORDER BY rowid"):
+        try:
+            per = json.loads(r["per_item"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        named = {k: v for k, v in per.items() if k == key or k in batches}
+        if named:
+            newest = (r, named)
+    if newest is None:
+        return None
+    r, named = newest
+    line = next(((k, v) for k, v in named.items() if v in OWED_VERBS), None)
+    if line is None:
+        return None
+    on, verb = line
+    if on != key and batches.get(on) in ("merged", "abandoned"):
+        return None
+    verdict = r["verdict_id"]
+    if conn.execute("SELECT 1 FROM touch_guesses WHERE item_id = ? "
+                    "AND ruling_id = ? LIMIT 1", (item, verdict)).fetchone():
+        return None
+    if _has_column(conn, "batch_touch", "ruling_id") and batches and conn.execute(
+            f"SELECT 1 FROM batch_touch WHERE ruling_id = ? AND batch_id IN "
+            f"({','.join('?' * len(batches))}) LIMIT 1",
+            (verdict, *batches)).fetchone():
+        return None
+    return {"ruling": r["id"], "verdict": verdict, "verb": verb, "item": item,
+            "ref": on, "line": "guess" if on == key else "batch",
+            "words": r["words"] or ""}
+
+
+def owed_key(found: dict) -> str:
+    """The tick key of the wake that an owed ruling gives its owner. The
+    verdict is in the key, so each ruling has its own bound."""
+    return tick_key(Wake("architect", OWED_TICKS[found["line"]],
+                         refs=(found["item"] if found["line"] == "guess"
+                               else found["ref"], found["verdict"])))
+
+
+def owed_park(conn: sqlite3.Connection, ref: str) -> str | None:
+    """The quarantined key of the owed ruling on the code line of `ref`, or
+    None. The owner spent its attempts, so the item parks (R7 and R10)."""
+    found = owed(conn, ref)
+    if found is None:
+        return None
+    key = owed_key(found)
+    return key if key in quarantined_keys(conn, kind=key_parts(key)[1]) else None
+
+
+def owed_in_flight(conn: sqlite3.Connection, verdict: str) -> bool:
+    """His verdict, or its relay to the Architect, is still open. The relay
+    is the first wake, and the tick waits behind it."""
+    return conn.execute(
+        "SELECT 1 FROM messages WHERE status = 'open' AND (id = ? OR "
+        "(cause_id = ? AND verb = 'relay' AND to_role = 'architect')) LIMIT 1",
+        (verdict, verdict)).fetchone() is not None
+
+
+def owed_ruling(ctx, ref: str) -> str:
+    """
+    The verdict that the owner's write on `ref` rests on, or ''.
+
+    It comes from the relay chain, as `batches.guess` read it first, or from
+    the refs `(ref, verdict)` of a tick that an owed ruling gave.
+    """
+    from ..roles.api import _principal_relay
+
+    relay = _principal_relay(ctx)
+    if relay is not None and ref in relay[0] and relay[1].get(ref) in OWED_VERBS:
+        cause = ctx.conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                                 (ctx.trigger,)).fetchone()
+        return (cause["cause_id"] if cause else "") or ""
+    from .db import guess_item
+
+    refs = tuple(ctx.wake_refs or ())
+    if (getattr(ctx, "wake_kind", "") in OWED_TICKS.values() and len(refs) == 2
+            and refs[0] in (ref, guess_item(ref))):
+        found = owed(ctx.conn, refs[0])
+        if found is not None and found["verdict"] == refs[1]:
+            return refs[1]
+    return ""
+
+
+def owed_grains(conn: sqlite3.Connection, found: dict) -> set[str]:
+    """The set he contested: the item's newest guess set, or the batch's
+    touch rows."""
+    if found["line"] == "batch":
+        return {r["grain"] for r in conn.execute(
+            "SELECT grain FROM batch_touch WHERE batch_id = ?", (found["ref"],))}
+    last = conn.execute(
+        "SELECT item_ver, ruling_id FROM touch_guesses WHERE item_id = ? "
+        "ORDER BY rowid DESC LIMIT 1", (found["item"],)).fetchone()
+    return {r["grain"] for r in conn.execute(
+        "SELECT grain FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
+        "AND ruling_id = ?", (found["item"], last["item_ver"], last["ruling_id"]))
+            } if last else set()
+
+
 def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """
     Return the schedulable batches in one order, priority first, then the schedule.
@@ -1904,6 +2033,10 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     # A deferred batch with a quarantined key stays out too, so its siblings
     # start while the principal decides (frame 87, ruled 2026-09-27).
     rows = [r for r in rows if not parked(conn, r["id"])]
+    # A contest of his on the code line holds the start until a row rests on
+    # it. Dry run 6b's b_1 started three times on the guess he called wrong
+    # (frame 362, the one rule). The hold is per item, as R7 asks.
+    rows = [r for r in rows if owed(conn, r["id"]) is None]
     order = schedule_order(conn)
     place = {b: n for n, b in enumerate(order)}
     return sorted(rows, key=lambda r: (-(r["priority"] or 0),
@@ -2027,8 +2160,12 @@ def rowless_key(conn: sqlite3.Connection, key: str) -> bool:
 def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     """The quarantined keys of the seats' wakes that name this batch alone."""
     # A scheduler key (`-|do:park|b`) is the scheduler's own bound, not a seat.
-    return [k for k in quarantined_keys(conn, batch_id)
+    keys = [k for k in quarantined_keys(conn, batch_id)
             if key_parts(k)[0] != "-"]
+    # The key of an owed write names the item and the verdict, and it holds
+    # every batch of the item (frame 362).
+    held = owed_park(conn, batch_id)
+    return keys + [held] if held and held not in keys else keys
 
 
 def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
@@ -2301,11 +2438,16 @@ def park_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     # with rows, point 3). A batch with no test of its criteria gets the
     # page too, because his ruling on a criterion is its one restart
     # (ruled: Roman, 2026-11-01, the amendment of point 3).
+    row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    # An owed park is a page with the item and the line he contested, so a
+    # new correction lands on that line (frame 362).
+    found = owed(conn, batch_id) if owed_park(conn, batch_id) else None
+    if found is not None:
+        return [found["item"], found["ref"]]
     own, _ = park_reds(conn, batch_id)
     if not own and not park_untested(conn, batch_id):
         return [batch_id]
-    row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
-                       (batch_id,)).fetchone()
     item = [row["item_id"]] if row and row["item_id"] else []
     return item + park_criteria(conn, batch_id)
 
@@ -2318,7 +2460,11 @@ def park_owns(conn: sqlite3.Connection, batch_id: str) -> bool:
     row = conn.execute(
         "SELECT b.status, i.approval, i.approval_ver, i.version FROM batches b "
         "LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?", (batch_id,)).fetchone()
-    if row is None or row["status"] != "deferred" or not gave_up(conn, batch_id):
+    # A pending batch of an owed park is a park too (frame 362).
+    held = (row is not None and row["status"] in ("pending", "deferred")
+            and owed_park(conn, batch_id) is not None)
+    if not held and (row is None or row["status"] != "deferred"
+                     or not gave_up(conn, batch_id)):
         return False
     # A contested item's batch goes to `do:cancel`, so nothing is asked.
     # The test is `cancel`'s own, where a NULL compares false.
@@ -2771,7 +2917,8 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
         batch = park_ask_batch(r["id"])
         row = conn.execute("SELECT status FROM batches WHERE id = ?",
                            (batch,)).fetchone()
-        if row is None or row["status"] != "deferred" or not gave_up(conn, batch):
+        if (row is None or row["status"] != "deferred" or not gave_up(conn, batch)) and not (
+                row is not None and row["status"] == "pending" and owed_park(conn, batch)):
             n += mark_answered(conn, r["id"])
     return n
 
@@ -2792,6 +2939,11 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     status = conn.execute("SELECT status FROM batches WHERE id = ?",
                           (batch_id,)).fetchone()
     if status and status["status"] == "deferred" and gave_up(conn, batch_id):
+        return True
+    # The owner spent its attempts on a write that his contest owes, so the
+    # item parks until he says what to change (frame 362; R7, R10).
+    if status and status["status"] in ("pending", "deferred") and owed_park(
+            conn, batch_id):
         return True
     if not stopped_bouncing(conn, batch_id):
         return False

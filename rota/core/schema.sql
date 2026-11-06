@@ -393,6 +393,10 @@ CREATE TABLE IF NOT EXISTS batch_touch (
     grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route')),
     confidence  TEXT NOT NULL DEFAULT 'expected'
                 CHECK (confidence IN ('expected','possible')),
+    -- The verdict that a rewrite rests on, as `touch_guesses.ruling_id`
+    -- holds it. '' for the Architect's own set. A contest of his stays owed
+    -- until a row carries its verdict (frame 362, the one rule).
+    ruling_id   TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (batch_id, grain)
 );
 

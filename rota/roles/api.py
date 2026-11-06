@@ -9070,14 +9070,11 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     # A session woken by the principal's ruling on the code line writes the
     # set under that ruling, so the Architect's own guess stays countable
     # (frame 298's design, 1.2 and 3.4, point 7).
-    ruling = ""
-    relay = _principal_relay(ctx)
-    key = f"{GUESS_REF}{item_id}"
-    if relay is not None and key in relay[0] and relay[1].get(key) in (
-            "contest", "revise"):
-        cause = ctx.conn.execute("SELECT cause_id FROM messages WHERE id = ?",
-                                 (ctx.trigger,)).fetchone()
-        ruling = (cause["cause_id"] if cause else "") or ""
+    # A tick that an owed ruling gave writes under it too (frame 362).
+    from ..core.scheduler import owed_ruling
+
+    ruling = owed_ruling(ctx, f"{GUESS_REF}{item_id}")
+    _refuse_the_contested_set(ctx, item_id, list(paths) + list(symbols or []))
     # INSERT OR REPLACE would merge a second write of one set with the
     # first, so the set is cleared before its rows (frame 298, review 1,
     # finding 1).
@@ -9120,22 +9117,45 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
     # said "Line 2 names the wrong tests", and an upsert would keep the
     # disputed path beside the new one (frame 190's design, 2.2,
     # the batch line, point 5).
-    relay = _principal_relay(ctx)
+    # A write under his ruling clears the set and carries the verdict, by
+    # relay or by tick. A tick rewrite kept the contested rows beside the
+    # new ones before (frame 362, the review, finding 2).
+    from ..core.scheduler import owed_ruling
+
+    ruling = owed_ruling(ctx, batch_id)
+    _refuse_the_contested_set(ctx, batch_id, list(paths) + list(symbols or []))
     cleared = any(w[0] == "batch_touch" and w[1] == f"{batch_id}:*"
                   for w in ctx.writes)
-    if relay is not None and not cleared and batch_id in relay[0] and relay[1].get(
-            batch_id) in ("contest", "revise"):
+    if ruling and not cleared:
         ctx.writes.append(("batch_touch", f"{batch_id}:*", {"batch_id": batch_id},
                            "clear"))
     for path in paths:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path, "grain_kind": "path",
-            "confidence": "expected"}))
+            "confidence": "expected", "ruling_id": ruling}))
     for symbol in symbols or []:
         ctx.writes.append(("batch_touch", f"{batch_id}:{symbol}", {
             "batch_id": batch_id, "grain": symbol, "grain_kind": "symbol",
-            "confidence": "possible"}))
+            "confidence": "possible", "ruling_id": ruling}))
     return {"batch_id": batch_id, "grains": len(paths) + len(symbols or [])}
+
+
+def _refuse_the_contested_set(ctx: Ctx, ref: str, grains: list[str]) -> None:
+    """Refuse a set equal to the set he contested, while his contest is owed.
+
+    Dry run 6b's s150 sent back the guess he called wrong, 6 of 6 grains.
+    A revise asks for new words, and the same files can stay (frame 362,
+    slice 1, step 6)."""
+    from ..core.scheduler import owed, owed_grains
+
+    found = owed(ctx.conn, ref)
+    if found is None or found["verb"] != "contest":
+        return
+    old = owed_grains(ctx.conn, found)
+    if old and set(grains) == old:
+        raise ValueError(
+            "the principal contested this set, and your set is the same set. "
+            f"He said: {found['words']} Write the files his words name")
 
 
 @op("batches", "consult")
@@ -28310,7 +28330,9 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path,
             "grain_kind": "symbol" if "::" in path else "path",
-            "confidence": "expected"}))
+            # A foreseen stray rests on no ruling of his, so it discharges
+            # no owed contest (frame 362, the review, finding 3).
+            "confidence": "expected", "ruling_id": ""}))
         ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
             "batch_id": batch_id, "commit_sha": head, "path": path,
             "status": "foreseen", "note": _note(path)}))

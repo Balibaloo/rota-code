@@ -329,6 +329,22 @@ def guess(conn) -> list[Wake]:
     if not conn.execute("SELECT 1 FROM code_index WHERE grain_kind = 'path' "
                         "LIMIT 1").fetchone():
         return []
+    # A contest of his on the guess line stays owed until a set carries its
+    # verdict. Dry run 6b's s145 read his files, wrote nothing, and the
+    # commit called the relay answered. The tick carries the verdict, so
+    # each ruling has its own bound (frame 362, the one rule).
+    from .scheduler import owed, owed_in_flight, owed_park
+
+    for r in conn.execute(
+            "SELECT i.id AS id FROM items i WHERE i.approval IN ('draft', 'approved')"
+            + not_parked(conn, "i.id") + " ORDER BY i.id").fetchall():
+        found = owed(conn, r["id"])
+        if (found is not None and found["line"] == "guess"
+                and not owed_in_flight(conn, found["verdict"])
+                # A spent key is a park, and the next item gets the wake.
+                and not owed_park(conn, r["id"])
+                and _is_request_item(conn, r["id"])):
+            return [Wake("architect", "tick:guess", refs=(r["id"], found["verdict"]))]
     rows = conn.execute(
         "SELECT i.id AS id FROM items i "
         "WHERE i.approval IN ('draft', 'approved')"
@@ -1045,11 +1061,25 @@ def annotate(conn) -> list[Wake]:
     cheap and index-only, annotating reads source, and doing every batch in one
     session would exhaust the context that makes the annotation worth having.
     """
+    # An owed contest of his holds the batch's plan. On the guess line the
+    # guess comes first: dry run 6b's s150 copied the guess he called wrong.
+    # On the batch line the tick carries the verdict (frame 362).
+    from .scheduler import owed, owed_in_flight, owed_park
+
+    for r in conn.execute("SELECT id FROM batches WHERE status IN "
+                          "('pending','deferred') ORDER BY rowid").fetchall():
+        found = owed(conn, r["id"])
+        if found is None:
+            continue
+        if (found["line"] == "batch" and found["ref"] == r["id"]
+                and not owed_in_flight(conn, found["verdict"])
+                and not owed_park(conn, r["id"])):
+            return [Wake("architect", "tick:annotate", refs=(r["id"], found["verdict"]))]
     rows = conn.execute(
         "SELECT id FROM batches WHERE status IN ('pending','deferred') "
         "  AND id NOT IN (SELECT DISTINCT batch_id FROM batch_touch)"
-        "  LIMIT 1"
     ).fetchall()
+    rows = [r for r in rows if owed(conn, r["id"]) is None][:1]
     return [Wake("architect", "tick:annotate", refs=(r["id"],)) for r in rows]
 
 
@@ -1090,7 +1120,11 @@ def touch_note(conn) -> list[Wake]:
     # after that, and the next note on the same ground names none of them
     # (frame 361).
     from .lifecycle import first_touch_rows, first_touch_shown
+    from .scheduler import owed
 
+    # A set that he contested and nobody rewrote is no plan to show him.
+    # Dry run 6b's m31 showed him the guess he had called wrong (frame 362).
+    rows = [r for r in rows if owed(conn, r["id"]) is None]
     for r in rows:
         if r["id"] in presented and first_touch_shown(conn, r["id"]) is None:
             shown = first_touch_rows(conn, r["id"])
@@ -2044,7 +2078,9 @@ def park_ask(conn) -> list[Wake]:
     # design, 2.F.4).
     for b in conn.execute(
             "SELECT b.id, b.item_id FROM batches b JOIN items i ON i.id = b.item_id "
-            "WHERE b.status = 'deferred'" + not_parked(conn, "b.item_id")
+            # A pending batch parks on an owed write (frame 362). `park_owns`
+            # keeps only a real park.
+            "WHERE b.status IN ('deferred', 'pending')" + not_parked(conn, "b.item_id")
             + " ORDER BY b.id").fetchall():
         # A contested item's batch goes to `do:cancel`, so nothing is asked.
         # A contest closes the ask before the cancel runs, and the next id

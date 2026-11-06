@@ -2206,6 +2206,13 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         from .lifecycle import touch_set
 
         return {"touch": touch_set(conn, wake.refs[0])}
+    # A tick that an owed contest of his gave carries his words and his
+    # verdict, as the relay does. Dry run 6b's s150 woke with the old guess
+    # and none of his words (frame 362, slice 1, step 8).
+    if wake.kind in ("tick:guess", "tick:annotate") and len(wake.refs or ()) == 2:
+        owed_in = _resolve_owed(conn, wake)
+        if owed_in:
+            return owed_in
     # A tick can name a message too, and one kind does. The `unresolved`
     # ladder's rung was woken with the question in `refs` and shown nothing but
     # the id: no `principal_said`, no resolved rows, no text. Measured on the
@@ -2748,6 +2755,46 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         if uncovered:
             out["uncovered_statements"] = uncovered
 
+    return out
+
+
+def _resolve_owed(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
+    """
+    The inbound of a tick that an owed ruling gave: the line's key, his
+    verdict, his words and the paths his ruling takes off. The guess line
+    shows no contested path, because the old set moved the seat and his
+    words did not, 0 of 20 (the read of frame 362, 7.2).
+    """
+    from ..roles.principal import entry_for
+    from .scheduler import owed
+
+    found = owed(conn, wake.refs[0])
+    if found is None or found["verdict"] != wake.refs[1]:
+        return {}
+    from .scheduler import owed_grains
+
+    key = found["ref"]
+    out: dict[str, Any] = {"refs": [key],
+                           "principal_verdict": {key: found["verb"]}}
+    said = entry_for(conn, found["verdict"]) or found["words"]
+    if said:
+        out["principal_said"] = said
+    if found["line"] == "guess":
+        item = conn.execute("SELECT id, text FROM items WHERE id = ?",
+                            (found["item"],)).fetchone()
+        if item:
+            out["item"] = {"id": item["id"], "text": item["text"]}
+        out["disputed"] = disputed_paths(conn, key, sorted(owed_grains(conn, found)))
+        return out
+    from .lifecycle import touch_set
+
+    touch = touch_set(conn, key) or {}
+    disputed = disputed_paths(
+        conn, key, touch.get("expected", []) + touch.get("possible", []))
+    touch["disputed"] = disputed
+    for part in ("expected", "possible"):
+        touch[part] = [p for p in touch.get(part, []) if p not in disputed]
+    out["touch"] = {key: touch}
     return out
 
 
@@ -4264,6 +4311,19 @@ def _guess_seed(conn, batch_id: str) -> dict | None:
     """The current guess set of a batch's item: its paths and symbols, and
     the principal's words when the set rests on a ruling."""
     row = conn.execute("SELECT item_id FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    # Under an owed contest of his the seed is his words, and no path of
+    # the set he contested. s150 copied that set 6 of 6 (frame 362).
+    from .scheduler import owed
+
+    found = owed(conn, batch_id) if row else None
+    if found is not None:
+        from ..roles.principal import entry_for
+
+        seed_owed: dict[str, Any] = {"paths": [], "symbols": []}
+        words = entry_for(conn, found["verdict"]) or found["words"]
+        if words:
+            seed_owed["the principal said"] = words
+        return seed_owed
     last = conn.execute(
         "SELECT item_ver, ruling_id FROM touch_guesses WHERE item_id = ? "
         "ORDER BY rowid DESC LIMIT 1", (row["item_id"],)).fetchone() if row else None

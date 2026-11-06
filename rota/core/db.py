@@ -495,6 +495,11 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # batch's truth, since no door wrote a claim before the column.
         if not _has_column(conn, "batches", "claimed_head"):
             conn.execute("ALTER TABLE batches ADD COLUMN claimed_head TEXT")
+        # The same for the verdict a touch set rests on (frame 362, slice 1):
+        # '' is every older row's truth, since no write carried one before.
+        if not _has_column(conn, "batch_touch", "ruling_id"):
+            conn.execute("ALTER TABLE batch_touch ADD COLUMN ruling_id TEXT "
+                         "NOT NULL DEFAULT ''")
         # `connect` gives an older file the columns of frame 362.
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",

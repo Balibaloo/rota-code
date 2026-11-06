@@ -264,6 +264,11 @@ ALLOWED = {
     ("rota/core/runner.py", "_guess_seed"),
     ("rota/roles/principal.py", "code_line"),
     ("rota/roles/principal.py", "land"),
+    # Whether a row carries his verdict, and the set he contested, for the
+    # equal-set door (frame 362, slice 1). The migration adds the column.
+    ("rota/core/scheduler.py", "owed"),
+    ("rota/core/scheduler.py", "owed_grains"),
+    ("rota/core/db.py", "init_db"),
     # Tools that read the raw record.
     ("rota/tools/audit.py", "orphaned_grain_refs"),
     ("rota/tools/nightreport.py", "_guess_section"),

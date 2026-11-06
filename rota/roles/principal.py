@@ -2552,6 +2552,11 @@ def _park_page(conn: sqlite3.Connection, batch: str,
                                   failing_attempt, given_up, key_parts,
                                   park_reds, park_untested)
 
+    from ..core.scheduler import owed, owed_park
+
+    held = owed_park(conn, batch)
+    if held:
+        return _owed_park_page(conn, batch, held, owed(conn, batch))
     own, project = park_reds(conn, batch)
     if refs == [batch]:
         files = sorted({r["path"] or r["test_id"] for r in project})
@@ -2596,6 +2601,37 @@ def _park_page(conn: sqlite3.Connection, batch: str,
     out.append("Name a line to correct only that line. Ask, if something here "
                "is unclear.")
     return chr(10).join(out), order
+
+
+def _owed_park_page(conn: sqlite3.Connection, batch: str, key: str,
+                    found: dict) -> tuple[str, list[str]]:
+    """The park page of an item whose owed write never came: what he said,
+    the line he contested, and the way out (frame 87, ruled: Roman,
+    2026-09-27). The other requests go on, as R7 and R10 ask (frame 362)."""
+    from ..core.scheduler import key_parts
+
+    row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                       (key,)).fetchone()
+    tries = row["attempts"] if row else 0
+    text = conn.execute("SELECT text FROM items WHERE id = ?",
+                        (found["item"],)).fetchone()
+    what = "guess at the code" if key_parts(key)[1] == "tick:guess" else "plan of the code"
+    out = [f"This change waits before it starts. You corrected the team's "
+           f"{what} it touches, and the team did not write a new one in "
+           f"{tries} attempt{'' if tries == 1 else 's'}."]
+    if found["words"]:
+        out.append(f'You said: "{found["words"]}"')
+    out.append("You asked:")
+    out.append(f"  1. {text['text'] if text else found['item']}")
+    if found["line"] == "guess":
+        words = code_line(conn, found["item"], code_target(conn, found["item"]))
+    else:
+        words = code_line(conn, found["item"], {"batch": found["ref"]})
+    out.append(f"  2. {words or 'The team has no plan of the code yet.'}")
+    out.append("Name the files on line 2 again, and the team writes the plan "
+               "from your words. Or say that you give the request up.")
+    out.append("Nothing else waits on you. The other requests go on.")
+    return chr(10).join(out), [found["item"], found["ref"]]
 
 
 def _shift_where(conn: sqlite3.Connection, item: str) -> str:

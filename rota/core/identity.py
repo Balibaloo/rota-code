@@ -81,7 +81,9 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "code_lexicon": ("content", "derived with the index; rebuilt by repin"),
     "area_hashes": ("content", "one aggregate of the index per area; stamped "
                                "by onboarding and by every refresh of main"),
-    "batch_touch": ("content", "the predicted touch set, derived per batch"),
+    "batch_touch": ("content", "the predicted touch set, derived per batch; "
+                               "ruling_id names the verdict a rewrite rests "
+                               "on, '' for the Architect's own"),
     "touch_guesses": ("relation", "the (item, item version, ruling, grain) "
                                   "tuple; a guess set is the rows of one "
                                   "(item, item version, ruling)"),

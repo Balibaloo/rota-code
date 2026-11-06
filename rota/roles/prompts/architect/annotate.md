@@ -3,7 +3,7 @@ MODE: annotate — predict what one batch will touch.
 `tickets.scan` and `criteria.scan` for the batch, `code.probe` to see where that
 work lives, then `batches.annotate`.
 
-`the item's guess` is what you guessed at sign-off, and what the principal corrected. Start from it. Read the source, and change a path only where the source says it is wrong.
+`the item's guess` is what you guessed at sign-off, and what the principal corrected. Start from it. Read the source, and change a path only where the source says it is wrong. When it holds the principal's words and no paths, he called the set wrong: write the files his words name.
 
 Paths always. Symbols only where you are confident — they are a separate argument
 precisely so you are not asked to rate your own confidence item by item, which
