@@ -124,15 +124,19 @@ def test_no_second_reader_of_whether_an_assert_can_fail():
         at = src.index(marker)
         assert src.rfind("\n" + const + " = ", 0, at) != -1, const
     # The encode door reads the predicate and holds no rule of its own.
-    door = next(n for n in ast.parse(src).body
-                if isinstance(n, ast.FunctionDef) and n.name == "tests_encode")
-    called = {n.func.id for n in ast.walk(door)
-              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    assert {"assert_cannot_fail", "body_checks_by_raise"} <= called
+    # Frame 362, pass 3: both paths of tests.encode call one constant door.
+    def called_in(name: str) -> set:
+        door = next(n for n in ast.parse(src).body
+                    if isinstance(n, ast.FunctionDef) and n.name == name)
+        return {n.func.id for n in ast.walk(door)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert "_cannot_fail_door" in called_in("tests_encode")
+    assert "_cannot_fail_door" in called_in("_encode_guard")
+    assert {"assert_cannot_fail", "body_checks_by_raise"} <= called_in("_cannot_fail_door")
     readers = sorted(n.name for n in ast.parse(src).body
                      if isinstance(n, ast.FunctionDef)
                      and any(isinstance(c, ast.Call)
                              and isinstance(c.func, ast.Name)
                              and c.func.id == "assert_cannot_fail"
                              for c in ast.walk(n)))
-    assert readers == ["tests_encode"], readers
+    assert readers == ["_cannot_fail_door"], readers

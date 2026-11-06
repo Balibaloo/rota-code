@@ -9225,11 +9225,12 @@ def _contradiction_offer(ctx: Ctx, criterion_id: str, crit_text: str,
                 and not _first_verb(req_words, r_other)):
             # Frame 362, pass 2 (review finding 7): "the serialized output"
             # and "returns" disagree in words only when the surface's code
-            # gives a value. The code is the fact, so no offer is made. A
-            # request that says "prints" against a criterion that says
-            # "returns" keeps the offer: the code shows today, and the
-            # request can ask for a change (night 91).
-            if c_says is PRINTS and _a_surface_gives_a_value(ctx, criterion_id):
+            # gives a value. The code is the fact, so no offer is made.
+            # Pass 3: the same holds in the other direction. "q_split
+            # returns" against "icalendar writes" is not certain when the
+            # code gives a value. Night 91's surface had no code that gives
+            # a value, so its offer stays.
+            if _a_surface_gives_a_value(ctx, criterion_id):
                 return None
             row = next(name for name, ws in req if rw in ws)
             return _offer(
@@ -11294,10 +11295,17 @@ def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
 _CHECK_WORDS = ("assert", "raises", "warns", "fail")
 
 
+def _is_check_name(word: str) -> bool:
+    """Whether a call name is a check: it starts with `assert`, or it is
+    `fail`, `raises` or `warns`. Frame 362, pass 3 (second look, S5): a word
+    inside a name, such as the surface `fail_safe`, is no check."""
+    return word.startswith("assert") or word in _CHECK_WORDS[1:]
+
+
 def _holds_a_check(tree) -> bool:
     """Whether the test body `tree` checks a result: an `assert`, a raise of
-    an `AssertionError`, or a call whose name holds a word of
-    `_CHECK_WORDS`, such as `pytest.raises`, `self.assertEqual` or a mock's
+    an `AssertionError`, or a call whose name `_is_check_name` reads as a
+    check, such as `pytest.raises`, `self.assertEqual` or a mock's
     `assert_called_once_with`. A bare name reads through the imports of the
     body, so `from pytest import raises as r` makes `r(...)` a check.
     Frame 362, pass 2: an unknown name with such a word is admitted, because
@@ -11322,7 +11330,7 @@ def _holds_a_check(tree) -> bool:
     for n in _ast.walk(tree):
         if isinstance(n, _ast.Assert):
             return True
-        if isinstance(n, _ast.Call) and any(w in word(n.func) for w in _CHECK_WORDS):
+        if isinstance(n, _ast.Call) and _is_check_name(word(n.func)):
             return True
         if isinstance(n, _ast.Raise) and n.exc is not None and any(
                 w in word(n.exc) for w in ("assert", "fail")):
@@ -11355,6 +11363,18 @@ def _collected_tests(tree) -> list:
                 if isinstance(s, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                 and s.name.startswith("test") and not is_fixture(s)]
 
+    def in_class(c) -> list:
+        bases = [b for b in c.bases
+                 if not (isinstance(b, _ast.Name) and b.id == "object")]
+        init = any(isinstance(m, _ast.FunctionDef) and m.name == "__init__"
+                   for m in c.body)
+        if not (bases or (c.name.startswith("Test") and not init)):
+            return []
+        # Frame 362, pass 3 (second look, S3): pytest collects a nested
+        # class by the same rule, and a real run collected its test.
+        return tests_in(c.body) + [t for n in c.body if isinstance(n, _ast.ClassDef)
+                                   for t in in_class(n)]
+
     out: list = []
     todo = list(tree.body)
     while todo:
@@ -11362,12 +11382,7 @@ def _collected_tests(tree) -> list:
         if isinstance(s, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
             out += tests_in([s])
         elif isinstance(s, _ast.ClassDef):
-            bases = [b for b in s.bases
-                     if not (isinstance(b, _ast.Name) and b.id == "object")]
-            init = any(isinstance(m, _ast.FunctionDef) and m.name == "__init__"
-                       for m in s.body)
-            if bases or (s.name.startswith("Test") and not init):
-                out += tests_in(s.body)
+            out += in_class(s)
         elif isinstance(s, (_ast.If, _ast.Try, _ast.With)):
             # A test defined under a module-level `if`, `try` or `with` is
             # still a module attribute.
@@ -11392,10 +11407,89 @@ def _collect_refusal(tree) -> str | None:
     if not _holds_a_check(tree):
         return ("pytest collects this body, and the test checks nothing: it "
                 "holds no assert, no raise of AssertionError and no call whose "
-                "name holds assert, raises, warns or fail, such as "
+                "name starts with assert or is fail, raises or warns, such as "
                 "pytest.raises or self.assertEqual. Add a check of what the "
                 "criterion says")
     return None
+
+
+def _cannot_fail_door(tree, body: str) -> tuple[list, dict, dict, bool]:
+    """The constant door of a test body (fact F14). It raises a Wall when
+    the test cannot fail, else it gives the asserts, the test of each, the
+    reasons of `assert_cannot_fail` and whether a raise checks too.
+
+    Frame 362, pass 3 (second look, S1): both paths of tests.encode call
+    this one door. The guard path had none, and `assert True` landed there.
+    """
+    import ast as _ast
+
+    asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
+    tested = {a: a.test for a in asserts}
+    # Frame 362, pass 2 (review finding 5): the collect door admits a
+    # `TestCase`, so `self.assertTrue(True)` reaches this door. The one
+    # argument of a truth assert is its test, as the test of an `assert`.
+    # Pass 3 (second look, S4): any other `self.assert...` call is a check
+    # too, and it is constant when every argument is a literal.
+    other_self: list = []
+    for n in _ast.walk(tree):
+        if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name) and n.func.value.id == "self"
+                and n.func.attr.startswith("assert") and n.args):
+            continue
+        if n.func.attr in ("assertTrue", "assertFalse", "assertIsNone",
+                           "assertIsNotNone"):
+            asserts.append(n)
+            tested[n] = n.args[0]
+        else:
+            other_self.append(n)
+    # law 8: gates are predicates; a test that cannot fail is no gate
+    # Fact F14: `assert_cannot_fail` holds every rule. The door decides
+    # which kind refuses alone, and in which order the walls fire.
+    checks_by_raise = body_checks_by_raise(tree)
+    reasons = {a: assert_cannot_fail(tested[a], tree, body)
+               for a in asserts}
+    # `id` is the test id parameter here, so the maps key on the node.
+    kinds = {k: {kind for kind, _ in v} for k, v in reasons.items()}
+    if ((asserts or other_self) and not checks_by_raise
+            and all(kinds[a] & {"constant", "or_constant"}
+                    for a in asserts)
+            and all(isinstance(x, _ast.Constant) for c in other_self for x in c.args)):
+        or_true = next((a for a in asserts
+                        if "or_constant" in kinds[a]), None)
+        if or_true is not None:
+            line = _ast.get_source_segment(body, or_true) or _ast.unparse(or_true)
+            raise Wall(
+                f"every assertion here is true whatever it checks. In "
+                f"`{line}`, the `or True` makes the assertion true whatever "
+                f"the left side says. So the test cannot fail, and it checks "
+                f"nothing. Remove the `or True` and assert the behaviour the "
+                f"criterion names. If the criterion names no behaviour a call "
+                f"could exercise, use tests.triage verdict='cannot'")
+        # Walk ten: `assert True` under "unit tests must validate the
+        # script's behaviour" -- a criterion that is not a behaviour, met
+        # with a test that is not a check. The honest verdict was `cannot`.
+        raise Wall(
+            "every assertion here is on a constant, so the test checks "
+            "nothing and would report as coverage. If the criterion names "
+            "no behaviour a call could exercise, that is tests.triage "
+            "verdict='cannot' -- say what stops you and route it")
+    # Frame 277: one such assert is refused even beside a real one,
+    # because s256 had a second assert.
+    if not checks_by_raise:
+        for a in asserts:
+            why = next((w for kind, w in reasons[a]
+                        if kind in ("interpreter", "opposites")), None)
+            if why is None:
+                continue
+            line = _ast.get_source_segment(body, a) or _ast.unparse(a)
+            raise Wall(
+                f"an assertion here cannot fail. In `{line}`, {why}. So the "
+                f"assertion can pass whatever the call did, and it checks "
+                f"nothing. Remove the operand that cannot fail and "
+                f"assert the behaviour the criterion names. If the criterion "
+                f"names no behaviour a call could exercise, use tests.triage "
+                f"verdict='cannot'")
+    return asserts, tested, reasons, checks_by_raise
 
 
 def _project_holder(ctx: Ctx, path: str, batch_id: str | None) -> str | None:
@@ -11519,6 +11613,7 @@ def _encode_guard(ctx: Ctx, id: str, c: dict, path: str, body: str,
     refused = _collect_refusal(tree)
     if refused:
         raise Wall(refused)
+    _cannot_fail_door(tree, body)
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": None, "commitment_id": c["id"],
         "path": path, "body": body}))
@@ -12101,6 +12196,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         "pytestconfig", "cache", "record_property",
                         "record_testsuite_property", "doctest_namespace",
                         "testdir", "pytester", "monkeypatch_session"}
+    # Frame 362, pass 3 (second look, S2): a mark on the class or a module
+    # `pytestmark` gives names too, so each test knows its classes.
+    enclosing: dict = {}
+
+    def _visit(node, classes: list) -> None:
+        for c in _ast.iter_child_nodes(node):
+            if isinstance(c, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                enclosing[c] = classes
+            _visit(c, classes + [c] if isinstance(c, _ast.ClassDef) else classes)
+    _visit(tree, [])
+
+    def _pytestmark(stmts) -> list:
+        return [v for s in stmts if isinstance(s, _ast.Assign)
+                and any(isinstance(t, _ast.Name) and t.id == "pytestmark" for t in s.targets)
+                for v in (s.value.elts if isinstance(s.value, (_ast.List, _ast.Tuple))
+                          else [s.value])]
+    _module_marks = _pytestmark(tree.body)
+    _sources = None
     for fn in (n for n in _ast.walk(tree)
                if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                and n.name.startswith("test")):
@@ -12110,7 +12223,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # arguments, so the door is not certain and admits the test.
         given = set()
         doubt = False
-        for d in fn.decorator_list:
+        marks = list(fn.decorator_list) + _module_marks
+        for c in enclosing.get(fn, []):
+            marks += list(c.decorator_list) + _pytestmark(c.body)
+        for d in marks:
             dotted = _ast.unparse(d.func if isinstance(d, _ast.Call) else d)
             if dotted.rsplit(".", 1)[-1] == "parametrize" and isinstance(d, _ast.Call):
                 names = d.args[0] if d.args else None
@@ -12125,75 +12241,40 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 doubt = True
         if doubt:
             continue
-        unknown = [a.arg for a in fn.args.args
+        # pytest asks no fixture for an argument with a default value.
+        pos = fn.args.posonlyargs + fn.args.args
+        wanted = pos[:len(pos) - len(fn.args.defaults)] + [
+            a for a, dflt in zip(fn.args.kwonlyargs, fn.args.kw_defaults) if dflt is None]
+        unknown = [a.arg for a in wanted
                    if a.arg not in builtin_fixtures and a.arg not in own
                    and a.arg not in given and a.arg != "self"]
-        if unknown:
+        if unknown and _sources is None:
+            # The conftest files and the plugins are read only for a name
+            # that the body and the marks do not give.
+            try:
+                _froot = _worktree_of(ctx)
+            except Exception:  # noqa: BLE001 -- no worktree yet: no conftest to read
+                _froot = None
+            _conf, _cdoubt = (_path_conftest_fixtures(_froot, path) if _froot
+                              else (set(), False))
+            _dirs, _edoubt = _harness_site_dirs(_froot)
+            _plug, _pdoubt = _plugin_fixtures(_dirs)
+            _sources = (_conf | _plug, _cdoubt or _edoubt or _pdoubt
+                        or _config_loads_plugins(_froot))
+        unknown = [a for a in unknown if a not in _sources[0]] if unknown else []
+        if unknown and not _sources[1]:
             raise Wall(
                 f"{fn.name} takes {unknown[0]!r}, and the harness has no such "
-                f"fixture -- plain pytest, nothing installed on top -- so "
-                f"every run errors at setup before the first assertion. Use "
-                f"monkeypatch (monkeypatch.setattr('builtins.input', "
-                f"lambda _='': 'Alice')), capsys for printed output, or "
-                f"define the fixture in the file")
-    asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
-    tested = {a: a.test for a in asserts}
-    # Frame 362, pass 2 (review finding 5): the collect door admits a
-    # `TestCase`, so `self.assertTrue(True)` reaches this door. The one
-    # argument of a truth assert is its test, as the test of an `assert`.
-    for n in _ast.walk(tree):
-        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
-                and isinstance(n.func.value, _ast.Name) and n.func.value.id == "self"
-                and n.func.attr in ("assertTrue", "assertFalse", "assertIsNone",
-                                    "assertIsNotNone") and n.args):
-            asserts.append(n)
-            tested[n] = n.args[0]
-    # law 8: gates are predicates; a test that cannot fail is no gate
-    # Fact F14: `assert_cannot_fail` holds every rule. The door decides
-    # which kind refuses alone, and in which order the walls fire.
-    checks_by_raise = body_checks_by_raise(tree)
-    reasons = {a: assert_cannot_fail(tested[a], tree, body)
-               for a in asserts}
-    # `id` is the test id parameter here, so the maps key on the node.
-    kinds = {k: {kind for kind, _ in v} for k, v in reasons.items()}
-    if (asserts and not checks_by_raise
-            and all(kinds[a] & {"constant", "or_constant"}
-                    for a in asserts)):
-        or_true = next((a for a in asserts
-                        if "or_constant" in kinds[a]), None)
-        if or_true is not None:
-            line = _ast.get_source_segment(body, or_true) or _ast.unparse(or_true)
-            raise Wall(
-                f"every assertion here is true whatever it checks. In "
-                f"`{line}`, the `or True` makes the assertion true whatever "
-                f"the left side says. So the test cannot fail, and it checks "
-                f"nothing. Remove the `or True` and assert the behaviour the "
-                f"criterion names. If the criterion names no behaviour a call "
-                f"could exercise, use tests.triage verdict='cannot'")
-        # Walk ten: `assert True` under "unit tests must validate the
-        # script's behaviour" -- a criterion that is not a behaviour, met
-        # with a test that is not a check. The honest verdict was `cannot`.
-        raise Wall(
-            "every assertion here is on a constant, so the test checks "
-            "nothing and would report as coverage. If the criterion names "
-            "no behaviour a call could exercise, that is tests.triage "
-            "verdict='cannot' -- say what stops you and route it")
-    # Frame 277: one such assert is refused even beside a real one,
-    # because s256 had a second assert.
-    if not checks_by_raise:
-        for a in asserts:
-            why = next((w for kind, w in reasons[a]
-                        if kind in ("interpreter", "opposites")), None)
-            if why is None:
-                continue
-            line = _ast.get_source_segment(body, a) or _ast.unparse(a)
-            raise Wall(
-                f"an assertion here cannot fail. In `{line}`, {why}. So the "
-                f"assertion can pass whatever the call did, and it checks "
-                f"nothing. Remove the operand that cannot fail and "
-                f"assert the behaviour the criterion names. If the criterion "
-                f"names no behaviour a call could exercise, use tests.triage "
-                f"verdict='cannot'")
+                f"fixture: pytest, the pytest plugins of the environment that "
+                f"runs the tests, the conftest.py files on the path from the "
+                f"test to the root, the marks and the file give no fixture of "
+                f"that name. So every run errors at setup before the first "
+                f"assertion. Use monkeypatch (monkeypatch.setattr("
+                f"'builtins.input', lambda _='': 'Alice')), capsys for printed "
+                f"output, or define the fixture in the file")
+    # Frame 362, pass 3 (second look, S1): both paths of tests.encode read
+    # one constant door, so a guard test that cannot fail is refused too.
+    asserts, tested, reasons, checks_by_raise = _cannot_fail_door(tree, body)
     # Frame 143, night 156: a named literal moved the seat, the rule did not.
     _crow = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                              (criterion_id,)).fetchone()
@@ -12334,6 +12415,25 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             pass
         _missing_mods = sorted(m.split(".")[0] for m in imported_from
                                if m.split(".")[0] not in _known)
+        _deps_read: list[str] = []
+        _env_said = ""
+        if _missing_mods and _root is not None:
+            # Frame 362, pass 3 (second look): the tree is not the whole
+            # import path. The door refused `numpy` and `hypothesis`, which
+            # the project can declare and the environment can hold. A
+            # distribution name can differ from its import name, as PyYAML
+            # gives `yaml`, so a part of a declared name is a doubt.
+            from ..core.provision import venv_python as _venv_python
+            _declared, _deps_read = _declared_packages(_root)
+            _site_dirs, _env_doubt = _harness_site_dirs(_root)
+            _installed = _site_top_names(_site_dirs)
+            _missing_mods = [] if _env_doubt else [
+                m for m in _missing_mods if m not in _installed
+                and not any(m.lower() in d for d in _declared)]
+            # Night 25: a `.venv` in the text read as a module to import.
+            _env_said = ("the worktree's own environment" if _venv_python(_root).exists()
+                         else "rota's own interpreter, because the worktree has no "
+                              "environment of its own")
         if _missing_mods:
             dotted_surfaces = sorted({_dotted(_grain_path(s)) for s in surface
                                       if "::" in s and _grain_path(s).endswith(".py")})
@@ -12371,11 +12471,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # class, since `import Context.invoke` does not parse.
             hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
                     f"import {_ref_symbol(surface[0]) or surface[0]}`") if dotted_surfaces else ""
+            _deps_said = (f"the door read the packages that {' and '.join(_deps_read)} "
+                          f"{'declares' if len(_deps_read) == 1 else 'declare'}"
+                          if _deps_read else "the project has no dependency file")
             raise Wall(
                 f"this test imports {', '.join(_missing_mods)}, and no module of "
-                f"that name exists in the tree: the import path is the worktree "
-                f"root and src/, and the modules there are {want}.{hint} If the "
-                f"surface has no module yet, the Developer writes it first")
+                f"that name exists in the tree, among the packages that the "
+                f"project declares or in the environment that runs the tests: "
+                f"{_deps_said}, and the packages installed in {_env_said}. The "
+                f"tree's import path is the worktree root and src/, and the "
+                f"modules there are {want}.{hint} If the surface has no module "
+                f"yet, the Developer writes it first")
         # And only the surface, or what the module defines today. tipsAC
         # (2026-09-09): the Tester wrote `from main import calculate_tip,
         # Bill` and asserted on a list; nothing defined `Bill`, no criterion
@@ -23672,6 +23778,303 @@ def _conftest_fixtures(root) -> set[str]:
     except OSError:
         pass
     return names
+
+
+def _fixture_defs(tree) -> set[str]:
+    """The fixture names that the functions of a module define: a function
+    under a `fixture` decorator, with or without a call, renamed by `name=`."""
+    names: set[str] = set()
+    for node in _ast.walk(tree):
+        if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            continue
+        for dec in node.decorator_list:
+            func = dec.func if isinstance(dec, _ast.Call) else dec
+            attr = (func.attr if isinstance(func, _ast.Attribute)
+                    else func.id if isinstance(func, _ast.Name) else "")
+            if attr != "fixture":
+                continue
+            renamed = [k.value.value for k in getattr(dec, "keywords", [])
+                       if k.arg == "name" and isinstance(k.value, _ast.Constant)
+                       and isinstance(k.value.value, str)]
+            names.add(renamed[0] if renamed else node.name)
+    return names
+
+
+def _path_conftest_fixtures(root, path: str) -> tuple[set[str], bool]:
+    """The names that the `conftest.py` files on the path from the folder
+    of the test `path` to the worktree `root` can give, and a doubt flag.
+
+    pytest registers every fixture that a conftest module holds, an imported
+    one too. So each module-level name counts. A star import, a
+    `pytest_plugins` list or a file that does not parse is a doubt.
+    Frame 362, pass 3 (second look, S2).
+    """
+    from pathlib import Path as _Path
+
+    names: set[str] = set()
+    here = _Path(root)
+    parts = [p for p in (path or "").replace("\\", "/").split("/")[:-1] if p]
+    for folder in [here] + [here.joinpath(*parts[:i + 1]) for i in range(len(parts))]:
+        f = folder / "conftest.py"
+        if not f.is_file():
+            continue
+        try:
+            tree = _ast.parse(f.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError):
+            return names, True
+        names |= _fixture_defs(tree)
+        for s in tree.body:
+            if isinstance(s, (_ast.Import, _ast.ImportFrom)):
+                if any(a.name == "*" for a in s.names):
+                    return names, True
+                names |= {a.asname or a.name.split(".")[0] for a in s.names}
+            elif isinstance(s, (_ast.Assign, _ast.AnnAssign)):
+                targets = s.targets if isinstance(s, _ast.Assign) else [s.target]
+                bound = {t.id for t in targets if isinstance(t, _ast.Name)}
+                if "pytest_plugins" in bound:
+                    return names, True
+                names |= bound
+    return names, False
+
+
+def _harness_site_dirs(root) -> tuple[list, bool]:
+    """The folders of installed packages that the interpreter which runs
+    the worktree's tests reads, and a doubt flag.
+
+    The harness runs `python_for(root)`: the worktree's `.venv` when it
+    exists, else rota's own interpreter. A venv that reads the system's
+    packages too is a doubt. A `.pth` path line adds its folder.
+    Frame 362, pass 3 (second look, the import door and S2).
+    """
+    import os as _os
+    import site as _site
+    from pathlib import Path as _Path
+    from ..core.provision import VENV, venv_python
+
+    root = _Path(root) if root else None
+    doubt = False
+    if root is not None and venv_python(root).exists():
+        venv = root / VENV
+        try:
+            cfg = (venv / "pyvenv.cfg").read_text(encoding="utf-8")
+        except OSError:
+            cfg = ""
+        doubt = bool(re.search(r"include-system-site-packages\s*=\s*true", cfg, re.I))
+        dirs = [venv / "Lib" / "site-packages", *sorted(venv.glob("lib/python*/site-packages"))]
+    else:
+        dirs = [_Path(p) for p in _site.getsitepackages()]
+        if _site.ENABLE_USER_SITE:
+            dirs.append(_Path(_site.getusersitepackages()))
+    dirs += [_Path(p) for p in _os.environ.get("PYTHONPATH", "").split(_os.pathsep) if p]
+    found: list = []
+    for d in dirs:
+        if d.is_dir() and d not in found:
+            found.append(d)
+    for d in list(found):
+        for pth in d.glob("*.pth"):
+            try:
+                lines = pth.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeDecodeError):
+                continue
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith(("#", "import ", "import\t")):
+                    continue
+                extra = (d / line).resolve()
+                if extra.is_dir() and extra not in found:
+                    found.append(extra)
+    return found, doubt
+
+
+def _site_top_names(dirs) -> set[str]:
+    """The top-level import names that the folders `dirs` hold: a package
+    folder, a `.py` file or an extension module."""
+    names: set[str] = set()
+    for d in dirs:
+        try:
+            entries = list(d.iterdir())
+        except OSError:
+            continue
+        for e in entries:
+            stem = e.name.split(".", 1)[0]
+            if not stem.isidentifier():
+                continue
+            if e.is_dir() and "." not in e.name:
+                names.add(e.name)
+            elif e.suffix in (".py", ".pyd", ".so"):
+                names.add(stem)
+    return names
+
+
+def _config_loads_plugins(root) -> bool:
+    """Whether a `-p` option or `PYTEST_PLUGINS` can load a plugin that the
+    door does not read: in the environment, or in the pytest configuration
+    of the worktree `root`."""
+    import os as _os
+    from pathlib import Path as _Path
+
+    if _os.environ.get("PYTEST_PLUGINS") or re.search(
+            r"(^|\s)-p\s*(?!no:)\S", _os.environ.get("PYTEST_ADDOPTS", "")):
+        return True
+    for name in ("pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml"):
+        f = _Path(root) / name if root else None
+        try:
+            text = f.read_text(encoding="utf-8") if f and f.is_file() else ""
+        except (OSError, UnicodeDecodeError):
+            continue
+        if re.search(r"addopts[^\n]*(^|\s|[\"'])-p\s*(?!no:)\S", text, re.M):
+            return True
+    return False
+
+
+_PLUGIN_FIXTURES_CACHE: dict = {}
+
+
+def _plugin_fixtures(dirs) -> tuple[set[str], bool]:
+    """The fixture names that pytest and its plugins in the folders `dirs`
+    define, and a doubt flag.
+
+    A plugin is a `pytest11` entry point. The door reads the source of its
+    package, and it imports nothing. A plugin whose source the door cannot
+    find is a doubt. Frame 362, pass 3 (second look, S2).
+    """
+    import importlib.metadata as _md
+
+    key = tuple((str(d), d.stat().st_mtime) for d in dirs if d.is_dir())
+    if key in _PLUGIN_FIXTURES_CACHE:
+        return _PLUGIN_FIXTURES_CACHE[key]
+    tops = {"_pytest"}
+    doubt = False
+    try:
+        for dist in _md.distributions(path=[str(d) for d in dirs]):
+            for ep in dist.entry_points:
+                if ep.group == "pytest11":
+                    tops.add(ep.value.split(":", 1)[0].split(".", 1)[0].strip())
+    except Exception:  # noqa: BLE001 -- metadata the door cannot read is a doubt
+        doubt = True
+    names: set[str] = set()
+    for top in tops:
+        srcs: list = []
+        for d in dirs:
+            if (d / top).is_dir():
+                srcs += sorted((d / top).rglob("*.py"))
+            elif (d / f"{top}.py").is_file():
+                srcs.append(d / f"{top}.py")
+        if not srcs and top != "_pytest":
+            doubt = True
+        for f in srcs:
+            try:
+                text = f.read_text(encoding="utf-8")
+                if "fixture" in text:
+                    names |= _fixture_defs(_ast.parse(text))
+            except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
+                doubt = True
+    _PLUGIN_FIXTURES_CACHE[key] = (names, doubt)
+    return names, doubt
+
+
+def _declared_packages(root) -> tuple[set[str], list[str]]:
+    """The packages that the project declares, by normalised name, and the
+    files that the door read them from.
+
+    The sources are `pyproject.toml` (the dependencies, the optional
+    dependencies, the dependency groups and poetry's tables), `setup.cfg`,
+    the requirement keywords of `setup.py`, and the requirements files.
+    Frame 362, pass 3 (second look, the import door).
+    """
+    import configparser as _cp
+    from pathlib import Path as _Path
+
+    root = _Path(root)
+    reqs: list[str] = []
+    files: list[str] = []
+    norm = lambda s: re.sub(r"[-_.]+", "_", s).lower()  # noqa: E731
+
+    def strings(v) -> list[str]:
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, dict):
+            return [x for w in v.values() for x in strings(w)]
+        if isinstance(v, list):
+            return [x for w in v for x in strings(w)]
+        return []
+
+    py = root / "pyproject.toml"
+    if py.is_file():
+        try:
+            import tomllib as _toml
+            data = _toml.loads(py.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 -- a manifest that does not parse names nothing
+            data = {}
+        proj = data.get("project") or {}
+        found = strings(proj.get("dependencies")) + strings(proj.get("optional-dependencies"))
+        # A group lists strings, and a table such as {include-group = "test"}
+        # names another group, not a package.
+        found += [x for g in (data.get("dependency-groups") or {}).values()
+                  if isinstance(g, list) for x in g if isinstance(x, str)]
+        poetry = (data.get("tool") or {}).get("poetry") or {}
+        found += list(poetry.get("dependencies") or {}) + list(poetry.get("dev-dependencies") or {})
+        for group in (poetry.get("group") or {}).values():
+            found += list((group or {}).get("dependencies") or {})
+        if found:
+            files.append("pyproject.toml")
+            reqs += found
+    cfg = root / "setup.cfg"
+    if cfg.is_file():
+        parser = _cp.ConfigParser()
+        try:
+            parser.read_string(cfg.read_text(encoding="utf-8"))
+        except (OSError, _cp.Error, UnicodeDecodeError):
+            parser = None
+        found = []
+        if parser is not None:
+            for key in ("install_requires", "tests_require"):
+                found += parser.get("options", key, fallback="").splitlines()
+            if parser.has_section("options.extras_require"):
+                for _, v in parser.items("options.extras_require"):
+                    found += v.splitlines()
+        found = [f for f in found if f.strip()]
+        if found:
+            files.append("setup.cfg")
+            reqs += found
+    setup = root / "setup.py"
+    if setup.is_file():
+        try:
+            tree = _ast.parse(setup.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
+            tree = None
+        found = []
+        assigned = {}
+        for n in _ast.walk(tree) if tree else ():
+            if isinstance(n, _ast.Assign):
+                for t in n.targets:
+                    if isinstance(t, _ast.Name):
+                        assigned[t.id] = n.value
+        for n in _ast.walk(tree) if tree else ():
+            if not isinstance(n, _ast.Call):
+                continue
+            for k in n.keywords:
+                if k.arg not in ("install_requires", "tests_require", "extras_require"):
+                    continue
+                v = assigned.get(k.value.id, k.value) if isinstance(k.value, _ast.Name) else k.value
+                found += [c.value for c in _ast.walk(v)
+                          if isinstance(c, _ast.Constant) and isinstance(c.value, str)]
+        if found:
+            files.append("setup.py")
+            reqs += found
+    for f in sorted({*root.glob("*requirements*.txt"), *root.glob("requirements/*.txt")}):
+        try:
+            lines = f.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        files.append(f.relative_to(root).as_posix())
+        reqs += [ln for ln in lines if not ln.strip().startswith(("-", "#"))]
+    names = set()
+    for r in reqs:
+        m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", r)
+        if m:
+            names.add(norm(m.group(1)))
+    return names, files
 
 
 def _unbound_name_hint(name: str, surface: str, module: str,
