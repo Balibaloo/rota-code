@@ -13149,6 +13149,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "tests.encode", {"id": id, "criterion_id": criterion_id,
                              "path": stored["path"], "body": body,
                              "batch_id": batch_id}))
+    # Frame 360, the review of pass 1, finding 2: on a claim, a red test is
+    # the one run that disproves the claim. A challenge or an answer could
+    # replace it with no word. The first replace names the claim, and the
+    # same encode sent again lands.
+    if (replaces and _claimed(ctx.conn, batch_id)
+            and (batch_id, id) not in (getattr(ctx, "claim_noted", None) or set())
+            and ctx.conn.execute(
+                "SELECT 1 FROM latest_runs WHERE batch_id = ? AND test_id = ? "
+                "AND result IN ('fail', 'error')", (batch_id, id)).fetchone()):
+        ctx.claim_noted = (getattr(ctx, "claim_noted", None) or set()) | {
+            (batch_id, id)}
+        raise ValueError(
+            f"{id} is red on batch {batch_id}, and no code changed on this "
+            f"batch. The Developer claims that the code as it is already "
+            f"meets each criterion, and this red test is the run against the "
+            f"claim. Replace it only if the criterion's words give the value "
+            f"that the run shows. Then send the same encode again.")
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
     # Frame 328, night 167: the encode note told s271 to encode tst_tk3
@@ -18588,6 +18605,16 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     # not rest on the brief alone (ruled: Roman, 2026-10-01: the Critic's
     # doubt about a criterion goes to the Terminologist, the writer of the
     # criteria).
+    # Ruled: Roman, 2026-11-06: a claim closes by itself only when another
+    # seat verified it while it knew of the claim. The wake of this session
+    # shows the claim of its own batch only, so a pass on another claimed
+    # batch comes from a seat that was not shown it.
+    if (result == "pass" and batch_id != ctx.batch_id
+            and _claimed(ctx.conn, batch_id)):
+        raise ValueError(
+            f"batch {batch_id} holds a claim that no code changed, and this "
+            f"session works on batch {ctx.batch_id}. A pass on a claim comes "
+            f"from the session of its own batch: end the session")
     commit = _head_commit(ctx, batch_id)
     id = f"{ctx.role}:{batch_id}:{commit}"
     if (any(w[0] == "verdicts" and w[1] == id for w in ctx.writes)
@@ -23081,6 +23108,20 @@ def _developer_committed(ctx, batch_id) -> bool:
         "AND s.role = 'developer' LIMIT 1", (batch_id,)).fetchone() is not None
 
 
+#: What the Critic of a claimed batch is shown, in `code.read` and in its
+#: wake (the false claim design, Revision R3 item 5).
+CRITIC_CLAIM_NOTE = ("No code changed on this batch. The Developer claims the "
+                     "criteria are met. The tests are the only evidence.")
+
+
+def _claimed(conn, batch_id) -> bool:
+    """The batch's head is a claim: no code changed (frame 360). Equality
+    is the only test, because a later real commit ends the claim."""
+    from ..core.predicates import _claimed_batches
+
+    return bool(batch_id) and batch_id in _claimed_batches(conn)
+
+
 def _own_reds(body: str, path: str, said: str) -> list[dict]:
     """
     Each failed test of a run, one per failed test, in the run's order, at
@@ -23504,9 +23545,20 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                     "If the criterion's words give the value that the run "
                     "shows, the test is wrong. Encode it again with the same "
                     "id.")
-            notes.append(
-                f"{runs} The test is stored. The batch's head holds the "
-                f"Developer's commit. {tail}")
+            # Frame 360, the review of pass 1, finding 1: on a claim the head
+            # is the fork, so "the Developer's commit" was false. A red test
+            # on the code as it is stands, and the red goes to the Developer.
+            if _claimed(ctx.conn, batch_id):
+                notes.append(
+                    f"{runs} The test is stored. No code changed on this "
+                    f"batch, so the run is on the code as it was. The test "
+                    f"stands, and its red goes to the Developer. Encode it "
+                    f"again with the same id only if the criterion's words "
+                    f"give the value that the run shows.")
+            else:
+                notes.append(
+                    f"{runs} The test is stored. The batch's head holds the "
+                    f"Developer's commit. {tail}")
         return None
 
     def _short(s: str) -> str:
@@ -24254,7 +24306,11 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         out["touched"] = worktrees.touched(row["worktree"], fork)
         # An empty diff with no word reads as a batch that changed nothing.
         # A fork equal to HEAD means the batch holds no commit yet.
-        if fork == worktrees.head(row["worktree"]):
+        # On a claim the head is the fork too. s154 read "no commit yet" and
+        # passed three weak tests (frame 360, the design's R3 item 5).
+        if _claimed(ctx.conn, bid):
+            out["note"] = CRITIC_CLAIM_NOTE
+        elif fork == worktrees.head(row["worktree"]):
             out["note"] = "no commit yet on this batch"
     else:
         out["diff"] = ""
@@ -26446,6 +26502,28 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                              "claimed the criteria are met. The Tester's "
                              "tests check the claim. Now end the session, "
                              "with no message to anybody")}
+        # Frame 360, the review of pass 1, finding 3: on a claim with a red
+        # test, "say so and end" sent a second claim against the red. That
+        # is not a claim, and it writes nothing. The wake's dispatch count
+        # then reaches `tick_attempt_cap`, and the key is quarantined.
+        if _claimed(ctx.conn, ctx.batch_id):
+            reds = [r[0] for r in ctx.conn.execute(
+                "SELECT l.test_id FROM latest_runs l JOIN tests t "
+                "ON t.id = l.test_id AND t.batch_id = l.batch_id "
+                "WHERE l.batch_id = ? AND l.result IN ('fail', 'error') "
+                "AND t.criterion_id IS NOT NULL ORDER BY l.test_id",
+                (ctx.batch_id,))]
+            if reds:
+                return {"committed": False, "why": "nothing changed",
+                        "note": (
+                            "the tree is exactly as you found it. No code "
+                            "changed on this batch, and "
+                            + ", ".join(reds) + (" fails" if len(reds) == 1
+                                                 else " fail")
+                            + " on the code as it is. A second claim against "
+                            "a red test is not a claim. Change the code with "
+                            "code.write, then commit. If the test is wrong, "
+                            "send msg.challenge_tester")}
         return {"committed": False, "why": "nothing changed",
                 "note": ("the tree is exactly as you found it. If the "
                          "criteria are already met, say so in your reply and "

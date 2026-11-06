@@ -460,6 +460,15 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:touch_strayed"}
 
 
+def _claim_line(conn: sqlite3.Connection, role: str, batch_id: str | None) -> str:
+    """The claim words for a Tester or a Critic of a claimed batch, or ""."""
+    from ..roles.api import CRITIC_CLAIM_NOTE, _claimed
+    from .predicates import CLAIM_DETAIL
+
+    words = {"tester": CLAIM_DETAIL, "critic": CRITIC_CLAIM_NOTE}.get(role)
+    return words if words and _claimed(conn, batch_id) else ""
+
+
 def _review_pending_line(conn: sqlite3.Connection, batch_id: str) -> str:
     """The line for a Developer on `tick:exhausted` when the batch's tests
     pass at its head and no verdict is at its head, or "".
@@ -1060,6 +1069,13 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the tick's own name (a case wake's default detail) and not the
         # word already said above.
         body.append(wake.detail)
+    # Frame 360: every Tester and Critic wake on a claimed batch says the
+    # claim. The review of pass 1 found `challenge` and `answer` wakes with
+    # no claim word. The ruling of 2026-11-06 asks that the seat that
+    # verifies a claim knows of it.
+    claim = _claim_line(sb.ctx.conn, role, getattr(sb.ctx, "batch_id", None))
+    if claim and not any(claim in line for line in body):
+        body.append(claim)
     if role == "developer" and wake.kind == "tick:exhausted" and wake.refs:
         pending = _review_pending_line(sb.ctx.conn, wake.refs[0])
         if pending:

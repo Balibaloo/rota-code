@@ -26,9 +26,9 @@ which is precisely the failure Critic cannot catch.
 
 **A wake that says no code changed is a claim.** For each criterion, pick an
 input where code that meets the criterion's words and code that does not give
-different results. A test that fails on the code as it is shows that the claim
-is false. That is a right result, not a fault of your test. Do not change a
-test so that it passes.
+different results. A test that fails on the code as it is goes to the
+Developer, who changes the code or challenges the test. Do not change a test
+so that it passes.
 
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 

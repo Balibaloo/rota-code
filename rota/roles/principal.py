@@ -192,6 +192,8 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
         rows = shift
     else:
         held = held_asks(conn)
+        # A touch note about merged work asks nothing (frame 360).
+        held |= {m for m, _ in merged_touch_notes(conn)}
         rows = [r for r in rows if r["id"] not in held]
     return [
         Ask(message_id=r["id"], verb=r["verb"],
@@ -297,10 +299,75 @@ PARKED_WORDS = (
      "questions your answer left open"),
 )
 
-# The shipped line for a merged batch whose head is a claim: the code already
-# held the item, and the merge added tests only (frame 360, ruled: Roman,
-# 2026-11-02 17:14, shape A of the design page).
-CLAIMED_LINE = "No code changed. These tests show the code already does this."
+def claimed_lines(conn: sqlite3.Connection) -> list[str]:
+    """One line for each merged batch whose head is a claim.
+
+    Run 1 of the frame 362 arm: the old line said "These tests show the code
+    already does this", and the tests passed on code that did not. So each
+    sentence here says only what the rows show (the false claim design,
+    Revision R3 item 1). A sentence whose fact the rows lack is left out.
+    """
+    from ..core.db import _has_column
+
+    if not _has_column(conn, "batches", "claimed_head"):
+        return []
+    out = []
+    for b in conn.execute(
+            "SELECT b.id, b.head_commit, i.text FROM batches b "
+            "LEFT JOIN items i ON i.id = b.item_id WHERE b.status = 'merged' "
+            "AND b.claimed_head IS NOT NULL AND b.claimed_head = b.head_commit "
+            "ORDER BY b.rowid"):
+        runs = [r[0] for r in conn.execute(
+            "SELECT (SELECT l.result FROM latest_runs l WHERE l.test_id = t.id "
+            "AND l.batch_id = t.batch_id) FROM tests t WHERE t.batch_id = ? "
+            "AND (t.criterion_id IS NOT NULL OR t.commitment_id IS NOT NULL)",
+            (b["id"],))]
+        words = [f"{b['text'] or b['id']}: no code changed. The team says the "
+                 "code already does this."]
+        if runs and all(r == "pass" for r in runs):
+            words.append(f"The only evidence is {len(runs)} "
+                         f"test{'s' if len(runs) > 1 else ''} that the team "
+                         f"wrote, and {'they pass' if len(runs) > 1 else 'it passes'}"
+                         " on the code as it was.")
+            if conn.execute(
+                    "SELECT 1 FROM verdicts WHERE batch_id = ? AND result = 'pass' "
+                    "AND commit_sha = ?", (b["id"], b["head_commit"])).fetchone():
+                words.append("The reviewer passed them." if len(runs) > 1
+                             else "The reviewer passed it.")
+            words.append("Ask me to show them." if len(runs) > 1
+                         else "Ask me to show it.")
+        out.append(" ".join(words))
+    return out
+
+
+def merged_touch_notes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """The open touch notes whose every batch merged, as (message, request).
+
+    Run 1 of the frame 362 arm: the touch note m31 still said "Before I build
+    this" and "Reply 'ok' to go ahead" after its batch merged, and it hid
+    every other state line. A note never blocks (ruled: 2026-09-12, ruling
+    2), so a note about merged work is one state line and no page. The
+    message stays open in the register (the design, Revision R3 item 2).
+    """
+    from ..core.lifecycle import predicted_rows
+
+    status = {r[0]: r[1] for r in conn.execute("SELECT id, status FROM batches")}
+    items = {r[0]: r[1] for r in conn.execute("SELECT id, text FROM items")}
+    out = []
+    for m in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE status = 'open' "
+            "AND to_role = 'principal' AND verb = 'present' ORDER BY seq"):
+        try:
+            refs = [r for r in json.loads(m["body_refs"] or "[]")]
+        except ValueError:
+            continue
+        batches = [r for r in refs if r in status]
+        if (batches and all(status[b] == "merged" for b in batches)
+                and all(r in status or r in items for r in refs)
+                and any(predicted_rows(conn, b) for b in batches)):
+            item = next((r for r in refs if r in items), None)
+            out.append((m["id"], items.get(item) or batches[0]))
+    return out
 
 
 def render_state(conn: sqlite3.Connection) -> str:
@@ -337,7 +404,11 @@ def _render_state(conn: sqlite3.Connection) -> str:
         # frame 357, L1).
         mine = len(objected_rows(conn))
         tail = f"{chr(10)}Rows you said are not yours: {mine}" if mine else ""
-        return head + chr(10) + asks[0].rendered + tail
+        # A claim merges with no wait on him, so its line shows under the
+        # ask too, in the turn of the merge (the false claim design, R3
+        # item 3).
+        claims = "".join(chr(10) + line for line in claimed_lines(conn))
+        return head + chr(10) + asks[0].rendered + claims + tail
 
     def count(sql):
         row = conn.execute(sql).fetchone()
@@ -405,8 +476,9 @@ def _render_state(conn: sqlite3.Connection) -> str:
             out[-1] += f" {carry} {listed}. Ask me to show them."
         else:
             out.append(f"The merged work carries {listed}. Ask me to show them.")
-    if claimed:
-        out.append(CLAIMED_LINE)
+    out.extend(claimed_lines(conn))
+    out.extend(f"The plan for {request} reached you after its merge. Ask me "
+               "to show it." for _, request in merged_touch_notes(conn))
     # A re-survey after a merge asks nothing, so the state view shows it as
     # one sentence and no page (frame 358).
     notes = resurvey_count(conn) if merged else 0

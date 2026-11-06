@@ -33,7 +33,8 @@ from rota.testkit import gitfixture, venvtemplate
 
 # The words of the ruling, to the letter (design page, section 3 A).
 CLAIM_NOTE = "You claimed the criteria are met. The Tester's tests check the claim."
-CLAIMED_LINE = "No code changed. These tests show the code already does this."
+# The claimed line of the false claim design, Revision R3 item 1.
+CLAIMED_LINE = "no code changed. The team says the code already does this."
 
 # The dry2w3 copy of session 208997ee, and the tips project it ran on. The
 # measure of the design page reads both. The test never opens either one
@@ -415,7 +416,8 @@ def test_the_notes_tail_does_not_join_the_claimed_line(tmp_path):
 
     lines = render_state(db).splitlines()
 
-    assert CLAIMED_LINE in lines, lines
+    claimed = [line for line in lines if CLAIMED_LINE in line]
+    assert claimed and "carries" not in claimed[0], lines
     assert any("carries 1 choice" in line for line in lines), lines
 
 
@@ -580,3 +582,239 @@ def test_a_true_claim_whose_tests_pass_merges_as_before(world):
     assert db.execute("SELECT status FROM batches WHERE id = 'b1'"
                       ).fetchone()[0] == "merged"
     assert CLAIMED_LINE in render_state(db)
+
+
+# ---------------------------------------------------------------------------
+# Pass 2: the review of 8d384ed6 (plans/f360-claim-review-2026-11-06.md),
+# the ruling of 2026-11-06 and the lines that the principal reads
+# ---------------------------------------------------------------------------
+
+CRITIC_CLAIM = ("No code changed on this batch. The Developer claims the "
+                "criteria are met. The tests are the only evidence.")
+NL = chr(10)
+RED_BODY = ("from src.notify.formatting import plural" + NL + NL
+            + "def test_plural_two():" + NL
+            + "    assert plural(2, 'cat') == '2 cats!'" + NL)
+
+
+def _tools(mode):
+    text = Path(f"rota/roles/prompts/{mode}.tools").read_text(encoding="utf-8")
+    return [ln.strip() for ln in text.splitlines()
+            if ln.strip() and not ln.startswith("#")]
+
+
+def _red_at_fork(db, repo):
+    """A claim with one criterion test `tst1` red at the fork."""
+    _claim_in_world(db)
+    _encode(db, RED_BODY)
+    lifecycle.record_test_run(db, "r1", "b1", "tst1", "fail",
+                              commit_sha=repo.head())
+    db.commit()
+
+
+def test_the_encode_note_on_a_claim_says_no_code_changed(world):
+    """Review finding 1: the note said "The batch's head holds the
+    Developer's commit" on a claim, and it asked for a re-encode."""
+    db, repo, tree = world
+    _claim_in_world(db)
+    tb = build("tester", db, batch_id="b1", allow=_tools("tester/tests_missing"))
+    tb.call("tests.triage", criterion_id="c1", verdict="encodable")
+
+    out = tb.call("tests.encode", id="tst_c1", criterion_id="c1",
+                  path="tests/test_plural_claim.py", body=RED_BODY)
+
+    said = " ".join(out.get("notes") or [out.get("note") or ""])
+    assert "Developer's commit" not in said, out
+    assert "No code changed on this batch" in said, out
+    assert "goes to the Developer" in said, out
+
+
+def test_a_replace_of_the_red_test_of_a_claim_names_the_claim(world):
+    """Review finding 2: a same-id encode from the challenge mode replaced
+    the red test with no word. The first replace names the claim."""
+    db, repo, tree = world
+    _red_at_fork(db, repo)
+    tb = build("tester", db, batch_id="b1", allow=_tools("tester/challenge"))
+    green = RED_BODY.replace("'2 cats!'", "'2 cats'")
+
+    with pytest.raises(ValueError, match="no code changed on this batch"):
+        tb.call("tests.encode", id="tst1", criterion_id="c1",
+                path="tests/test_probe_f360.py", body=green)
+    out = tb.call("tests.encode", id="tst1", criterion_id="c1",
+                  path="tests/test_probe_f360.py", body=green)
+    assert out.get("id") == "tst1", out
+
+
+@pytest.mark.parametrize("role,words", [("tester", CLAIM_DETAIL),
+                                        ("critic", CRITIC_CLAIM)])
+def test_every_wake_of_a_claimed_batch_says_the_claim(world, role, words):
+    """Review finding 2 and item 6: the `challenge` and `answer` wakes of
+    the Tester and the review wake of the Critic say the claim."""
+    from rota.core.runner import build_prompt
+    from rota.core.scheduler import Wake
+
+    db, repo, tree = world
+    _claim_in_world(db)
+    sb = build(role, db, batch_id="b1")
+    kinds = ([("message", "challenge"), ("message", "answer")] if role == "tester"
+             else [("tick:review", "")])
+    for kind, detail in kinds:
+        wake = Wake(role, kind, refs=("b1",), detail=detail)
+        _, user = build_prompt(role, sb, wake, {}, "")
+        assert user.count(words) == 1, user
+    db.execute("UPDATE batches SET claimed_head = NULL WHERE id = 'b1'")
+    _, user = build_prompt(role, sb, Wake(role, kinds[0][0], refs=("b1",),
+                                          detail=kinds[0][1]), {}, "")
+    assert words not in user, user
+
+
+def test_the_critic_reads_the_claim_in_the_code_read(world):
+    """Item 6: s154 read "no commit yet on this batch" on a claim."""
+    db, repo, tree = world
+    _claim_in_world(db)
+    cb = build("critic", db, batch_id="b1")
+
+    out = cb.call("code.read")
+
+    assert out["note"] == CRITIC_CLAIM, out
+
+
+def test_a_pass_on_a_claim_comes_from_its_own_session(world):
+    """Item 6: a Critic session of another batch was not shown the claim,
+    so its pass on the claimed batch is refused."""
+    db, repo, tree = world
+    _claim_in_world(db)
+    cb = build("critic", db, batch_id="b_other")
+
+    with pytest.raises(ValueError, match="holds a claim"):
+        cb.call("verdicts.emit", batch_id="b1", result="pass")
+
+
+def test_a_second_claim_against_a_red_test_is_not_a_claim(world):
+    """Review finding 3: the note said "If the criteria are already met,
+    say so". The wake then repeats with the same key until the dispatch
+    count reaches `tick_attempt_cap`, and the key is quarantined."""
+    from rota.core import config
+    from rota.core.scheduler import note_dispatch, quarantine_overrun, tick_key
+
+    db, repo, tree = world
+    _red_at_fork(db, repo)
+    sb = build("developer", db, batch_id="b1")
+
+    out = sb.call("code.commit", message="the criteria are met")
+
+    assert out["committed"] is False, out
+    assert "If the criteria are already met" not in out["note"], out
+    assert "tst1 fails on the code as it is" in out["note"], out
+    assert "not a claim" in out["note"], out
+    assert _heads(sb) == []
+    wake = next(w for w in predicates.tests_failing(db) if w.refs == ("b1",))
+    for _ in range(config.get(db, "tick_attempt_cap")):
+        note_dispatch(db, wake)
+    assert quarantine_overrun(db) == 1
+    assert db.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
+                      (tick_key(wake),)).fetchone()[0] == 1
+
+
+def _ready_claim(db, repo):
+    """A claimed batch at the merge gate: its test passes at the fork, and
+    the Critic passed it there."""
+    _claim_in_world(db)
+    _encode(db, "def test_x():\n    assert True\n")
+    head = repo.head()
+    lifecycle.record_test_run(db, "r1", "b1", "tst1", "pass", commit_sha=head)
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+               "VALUES (?, 'b1', ?, 'pass')", (f"critic:b1:{head}", head))
+    # The world has no constraints, so the Architect's one finding is on
+    # the zero constraint that onboarding writes.
+    from rota.onboarding.boot import ZERO
+    db.execute("INSERT INTO findings (id, batch_id, commit_sha, constraint_id, "
+               "status, grain) VALUES ('f1', 'b1', ?, ?, 'satisfied', 'b1')",
+               (head, ZERO))
+    db.commit()
+
+
+def test_a_claim_waits_on_the_review_setting_as_every_batch_does(world):
+    """Item 7, the ruling of 2026-11-06: a claim closes by itself only when
+    `merge_gate` is `auto`."""
+    db, repo, tree = world
+    _ready_claim(db, repo)
+    assert lifecycle.mergeable(db, "b1") is None
+
+    db.execute("INSERT OR REPLACE INTO config (key, value) "
+               "VALUES ('merge_gate', '\"review\"')")
+    db.commit()
+
+    assert lifecycle.mergeable(db, "b1") == "waiting on the principal's review"
+
+
+def _merged_claim_with_touch_note(db, repo):
+    _ready_claim(db, repo)
+    db.execute("UPDATE items SET text = 'keep plural as before' WHERE id = 'i1'")
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+               "VALUES ('b1', 'src/notify/formatting.py', 'path')")
+    db.execute("INSERT INTO messages (id, thread_id, seq, from_role, to_role, "
+               "verb, body_refs, status) VALUES ('m31', 'th31', 31, 'liaison', "
+               "'principal', 'present', '[\"b1\", \"i1\"]', 'open')")
+    db.commit()
+    lifecycle.merge(db, "b1")
+
+
+def test_the_state_after_a_claimed_merge(world):
+    """R4 control 1: no "Waiting on you.", the touch line and the claimed
+    line. Before, the touch note m31 hid every other line."""
+    db, repo, tree = world
+    _merged_claim_with_touch_note(db, repo)
+
+    page = render_state(db)
+    print(page)
+
+    assert "Waiting on you." not in page, page
+    assert page.splitlines() == [
+        "keep plural as before: no code changed. The team says the code "
+        "already does this. The only evidence is 1 test that the team wrote, "
+        "and it passes on the code as it was. The reviewer passed it. Ask me "
+        "to show it.",
+        "The plan for keep plural as before reached you after its merge. Ask "
+        "me to show it."], page
+    assert db.execute("SELECT status FROM messages WHERE id = 'm31'"
+                      ).fetchone()[0] == "open"
+
+
+def test_the_claimed_line_shows_once_under_a_waiting_ask(world):
+    """R4 control 2: one more open ask to him. The state shows the ask,
+    then the claimed line once."""
+    db, repo, tree = world
+    _merged_claim_with_touch_note(db, repo)
+    db.execute("INSERT INTO messages (id, thread_id, seq, from_role, to_role, "
+               "verb, body_refs, body_text, status) VALUES ('m40', 'th40', 40, "
+               "'liaison', 'principal', 'question', '[]', "
+               "'Which file holds the tips?', 'open')")
+    db.commit()
+
+    page = render_state(db)
+    print(page)
+
+    # The touch note about merged work is no ask. The question is the one.
+    from rota.roles.principal import pending_asks
+
+    asks = pending_asks(db)
+    assert [a.message_id for a in asks] == ["m40"], asks
+    head = "Waiting on you." + NL + asks[0].rendered + NL
+    assert page.startswith(head), page
+    assert page.count(CLAIMED_LINE) == 1, page
+    assert CLAIMED_LINE in page[len(head):], page
+    assert "reached you after its merge" not in page, page
+
+
+def test_a_claimed_line_drops_what_the_rows_do_not_show(tmp_path):
+    """Item 8: each sentence is true in every state that shows the line. A
+    merge with no run and no verdict keeps only the first two sentences."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x','in_scope')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, "
+               "claimed_head) VALUES ('b1', 'i1', 'merged', 'bbb', 'bbb')")
+    db.commit()
+
+    assert render_state(db).splitlines() == [
+        "x: no code changed. The team says the code already does this."]
