@@ -196,6 +196,10 @@ def _start(db, bid):
 LEGEND2_HEAD = f"On his page, line 2 is wrong: rewrite. The line was guess:{ITEM6}: "
 CUT_MARK = " ... (the rest of this line is cut)"
 LEGEND2 = (LEGEND2_HEAD + GUESS6)[:400 - len(CUT_MARK)].rstrip() + CUT_MARK
+# Pass 3, decided: a push shows a line that he contested by its kind and id,
+# never by its text (second look, S4).
+PUSH_LEGEND2 = ("On his page, line 2 is wrong: rewrite. The line was the team's "
+                f"guess at the code this touches, guess:{ITEM6}.")
 
 
 def test_s152s_start_push_holds_his_reply_m27_and_the_legend_of_line_2(tmp_path):
@@ -203,7 +207,7 @@ def test_s152s_start_push_holds_his_reply_m27_and_the_legend_of_line_2(tmp_path)
     characters, and not the sentence that names string.py."""
     db = _dry6b(tmp_path, upto="r_m27")
     assert _start(db, "b_1")[START_RULED_KEY] == (
-        f'His answer m27 to page m26: "{M27}"\n{LEGEND2}')
+        f'His answer m27 to page m26: "{M27}"\n{PUSH_LEGEND2}')
 
 
 def test_the_legend_line_is_cut_at_400_characters_with_a_mark(tmp_path):
@@ -215,21 +219,64 @@ def test_the_legend_line_is_cut_at_400_characters_with_a_mark(tmp_path):
 
 
 def test_the_start_wake_cut_keeps_his_words(tmp_path):
-    """Review, finding 1: the block was the last key, and the cut of a long
-    wake takes the last keys first. Dry run 6b's s173 lost it on turns 2 to
-    5. The block now stands right after the criteria."""
+    """Review, finding 1, and the second look, S1: the cut of a long wake
+    takes the last keys first. On dry run 6b, s173's `batches.expect` was
+    18,072 characters, and its turns 2 to 5 cut the wake at 17,127 and at
+    12,845 characters. His words now are the first key."""
     db = _dry6b(tmp_path, upto="r_m27")
     sb = build("developer", db, batch_id="b_1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
     wake = Wake("developer", "tick:batch_start", refs=("b_1",))
     pushed = push_working_set("developer", sb, wake)
-    keys = list(pushed)
-    assert keys.index(START_RULED_KEY) == keys.index("criteria.load") + 1
+    assert list(pushed)[0] == START_RULED_KEY
+    # The real size of s173's `batches.expect`.
+    pushed["batches.expect"] = "e" * 18072
     _system, user = runner.build_prompt("developer", sb, wake, pushed,
                                         "MODE: batch_start")
-    # A wake over the budget: the cut takes the keys after the criteria.
-    cut = runner._render_cut(user, user.index("[glossary.lookup]"))
-    assert M27 in cut and LEGEND2 in cut
+    for limit in (17127, 12845):
+        cut = runner._render_cut(user, limit)
+        assert M27 in cut and PUSH_LEGEND2 in cut, limit
+
+
+def test_the_criteria_wake_puts_his_words_first_and_only_when_he_ruled(tmp_path):
+    """Second look, S1: "the item" was the last key of the criteria wake.
+    A wake with no ruling keeps its keys, so no recorded case changes."""
+    db = _dry6b(tmp_path)
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    wake = Wake("terminologist", "tick:criteria", refs=(ITEM6,))
+    pushed = push_working_set("terminologist", sb, wake)
+    assert list(pushed)[0] == RULED_KEY and RULED_KEY not in pushed["the item"]
+    bare = init_db(tmp_path / "bare.db")
+    _change(bare, ITEM6, ITEM6_TEXT, CRIT6, "b_1")
+    bare.commit()
+    sb = build("terminologist", bare, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    assert RULED_KEY not in push_working_set("terminologist", sb, wake)
+
+
+def test_a_file_line_gives_no_legend_where_the_ruling_holds_the_page_line(tmp_path):
+    """Old finding 4: r_m39 holds b_1 on line 5, and "line 5 of string.py"
+    gave "line 5 is wrong: rewrite. The line was b_1."."""
+    db = _dry6b(tmp_path, upto="r_m39")
+    for words in ("Fix line 5 of string.py so the fold keeps the escape.",
+                  "Lines 5 and 6 of src/icalendar/parser/string.py hold the fold."):
+        assert _line_legend(db, "r_m39", words) == [], words
+    assert _line_legend(db, "r_m39", "Line 5 is wrong.") != []
+
+
+def test_a_keypress_row_is_a_confirmed_reading(tmp_path):
+    """Second look, S2: a key he pressed on a line is his own act."""
+    db = init_db(tmp_path / "rota.db")
+    _change(db, ITEM6, ITEM6_TEXT, CRIT6, "b_1")
+    for grain, kind in GUESSES6:
+        db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
+                   "grain_kind) VALUES (?, 1, '', ?, ?)", (ITEM6, grain, kind))
+    rid, ask, reply, per_item, words, rows, order, stamp = RULINGS6[0]
+    keys = tuple((ref, line, verdict, act, said, "keypress")
+                 for ref, line, verdict, act, said, source in rows if source == "reading")
+    _seed(db, ((rid, ask, reply, per_item, words, keys, order, stamp),))
+    assert _line_legend(db, "r_m27", M27) == [LEGEND2]
 
 
 def test_a_line_number_with_no_row_of_the_ruling_gives_no_legend(tmp_path):
@@ -284,8 +331,16 @@ def test_s147_and_s148_item_pushes_hold_the_same_reply(tmp_path):
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb,
                               Wake("terminologist", "tick:criteria", refs=(ITEM6,)))
-    assert M27 in pushed["the item"][RULED_KEY]
-    assert LEGEND2 in pushed["the item"][RULED_KEY]
+    assert M27 in pushed[RULED_KEY]
+    # The criteria seat reads no path that he called wrong (second look, S4).
+    assert PUSH_LEGEND2 in pushed[RULED_KEY]
+    assert "property.py, " not in pushed[RULED_KEY]
+    sb = build("vision_keeper", db, mode="slicing",
+               allow=prompts.mode_tools("vision_keeper", "slicing"))
+    pushed = push_working_set("vision_keeper", sb,
+                              Wake("vision_keeper", "tick:slicing", refs=(ITEM6,)))
+    assert list(pushed)[0] == RULED_KEY
+    assert PUSH_LEGEND2 in pushed[RULED_KEY][ITEM6]
 
 
 def test_s173s_start_push_holds_m40(tmp_path):
@@ -301,7 +356,8 @@ def test_s173s_start_push_holds_m40(tmp_path):
                      "His answer m40 to page m37", "His answer m41 to page m38"]
     assert "older answer" not in block
     # A batch line keeps its id: its readers render today's touch set.
-    assert "On his page, line 5 is wrong: rewrite. The line was b_1." in block
+    assert ("On his page, line 5 is wrong: rewrite. The line was the code the "
+            "team expects to touch, b_1.") in block
 
 
 def test_dry4_s206s_start_push_holds_r_m50_2(tmp_path):
@@ -357,10 +413,10 @@ def test_s185s_criteria_push_holds_the_code_stays_the_same_and_line_2(tmp_path):
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb,
                               Wake("terminologist", "tick:criteria", refs=(DOC_ITEM,)))
-    assert pushed["the item"][RULED_KEY] == (
+    assert pushed[RULED_KEY] == (
         f'His answer m69 to page m68: "{M69}"\n'
-        f"On his page, line 2 is wrong. The line was guess:{DOC_ITEM}: The team's "
-        "guess at the code this touches: tests/test_utils/test_format_filename.py.")
+        "On his page, line 2 is wrong. The line was the team's guess at the "
+        f"code this touches, guess:{DOC_ITEM}.")
 
 
 def test_the_legend_names_a_guess_line_by_the_text_he_saw(tmp_path):

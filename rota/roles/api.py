@@ -26975,8 +26975,10 @@ def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
     criteria of the batch, the request item's text, and the landed rulings
     on the item's pages (review 1, finding 1).
 
-    His words come from `ruled_words`, the reader that the criteria push
-    and the slicing push share (frame 322, proposal line 3). The removal
+    His words come from `ruled_words`. `code_commit` reads them through
+    `_unread_drop_refusal` and `_unruled_removals`, and `ledger_log`
+    through `_silent_note_refusal`. The pushes do not read this function.
+    They show his whole reply on the same key set (frame 362). The removal
     door reads only the texts that are not his. His removal is the act of
     his ruling (`_unruled_gone`)."""
     from .principal import ruled_words

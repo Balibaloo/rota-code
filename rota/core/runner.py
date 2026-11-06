@@ -690,11 +690,14 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
 
 
 def _line_legend(conn, rid: str, words: str,
-                 woken: str | None = None) -> list[str]:
+                 woken: str | None = None,
+                 contested_text: bool = True) -> list[str]:
     """One line for each page line that ruling `rid`'s words name and that
     the ruling holds a row for: his verdict on the row, then the row that
     stood on that line of his page. Empty when the words name no such line.
     With `woken`, a row of another criterion says it is not this repair.
+    With `contested_text` False, a line he did not approve shows its kind
+    and id, and not its text.
 
     His words stay verbatim, and the legend stands beside them (composition
     line 106). The seat never sees his page, so "line 3" had no referent.
@@ -712,15 +715,18 @@ def _line_legend(conn, rid: str, words: str,
     if not order:
         return []
     named: set[int] = set()
-    for ref in api._line_reading(words, len(order)).refs:
+    # "line 5 of string.py" is a line of a file, not of his page (frame 362,
+    # review, finding 4). `_line_reading` has 23 callers, so the legend
+    # alone drops the phrase.
+    for ref in api._line_reading(_FILE_LINE.sub("", words), len(order)).refs:
         if ref.word == "note":
             continue
         named |= ref.lines
-    # The reading's rows, as the read-back reads them (fact F1). The row is
-    # the confirmed reading. A number in his words alone is not: "line 5 of
-    # string.py" named line 5 of the page (frame 362, review, finding 4).
+    # The reading's rows, as the read-back reads them (fact F1), and a key
+    # he pressed, which is his own act (second look, S2). The row is the
+    # confirmed reading. A number in his words alone is not.
     rows = one_row_per_ref([r for r in ruled(conn, ruling=rid, landed=False, every=True)
-                            if r["source"] in ("reading", "backfill")])
+                            if r["source"] in ("reading", "backfill", "keypress")])
     out: list[str] = []
     for n in sorted(x for x in named if 1 <= x <= len(order)):
         rid_n = order[n - 1]
@@ -744,6 +750,14 @@ def _line_legend(conn, rid: str, words: str,
             out.append(_legend_cut(f"{head}. The line was the check of "
                                    f"{about}{tag}."))
             continue
+        # A push shows no text that he called wrong, as content. A line he
+        # did not approve gives its kind and id (second look, S4, decided).
+        # The repair wake and the contest block keep the text he contested.
+        if not contested_text and not (held["verdict"] == "approve"
+                                       and held["act"] in (None, "add", "keep")):
+            kind = _line_kind(conn, rid_n)
+            out.append(_legend_cut(f"{head}. The line was {kind}{rid_n}{tag}."))
+            continue
         # Only a text stamped at the time of his page. `old_text` is the
         # text he read first. Today's criterion, item or note can be the
         # team's rewrite after he called the line wrong (review, finding 3).
@@ -752,6 +766,27 @@ def _line_legend(conn, rid: str, words: str,
         out.append(_legend_cut(f"{head}. The line was {rid_n}{tag}: {text}"
                                if text else f"{head}. The line was {rid_n}{tag}."))
     return out
+
+
+# A line of a file: "line 5 of string.py", "lines 3 and 4 of src/x/y.py".
+_FILE_LINE = re.compile(
+    r"\blines?\s+\d+(?:(?:\s*,\s*|\s+and\s+|\s+to\s+|-)\d+)*\s+of\s+(?:the\s+)?"
+    r"(?:file\s+)?`?(?:[\w.-]+/)+[\w.-]*|\blines?\s+\d+(?:(?:\s*,\s*|\s+and\s+"
+    r"|\s+to\s+|-)\d+)*\s+of\s+(?:the\s+)?(?:file\s+)?`?[\w-]+\.\w+", re.I)
+
+
+def _line_kind(conn, ref: str) -> str:
+    """The kind of page line `ref` is, in the words of its page or its
+    reader, with a trailing space, or ''."""
+    from .db import table_of
+
+    if ref.startswith("guess:"):
+        return "the team's guess at the code this touches, "
+    # `table_of` is the one reader of an id's table (fact F22).
+    kinds = {"criteria": "a criterion, ", "items": "the item, ",
+             "ledger": "one of the team's notes, ",
+             "batches": "the code the team expects to touch, "}
+    return kinds.get(table_of(conn, ref, among=tuple(kinds)) or "", "")
 
 
 # One legend line at most, in characters. Dry run 5's guess line was about
@@ -4364,7 +4399,8 @@ def _ruled_block(conn, refs, *, item: str | None = None,
         # write a second head line (frame 362, review, finding 6).
         quoted = "\n    ".join(words.splitlines())
         shown.append("\n".join([f'{answer}{page}: "{quoted}"',
-                                *_line_legend(conn, rid, words)]))
+                                *_line_legend(conn, rid, words,
+                                              contested_text=False)]))
     # Whole rulings only, the newest first. The newest stays when it alone
     # is over the budget: a push with no word of his newest ruling is frame
     # 312's fault again.
@@ -4596,16 +4632,11 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         said = _ruled_block(sb.ctx.conn, api.batch_ruled_refs(sb.ctx.conn, bid),
                             item=made["item_id"] if made else None)
         if said:
-            # Right after the criteria block, because the cut of a long wake
-            # takes the last keys first. Dry run 6b's s173 held his words on
-            # turn 1 and lost them on turns 2 to 5 (frame 362, review,
-            # finding 1).
-            front = {"criteria.load", api.RETIRED_NOTE_KEY, CONTESTS_KEY}
-            last = max((i for i, k in enumerate(pushed) if k in front),
-                       default=len(pushed) - 1)
-            items = list(pushed.items())
-            items.insert(last + 1, (START_RULED_KEY, said))
-            pushed = dict(items)
+            # At the front, because the cut of a long wake takes the last
+            # keys first. On dry run 6b, `batches.expect` came first with
+            # 18,072 characters, and s173's cut at 17,127 took his words on
+            # turns 2 to 5 (frame 362, second look, S1).
+            pushed = {START_RULED_KEY: said, **pushed}
     # Frame 362, door 2: the builder and the Tester get the constraints that
     # bind the batch's files unasked. The seat cannot send `model.load` an
     # id it never saw. The read is a push, because a tool here needs a line
@@ -4632,10 +4663,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if bound is not None:
             # Right after the criteria block, because the cut of a long
             # wake takes the last keys first (frame 362, review 1, finding 6).
-            # His words stay ahead of the bound block (frame 362, review,
-            # finding 1).
-            block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY,
-                     START_RULED_KEY}
+            block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY}
             last = max((i for i, k in enumerate(pushed) if k in block),
                        default=len(pushed) - 1)
             items = list(pushed.items())
@@ -4716,8 +4744,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "ORDER BY s.id", (wake.refs[0], wake.refs[0], wake.refs[0]))]
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said,
-                                      **_item_ruled(conn, wake.refs[0]),
                                       **_retired_carry(conn, wake.refs[0])}
+                # His words go first, as their own key, because the cut of
+                # a long wake takes the last keys first. With no ruling the
+                # wake is as before, so no recorded case changes (frame
+                # 362, second look, S1).
+                ruled_item = _item_ruled(conn, wake.refs[0])
+                if ruled_item:
+                    pushed = {**ruled_item, **pushed}
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
             # s157 never got `confirm`'s source.
@@ -4804,13 +4838,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if mine:
             # Night 161's s281 sliced from the headline alone. The item's
             # old ticket held his corrected criteria (frame 315).
-            mine = [{**r, **_item_ruled(sb.ctx.conn, r["id"], before_slice=True),
-                     **_retired_carry(sb.ctx.conn, r["id"], before_slice=True)}
+            # His words on each item go first, as one key by item, because
+            # the cut takes the last keys first (frame 362, second look, S1).
+            said_on = {r["id"]: _item_ruled(sb.ctx.conn, r["id"], before_slice=True)
+                       .get(RULED_KEY) for r in mine}
+            mine = [{**r, **_retired_carry(sb.ctx.conn, r["id"], before_slice=True)}
                     for r in mine]
             pushed["problem.consult"] = {
                 "to slice, this wake": mine,
                 "the rest of the account, not this wake's": rest,
             }
+            said_on = {k: v for k, v in said_on.items() if v}
+            if said_on:
+                pushed = {RULED_KEY: said_on, **pushed}
 
     # The agenda wake names the page's seven; the rest of the open ledger is
     # the next pages'. clickI night 35 (2026-09-13): 51 open rows, 15,500

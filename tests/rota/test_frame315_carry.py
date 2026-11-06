@@ -118,7 +118,9 @@ def test_s282_criteria_wake_carries_his_words_and_the_old_criteria(tmp_path):
     pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=(ITEM,)))
     item = pushed["the item"]
     assert item["the principal said"] == [S3]
-    _assert_carry(item)
+    # Frame 362, pass 3: his words are the wake's first key.
+    assert list(pushed)[0] == RULED_KEY
+    _assert_carry({**item, RULED_KEY: pushed[RULED_KEY]})
 
 
 def test_the_slicing_wake_carries_the_same_keys(tmp_path):
@@ -130,7 +132,9 @@ def test_the_slicing_wake_carries_the_same_keys(tmp_path):
                    allow=prompts.mode_tools("vision_keeper", "slicing"))
         pushed = push_working_set("vision_keeper", sb, Wake("vision_keeper", "tick:slicing", refs=(ITEM,)))
         [row] = pushed["problem.consult"]["to slice, this wake"]
-        _assert_carry(row)
+        # Frame 362, pass 3: his words on each item are the first key.
+        assert list(pushed)[0] == RULED_KEY and RULED_KEY not in row
+        _assert_carry({**row, RULED_KEY: pushed[RULED_KEY][ITEM]})
 
 
 def test_an_item_with_no_old_ticket_carries_his_words_and_no_old_criteria(tmp_path):
@@ -143,8 +147,8 @@ def test_an_item_with_no_old_ticket_carries_his_words_and_no_old_criteria(tmp_pa
     sb = build("terminologist", db, mode="criteria",
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=(ITEM,)))
-    assert set(pushed["the item"]) == {"text", "the principal said", RULED_KEY}
-    assert _said(pushed["the item"][RULED_KEY]) == [M118, M137]
+    assert set(pushed["the item"]) == {"text", "the principal said"}
+    assert _said(pushed[RULED_KEY]) == [M118, M137]
 
 
 def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
@@ -158,8 +162,10 @@ def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
 def _criteria_wake(db) -> dict:
     sb = build("terminologist", db, mode="criteria",
                allow=prompts.mode_tools("terminologist", "criteria"))
-    return push_working_set("terminologist", sb,
-                            Wake("terminologist", "tick:criteria", refs=(ITEM,)))["the item"]
+    pushed = push_working_set("terminologist", sb,
+                              Wake("terminologist", "tick:criteria", refs=(ITEM,)))
+    # Frame 362, pass 3: his words are a key of the wake, not of the item.
+    return {**pushed["the item"], RULED_KEY: pushed.get(RULED_KEY)}
 
 
 def test_rulings_on_the_live_ticket_do_not_push_his_correction_out(tmp_path):
@@ -234,5 +240,5 @@ def test_s185s_first_criteria_wake_carries_r_1ec1beb146(tmp_path):
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb,
                               Wake("terminologist", "tick:criteria", refs=(DOC_ITEM,)))
-    assert pushed["the item"][RULED_KEY] == f'His answer m69 to page m68: "{M69}"'
+    assert pushed[RULED_KEY] == f'His answer m69 to page m68: "{M69}"'
     assert RETIRED_KEY not in pushed["the item"]
