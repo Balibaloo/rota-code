@@ -415,3 +415,29 @@ def test_7_a_returns_criterion_against_prints_keeps_the_offer_when_the_code_prin
                                   "    print(json.dumps(obj))")},
                   '["script.py::echo_json"]')
     assert "contradicts_request" in got, got
+
+
+# --- Pass 5. Two more certain sources of the import door -----------------------
+
+def test_p5_pytest_s_own_package_is_known(tmp_path, no_env):
+    got = _add(tmp_path, B("from _pytest.capture import CaptureFixture",
+                           "from script import add", "def test_add():",
+                           "    assert add(1, 2) == 3"))
+    assert NO_MODULE not in got, got
+
+
+def test_p5_a_package_that_the_program_imports_is_admitted(tmp_path, no_env):
+    """The program cannot load without what it imports, so a test can
+    import it too."""
+    got = _add(tmp_path, NUMPY, {"helper.py": B(
+        "import numpy as np", "def mean(xs):", "    return np.mean(xs)")})
+    assert NO_MODULE not in got, got
+
+
+def test_p5_an_invented_module_that_no_program_module_imports_stays_refused(
+        tmp_path, no_env):
+    got = _add(tmp_path, B("from utils import add", "def test_add():",
+                           "    assert add(1, 2) == 3"),
+               {"script.py": B("import json", "from os import path",
+                               "def add(a, b):", "    return a + b")})
+    assert NO_MODULE in got, got

@@ -8782,6 +8782,33 @@ def _test_dirs(indexed: set[str], conn=None) -> set[str]:
             if _test_shaped(g) and kind_of(conn, g) == "attached"}
 
 
+def _program_imports(conn: sqlite3.Connection, root) -> set[str]:
+    """The top-level names that the program files of the tree import by an
+    absolute import. The code index keeps only the imports that resolve to
+    a file of the tree, in `code_edges`, so the door reads the source of
+    each indexed program file. A file that does not parse gives nothing.
+    Frame 362, pass 5."""
+    import ast as _ast
+    from pathlib import Path as _Path
+    from ..onboarding.areas import kind_of
+
+    out: set[str] = set()
+    for r in conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        p = r["grain"].replace("\\", "/")
+        if not p.endswith(".py") or kind_of(conn, p) != "program":
+            continue
+        try:
+            tree = _ast.parse((_Path(root) / p).read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
+            continue
+        for n in _ast.walk(tree):
+            if isinstance(n, _ast.Import):
+                out |= {a.name.split(".")[0] for a in n.names}
+            elif isinstance(n, _ast.ImportFrom) and n.level == 0 and n.module:
+                out.add(n.module.split(".")[0])
+    return out
+
+
 def _program_modules(conn: sqlite3.Connection) -> set[str]:
     """The top-level import names of the indexed `.py` files that the frame
     marks program: the top package of a file. A file outside a package
@@ -12386,7 +12413,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _root = _worktree_of(ctx)
         except Exception:  # noqa: BLE001 -- no worktree yet: nothing to check against
             _root = None
-        _known = set(getattr(_sys2, "stdlib_module_names", ())) | {"pytest"}
+        # Frame 362, pass 5: `_pytest` is pytest's own package, so it is
+        # wherever pytest is.
+        _known = set(getattr(_sys2, "stdlib_module_names", ())) | {"pytest", "_pytest"}
         if _root is None:
             _known |= {m.split(".")[0] for m in imported_from}
         else:
@@ -12432,6 +12461,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _missing_mods = [] if _env_doubt else [
                 m for m in _missing_mods if m not in _installed
                 and re.sub(r"[-_.]+", "_", m).lower() not in _declared]
+            # Pass 5: the program cannot load without what it imports, so
+            # a test can import that name too.
+            if _missing_mods:
+                _prog_imports = _program_imports(ctx.conn, _root)
+                _missing_mods = [m for m in _missing_mods if m not in _prog_imports]
             _has_env = _venv_python(_root).exists()
         if _missing_mods:
             dotted_surfaces = sorted({_dotted(_grain_path(s)) for s in surface
