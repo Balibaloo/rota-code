@@ -37,6 +37,30 @@ from ..llm.cassettes import SEQ_INDEXES, seq_index_sql, to_wal
 BUILT, HELD, NO_TABLE = "built", "held", "no table"
 
 
+def missing(path: str | Path) -> list[str]:
+    """
+    What `ensure` would do, read with no write lock: each absent index, and
+    `WAL mode` when the file is in another mode. An empty list means that
+    `ensure` would build nothing.
+
+    The gate says one line before a long wait or a build, and stays silent
+    when the register is ready (the review of 2c294581, frame 362).
+    """
+    uri = Path(path).resolve().as_uri().replace("file:///", "file:/")
+    conn = sqlite3.connect(f"{uri}?mode=ro", uri=True)
+    try:
+        mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        held = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'index'")}
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    finally:
+        conn.close()
+    out = [] if mode.lower() == "wal" else ["WAL mode"]
+    return out + [name for name, table in SEQ_INDEXES.items()
+                  if table in tables and name not in held]
+
+
 def ensure(path: str | Path) -> list[tuple[str, str, float]]:
     """
     Put the register in WAL mode, and build each missing entry of

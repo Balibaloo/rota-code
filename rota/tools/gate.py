@@ -212,13 +212,34 @@ def prepare_register() -> list[tuple[str, float]]:
     raised `database is locked` at once, and a worker that met no `seq`
     index held the write lock for minutes (frame 362). A gate with no
     register does nothing, because a connect would create an empty file.
+
+    One line comes before a wait or a build, and no line when the register
+    is ready. A lock error gives one line and the gate runs on, because a
+    register with no index still has the 300 s wait. Any other error stops
+    the gate.
     """
+    import sqlite3
+
     path = register_path()
     if not path.exists():
         return []
     from . import index_register
 
-    return index_register.prepare(path, say=lambda line: print(line, flush=True))
+    try:
+        todo = index_register.missing(path)
+        if not todo:
+            return []
+        print(f"register: preparing {path}, missing {', '.join(todo)}. "
+              "The build waits for the write lock and can take minutes.",
+              flush=True)
+        return index_register.prepare(
+            path, say=lambda line: print(line, flush=True))
+    except sqlite3.OperationalError as e:
+        if "locked" not in str(e):
+            raise
+        print(f"register: not prepared, {path}: {e}. The suite runs on "
+              "with no seq index.", flush=True)
+        return []
 
 
 def _stale(model: str) -> set[str] | None:

@@ -229,7 +229,10 @@ def pull(dest: Path = paths.DEV_DB, manifest: Manifest | None = None,
     dest.parent.mkdir(parents=True, exist_ok=True)
     gz = dest.with_suffix(dest.suffix + ".gz.part")
     part = dest.with_suffix(dest.suffix + ".part")
-    for stale in (gz, part):
+    # A pull cut during the index build leaves committed frames in
+    # `.part-wal`. SQLite replays them onto the next snapshot and spoils it
+    # (observed: the review of 2c294581, frame 362). So no side file stays.
+    for stale in (gz, part, Path(str(part) + "-wal"), Path(str(part) + "-shm")):
         if stale.exists():
             stale.unlink()
 
@@ -261,9 +264,18 @@ def pull(dest: Path = paths.DEV_DB, manifest: Manifest | None = None,
         # the lock alone (frame 362).
         from ..tools import index_register
 
-        index_register.prepare(
-            part, say=(lambda line: None) if quiet else
-            (lambda line: print(f"cassettes: {line}", file=sys.stderr)))
+        try:
+            index_register.prepare(
+                part, say=(lambda line: None) if quiet else
+                (lambda line: print(f"cassettes: {line}", file=sys.stderr)))
+        except sqlite3.OperationalError as e:
+            # A lock error must not stop the test session or lose the
+            # snapshot. The file is placed with no index, and the 300 s wait
+            # of `open_dev_db` still holds. The warning shows when quiet too.
+            if "locked" not in str(e):
+                raise
+            print(f"cassettes: warning: {part.name} got no seq index: {e}",
+                  file=sys.stderr)
     # A read-only open of a WAL-headered file still creates -wal and -shm.
     for side in (Path(str(part) + "-wal"), Path(str(part) + "-shm")):
         if side.exists():

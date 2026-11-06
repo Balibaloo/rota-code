@@ -133,6 +133,20 @@ def _lines(capsys):
     return capsys.readouterr().out.splitlines()
 
 
+def test_the_gate_prepares_the_register_before_the_suite_starts(
+        stage, monkeypatch):
+    """The suite's workers must find a WAL register with both `seq` indexes,
+    so the one process of the gate prepares it first (frame 362)."""
+    calls = []
+    suite = gate._run_suite
+    monkeypatch.setattr(gate, "prepare_register",
+                        lambda: calls.append("prepare") or [])
+    monkeypatch.setattr(gate, "_run_suite",
+                        lambda env, log: calls.append("suite") or suite(env, log))
+    _run(stage)
+    assert calls == ["prepare", "suite"]
+
+
 def test_the_summary_is_the_last_line_that_carries_a_duration():
     assert gate.summary_of(LOG_MIXED) == "3 failed, 1 passed, 1 error"
     assert gate.summary_of(LOG_GREEN) == "1 passed"

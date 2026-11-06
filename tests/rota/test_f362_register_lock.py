@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -270,9 +271,13 @@ def test_the_gate_prepares_the_register_before_its_workers(
     built = gate.prepare_register()
     assert [name for name, _ in built] == list(cassettes.SEQ_INDEXES)
     out = capsys.readouterr().out.splitlines()
-    assert len(out) == 1 and out[0].startswith("register: built "), out
+    # One line before the wait and the build, and one line after the build.
+    assert len(out) == 2, out
+    assert out[0].startswith("register: preparing "), out
+    assert out[1].startswith("register: built "), out
     for name in cassettes.SEQ_INDEXES:
-        assert name in out[0]
+        assert name in out[0] and name in out[1]
+    assert "WAL mode" in out[0]
     assert _indexes(path) == set(cassettes.SEQ_INDEXES)
     assert _mode(path) == "wal"
     assert _rows(path) == before
@@ -347,3 +352,146 @@ def test_a_published_snapshot_of_an_indexed_register_carries_the_indexes(
         shutil.copyfileobj(g, f)
     assert _indexes(snap) == set(cassettes.SEQ_INDEXES)
     assert _mode(snap) == "delete"
+
+
+# --- Pass 3: a pull after a cut build, and a lock error at a call site ------
+
+#: A build cut by a kill: the index frames are committed in the WAL, and no
+#: close checkpoints them, so the side files stay beside the part file.
+_CUT_BUILD = """
+import os, sqlite3, sys
+
+conn = sqlite3.connect(sys.argv[1], isolation_level=None)
+conn.execute("PRAGMA journal_mode = WAL")
+conn.execute("CREATE INDEX case_runs_seq ON case_runs (seq)")
+os._exit(9)
+"""
+
+
+def _a_big_register(path, rows: int = 400) -> None:
+    """A pulled register with long transcripts, so its pages outnumber the
+    pages of the small snapshot the next pull places."""
+    conn = open_dev_db(path)
+    for name in cassettes.SEQ_INDEXES:
+        conn.execute(f"DROP INDEX {name}")
+    for run in range(1, rows + 1):
+        record_case_run(conn, f"case-{run}", PINS, run, True, [],
+                        [{"say": "x" * 3000}], live=True)
+    conn.close()
+
+
+def _fetched_by_copy(monkeypatch, gz) -> None:
+    import shutil
+
+    from rota.testkit import cassette_store
+
+    monkeypatch.setattr(cassette_store, "_download",
+                        lambda url, dest, *a, **k: shutil.copyfile(gz, dest))
+
+
+@pytest.mark.timeout(60)
+def test_a_pull_after_a_cut_build_places_a_whole_register(tmp_path,
+                                                         monkeypatch):
+    """
+    A pull cut during the index build leaves `.part-wal` and `.part-shm`.
+    On the parent 2c294581 the next pull replayed them onto its own snapshot
+    and raised `unpacked database failed quick_check` (observed: the review
+    of 2c294581, probe `stalewal.py`).
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    from rota import paths
+    from rota.testkit import cassette_store
+
+    big = tmp_path / "big.db"
+    _a_big_register(big)
+    dest = tmp_path / "checkout" / "cassettes.db"
+    dest.parent.mkdir()
+    part = dest.with_suffix(dest.suffix + ".part")
+    shutil.copyfile(big, part)
+    subprocess.run([sys.executable, "-c", _CUT_BUILD, str(part)],
+                   cwd=str(paths.REPO), timeout=30)
+    wal = Path(str(part) + "-wal")
+    assert wal.exists() and wal.stat().st_size > 0, "the control: frames"
+    part.unlink()
+
+    small = tmp_path / "small.db"
+    _an_old_register(small, rows=5)
+    monkeypatch.setattr(cassette_store, "MANIFEST", tmp_path / "manifest.json")
+    gz, manifest = cassette_store.pack(small, out_dir=tmp_path / "packed",
+                                       tag="t")
+    _fetched_by_copy(monkeypatch, gz)
+    cassette_store.pull(dest, manifest, quiet=True)
+
+    conn = sqlite3.connect(str(dest))
+    assert conn.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+    runs = conn.execute("SELECT COUNT(*) FROM case_runs").fetchone()[0]
+    conn.close()
+    assert runs == len(_rows(small)[0])
+
+
+def _locked(*args, **kwargs):
+    raise sqlite3.OperationalError("database is locked")
+
+
+def test_a_locked_gate_build_says_one_line_and_runs_on(tmp_path, monkeypatch,
+                                                       capsys):
+    from rota import paths
+    from rota.tools import gate, index_register
+
+    path = tmp_path / "cassettes.db"
+    _a_pulled_register(path)
+    monkeypatch.setattr(paths, "DEV_DB", path)
+    monkeypatch.setattr(index_register, "ensure", _locked)
+
+    assert gate.prepare_register() == []
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == 2, out
+    assert out[1].startswith(f"register: not prepared, {path}: "), out
+    assert "database is locked" in out[1]
+    assert _indexes(path) == set()
+
+
+def test_another_gate_build_error_stops_the_gate(tmp_path, monkeypatch):
+    from rota import paths
+    from rota.tools import gate, index_register
+
+    path = tmp_path / "cassettes.db"
+    _a_pulled_register(path)
+    monkeypatch.setattr(paths, "DEV_DB", path)
+
+    def full(*args, **kwargs):
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(index_register, "ensure", full)
+    with pytest.raises(sqlite3.OperationalError, match="disk is full"):
+        gate.prepare_register()
+
+
+def test_a_locked_build_in_the_test_session_pull_warns_and_goes_on(
+        tmp_path, monkeypatch, capsys):
+    """`ensure_for_tests` caught no `OperationalError`, so a build error
+    stopped the test session (observed: the review of 2c294581, probe
+    `quiet.py`). A lock error now places the file with no index."""
+    from rota.testkit import cassette_store
+    from rota.tools import index_register
+
+    source = tmp_path / "source.db"
+    _an_old_register(source)
+    gz, manifest = _packed(tmp_path, monkeypatch, source)
+    _fetched_by_copy(monkeypatch, gz)
+    monkeypatch.setattr(cassette_store, "read_manifest", lambda: manifest)
+    monkeypatch.delenv("ROTA_NO_FETCH", raising=False)
+    monkeypatch.setattr(index_register, "ensure", _locked)
+    dest = tmp_path / "checkout" / "cassettes.db"
+
+    note = cassette_store.ensure_for_tests(dest)
+    assert note == "cassettes: fetched t (0 cassettes)", note
+    warnings = [line for line in capsys.readouterr().err.splitlines()
+                if "warning" in line]
+    assert len(warnings) == 1 and "database is locked" in warnings[0]
+    assert _rows(dest) == _rows(source)
+    assert _indexes(dest) == set()
+    assert sorted(p.name for p in dest.parent.iterdir()) == ["cassettes.db"]
