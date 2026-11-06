@@ -148,7 +148,52 @@ def connect(path: str | Path) -> sqlite3.Connection:
     latest_runs_view(conn)
     message_columns(conn)
     commitment_columns(conn)
+    touch_columns(conn)
     return conn
+
+
+def touch_columns(conn: sqlite3.Connection) -> None:
+    """Give an older `batch_touch` its `ruling_id`, with the stamps that the
+    records give.
+
+    A row rests on his verdict when its last write came from a session that
+    the relay of that verdict woke, and the verdict contests or revises the
+    batch. That is what the writer stamps now (frame 362, slice 1). With
+    every old row at '', dry 6b at s173 owed r_m41 again after the rewrite
+    of s172 (the review of 36a2edd2, finding 2). `connect` calls this, so a
+    file that no `init_db` opened gets the column too (finding 8)."""
+    have = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN "
+        "('batch_touch', 'receipts', 'sessions', 'messages', 'rulings')")}
+    if "batch_touch" not in have or _has_column(conn, "batch_touch", "ruling_id"):
+        return
+    conn.execute("ALTER TABLE batch_touch ADD COLUMN ruling_id TEXT "
+                 "NOT NULL DEFAULT ''")
+    if len(have) < 5:
+        return
+    verdicts: dict[str, dict] = {}
+    for r in conn.execute("SELECT per_item, verdict_id FROM rulings WHERE "
+                          "status = 'landed' AND verdict_id IS NOT NULL"):
+        try:
+            verdicts[r["verdict_id"]] = json.loads(r["per_item"] or "{}")
+        except (TypeError, ValueError):
+            continue
+    last: dict[tuple[str, str], str] = {}
+    for r in conn.execute(
+            "SELECT x.row_id AS row_id, m.verb AS verb, m.cause_id AS cause "
+            "FROM receipts x JOIN sessions s ON s.id = x.session_id "
+            "LEFT JOIN messages m ON m.id = s.trigger_msg "
+            "WHERE x.table_name = 'batch_touch' ORDER BY s.seq, x.rowid"):
+        batch, _, grain = (r["row_id"] or "").partition(":")
+        if not grain or grain == "*":
+            continue
+        ruled = r["verb"] == "relay" and verdicts.get(r["cause"] or "", {}).get(
+            batch) in ("contest", "revise")
+        last[(batch, grain)] = r["cause"] if ruled else ""
+    for (batch, grain), stamp in last.items():
+        if stamp:
+            conn.execute("UPDATE batch_touch SET ruling_id = ? WHERE batch_id = ? "
+                         "AND grain = ?", (stamp, batch, grain))
 
 
 def commitment_columns(conn: sqlite3.Connection) -> None:
@@ -495,11 +540,6 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # batch's truth, since no door wrote a claim before the column.
         if not _has_column(conn, "batches", "claimed_head"):
             conn.execute("ALTER TABLE batches ADD COLUMN claimed_head TEXT")
-        # The same for the verdict a touch set rests on (frame 362, slice 1):
-        # '' is every older row's truth, since no write carried one before.
-        if not _has_column(conn, "batch_touch", "ruling_id"):
-            conn.execute("ALTER TABLE batch_touch ADD COLUMN ruling_id TEXT "
-                         "NOT NULL DEFAULT ''")
         # `connect` gives an older file the columns of frame 362.
         backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",

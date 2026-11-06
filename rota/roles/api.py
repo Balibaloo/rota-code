@@ -9086,6 +9086,16 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
         ctx.writes.append(("touch_guesses", f"{item_id}:{ver}:{ruling}:{grain}", {
             "item_id": item_id, "item_ver": ver, "ruling_id": ruling,
             "grain": grain, "grain_kind": kind, "confidence": confidence}))
+    # A plan written before his correction rests on the old guess. The clear
+    # lets `annotate` plan again from the new set (the review of 36a2edd2,
+    # finding 7).
+    if ruling:
+        for b in ctx.conn.execute(
+                "SELECT DISTINCT b.id FROM batches b JOIN batch_touch t ON "
+                "t.batch_id = b.id WHERE b.item_id = ? AND b.status IN "
+                "('pending', 'deferred') ORDER BY b.id", (item_id,)).fetchall():
+            ctx.writes.append(("batch_touch", f"{b['id']}:*",
+                               {"batch_id": b["id"]}, "clear"))
     return {"item_id": item_id, "grains": len(paths) + len(symbols or [])}
 
 

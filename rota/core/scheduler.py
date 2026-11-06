@@ -1904,16 +1904,16 @@ def owed(conn: sqlite3.Connection, ref: str) -> dict | None:
             per = json.loads(r["per_item"] or "{}")
         except (TypeError, ValueError):
             continue
-        named = {k: v for k, v in per.items() if k == key or k in batches}
+        # Only a newer contest or revise of his replaces an owed one. His
+        # approve of the batch line on dry 6b's m53 ended the guess contest
+        # with no rewrite (the review of 36a2edd2, finding 1).
+        named = [(k, v) for k, v in per.items()
+                 if (k == key or k in batches) and v in OWED_VERBS]
         if named:
-            newest = (r, named)
+            newest = (r, named[0])
     if newest is None:
         return None
-    r, named = newest
-    line = next(((k, v) for k, v in named.items() if v in OWED_VERBS), None)
-    if line is None:
-        return None
-    on, verb = line
+    r, (on, verb) = newest
     if on != key and batches.get(on) in ("merged", "abandoned"):
         return None
     verdict = r["verdict_id"]
@@ -2461,8 +2461,19 @@ def park_owns(conn: sqlite3.Connection, batch_id: str) -> bool:
         "SELECT b.status, i.approval, i.approval_ver, i.version FROM batches b "
         "LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?", (batch_id,)).fetchone()
     # A pending batch of an owed park is a park too (frame 362).
-    held = (row is not None and row["status"] in ("pending", "deferred")
-            and owed_park(conn, batch_id) is not None)
+    key = (owed_park(conn, batch_id) if row is not None
+           and row["status"] in ("pending", "deferred") else None)
+    held = key is not None
+    if held and given_up(conn, batch_id) == [key]:
+        # One page for each owed key, on the item's first live batch. A
+        # sibling with no key of its own owes no second page (the review of
+        # 36a2edd2, finding 5).
+        first = conn.execute(
+            "SELECT b.id FROM batches b JOIN batches o ON o.item_id = b.item_id "
+            "WHERE o.id = ? AND b.status IN ('pending', 'deferred') "
+            "ORDER BY b.rowid LIMIT 1", (batch_id,)).fetchone()
+        if first is not None and first["id"] != batch_id:
+            return False
     if not held and (row is None or row["status"] != "deferred"
                      or not gave_up(conn, batch_id)):
         return False

@@ -2615,21 +2615,23 @@ def _owed_park_page(conn: sqlite3.Connection, batch: str, key: str,
     tries = row["attempts"] if row else 0
     text = conn.execute("SELECT text FROM items WHERE id = ?",
                         (found["item"],)).fetchone()
-    what = "guess at the code" if key_parts(key)[1] == "tick:guess" else "plan of the code"
-    out = [f"This change waits before it starts. You corrected the team's "
-           f"{what} it touches, and the team did not write a new one in "
-           f"{tries} attempt{'' if tries == 1 else 's'}."]
+    guess = key_parts(key)[1] == "tick:guess"
+    what, short = (("guess at the code", "guess") if guess
+                   else ("plan of the code", "plan"))
+    # The page shows no contested set and asks for no files he named
+    # already. It says what the team did not do (the review of 36a2edd2,
+    # finding 5).
+    out = ["This change waits before it starts.",
+           f"You corrected the team's {what} this request touches. The team "
+           f"tried {tries} time{'' if tries == 1 else 's'}, and it did not "
+           f"rewrite the {short}."]
     if found["words"]:
         out.append(f'You said: "{found["words"]}"')
     out.append("You asked:")
     out.append(f"  1. {text['text'] if text else found['item']}")
-    if found["line"] == "guess":
-        words = code_line(conn, found["item"], code_target(conn, found["item"]))
-    else:
-        words = code_line(conn, found["item"], {"batch": found["ref"]})
-    out.append(f"  2. {words or 'The team has no plan of the code yet.'}")
-    out.append("Name the files on line 2 again, and the team writes the plan "
-               "from your words. Or say that you give the request up.")
+    out.append("  2. The code this request touches. It waits for the team's rewrite.")
+    out.append("Reply to line 2 to say again what to change, and the team tries "
+               "again. Or say that you give the request up.")
     out.append("Nothing else waits on you. The other requests go on.")
     return chr(10).join(out), [found["item"], found["ref"]]
 

@@ -4316,7 +4316,9 @@ def _guess_seed(conn, batch_id: str) -> dict | None:
     from .scheduler import owed
 
     found = owed(conn, batch_id) if row else None
-    if found is not None:
+    # A contest of the batch's plan leaves the guess as he read it (the
+    # review of 36a2edd2, finding 6).
+    if found is not None and found["line"] == "guess":
         from ..roles.principal import entry_for
 
         seed_owed: dict[str, Any] = {"paths": [], "symbols": []}

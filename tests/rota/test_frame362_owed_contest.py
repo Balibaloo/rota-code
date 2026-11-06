@@ -133,13 +133,16 @@ def test_the_copy_of_the_old_set_discharges_nothing(db):
 
 
 def test_a_set_that_carries_the_verdict_discharges_it(db):
+    assert owed(db, ITEM)["verdict"] == "m28"
     db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
                "grain_kind) VALUES (?, 1, 'm28', ?, 'path')", (ITEM, HIS[0]))
     assert owed(db, ITEM) is None
 
 
 def test_a_stamped_batch_set_discharges_it(db):
-    _s150(db, ruling="m28")
+    _s150(db)
+    assert owed(db, ITEM)["verdict"] == "m28"
+    db.execute("UPDATE batch_touch SET ruling_id = 'm28'")
     assert owed(db, ITEM) is None
 
 
@@ -170,6 +173,7 @@ def test_a_second_contest_replaces_the_first(db):
 
 def test_the_relay_write_carries_the_verdict(db):
     db.execute("UPDATE messages SET status = 'open' WHERE id = 'm29'")
+    assert owed(db, ITEM)["verdict"] == "m28"
     sb = _architect(db, "guess", Wake("architect", "message", message_id="m29"),
                     trigger="m29")
     sb.call("batches.guess", item_id=ITEM, paths=HIS)
@@ -182,18 +186,26 @@ def test_the_relay_write_carries_the_verdict(db):
 def test_the_tick_write_carries_the_verdict(db):
     wake = Wake("architect", "tick:guess", refs=(ITEM, "m28"))
     sb = _architect(db, "guess", wake)
+    assert owed(db, ITEM)["verdict"] == "m28"
     sb.call("batches.guess", item_id=ITEM, paths=HIS)
     _commit(db, sb, "tick:guess", wake.refs)
+    assert sorted(tuple(r) for r in db.execute(
+        "SELECT grain, ruling_id FROM touch_guesses WHERE ruling_id != ''")) == [
+        (HIS[0], "m28"), (HIS[1], "m28")]
     assert owed(db, ITEM) is None
 
 
 def test_a_plain_tick_write_carries_no_verdict(db):
-    db.execute("UPDATE rulings SET per_item = ?", (json.dumps({KEY: "approve"}),))
+    # A tick with no verdict in its refs writes no stamp, also while his
+    # contest is owed, so the fact stays.
+    _second_contest(db)
     wake = Wake("architect", "tick:annotate", refs=("b_1",))
     sb = _architect(db, "annotate", wake)
     sb.call("batches.annotate", batch_id="b_1", paths=HIS)
     _commit(db, sb, "tick:annotate", wake.refs)
-    assert {r[0] for r in db.execute("SELECT ruling_id FROM batch_touch")} == {""}
+    assert sorted(tuple(r) for r in db.execute(
+        "SELECT grain, ruling_id FROM batch_touch")) == [(HIS[0], ""), (HIS[1], "")]
+    assert owed(db, ITEM)["verdict"] == "m40"
 
 
 def test_a_tick_rewrite_of_the_batch_line_clears_the_set_and_stamps_it(db):
@@ -224,10 +236,14 @@ def test_the_door_refuses_the_contested_set_under_a_contest(db):
 def test_the_door_admits_the_same_set_under_a_revise(db):
     db.execute("UPDATE rulings SET per_item = ?", (json.dumps({KEY: "revise"}),))
     sb = _architect(db, "guess", Wake("architect", "tick:guess", refs=(ITEM, "m28")))
+    assert owed(db, ITEM)["verb"] == "revise"
     out = sb.call("batches.guess", item_id=ITEM,
                   paths=[g for g, k, _ in GUESS if k == "path"],
                   symbols=[g for g, k, _ in GUESS if k == "symbol"])
     assert out["grains"] == 6
+    _commit(db, sb, "tick:guess", (ITEM, "m28"))
+    assert {r[0] for r in db.execute("SELECT ruling_id FROM touch_guesses "
+                                     "WHERE rowid > 6")} == {"m28"}
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +262,11 @@ def test_the_guess_tick_carries_the_item_and_the_verdict(db):
 def test_the_guess_tick_waits_behind_an_open_relay(db):
     db.execute("UPDATE messages SET status = 'open' WHERE id = 'm29'")
     assert _guess_wakes(db) == []
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm29'")
+    db.execute("UPDATE messages SET status = 'open' WHERE id = 'm28'")
+    assert _guess_wakes(db) == []
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm28'")
+    assert _guess_wakes(db) == [("architect", "tick:guess", (ITEM, "m28"))]
 
 
 def test_the_tick_inbound_holds_his_words_and_verdict_and_no_old_set(db):
@@ -309,19 +330,23 @@ def test_a_spent_key_parks_the_item_and_owes_the_page(db):
     assert park_rows(db, "b_1") == [ITEM, KEY]
     text, order = _park_page(db, "b_1", [ITEM, KEY])
     assert order == [ITEM, KEY]
-    assert text.splitlines() == [
-        "This change waits before it starts. You corrected the team's guess at "
-        "the code it touches, and the team did not write a new one in 3 attempts.",
-        f'You said: "{M27}"',
-        "You asked:",
-        f"  1. {TEXT}",
-        "  2. The team's guess at the code this touches: "
-        + ", ".join(g for g, k, _ in GUESS if k == "path")
-        + ". It might touch " + ", ".join(g for g, k, _ in GUESS if k == "symbol") + ".",
-        "Name the files on line 2 again, and the team writes the plan from your "
-        "words. Or say that you give the request up.",
-        "Nothing else waits on you. The other requests go on.",
-    ]
+    assert text.splitlines() == PAGE
+
+
+# The park page of an owed guess line. It shows no contested set, and it
+# asks for no files that his reply named already (pass 2, finding 5).
+PAGE = [
+    "This change waits before it starts.",
+    "You corrected the team's guess at the code this request touches. The team "
+    "tried 3 times, and it did not rewrite the guess.",
+    f'You said: "{M27}"',
+    "You asked:",
+    f"  1. {TEXT}",
+    "  2. The code this request touches. It waits for the team's rewrite.",
+    "Reply to line 2 to say again what to change, and the team tries again. Or "
+    "say that you give the request up.",
+    "Nothing else waits on you. The other requests go on.",
+]
 
 
 def test_a_second_contest_gets_a_fresh_key_and_ends_the_park(db):
@@ -330,3 +355,165 @@ def test_a_second_contest_gets_a_fresh_key_and_ends_the_park(db):
     _second_contest(db, per={KEY: "contest"})
     assert not parked(db, "b_1")
     assert _guess_wakes(db) == [("architect", "tick:guess", (ITEM, "m40"))]
+
+
+# ---------------------------------------------------------------------------
+# Pass 2: the review of 36a2edd2
+# ---------------------------------------------------------------------------
+
+def _approve_batch(db):
+    """r_m54 of dry 6b: his approve of the batch line on page m53."""
+    _msg(db, "m53", "liaison", "principal", "present", ["b_1", ITEM], seq=53)
+    _msg(db, "m55", "principal", "liaison", "verdict", ["b_1"], "m53", seq=55)
+    _ruling(db, "r_m54", "m53", "m55", {"b_1": "approve", ITEM: "approve"},
+            "Line 6 is right.")
+    db.commit()
+
+
+def test_a_newer_approve_of_the_batch_line_ends_nothing(db):
+    # Finding 1: only a row that carries the ruling, or a newer contest or
+    # revise of his, ends an owed contest.
+    _approve_batch(db)
+    assert owed(db, ITEM)["ruling"] == "r_m27"
+
+
+def _old_file(tmp_path):
+    """A run file from before the column: s171's relay rewrite of b_1 under
+    m42, and s150's tick copy, both with no stamp."""
+    from rota.core.db import init_db as _init
+
+    path = tmp_path / "old.db"
+    conn = _init(path)
+    conn.execute("INSERT INTO items (id, text, kind, approval) VALUES (?, ?, "
+                 "'in_scope', 'approved')", (ITEM, TEXT))
+    conn.execute("INSERT INTO batches (id, item_id) VALUES ('b_1', ?)", (ITEM,))
+    _msg(conn, "m31", "liaison", "principal", "present", ["b_1"], seq=31)
+    _msg(conn, "m42", "principal", "liaison", "verdict", ["b_1"], "m31", seq=42)
+    _msg(conn, "m45", "liaison", "architect", "relay", ["b_1"], "m42", seq=45)
+    _ruling(conn, "r_m39", "m31", "m42", {"b_1": "contest"}, M39)
+    for sid, seq, trigger, grains in (("s150", 150, None, ["src/icalendar/parser/property.py"]),
+                                      ("s171", 171, "m45", HIS)):
+        conn.execute("INSERT INTO sessions (id, role, seq, trigger_msg) VALUES "
+                     "(?, 'architect', ?, ?)", (sid, seq, trigger))
+        for n, g in enumerate(grains):
+            conn.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+                         "new_version) VALUES (?, 'batch_touch', ?, ?)",
+                         (sid, f"b_1:{g}", seq + n))
+    for g in HIS + ["src/icalendar/tests/other.py"]:
+        conn.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+                     "VALUES ('b_1', ?, 'path')", (g,))
+    conn.commit()
+    conn.execute("ALTER TABLE batch_touch DROP COLUMN ruling_id")
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _stamps(conn):
+    return sorted(tuple(r) for r in conn.execute(
+        "SELECT grain, ruling_id FROM batch_touch"))
+
+
+def test_the_migration_stamps_a_relay_rewrite_from_the_receipts(tmp_path):
+    # Finding 2: dry 6b at s173 owed r_m41 again after the migration.
+    conn = init_db(_old_file(tmp_path))
+    assert _stamps(conn) == [(HIS[0], "m42"), ("src/icalendar/tests/other.py", ""),
+                             (HIS[1], "m42")]
+    assert owed(conn, "b_1") is None
+
+
+def test_connect_adds_the_column_and_its_stamps(tmp_path):
+    # Finding 8: `connect` gives an older file the late columns.
+    from rota.core.db import connect
+
+    conn = connect(_old_file(tmp_path))
+    assert _stamps(conn)[0] == (HIS[0], "m42")
+
+
+def test_one_page_for_each_owed_key(db):
+    # Finding 5: an item with two pending batches gets one page.
+    from rota.core.predicates import park_ask
+
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b_2', ?, 'pending')",
+               (ITEM,))
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    assert parked(db, "b_2")
+    assert [w.refs for w in park_ask(db)] == [(ITEM, "b_1")]
+
+
+def test_the_seed_keeps_the_guess_under_a_batch_line_contest(db):
+    # Finding 6: he contested the batch's plan, not the guess.
+    _second_contest(db)
+    seed = _guess_seed(db, "b_1")
+    assert seed["paths"] == [g for g, k, _ in GUESS if k == "path"]
+
+
+def test_a_stamped_guess_rewrite_clears_the_old_batch_plan(db):
+    # Finding 7: a batch annotated before his contest keeps no old plan.
+    from rota.core.predicates import annotate
+
+    _s150(db)
+    wake = Wake("architect", "tick:guess", refs=(ITEM, "m28"))
+    sb = _architect(db, "guess", wake)
+    sb.call("batches.guess", item_id=ITEM, paths=HIS)
+    _commit(db, sb, "tick:guess", wake.refs)
+    assert _stamps(db) == []
+    assert [w.refs for w in annotate(db)] == [("b_1",)]
+
+
+# The six branches that the review's mutations left green (finding 4).
+
+def test_an_owed_batch_line_wakes_annotate_with_the_verdict(db):
+    from rota.core.predicates import annotate
+
+    _s150(db)
+    _second_contest(db)
+    assert [(w.kind, w.refs) for w in annotate(db)] == [
+        ("tick:annotate", ("b_1", "m40"))]
+
+
+def test_the_batch_line_tick_waits_behind_an_open_relay(db):
+    from rota.core.predicates import annotate
+
+    _s150(db)
+    _second_contest(db)
+    _msg(db, "m45", "liaison", "architect", "relay", ["b_1"], "m40", status="open",
+         seq=45)
+    assert annotate(db) == []
+
+
+def test_the_annotate_door_refuses_the_contested_plan(db):
+    _s150(db)
+    _second_contest(db)
+    sb = _architect(db, "annotate", Wake("architect", "tick:annotate",
+                                         refs=("b_1", "m40")))
+    with pytest.raises(Exception, match="the same set"):
+        sb.call("batches.annotate", batch_id="b_1",
+                paths=[g for g, k, _ in GUESS if k == "path"],
+                symbols=[g for g, k, _ in GUESS if k == "symbol"])
+
+
+def test_a_contest_on_a_closed_batch_owes_nothing(db):
+    _second_contest(db)
+    assert owed(db, ITEM)["ref"] == "b_1"
+    db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b_1'")
+    assert owed(db, ITEM) is None
+
+
+def test_the_spent_owed_key_is_given_up_for_the_batch(db):
+    from rota.core.scheduler import given_up
+
+    assert given_up(db, "b_1") == []
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    assert given_up(db, "b_1") == [f"architect|tick:guess|{ITEM},m28"]
+
+
+def test_the_owed_park_ask_stays_open_until_the_park_ends(db):
+    from rota.core.scheduler import close_stale_park_asks, park_ask_id
+
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    mid = park_ask_id(db, "b_1")
+    _msg(db, mid, "liaison", "principal", "present", [ITEM, KEY], status="open", seq=60)
+    assert close_stale_park_asks(db) == 0
+    db.execute("DELETE FROM tick_attempts")
+    assert close_stale_park_asks(db) == 1
