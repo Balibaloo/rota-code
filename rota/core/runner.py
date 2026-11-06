@@ -462,11 +462,12 @@ DETAIL_SHOWN = {"tick:tests_missing",
 
 def _claim_line(conn: sqlite3.Connection, role: str, batch_id: str | None) -> str:
     """The claim words for a Tester or a Critic of a claimed batch, or ""."""
-    from ..roles.api import CRITIC_CLAIM_NOTE, _claimed
+    from ..roles.api import _claimed, critic_claim_note
     from .predicates import CLAIM_DETAIL
 
-    words = {"tester": CLAIM_DETAIL, "critic": CRITIC_CLAIM_NOTE}.get(role)
-    return words if words and _claimed(conn, batch_id) else ""
+    if role == "critic":
+        return critic_claim_note(conn, batch_id)
+    return CLAIM_DETAIL if role == "tester" and _claimed(conn, batch_id) else ""
 
 
 def _review_pending_line(conn: sqlite3.Connection, batch_id: str) -> str:

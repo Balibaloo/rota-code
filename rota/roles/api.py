@@ -13149,23 +13149,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "tests.encode", {"id": id, "criterion_id": criterion_id,
                              "path": stored["path"], "body": body,
                              "batch_id": batch_id}))
-    # Frame 360, the review of pass 1, finding 2: on a claim, a red test is
-    # the one run that disproves the claim. A challenge or an answer could
-    # replace it with no word. The first replace names the claim, and the
-    # same encode sent again lands.
+    # Frame 360, the review of pass 1, finding 2, and the second look, S2: on
+    # a claim, a red test is the one run that disproves the claim. A second
+    # send replaced it, and the claim merged with no word of the red run.
+    # So the test stands on every try. Only a challenge of this test by the
+    # Developer opens the replace, and the run journal keeps the red run.
     if (replaces and _claimed(ctx.conn, batch_id)
-            and (batch_id, id) not in (getattr(ctx, "claim_noted", None) or set())
+            and not _developer_challenged(ctx, id, criterion_id)
             and ctx.conn.execute(
                 "SELECT 1 FROM latest_runs WHERE batch_id = ? AND test_id = ? "
                 "AND result IN ('fail', 'error')", (batch_id, id)).fetchone()):
-        ctx.claim_noted = (getattr(ctx, "claim_noted", None) or set()) | {
-            (batch_id, id)}
         raise ValueError(
             f"{id} is red on batch {batch_id}, and no code changed on this "
             f"batch. The Developer claims that the code as it is already "
             f"meets each criterion, and this red test is the run against the "
-            f"claim. Replace it only if the criterion's words give the value "
-            f"that the run shows. Then send the same encode again.")
+            f"claim. The test stands, and its red goes to the Developer. "
+            f"Nothing was written.")
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
     # Frame 328, night 167: the encode note told s271 to encode tst_tk3
@@ -23114,6 +23113,45 @@ CRITIC_CLAIM_NOTE = ("No code changed on this batch. The Developer claims the "
                      "criteria are met. The tests are the only evidence.")
 
 
+def _developer_challenged(ctx, test_id, criterion_id) -> bool:
+    """This session woke on the Developer's challenge of this test."""
+    trigger = getattr(ctx, "trigger", None)
+    if not trigger:
+        return False
+    row = ctx.conn.execute(
+        "SELECT from_role, verb, body_refs FROM messages WHERE id = ?",
+        (trigger,)).fetchone()
+    if row is None or (row["from_role"], row["verb"]) != ("developer", "challenge"):
+        return False
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except ValueError:
+        return False
+    return test_id in refs or criterion_id in refs
+
+
+def critic_claim_note(conn, batch_id) -> str:
+    """What the Critic of a claimed batch reads, or "" on no claim.
+
+    A team test of the batch that the journal holds red at the claimed head
+    and that now passes there was replaced, because no code changed. The
+    Tester can replace it only on the Developer's challenge (frame 360,
+    second look, S2)."""
+    if not _claimed(conn, batch_id):
+        return ""
+    replaced = conn.execute(
+        "SELECT 1 FROM test_run_journal j JOIN batches b ON b.id = j.batch_id "
+        "JOIN tests t ON t.id = j.test_id AND t.batch_id = j.batch_id "
+        "JOIN latest_runs l ON l.test_id = t.id AND l.batch_id = t.batch_id "
+        "WHERE j.batch_id = ? AND j.commit_sha = b.head_commit "
+        "AND j.result IN ('fail', 'error') AND l.result = 'pass' "
+        "AND l.commit_sha = b.head_commit AND t.criterion_id IS NOT NULL "
+        "AND t.version > 1 LIMIT 1", (batch_id,)).fetchone()
+    return CRITIC_CLAIM_NOTE + (
+        " A test of this batch failed on the code as it is, and the Tester "
+        "replaced it." if replaced else "")
+
+
 def _claimed(conn, batch_id) -> bool:
     """The batch's head is a claim: no code changed (frame 360). Equality
     is the only test, because a later real commit ends the claim."""
@@ -24309,7 +24347,7 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         # On a claim the head is the fork too. s154 read "no commit yet" and
         # passed three weak tests (frame 360, the design's R3 item 5).
         if _claimed(ctx.conn, bid):
-            out["note"] = CRITIC_CLAIM_NOTE
+            out["note"] = critic_claim_note(ctx.conn, bid)
         elif fork == worktrees.head(row["worktree"]):
             out["note"] = "no commit yet on this batch"
     else:

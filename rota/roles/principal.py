@@ -193,7 +193,9 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
     else:
         held = held_asks(conn)
         # A touch note about merged work asks nothing (frame 360).
-        held |= {m for m, _ in merged_touch_notes(conn)}
+        from ..core.lifecycle import open_merged_touch_notes
+
+        held |= {m for m, _ in open_merged_touch_notes(conn)}
         rows = [r for r in rows if r["id"] not in held]
     return [
         Ask(message_id=r["id"], verb=r["verb"],
@@ -322,7 +324,8 @@ def claimed_lines(conn: sqlite3.Connection) -> list[str]:
             "AND l.batch_id = t.batch_id) FROM tests t WHERE t.batch_id = ? "
             "AND (t.criterion_id IS NOT NULL OR t.commitment_id IS NOT NULL)",
             (b["id"],))]
-        words = [f"{b['text'] or b['id']}: no code changed. The team says the "
+        # A request that ends with a full stop read ".:" (second look).
+        words = [f"{(b['text'] or b['id']).rstrip('.')}: no code changed. The team says the "
                  "code already does this."]
         if runs and all(r == "pass" for r in runs):
             words.append(f"The only evidence is {len(runs)} "
@@ -341,33 +344,19 @@ def claimed_lines(conn: sqlite3.Connection) -> list[str]:
 
 
 def merged_touch_notes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
-    """The open touch notes whose every batch merged, as (message, request).
+    """The touch notes about merged work, as (message, request): each note
+    that a merge discharged, then each open note whose every batch merged.
 
     Run 1 of the frame 362 arm: the touch note m31 still said "Before I build
     this" and "Reply 'ok' to go ahead" after its batch merged, and it hid
     every other state line. A note never blocks (ruled: 2026-09-12, ruling
-    2), so a note about merged work is one state line and no page. The
-    message stays open in the register (the design, Revision R3 item 2).
+    2), so a note about merged work is one state line and no page (the
+    design, Revision R3 item 2). A database merged before the discharge
+    still holds the note open, so the open notes count too.
     """
-    from ..core.lifecycle import predicted_rows
+    from ..core.lifecycle import discharged_touch_notes, open_merged_touch_notes
 
-    status = {r[0]: r[1] for r in conn.execute("SELECT id, status FROM batches")}
-    items = {r[0]: r[1] for r in conn.execute("SELECT id, text FROM items")}
-    out = []
-    for m in conn.execute(
-            "SELECT id, body_refs FROM messages WHERE status = 'open' "
-            "AND to_role = 'principal' AND verb = 'present' ORDER BY seq"):
-        try:
-            refs = [r for r in json.loads(m["body_refs"] or "[]")]
-        except ValueError:
-            continue
-        batches = [r for r in refs if r in status]
-        if (batches and all(status[b] == "merged" for b in batches)
-                and all(r in status or r in items for r in refs)
-                and any(predicted_rows(conn, b) for b in batches)):
-            item = next((r for r in refs if r in items), None)
-            out.append((m["id"], items.get(item) or batches[0]))
-    return out
+    return discharged_touch_notes(conn) + open_merged_touch_notes(conn)
 
 
 def render_state(conn: sqlite3.Connection) -> str:
@@ -477,7 +466,7 @@ def _render_state(conn: sqlite3.Connection) -> str:
         else:
             out.append(f"The merged work carries {listed}. Ask me to show them.")
     out.extend(claimed_lines(conn))
-    out.extend(f"The plan for {request} reached you after its merge. Ask me "
+    out.extend(f"The plan for {request.rstrip('.')} reached you after its merge. Ask me "
                "to show it." for _, request in merged_touch_notes(conn))
     # A re-survey after a merge asks nothing, so the state view shows it as
     # one sentence and no page (frame 358).

@@ -640,9 +640,43 @@ def test_a_replace_of_the_red_test_of_a_claim_names_the_claim(world):
     with pytest.raises(ValueError, match="no code changed on this batch"):
         tb.call("tests.encode", id="tst1", criterion_id="c1",
                 path="tests/test_probe_f360.py", body=green)
+    # Second look, S2: a second send replaced the red test, and the claim
+    # merged with no word of the red run. The test stands on every try.
+    with pytest.raises(ValueError, match="The test stands"):
+        tb.call("tests.encode", id="tst1", criterion_id="c1",
+                path="tests/test_probe_f360.py", body=green)
+
+
+def test_a_challenge_by_the_developer_lets_the_tester_replace_the_red_test(world):
+    """Second look, S2: only a challenge of the test by the Developer opens
+    the replace. The Critic then reads that a red test was replaced."""
+    from rota.roles.api import critic_claim_note
+
+    db, repo, tree = world
+    _red_at_fork(db, repo)
+    db.execute("INSERT INTO messages (id, thread_id, seq, from_role, to_role, "
+               "verb, body_refs, body_text, status) VALUES ('m_ch', 'th_ch', 50, "
+               "'developer', 'tester', 'challenge', '[\"tst1\", \"c1\"]', "
+               "'the test asks for 2 cats!', 'open')")
+    db.commit()
+    tb = build("tester", db, batch_id="b1", allow=_tools("tester/challenge"))
+    tb.ctx.trigger = "m_ch"
+    green = RED_BODY.replace("'2 cats!'", "'2 cats'")
+
     out = tb.call("tests.encode", id="tst1", criterion_id="c1",
                   path="tests/test_probe_f360.py", body=green)
     assert out.get("id") == "tst1", out
+    session_commit(db, SessionResult(
+        session_id="s_tst", role="tester", wake_kind="message",
+        wake_refs=("b1",), writes=[_as_write(w) for w in tb.ctx.writes]))
+    lifecycle.record_test_run(db, "r2", "b1", "tst1", "pass",
+                              commit_sha=repo.head())
+    db.commit()
+
+    assert critic_claim_note(db, "b1") == (
+        CRITIC_CLAIM + " A test of this batch failed on the code as it is, "
+        "and the Tester replaced it.")
+    assert build("critic", db, batch_id="b1").call("code.read")["note"]         == critic_claim_note(db, "b1")
 
 
 @pytest.mark.parametrize("role,words", [("tester", CLAIM_DETAIL),
@@ -748,6 +782,12 @@ def test_a_claim_waits_on_the_review_setting_as_every_batch_does(world):
     assert lifecycle.mergeable(db, "b1") == "waiting on the principal's review"
 
 
+# The refs of the real touch note m31 of dry6b.db, with the ids of this
+# world: the batch, the item, the criteria and two readings (second look,
+# S1).
+M31_REFS = '["b1", "i1", "c1", "reading:m5", "reading:m27"]'
+
+
 def _merged_claim_with_touch_note(db, repo):
     _ready_claim(db, repo)
     db.execute("UPDATE items SET text = 'keep plural as before' WHERE id = 'i1'")
@@ -755,7 +795,7 @@ def _merged_claim_with_touch_note(db, repo):
                "VALUES ('b1', 'src/notify/formatting.py', 'path')")
     db.execute("INSERT INTO messages (id, thread_id, seq, from_role, to_role, "
                "verb, body_refs, status) VALUES ('m31', 'th31', 31, 'liaison', "
-               "'principal', 'present', '[\"b1\", \"i1\"]', 'open')")
+               "'principal', 'present', ?, 'open')", (M31_REFS,))
     db.commit()
     lifecycle.merge(db, "b1")
 
@@ -777,8 +817,35 @@ def test_the_state_after_a_claimed_merge(world):
         "to show it.",
         "The plan for keep plural as before reached you after its merge. Ask "
         "me to show it."], page
+    # Second look, S3: the merge discharges the note, and a ledger row
+    # says why. The loop does not wait on him for it.
+    from rota.core.loop import _why_idle
+
     assert db.execute("SELECT status FROM messages WHERE id = 'm31'"
-                      ).fetchone()[0] == "open"
+                      ).fetchone()[0] == "answered"
+    assert db.execute("SELECT COUNT(*) FROM ledger WHERE status = 'resolved' "
+                      "AND default_taken LIKE '%m31%'").fetchone()[0] == 1
+    assert "waiting on the principal" not in _why_idle(db)
+
+
+def test_a_touch_note_left_open_by_an_older_merge_asks_nothing(world):
+    """Second look, S1 and S3: dry6b.db merged before the discharge, so
+    m31 is still open there. No reader that the principal or the loop
+    reads counts it as an ask."""
+    from rota.core.loop import _why_idle
+    from rota.roles.principal import pending_asks
+
+    db, repo, tree = world
+    _merged_claim_with_touch_note(db, repo)
+    db.execute("UPDATE messages SET status = 'open' WHERE id = 'm31'")
+    db.execute("DELETE FROM ledger WHERE default_taken LIKE '%m31%'")
+    db.commit()
+
+    assert pending_asks(db) == []
+    assert "waiting on the principal" not in _why_idle(db)
+    page = render_state(db)
+    assert "Waiting on you." not in page, page
+    assert page.count("reached you after its merge") == 1, page
 
 
 def test_the_claimed_line_shows_once_under_a_waiting_ask(world):
@@ -809,9 +876,10 @@ def test_the_claimed_line_shows_once_under_a_waiting_ask(world):
 
 def test_a_claimed_line_drops_what_the_rows_do_not_show(tmp_path):
     """Item 8: each sentence is true in every state that shows the line. A
-    merge with no run and no verdict keeps only the first two sentences."""
+    merge with no run and no verdict keeps only the first two sentences. A request
+    that ends with a full stop gives no ".:" (second look, on dry6b.db)."""
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x','in_scope')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x.','in_scope')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit, "
                "claimed_head) VALUES ('b1', 'i1', 'merged', 'bbb', 'bbb')")
     db.commit()

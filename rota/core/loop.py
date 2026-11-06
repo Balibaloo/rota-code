@@ -705,7 +705,13 @@ def _why_idle(conn: sqlite3.Connection) -> str:
         return f"{state} by the principal; resume is explicit"
 
     waiting = [dict(r) for r in conn.execute(
-        "SELECT verb, body_refs FROM messages WHERE status = 'open' AND to_role = 'principal'")]
+        "SELECT id, verb, body_refs FROM messages WHERE status = 'open' AND to_role = 'principal'")]
+    # A touch note about merged work asks nothing. A database merged before
+    # the discharge still holds it open (frame 360, second look, S3).
+    from .lifecycle import open_merged_touch_notes
+
+    merged = {m for m, _ in open_merged_touch_notes(conn)}
+    waiting = [w for w in waiting if w["id"] not in merged]
     if waiting:
         verbs = ", ".join(sorted({w["verb"] for w in waiting}))
         return f"gate: waiting on the principal ({verbs})"

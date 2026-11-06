@@ -196,6 +196,75 @@ def abandon(conn: sqlite3.Connection, batch_id: str) -> None:
     _reindex_main(conn, batch_id)
 
 
+# The words of the ledger row that records a discharged touch note.
+TOUCH_MERGED_WORDS = "The merge discharged the touch note "
+
+
+def open_merged_touch_notes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """The open touch notes whose every batch merged, as (message, request).
+
+    A note is a touch note when it presents to the principal and names a
+    batch with touch rows. Its other refs do not matter: the real m31 also
+    names criteria and readings (frame 360, second look, S1)."""
+    status = {r[0]: r[1] for r in conn.execute("SELECT id, status FROM batches")}
+    items = {r[0]: r[1] for r in conn.execute("SELECT id, text FROM items")}
+    out = []
+    for m in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE status = 'open' "
+            "AND to_role = 'principal' AND verb = 'present' ORDER BY seq"):
+        try:
+            refs = [r for r in json.loads(m["body_refs"] or "[]")
+                    if isinstance(r, str)]
+        except ValueError:
+            continue
+        batches = [r for r in refs if r in status]
+        if (batches and all(status[b] == "merged" for b in batches)
+                and any(predicted_rows(conn, b) for b in batches)):
+            item = next((r for r in refs if r in items), None)
+            out.append((m["id"], items.get(item) or batches[0]))
+    return out
+
+
+def discharge_touch_notes(conn: sqlite3.Connection) -> list[str]:
+    """Close each open touch note whose every batch merged, and record why.
+
+    A touch note asks nothing (ruled: 2026-09-12, ruling 2). After the merge
+    it left the loop "waiting on the principal" for a page that no reply
+    could reach (frame 360, second look, S3). The resolved ledger row is the
+    record, in the shape of frame 358's notes after a merge."""
+    import hashlib
+
+    done = []
+    for mid, _ in open_merged_touch_notes(conn):
+        refs = json.loads(conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                                       (mid,)).fetchone()[0] or "[]")
+        item = next((r for r in refs if isinstance(r, str) and conn.execute(
+            "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()), None)
+        words = TOUCH_MERGED_WORDS + mid + ", because its batch merged."
+        lid = "l_" + hashlib.sha256(words.encode()).hexdigest()[:10]
+        conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?", (mid,))
+        conn.execute(
+            "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
+            "default_taken, kind, status, author) VALUES (?, ?, ?, ?, 'other', "
+            "'resolved', 'scheduler')",
+            (lid, item or mid, "items" if item else "messages", words))
+        done.append(mid)
+    return done
+
+
+def discharged_touch_notes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """The touch notes that a merge discharged, as (message, request)."""
+    out = []
+    for r in conn.execute(
+            "SELECT l.default_taken, i.text FROM ledger l LEFT JOIN items i "
+            "ON i.id = l.about_ref WHERE l.status = 'resolved' "
+            "AND substr(l.default_taken, 1, ?) = ? ORDER BY l.rowid",
+            (len(TOUCH_MERGED_WORDS), TOUCH_MERGED_WORDS)):
+        mid = r[0][len(TOUCH_MERGED_WORDS):].split(",", 1)[0]
+        out.append((mid, r[1] or mid))
+    return out
+
+
 def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     """
     Delivered. The end of the line for a batch, and the only terminal state that
@@ -241,6 +310,7 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
         # tolerates -- the batch is still delivered as far as the database
         # can know.
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
+    discharge_touch_notes(conn)
     # The item's version as delivered. An approval of a later version is
     # new work and slices again; without the record the corrected split sat
     # approved with one spent ticket (tipsAH, 2026-09-09).
