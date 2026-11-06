@@ -15646,6 +15646,21 @@ def _add_lines(menu: dict[int, tuple[str, list[str]]]) -> list[int]:
             if "add <quote>" in options]
 
 
+# The text between two clauses of one sentence or of two sentences: marks,
+# white space and one joining word, as the cut of `_CUE_CLAUSE` leaves it.
+_ADD_GAP = r"([\s.,;:!?]*(?:(?:and|but|or|so|then|also)\s+)?)"
+
+
+def _joined_add(his: str, words: str, last: str, new: str) -> str:
+    """The words of a row that a second add reaches, in the order of his
+    reply. `last` is the add before `new`. When his reply holds the two
+    clauses side by side, his own text between them joins them, so the
+    words stay a run of his reply. Else one space joins them."""
+    m = re.search(re.escape(last) + _ADD_GAP + re.escape(new), his or "",
+                  re.I)
+    return words + (m.group(1) if m else " ") + new
+
+
 def page_clauses(his: str, size: int,
                  menu: dict[int, tuple[str, list[str]]] | None = None
                  ) -> list[dict]:
@@ -16001,6 +16016,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     covered: set[int] = set()
     per_item: dict[str, str] = {}
     shape_of: dict[str, dict] = {}
+    # The words of the newest add on each ref, for the join of the next one.
+    last_add: dict[str, str] = {}
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
         if name in _LANDS_NOTHING:
@@ -16067,6 +16084,16 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 shape["target_kind"] = target_kind
             if paths:
                 shape["target"], shape["paths"] = paths[0], paths
+            # Every add on one ref keeps its words, in the order of his
+            # reply. Each clause add goes to the one add line, and a second
+            # add overwrote the first. s143's row kept one sentence of three
+            # (frame 362, dry run 6c wall 2). The table holds one row per
+            # ruling and ref, so the words join on that row.
+            if act == "add" and shape_of.get(ref, {}).get("act") == "add":
+                shape["words"] = _joined_add(his, shape_of[ref]["words"],
+                                             last_add[ref], said)
+            if act == "add":
+                last_add[ref] = said
             per_item[ref], shape_of[ref] = verdict, shape
             ruled[n] = label
         # A read-back line ruled with rows also rules those rows of the
