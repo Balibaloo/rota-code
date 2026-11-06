@@ -328,17 +328,19 @@ def test_a_spent_key_parks_the_item_and_owes_the_page(db):
     assert _guess_wakes(db) == []
     assert [w.refs for w in park_ask(db)] == [(ITEM, "b_1")]
     assert park_rows(db, "b_1") == [ITEM, KEY]
+    _woke(db)
     text, order = _park_page(db, "b_1", [ITEM, KEY])
     assert order == [ITEM, KEY]
     assert text.splitlines() == PAGE
 
 
 # The park page of an owed guess line. It shows no contested set, and it
-# asks for no files that his reply named already (pass 2, finding 5).
+# asks for no files that his reply named already (pass 2, finding 5). The
+# count is the relay and the three ticks of `_woke` (pass 3, item 2).
 PAGE = [
     "This change waits before it starts.",
     "You corrected the team's guess at the code this request touches. The team "
-    "tried 3 times, and it did not rewrite the guess.",
+    "tried 4 times, and it did not rewrite the guess.",
     f'You said: "{M27}"',
     "You asked:",
     f"  1. {TEXT}",
@@ -494,6 +496,10 @@ def test_the_annotate_door_refuses_the_contested_plan(db):
 
 
 def test_a_contest_on_a_closed_batch_owes_nothing(db):
+    # A set under m28 ends the guess contest first, so only the batch
+    # contest is left to owe (pass 3, item 1).
+    db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
+               "grain_kind) VALUES (?, 1, 'm28', ?, 'path')", (ITEM, HIS[0]))
     _second_contest(db)
     assert owed(db, ITEM)["ref"] == "b_1"
     db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b_1'")
@@ -517,3 +523,143 @@ def test_the_owed_park_ask_stays_open_until_the_park_ends(db):
     assert close_stale_park_asks(db) == 0
     db.execute("DELETE FROM tick_attempts")
     assert close_stale_park_asks(db) == 1
+
+
+# ---------------------------------------------------------------------------
+# Pass 3: the second look at 822311e0
+# ---------------------------------------------------------------------------
+
+def _run(db, wake, call, instructions):
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    out = run_session(db, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=Pins(model="stub", temperature=0.0),
+                      instructions=instructions)
+    assert out.committed, out.errors
+    return out
+
+
+def _parked_page(db):
+    """The owed park page, presented by a Liaison session and open to him."""
+    from rota.core.predicates import park_ask
+    from rota.roles.principal import pending_asks
+
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    (wake,) = park_ask(db)
+    db.commit()
+    _run(db, wake, f'TOOL: msg.present_principal(refs=["{ITEM}", "b_1"])', "ask")
+    (ask,) = [a for a in pending_asks(db) if a.message_id.startswith("m_park_")]
+    return ask
+
+
+def _his_reply(db, ask, text, ruling):
+    """His reply lands through the Liaison's landing session (`rulings.rule`)."""
+    from rota.core.scheduler import open_tips
+    from rota.roles.principal import land, parse_reply
+
+    answer = parse_reply(ask, text)
+    reply = land(db, ask, answer)
+    db.commit()
+    (wake,) = [w for w in open_tips(db) if w.message_id == reply]
+    _run(db, wake, f"TOOL: rulings.rule(rulings={json.dumps(ruling)})", "land")
+    db.commit()
+    (verdict,) = db.execute("SELECT id FROM messages WHERE cause_id = ? AND verb = "
+                            "'verdict'", (ask.message_id,)).fetchall()
+    return verdict["id"]
+
+
+AGAIN = ("Line 2 is still wrong. Only string.py and test_icalendar.py change, "
+         "nothing in property.py.")
+
+
+def test_his_contest_of_line_2_lands_a_new_ruling_and_wakes_the_owner(db):
+    # Item 3: the page says "Reply to line 2 ... and the team tries again".
+    from rota.core.scheduler import open_tips
+
+    ask = _parked_page(db)
+    assert ask.refs[:2] == [ITEM, KEY]
+    verdict = _his_reply(db, ask, AGAIN, {"1": "approve", "2": "rewrite", "c2": "none"})
+    found = owed(db, ITEM)
+    assert (found["verdict"], found["line"], found["ref"]) == (verdict, "guess", KEY)
+    assert owed_key(found) != f"architect|tick:guess|{ITEM},m28"
+    assert not parked(db, "b_1")
+    # The Liaison relays the verdict, and the relay wakes the Architect.
+    (wake,) = [w for w in open_tips(db) if w.message_id == verdict]
+    _run(db, wake, f'TOOL: msg.relay_architect(refs=["{KEY}"])', "relay")
+    db.commit()
+    (relay,) = db.execute("SELECT id FROM messages WHERE cause_id = ? AND verb = "
+                          "'relay' AND to_role = 'architect'", (verdict,)).fetchall()
+    assert [w.role for w in open_tips(db) if w.message_id == relay["id"]] == ["architect"]
+    # The tick waits behind the relay, then carries the new verdict.
+    assert _guess_wakes(db) == []
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = ?", (relay["id"],))
+    assert _guess_wakes(db) == [("architect", "tick:guess", (ITEM, verdict))]
+
+
+GIVE_UP = "I give the request up."
+
+
+@pytest.mark.parametrize("line_1", ["drop", f"other {GIVE_UP}"])
+def test_he_gives_the_request_up_and_nothing_is_owed(db, line_1):
+    # Item 4: the page says "Or say that you give the request up." A drop
+    # or a contest of line 1 lands, and the request waits on him, not on
+    # the code line.
+    from rota.core.predicates import park_ask
+    from rota.core.scheduler import frontier
+
+    ask = _parked_page(db)
+    _his_reply(db, ask, GIVE_UP, {"1": line_1, "2": "approve"})
+    assert owed(db, ITEM) is None and owed(db, "b_1") is None
+    assert ("do:cancel", ("b_1",)) in [(w.kind, w.refs) for w in frontier(db)]
+    assert park_ask(db) == [] and _guess_wakes(db) == []
+    assert db.execute("SELECT status FROM messages WHERE id = ?",
+                      (ask.message_id,)).fetchone()["status"] == "answered"
+
+
+@pytest.mark.parametrize("status", ["merged", "abandoned"])
+def test_a_contest_on_a_closed_batch_leaves_the_guess_contest_owed(db, status):
+    # Item 1: a ruling on a closed batch that no row carries replaces nothing.
+    _second_contest(db)
+    db.execute("UPDATE batches SET status = ? WHERE id = 'b_1'", (status,))
+    assert owed(db, ITEM)["ruling"] == "r_m27"
+
+
+def test_a_rewritten_contest_on_a_closed_batch_owes_nothing(db):
+    # Dry 6b's order: s172 stamped b_1 under his batch contest. A merge of
+    # b_1 then must not bring back the guess contest that it replaced.
+    _second_contest(db)
+    _s150(db, ruling="m40")
+    db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b_1'")
+    assert owed(db, ITEM) is None
+
+
+def _woke(db):
+    """The Architect's sessions on m28: s145 on the relay m29 and three
+    ticks. Two other sessions woke on other things."""
+    for sid, seq, trigger, kind, refs in (
+            ("s145", 145, "m29", "message", [KEY]),
+            ("s150", 150, None, "tick:guess", [ITEM]),
+            ("s152", 152, None, "tick:guess", [ITEM, "m28"]),
+            ("s155", 155, None, "tick:guess", [ITEM, "m28"]),
+            ("s156", 156, None, "tick:guess", [ITEM, "m28"]),
+            ("s160", 160, "m26", "message", [ITEM])):
+        db.execute("INSERT INTO sessions (id, role, seq, trigger_msg, wake_kind, "
+                   "wake_refs) VALUES (?, 'architect', ?, ?, ?, ?)",
+                   (sid, seq, trigger, kind, json.dumps(refs)))
+    db.commit()
+
+
+def test_the_page_counts_each_session_that_woke_on_the_ruling(db):
+    # Item 2: the relay was a try too, so the count is 4, not the 3 ticks.
+    from rota.roles.principal import _park_page
+
+    _woke(db)
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    text, _ = _park_page(db, "b_1", [ITEM, KEY])
+    assert text.splitlines()[1] == PAGE[1]
+    db.execute("DELETE FROM sessions")
+    text, _ = _park_page(db, "b_1", [ITEM, KEY])
+    assert text.splitlines()[1] == ("You corrected the team's guess at the code this "
+                                    "request touches. The team tried, and it did not "
+                                    "rewrite the guess.")

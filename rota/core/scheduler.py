@@ -1893,9 +1893,25 @@ def owed(conn: sqlite3.Connection, ref: str) -> dict | None:
         row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
                            (ref,)).fetchone()
         item = row["item_id"] if row else ref
+    # A request that he dropped or contested waits on him, not on the code
+    # line. His "give the request up" on the owed park page ends the fact
+    # (frame 362, pass 3, item 4).
+    live = conn.execute("SELECT approval FROM items WHERE id = ?", (item,)).fetchone()
+    if live is not None and live["approval"] not in ("draft", "approved"):
+        return None
     batches = {r["id"]: r["status"] for r in conn.execute(
         "SELECT id, status FROM batches WHERE item_id = ?", (item,))}
     key = f"{GUESS_REF}{item}"
+    # The verdicts that a row of the owner carries, on either ref. An old
+    # night file has no `touch_guesses` (test_scalar_door, night 126).
+    carried = {r[0] for r in conn.execute(
+        "SELECT DISTINCT ruling_id FROM touch_guesses WHERE item_id = ? "
+        "AND ruling_id != ''", (item,))} if _has_column(
+            conn, "touch_guesses", "ruling_id") else set()
+    if _has_column(conn, "batch_touch", "ruling_id") and batches:
+        carried |= {r[0] for r in conn.execute(
+            f"SELECT DISTINCT ruling_id FROM batch_touch WHERE ruling_id != '' "
+            f"AND batch_id IN ({','.join('?' * len(batches))})", tuple(batches))}
     newest = None
     for r in conn.execute(
             "SELECT id, per_item, verdict_id, words FROM rulings "
@@ -1907,23 +1923,21 @@ def owed(conn: sqlite3.Connection, ref: str) -> dict | None:
         # Only a newer contest or revise of his replaces an owed one. His
         # approve of the batch line on dry 6b's m53 ended the guess contest
         # with no rewrite (the review of 36a2edd2, finding 1).
+        # A ruling on a merged or abandoned batch that no row carries
+        # replaces nothing. It ended an owed guess contest with no rewrite
+        # (the second look at 822311e0, finding 3). A carried one stays, so
+        # a merge after dry 6b's s172 does not bring back r_m27.
         named = [(k, v) for k, v in per.items()
-                 if (k == key or k in batches) and v in OWED_VERBS]
+                 if (k == key or k in batches) and v in OWED_VERBS
+                 and not (k != key and batches[k] in ("merged", "abandoned")
+                          and r["verdict_id"] not in carried)]
         if named:
             newest = (r, named[0])
     if newest is None:
         return None
     r, (on, verb) = newest
-    if on != key and batches.get(on) in ("merged", "abandoned"):
-        return None
     verdict = r["verdict_id"]
-    if conn.execute("SELECT 1 FROM touch_guesses WHERE item_id = ? "
-                    "AND ruling_id = ? LIMIT 1", (item, verdict)).fetchone():
-        return None
-    if _has_column(conn, "batch_touch", "ruling_id") and batches and conn.execute(
-            f"SELECT 1 FROM batch_touch WHERE ruling_id = ? AND batch_id IN "
-            f"({','.join('?' * len(batches))}) LIMIT 1",
-            (verdict, *batches)).fetchone():
+    if verdict in carried:
         return None
     return {"ruling": r["id"], "verdict": verdict, "verb": verb, "item": item,
             "ref": on, "line": "guess" if on == key else "batch",
@@ -1955,6 +1969,26 @@ def owed_in_flight(conn: sqlite3.Connection, verdict: str) -> bool:
         "SELECT 1 FROM messages WHERE status = 'open' AND (id = ? OR "
         "(cause_id = ? AND verb = 'relay' AND to_role = 'architect')) LIMIT 1",
         (verdict, verdict)).fetchone() is not None
+
+
+def owed_tries(conn: sqlite3.Connection, verdict: str) -> int:
+    """The Architect sessions that woke on `verdict`: its relay, or a tick
+    that carries it. The tick attempts left the relay out, so the park page
+    counted low by one (the second look at 822311e0, point 4)."""
+    relays = {r["id"] for r in conn.execute(
+        "SELECT id FROM messages WHERE cause_id = ? AND verb = 'relay' "
+        "AND to_role = 'architect'", (verdict,))}
+    tries = 0
+    for r in conn.execute("SELECT trigger_msg, wake_kind, wake_refs FROM sessions "
+                          "WHERE role = 'architect'"):
+        try:
+            refs = json.loads(r["wake_refs"] or "[]")
+        except (TypeError, ValueError):
+            refs = []
+        tries += (r["trigger_msg"] in relays
+                  or (r["wake_kind"] in OWED_TICKS.values()
+                      and refs[1:2] == [verdict]))
+    return tries
 
 
 def owed_ruling(ctx, ref: str) -> str:

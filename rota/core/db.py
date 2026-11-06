@@ -165,6 +165,7 @@ def touch_columns(conn: sqlite3.Connection) -> None:
     have = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN "
         "('batch_touch', 'receipts', 'sessions', 'messages', 'rulings')")}
+    # A row with no relay receipt keeps ''. A wrong stamp hides a contest, a missing one costs a wake.
     if "batch_touch" not in have or _has_column(conn, "batch_touch", "ruling_id"):
         return
     conn.execute("ALTER TABLE batch_touch ADD COLUMN ruling_id TEXT "

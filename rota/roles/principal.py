@@ -2608,11 +2608,10 @@ def _owed_park_page(conn: sqlite3.Connection, batch: str, key: str,
     """The park page of an item whose owed write never came: what he said,
     the line he contested, and the way out (frame 87, ruled: Roman,
     2026-09-27). The other requests go on, as R7 and R10 ask (frame 362)."""
-    from ..core.scheduler import key_parts
+    from ..core.scheduler import key_parts, owed_tries
 
-    row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
-                       (key,)).fetchone()
-    tries = row["attempts"] if row else 0
+    # Each session that woke on the ruling is a try, the relay included.
+    tries = owed_tries(conn, found["verdict"])
     text = conn.execute("SELECT text FROM items WHERE id = ?",
                         (found["item"],)).fetchone()
     guess = key_parts(key)[1] == "tick:guess"
@@ -2621,10 +2620,12 @@ def _owed_park_page(conn: sqlite3.Connection, batch: str, key: str,
     # The page shows no contested set and asks for no files he named
     # already. It says what the team did not do (the review of 36a2edd2,
     # finding 5).
+    # A database with no session rows gives no count, and the page then
+    # names no number.
+    times = f" {tries} time{'' if tries == 1 else 's'}" if tries else ""
     out = ["This change waits before it starts.",
            f"You corrected the team's {what} this request touches. The team "
-           f"tried {tries} time{'' if tries == 1 else 's'}, and it did not "
-           f"rewrite the {short}."]
+           f"tried{times}, and it did not rewrite the {short}."]
     if found["words"]:
         out.append(f'You said: "{found["words"]}"')
     out.append("You asked:")
