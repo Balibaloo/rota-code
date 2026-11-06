@@ -31,6 +31,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..core.config import REGISTER_WAIT
 from .llm import Backend, Completion, LLMUnavailable, Pins
 
 DEV_SCHEMA = """
@@ -153,8 +154,24 @@ LIVE_COLUMNS = (
 )
 
 
+#: The index that answers each `MAX(seq)` of `_NEXT_SEQ` from its end, by
+#: name, and its table. Without them `MAX(seq)` reads the whole key index with
+#: the write lock held, 81 to 195 s on a cold cache (frame 362).
+SEQ_INDEXES = {"case_runs_seq": "case_runs", "key_misses_seq": "key_misses"}
+
+
+def seq_index_sql(name: str) -> str:
+    """The DDL of one entry of `SEQ_INDEXES`. A second run is a no-op."""
+    return (f"CREATE INDEX IF NOT EXISTS {name} "
+            f"ON {SEQ_INDEXES[name]} (seq)")
+
+
 def open_dev_db(path: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(path), isolation_level=None)
+    # The gate's workers write one register, and one insert can hold the
+    # write lock for minutes. The 5 s default made the others raise
+    # (frame 362, `REGISTER_WAIT` gives the reason).
+    conn = sqlite3.connect(str(path), isolation_level=None,
+                           timeout=float(REGISTER_WAIT.default))
     conn.row_factory = sqlite3.Row
     # Autocommit with the default rollback journal cost a journal create and
     # two fsyncs per recorded turn -- measured maxing out the spinning drive
@@ -193,6 +210,12 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     for column, spec in LIVE_COLUMNS:
         if column not in have:
             conn.execute(f"ALTER TABLE case_runs ADD COLUMN {column} {spec}")
+    # A table with no row gets its `seq` index here, at no cost. A table with
+    # rows never does: a build on the 2.1 GB register holds the write lock
+    # for every worker. `rota.tools.index_register` builds it there, once.
+    for name, table in SEQ_INDEXES.items():
+        if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is None:
+            conn.execute(seq_index_sql(name))
     _reason_column(conn)
     return conn
 
@@ -609,7 +632,9 @@ def system_hash(system: str) -> str:
 #: and never on the clock. The allocation is one statement, so SQLite holds
 #: the write lock while the maximum is read: two statements race, and four
 #: xdist workers writing the live register allocated one number twice
-#: (observed: the design review's probe, 2026-09-22).
+#: (observed: the design review's probe, 2026-09-22). With `SEQ_INDEXES`,
+#: each `MAX(seq)` reads one end of an index. A warm copy of the register
+#: took 0.0001 s, and 0.095 s with no index (observed: frame 362, 2026-11-06).
 _NEXT_SEQ = ("(SELECT COALESCE(MAX(s), 0) + 1 FROM "
              "(SELECT MAX(seq) AS s FROM case_runs "
              "UNION ALL SELECT MAX(seq) FROM key_misses))")

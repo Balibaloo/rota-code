@@ -240,6 +240,23 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
 ]}
 
 
+#: The wait of a writer of the register for its write lock, in seconds. The
+#: form is a `Setting`, so the cap and its reason live here (law 7). It is not
+#: in `SETTINGS`: `get` reads a run's own database, and the register is not
+#: one. `rota/llm/cassettes.py` `open_dev_db` reads the default.
+REGISTER_WAIT = Setting(
+    "register_wait_s", 300,
+    "Seconds a writer of the register `tests/rota/cassettes.db` waits for "
+    "the write lock before it raises `database is locked`. The gate runs "
+    "`pytest -n auto`, so many workers write one register. One insert held "
+    "the lock for 81 to 195 s on a cold cache, and sqlite3's 5 s default "
+    "made the other writers raise. The gate showed them as new reds that "
+    "passed on the rerun (observed: plans/l3r-load-reds-read-2026-11-06.md, "
+    "frame 362). 300 s outlasts the longest hold by half again. The `seq` "
+    "indexes make a hold short, so a writer that waits the whole 300 s "
+    "points to a stuck holder.")
+
+
 class UnknownSetting(KeyError):
     """A key nobody declared. Almost always a typo, and silently accepting it
     would mean the caller reads a default forever while believing otherwise."""
