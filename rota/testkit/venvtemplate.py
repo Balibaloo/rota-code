@@ -37,7 +37,7 @@ def _key(root: Path) -> tuple:
     """The template's key: the base interpreter and what pip installs.
     A change to the declared dependencies makes a new template."""
     return ("venv", sys.executable,
-            tuple(_provision.declared_dependencies(root)))
+            tuple(_provision.test_requirements(root)))
 
 
 def _build(root: Path):

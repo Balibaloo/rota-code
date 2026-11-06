@@ -54,6 +54,51 @@ def declared_dependencies(root: Path) -> list[str]:
     return [d for d in deps if isinstance(d, str) and d.strip()]
 
 
+TEST_EXTRAS = ("test", "tests", "testing")
+
+
+def test_requirements(root: Path) -> list[str]:
+    """
+    The packages that the project's tests need, as requirement strings:
+    `[project].dependencies`, the PEP 735 dependency group `test`, and the
+    extras `test`, `tests` and `testing`.
+
+    `ensure_env` installs this list, and the import door of tests.encode
+    admits a declared name only from it. So the door and the harness read
+    one list (frame 362, pass 4, third look U4). icalendar declares
+    `hypothesis` in the group `test`, and the door admitted a test that
+    the harness could not import.
+    """
+    pyproject = Path(root) / "pyproject.toml"
+    if not pyproject.exists():
+        return []
+    try:
+        import tomllib
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    out = declared_dependencies(root)
+    extras = (data.get("project") or {}).get("optional-dependencies") or {}
+    for name in TEST_EXTRAS:
+        out += [d for d in extras.get(name) or [] if isinstance(d, str)]
+    groups = data.get("dependency-groups") or {}
+
+    def group(name: str, seen: set) -> list[str]:
+        # A table {include-group = "x"} names another group, not a package.
+        if name in seen or not isinstance(groups.get(name), list):
+            return []
+        seen.add(name)
+        got: list[str] = []
+        for d in groups[name]:
+            if isinstance(d, str):
+                got.append(d)
+            elif isinstance(d, dict) and isinstance(d.get("include-group"), str):
+                got += group(d["include-group"], seen)
+        return got
+    out += group("test", set())
+    return list(dict.fromkeys(d for d in out if d.strip()))
+
+
 def project_installable(root: Path) -> bool:
     """
     The project itself is a package the tests import: a `[project]` table
@@ -101,7 +146,7 @@ def ensure_env(root: Path, *, timeout: int = 600) -> tuple[Path | None, str]:
         except (KeyError, OSError) as exc:
             return None, f"could not create {VENV}: {exc}"
         notes.append(f"made {VENV}")
-    wanted = ["pytest", *declared_dependencies(root)]
+    wanted = ["pytest", *test_requirements(root)]
     try:
         out = execute.run(root, [str(py), "-m", "pip", "install", "-q",
                                  "--disable-pip-version-check", *wanted],

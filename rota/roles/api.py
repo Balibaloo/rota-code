@@ -12182,14 +12182,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # every run was an error before the first assertion, and the Developer
     # diagnosed it exactly and had no door. The floor is plain pytest; its
     # own fixtures are the set, plus any the file defines itself.
-    own = {n.name for n in _ast.walk(tree)
-           if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-           and any((isinstance(d, _ast.Attribute) and d.attr == "fixture")
-                   or (isinstance(d, _ast.Name) and d.id == "fixture")
-                   or (isinstance(d, _ast.Call) and (
-                       (isinstance(d.func, _ast.Attribute) and d.func.attr == "fixture")
-                       or (isinstance(d.func, _ast.Name) and d.func.id == "fixture")))
-                   for d in n.decorator_list)}
+    # Frame 362, pass 4 (third look, U1): pytest registers a fixture that
+    # the module imports by `from ... import`, and a `name=` rename.
+    own = _fixture_defs(tree) | _from_imported(tree)
     builtin_fixtures = {"monkeypatch", "capsys", "capfd", "capsysbinary",
                         "capfdbinary", "caplog", "tmp_path", "tmp_path_factory",
                         "tmpdir", "tmpdir_factory", "request", "recwarn",
@@ -12415,25 +12410,29 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             pass
         _missing_mods = sorted(m.split(".")[0] for m in imported_from
                                if m.split(".")[0] not in _known)
-        _deps_read: list[str] = []
-        _env_said = ""
+        _declared: set[str] = set()
+        _has_env = False
         if _missing_mods and _root is not None:
             # Frame 362, pass 3 (second look): the tree is not the whole
             # import path. The door refused `numpy` and `hypothesis`, which
-            # the project can declare and the environment can hold. A
-            # distribution name can differ from its import name, as PyYAML
-            # gives `yaml`, so a part of a declared name is a doubt.
+            # the project can declare and the environment can hold.
+            # Pass 4 (third look, U3 and U4): the door reads the list that
+            # `ensure_env` installs, and an installed package gives its
+            # import names through the site folder. A declared name that is
+            # not installed matches only as a whole name, because `date`
+            # passed as a part of `python-dateutil`.
+            from ..core.provision import test_requirements as _test_reqs
             from ..core.provision import venv_python as _venv_python
-            _declared, _deps_read = _declared_packages(_root)
+            for _r in _test_reqs(_root):
+                _m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", _r)
+                if _m:
+                    _declared.add(re.sub(r"[-_.]+", "_", _m.group(1)).lower())
             _site_dirs, _env_doubt = _harness_site_dirs(_root)
             _installed = _site_top_names(_site_dirs)
             _missing_mods = [] if _env_doubt else [
                 m for m in _missing_mods if m not in _installed
-                and not any(m.lower() in d for d in _declared)]
-            # Night 25: a `.venv` in the text read as a module to import.
-            _env_said = ("the worktree's own environment" if _venv_python(_root).exists()
-                         else "rota's own interpreter, because the worktree has no "
-                              "environment of its own")
+                and re.sub(r"[-_.]+", "_", m).lower() not in _declared]
+            _has_env = _venv_python(_root).exists()
         if _missing_mods:
             dotted_surfaces = sorted({_dotted(_grain_path(s)) for s in surface
                                       if "::" in s and _grain_path(s).endswith(".py")})
@@ -12471,14 +12470,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # class, since `import Context.invoke` does not parse.
             hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
                     f"import {_ref_symbol(surface[0]) or surface[0]}`") if dotted_surfaces else ""
-            _deps_said = (f"the door read the packages that {' and '.join(_deps_read)} "
-                          f"{'declares' if len(_deps_read) == 1 else 'declare'}"
-                          if _deps_read else "the project has no dependency file")
+            # Night 25: a `.venv` in the text read as a module to import.
+            _deps_said = ("the packages that the harness installs from "
+                          "pyproject.toml: the dependencies, the dependency group "
+                          "test and the extras test, tests and testing"
+                          if _declared else "no package that the harness "
+                          "installs, because pyproject.toml declares none")
+            _env_said = ("the packages installed in the worktree's own environment"
+                         if _has_env else "no installed package, because the "
+                         "worktree has no environment of its own yet")
             raise Wall(
                 f"this test imports {', '.join(_missing_mods)}, and no module of "
                 f"that name exists in the tree, among the packages that the "
-                f"project declares or in the environment that runs the tests: "
-                f"{_deps_said}, and the packages installed in {_env_said}. The "
+                f"harness installs or in the environment that runs the tests: "
+                f"the door read {_deps_said}, and {_env_said}. The "
                 f"tree's import path is the worktree root and src/, and the "
                 f"modules there are {want}.{hint} If the surface has no module "
                 f"yet, the Developer writes it first")
@@ -23800,6 +23805,21 @@ def _fixture_defs(tree) -> set[str]:
     return names
 
 
+def _from_imported(tree) -> set[str]:
+    """The names that a module binds at module level by `from ... import`.
+    Such a name can be a fixture, and pytest registers it. A plain `import`
+    binds a module, so it gives no name (frame 362, pass 4, U1 and U2)."""
+    names: set[str] = set()
+    todo = list(tree.body)
+    while todo:
+        s = todo.pop()
+        if isinstance(s, _ast.ImportFrom):
+            names |= {a.asname or a.name for a in s.names if a.name != "*"}
+        elif isinstance(s, (_ast.If, _ast.Try, _ast.With)):
+            todo += [c for c in _ast.iter_child_nodes(s) if isinstance(c, _ast.stmt)]
+    return names
+
+
 def _path_conftest_fixtures(root, path: str) -> tuple[set[str], bool]:
     """The names that the `conftest.py` files on the path from the folder
     of the test `path` to the worktree `root` can give, and a doubt flag.
@@ -23807,7 +23827,8 @@ def _path_conftest_fixtures(root, path: str) -> tuple[set[str], bool]:
     pytest registers every fixture that a conftest module holds, an imported
     one too. So each module-level name counts. A star import, a
     `pytest_plugins` list or a file that does not parse is a doubt.
-    Frame 362, pass 3 (second look, S2).
+    Frame 362, pass 3 (second look, S2). Pass 4 (third look, U2): a plain
+    `import x` binds a module, and a module is never a fixture.
     """
     from pathlib import Path as _Path
 
@@ -23822,13 +23843,11 @@ def _path_conftest_fixtures(root, path: str) -> tuple[set[str], bool]:
             tree = _ast.parse(f.read_text(encoding="utf-8"))
         except (OSError, SyntaxError, ValueError):
             return names, True
-        names |= _fixture_defs(tree)
+        names |= _fixture_defs(tree) | _from_imported(tree)
         for s in tree.body:
-            if isinstance(s, (_ast.Import, _ast.ImportFrom)):
-                if any(a.name == "*" for a in s.names):
-                    return names, True
-                names |= {a.asname or a.name.split(".")[0] for a in s.names}
-            elif isinstance(s, (_ast.Assign, _ast.AnnAssign)):
+            if isinstance(s, _ast.ImportFrom) and any(a.name == "*" for a in s.names):
+                return names, True
+            if isinstance(s, (_ast.Assign, _ast.AnnAssign)):
                 targets = s.targets if isinstance(s, _ast.Assign) else [s.target]
                 bound = {t.id for t in targets if isinstance(t, _ast.Name)}
                 if "pytest_plugins" in bound:
@@ -23842,29 +23861,26 @@ def _harness_site_dirs(root) -> tuple[list, bool]:
     the worktree's tests reads, and a doubt flag.
 
     The harness runs `python_for(root)`: the worktree's `.venv` when it
-    exists, else rota's own interpreter. A venv that reads the system's
-    packages too is a doubt. A `.pth` path line adds its folder.
-    Frame 362, pass 3 (second look, the import door and S2).
+    exists. A venv that reads the system's packages too is a doubt. A
+    `.pth` path line adds its folder. Frame 362, pass 3 (second look, the
+    import door and S2). Pass 4 (third look, U5): with no `.venv`, the
+    door reads no folder. Rota's own venv changed a recorded door result
+    when a package was added to it.
     """
     import os as _os
-    import site as _site
     from pathlib import Path as _Path
     from ..core.provision import VENV, venv_python
 
     root = _Path(root) if root else None
-    doubt = False
-    if root is not None and venv_python(root).exists():
-        venv = root / VENV
-        try:
-            cfg = (venv / "pyvenv.cfg").read_text(encoding="utf-8")
-        except OSError:
-            cfg = ""
-        doubt = bool(re.search(r"include-system-site-packages\s*=\s*true", cfg, re.I))
-        dirs = [venv / "Lib" / "site-packages", *sorted(venv.glob("lib/python*/site-packages"))]
-    else:
-        dirs = [_Path(p) for p in _site.getsitepackages()]
-        if _site.ENABLE_USER_SITE:
-            dirs.append(_Path(_site.getusersitepackages()))
+    if root is None or not venv_python(root).exists():
+        return [], False
+    venv = root / VENV
+    try:
+        cfg = (venv / "pyvenv.cfg").read_text(encoding="utf-8")
+    except OSError:
+        cfg = ""
+    doubt = bool(re.search(r"include-system-site-packages\s*=\s*true", cfg, re.I))
+    dirs = [venv / "Lib" / "site-packages", *sorted(venv.glob("lib/python*/site-packages"))]
     dirs += [_Path(p) for p in _os.environ.get("PYTHONPATH", "").split(_os.pathsep) if p]
     found: list = []
     for d in dirs:
@@ -23971,110 +23987,6 @@ def _plugin_fixtures(dirs) -> tuple[set[str], bool]:
                 doubt = True
     _PLUGIN_FIXTURES_CACHE[key] = (names, doubt)
     return names, doubt
-
-
-def _declared_packages(root) -> tuple[set[str], list[str]]:
-    """The packages that the project declares, by normalised name, and the
-    files that the door read them from.
-
-    The sources are `pyproject.toml` (the dependencies, the optional
-    dependencies, the dependency groups and poetry's tables), `setup.cfg`,
-    the requirement keywords of `setup.py`, and the requirements files.
-    Frame 362, pass 3 (second look, the import door).
-    """
-    import configparser as _cp
-    from pathlib import Path as _Path
-
-    root = _Path(root)
-    reqs: list[str] = []
-    files: list[str] = []
-    norm = lambda s: re.sub(r"[-_.]+", "_", s).lower()  # noqa: E731
-
-    def strings(v) -> list[str]:
-        if isinstance(v, str):
-            return [v]
-        if isinstance(v, dict):
-            return [x for w in v.values() for x in strings(w)]
-        if isinstance(v, list):
-            return [x for w in v for x in strings(w)]
-        return []
-
-    py = root / "pyproject.toml"
-    if py.is_file():
-        try:
-            import tomllib as _toml
-            data = _toml.loads(py.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 -- a manifest that does not parse names nothing
-            data = {}
-        proj = data.get("project") or {}
-        found = strings(proj.get("dependencies")) + strings(proj.get("optional-dependencies"))
-        # A group lists strings, and a table such as {include-group = "test"}
-        # names another group, not a package.
-        found += [x for g in (data.get("dependency-groups") or {}).values()
-                  if isinstance(g, list) for x in g if isinstance(x, str)]
-        poetry = (data.get("tool") or {}).get("poetry") or {}
-        found += list(poetry.get("dependencies") or {}) + list(poetry.get("dev-dependencies") or {})
-        for group in (poetry.get("group") or {}).values():
-            found += list((group or {}).get("dependencies") or {})
-        if found:
-            files.append("pyproject.toml")
-            reqs += found
-    cfg = root / "setup.cfg"
-    if cfg.is_file():
-        parser = _cp.ConfigParser()
-        try:
-            parser.read_string(cfg.read_text(encoding="utf-8"))
-        except (OSError, _cp.Error, UnicodeDecodeError):
-            parser = None
-        found = []
-        if parser is not None:
-            for key in ("install_requires", "tests_require"):
-                found += parser.get("options", key, fallback="").splitlines()
-            if parser.has_section("options.extras_require"):
-                for _, v in parser.items("options.extras_require"):
-                    found += v.splitlines()
-        found = [f for f in found if f.strip()]
-        if found:
-            files.append("setup.cfg")
-            reqs += found
-    setup = root / "setup.py"
-    if setup.is_file():
-        try:
-            tree = _ast.parse(setup.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
-            tree = None
-        found = []
-        assigned = {}
-        for n in _ast.walk(tree) if tree else ():
-            if isinstance(n, _ast.Assign):
-                for t in n.targets:
-                    if isinstance(t, _ast.Name):
-                        assigned[t.id] = n.value
-        for n in _ast.walk(tree) if tree else ():
-            if not isinstance(n, _ast.Call):
-                continue
-            for k in n.keywords:
-                if k.arg not in ("install_requires", "tests_require", "extras_require"):
-                    continue
-                v = assigned.get(k.value.id, k.value) if isinstance(k.value, _ast.Name) else k.value
-                found += [c.value for c in _ast.walk(v)
-                          if isinstance(c, _ast.Constant) and isinstance(c.value, str)]
-        if found:
-            files.append("setup.py")
-            reqs += found
-    for f in sorted({*root.glob("*requirements*.txt"), *root.glob("requirements/*.txt")}):
-        try:
-            lines = f.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError):
-            continue
-        files.append(f.relative_to(root).as_posix())
-        reqs += [ln for ln in lines if not ln.strip().startswith(("-", "#"))]
-    names = set()
-    for r in reqs:
-        m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", r)
-        if m:
-            names.add(norm(m.group(1)))
-    return names, files
 
 
 def _unbound_name_hint(name: str, surface: str, module: str,

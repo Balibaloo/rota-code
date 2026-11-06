@@ -184,18 +184,80 @@ BILLING = B("from billing import add", "def test_add():", "    assert add(1, 2) 
                           "[project.optional-dependencies]", 'test = ["hypothesis"]')},
      HYPO),
     ({"pyproject.toml": B("[dependency-groups]", 'test = ["hypothesis"]')}, HYPO),
-    ({"requirements-dev.txt": B("# test tools", "-r requirements.txt", "hypothesis==6.1")},
-     HYPO),
-    ({"setup.cfg": B("[options.extras_require]", "test =", "    numpy")}, NUMPY),
-    ({"setup.py": B("from setuptools import setup",
-                    "setup(name='adder', install_requires=['numpy'])")}, NUMPY),
-    ({"pyproject.toml": B("[project]", 'name = "adder"', 'dependencies = ["PyYAML"]')},
-     YAML),
+    ({"pyproject.toml": B("[dependency-groups]", 'dev = [{include-group = "test"}]',
+                          'test = [{include-group = "qa"}]', 'qa = ["hypothesis"]')}, HYPO),
 ])
-def test_a_package_the_project_declares_passes_the_import_door(tmp_path, no_env,
+def test_a_package_the_harness_installs_passes_the_import_door(tmp_path, no_env,
                                                                files, body):
     got = _add(tmp_path, body, files)
     assert NO_MODULE not in got, got
+
+
+@pytest.mark.parametrize("files,body", [
+    # Pass 4 (third look, U4): `ensure_env` does not install these places,
+    # so a declaration there does not admit the name.
+    ({"pyproject.toml": B("[project]", 'name = "adder"', "",
+                          "[project.optional-dependencies]", 'docs = ["hypothesis"]')},
+     HYPO),
+    ({"pyproject.toml": B("[dependency-groups]", 'lint = ["hypothesis"]')}, HYPO),
+    ({"requirements-dev.txt": B("hypothesis==6.1")}, HYPO),
+    ({"setup.cfg": B("[options.extras_require]", "test =", "    numpy")}, NUMPY),
+    ({"setup.py": B("from setuptools import setup",
+                    "setup(name='adder', install_requires=['numpy'])")}, NUMPY),
+    # U3: an import name that is not the whole declared name is not
+    # admitted when the package is not installed.
+    ({"pyproject.toml": B("[project]", 'name = "adder"', 'dependencies = ["PyYAML"]')},
+     YAML),
+    ({"pyproject.toml": B("[project]", 'name = "adder"',
+                          'dependencies = ["python-dateutil"]')},
+     B("import date", "from script import add", "def test_add():",
+       "    assert add(1, 2) == 3")),
+])
+def test_a_declaration_that_the_harness_does_not_install_is_refused(tmp_path, no_env,
+                                                                     files, body):
+    got = _add(tmp_path, body, files)
+    assert NO_MODULE in got, got
+
+
+def test_the_harness_installs_what_the_import_door_admits(tmp_path, monkeypatch):
+    """U4: `ensure_env` installs from `test_requirements`. No network: the
+    pip call is recorded, not run."""
+    from rota.core import execute, provision
+
+    root = tmp_path / "wt"
+    root.mkdir()
+    (root / "pyproject.toml").write_bytes(B(
+        "[project]", 'name = "adder"', 'dependencies = ["numpy"]', "",
+        "[project.optional-dependencies]", 'tests = ["pytz"]', 'docs = ["sphinx"]', "",
+        "[dependency-groups]", 'test = ["hypothesis"]', 'lint = ["ruff"]').encode())
+    py = provision.venv_python(root)
+    py.parent.mkdir(parents=True)
+    py.write_bytes(b"")
+    calls = []
+
+    class Out:
+        error, returncode, stdout, stderr = None, 0, "", ""
+    monkeypatch.setattr(execute, "run", lambda root, argv, **kw: calls.append(argv) or Out())
+    provision.ensure_env(root)
+    installed = calls[0][calls[0].index("--disable-pip-version-check") + 1:]
+    assert installed == ["pytest", "numpy", "pytz", "hypothesis"], installed
+    assert provision.test_requirements(root) == ["numpy", "pytz", "hypothesis"]
+
+
+def test_an_installed_package_gives_its_import_name(tmp_path, monkeypatch):
+    """U3: PyYAML installed gives `yaml` through the site folder."""
+    site = tmp_path / "site"
+    (site / "yaml").mkdir(parents=True)
+    (site / "yaml" / "__init__.py").write_bytes(b"")
+    monkeypatch.setattr(api, "_harness_site_dirs", lambda root: ([site], False))
+    got = _add(tmp_path, YAML)
+    assert NO_MODULE not in got, got
+
+
+def test_with_no_worktree_env_the_door_reads_no_site_folder(tmp_path):
+    """U5: a case tree has no `.venv`, so rota's own venv is not read."""
+    assert api._harness_site_dirs(tmp_path) == ([], False)
+    assert api._harness_site_dirs(None) == ([], False)
 
 
 def test_a_package_of_the_harness_environment_passes_the_import_door(tmp_path,
@@ -216,7 +278,31 @@ def test_an_invented_module_is_still_refused_and_the_text_names_the_sources(
 
 def test_an_undeclared_package_is_refused(tmp_path, no_env):
     got = _add(tmp_path, NUMPY)
-    assert NO_MODULE in got and "no dependency file" in got, got
+    assert NO_MODULE in got and "pyproject.toml declares none" in got, got
+
+
+# --- U1 and U2. The names that the module and the conftest import --------------
+
+def test_u1_a_fixture_that_the_test_module_imports_is_given(tmp_path, no_env):
+    got = _add(tmp_path, B("from script import add", "from tests.helpers import pair",
+                           "def test_x(pair):", "    assert add(*pair) == 3"),
+               {"tests/helpers.py": PAIR})
+    assert FIXTURE not in got, got
+
+
+def test_u1_a_fixture_renamed_in_the_body_is_given(tmp_path, no_env):
+    got = _add(tmp_path, B("import pytest", "from script import add",
+                           "@pytest.fixture(name='pair')", "def _make_pair():",
+                           "    return (1, 2)", "def test_x(pair):",
+                           "    assert add(*pair) == 3"))
+    assert got == "landed", got
+
+
+def test_u2_a_plain_import_in_the_conftest_gives_no_fixture(tmp_path, no_env):
+    got = _add(tmp_path, B("from script import add", "def test_x(pytest):",
+                           "    assert add(1, 2) == 3"),
+               {"tests/conftest.py": B("import pytest", "import os.path")})
+    assert FIXTURE in got, got
 
 
 # --- S1. The guard path reads the constant door ---------------------------------
