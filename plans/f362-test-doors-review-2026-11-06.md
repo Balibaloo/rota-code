@@ -143,3 +143,49 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029
 ### (d) Usage
 
 The harness shows no counter. This look used about 30k input tokens of context and about 9k output tokens. The total for the three looks is about 195k.
+
+## Fourth look, 7cfefc5c
+
+### The result
+
+Verdict: accept. U1 to U5 are fixed, and my probes give the expected result at `7cfefc5c`. `ensure_env` and the import door read one list. The new source "a program module imports it" also admits imports under `try` and under `TYPE_CHECKING` (V2). With no `.venv`, the refusal text says a false thing about the environment that runs the tests (V1). Both findings are low. The 16 door files pass: 729 passed. The first run took 178 s and the second 151 s, against 80 s at the third look. The slowest tests are the structural reads of `test_f13_module_of.py` (40 s) and `test_f14_assert_cannot_fail.py` (28 s), not the door. The cause is not isolated, and the machine load can explain it.
+
+### (a) Verdict on each point
+
+1. All fixed:
+   - U1: fixed. A fixture imported into the test module (F2) and a fixture renamed by `name=` (F3) land.
+   - U2: fixed. `pytest` from a plain import in a conftest (F7) is refused. `Calendar` from a `from ... import` (F6) lands, as a doubt.
+   - U3: fixed. `date` and `cal` are refused (I4, I5).
+   - U4: fixed. `hypothesis` lands (I6), and `ensure_env` installs it.
+   - U5: fixed. `yaml`, `click` and the plugin fixture `event_loop_policy` are refused, and rota's venv holds all three (I9, I16, F8). So the result does not depend on rota's venv.
+2. One list. `ensure_env` installs `pytest`, then `test_requirements`, then the project with `-e . --no-deps`. On icalendar, `test_requirements` gives `python-dateutil`, `tzdata>=2025.3`, `typing-extensions~=4.10; python_version < 3.13`, `coverage`, `hypothesis`, `mypy>=1.0`, `pytest`, `pytz>=2025.2`, `types-python-dateutil` and `types-pytz`. The door admits the same names, normalised: an import name must equal a whole distribution name. Two names differ:
+   - `ensure_env` installs `python-dateutil`, which gives the import name `dateutil`. With no `.venv`, the door refuses `import dateutil` (I8). After `ensure_env` runs, the door reads the site folder and admits it. `lifecycle.py` line 130 runs `ensure_env` for each batch worktree, so a real night has the `.venv`.
+   - The door admits `typing_extensions`, and the marker can stop pip from installing it. The harness interpreter is Python 3.14.2. `mypy` and `hypothesis` probably install it anyway (V3).
+3. The program-import source:
+   - `billing` is refused (I1).
+   - A name that only a test file imports is refused (I14, `attrs`).
+   - A name in a relative import (`from .shop import invoices`) is refused (I15).
+   - A name under `try: ... except ImportError` is admitted (I12, `numpy`).
+   - A name under `if TYPE_CHECKING:` is admitted (I13, `sqlalchemy`).
+   - The last two do not prove an install (V2). `_pytest` is admitted (I11).
+4. Site folders: `_harness_site_dirs` returns no folder when the worktree has no `.venv` (api.py, pass 4). So a case tree reads nothing from rota's venv. I9, I16 and F8 show that the door refuses three names that rota's venv holds.
+5. New defects: V1 to V3. The 16 door files pass, and `test_f362_test_doors_p3.py` is one of them. I did not run `test_provision.py`.
+
+### (b) Findings
+
+- V1. `rota/roles/api.py`, the import door text and `_harness_site_dirs`. Low. CONFIRMED (probe_p4 I9, I16, F8). With no `.venv`, the harness runs rota's interpreter (`python_for`, provision.py line 37), and that interpreter holds `click`. The refusal says that no module of that name exists "in the environment that runs the tests". That clause is false in a case tree, and only case trees and a failed `ensure_env` have no `.venv`. Fix: when `_has_env` is False, drop that clause from the text, and keep the clause that says that the worktree has no environment yet.
+- V2. `rota/roles/api.py` 8785-8809, `_program_imports`. Low. CONFIRMED (I12, I13). The source counts an import under `try` with an `ImportError` handler and an import under `if TYPE_CHECKING:`. Neither one proves that the package is installed, so a test that imports `numpy` lands and can fail at collection. Fix: skip an import inside a `try` that catches `ImportError` or `ModuleNotFoundError`, and an import under `if TYPE_CHECKING`.
+- V3. `rota/core/provision.py`, `test_requirements`. Low. PLAUSIBLE. The list keeps a requirement with a false marker, such as `typing-extensions; python_version < 3.13` on Python 3.14. pip skips that requirement, and the door admits the name. On icalendar, mypy probably installs the package anyway. Fix: in `test_requirements`, drop each requirement whose marker is false for the harness interpreter (`packaging.markers.Marker.evaluate`), so both readers drop it.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029756dd-9273-4a54-95d8-2da05a2bfe52/scratchpad/rd362/`. Each probe called no model and ran no install.
+
+- `probe_p4.py`: F2 to F8 and I1 to I16 on the icalendar layout. The tree adds a program file with a `try` import, a `TYPE_CHECKING` import and relative imports, and a test file that imports a package. The probe also prints `provision.test_requirements` on the real icalendar tree at `99619246`.
+- `probe_p4b.py`: the same probe with `attrs` as the name that only a test file imports. `requests` met the network door first.
+- `probe_p2.py` ran again: R1 to R10 give the results of the third look.
+- Suite: 16 door files with `-p no:cacheprovider`, twice, the second time with `--durations=5`. Result: 729 passed.
+
+### (d) Usage
+
+The harness shows no counter. This look used about 25k input tokens of context and about 7k output tokens. The total for the four looks is about 225k.
