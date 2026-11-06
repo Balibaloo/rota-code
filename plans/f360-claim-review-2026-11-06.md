@@ -57,3 +57,87 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2
 ## (d) Usage
 
 No meter is available. Estimate: about 90k context at the end, about 1.3M input tokens over all turns, about 15k output tokens, about 1.3M in total.
+
+# Second look, e23e7f23
+
+**Verdict: fix before the pick.** On a copy of `dry6b.db`, the touch note m31 is still a page that heads the state with "Waiting on you." and "Reply 'ok' to go ahead", after its batch merged. The fixture of the pass holds refs that the run does not hold. Findings: 1 high, 2 medium, 3 low.
+
+## (a) The points
+
+1. **The 6 findings of pass 1: 4 fixed, 2 fixed in part.** See the list below.
+2. **The second replace: yes, it lands, and the claim merges.** The principal reads no word of the red test (finding S2).
+3. **The ruling in the wiring: the claim is in front of the Critic on each path to a pass.** A claimed batch waits when `merge_gate` is `review`.
+4. **The lines that the principal reads: the claimed line is true, and the touch note fails on the run's rows.** "The reviewer passed them" needs a Critic pass at the head. The message of the touch note stays open, and no page lets him answer it (findings S1 and S3).
+5. **The prompts of other batches do not change.** The register holds 0 rows with `claimed_head` or the claim words. So the `build_prompt` change moves 0 cases. The brief change moves the 7 Tester cases that the pass counts. I did not count them again.
+6. **The related set is green.** 137 files in the worktree, `test_f35_predicted_files.py` included: 4433 passed, 47 skipped, 9 xfailed.
+7. **The replay verdicts: the kinds are right, with two faults.** A run that writes no report reads the report of the test before it (finding S4). The Critic replay can miss a challenge (finding S6).
+
+### Point 1, the findings of pass 1, one by one
+
+- Finding 1, fixed. The encode note on a claim now says "No code changed on this batch, so the run is on the code as it was. The test stands, and its red goes to the Developer." (probe 2a).
+- Finding 2, fixed in part. The `challenge` and `answer` wakes now carry the claim line, and the pass's test `test_every_wake_of_a_claimed_batch_says_the_claim` passes. The first replace of the red test is refused and names the claim. The second send lands (finding S2).
+- Finding 3, fixed. A no-change `code.commit` on a claim with a red test now says "tst1 fails on the code as it is. A second claim against a red test is not a claim." (probe 2a). The wake repeats as `attempt 1`, and the test of the pass quarantines the key at `tick_attempt_cap`.
+- Finding 4, fixed in part. The verdict now reads the junit kinds. An import error gives `collect_error`, a file with no test gives `no_test`, a raise gives `raise`, and only a failed assert gives `assertion` (probe 7a). The probe still has no right-code control (deviation 5 of the pass).
+- Finding 5, fixed. Sample 1 prints apart as "the run", and samples 2 to 5 print as "reach".
+- Finding 6, fixed. The brief says "A test that fails on the code as it is goes to the Developer, who changes the code or challenges the test." The dry replay shows that paragraph (probe 7b).
+
+### Point 3, the paths to a Critic pass
+
+- `verdicts_emit`, `rota/roles/api.py` 18550, is the one writer of `verdicts`. Only `critic/review.tools` and `critic/answer.tools` hold it.
+- The review wake of the claimed batch: `build_prompt` adds the claim line. `code.read` gives `CRITIC_CLAIM_NOTE`.
+- The answer wake of the Critic: `build_prompt` adds the line for the role `critic` in every mode. `loop._batch_of` finds the batch from the message refs, or takes the one running batch.
+- A Critic session of another batch: the pass is refused (the pass's test `test_a_pass_on_a_claim_comes_from_its_own_session` passes).
+- The replayed s154 prompt holds no `[code.read]` block. The Critic is shown the claim only in the wake head, word for word:
+
+```
+You were woken by: tick:review
+Refs: fold_long_lines_in_icalendar_batch
+No code changed on this batch. The Developer claims the criteria are met. The tests are the only evidence.
+```
+
+  The pushed block ends with "CUT your wake: 13,904 of 30,215 characters are not shown. Nothing returns a wake. Ask by name for the reads you need." The words "no commit yet" do not show (probe 7c).
+- `merge_gate` set to `review`: `mergeable` gives "waiting on the principal's review" (the pass's test passes in my run).
+
+### Point 4, the lines as the state renders them on a copy of dry6b.db
+
+The state, unchanged rows (probe 4a). The page of m31 is cut here:
+
+```
+Waiting on you.
+Before I build this, here is what I expect to touch.
+...
+This is a prediction, not a promise. Reply 'ok' to go ahead. Reply with words if something concerns you.
+When icalendar writes a long line, fold it at a space where it can, so that a word is not split, and keep everything else as before.: no code changed. The team says the code already does this. The only evidence is 3 tests that the team wrote, and they pass on the code as it was. The reviewer passed them. Ask me to show them.
+```
+
+With one more open question added, the state says "Waiting on you: 2 things. The first is:" and then the m31 page and the claimed line once. With the refs of m31 cut to the batch and the item, the state has no "Waiting on you." and shows the touch line "The plan for When icalendar writes ... as before. reached you after its merge. Ask me to show it." (probe 4b).
+
+- The claimed line: each sentence is true on these rows. "The reviewer passed them" shows only with a `pass` verdict at the head, and only a Critic writes one. On dry6b.db that Critic, s154, read "no commit yet" and not the claim. The sentence is still true.
+- The touch note: m31 stays `open` in the register. `pending_asks` holds it back, so no page shows it to him, and his reply cannot land on it (finding S3).
+
+## (b) Findings, second look
+
+1. **S1. High. The touch note of the run is not a merged touch note, so the state still shows the stale page.** `rota/roles/principal.py` 362 to 370, `merged_touch_notes`. The condition `all(r in status or r in items for r in refs)` fails on m31. Its refs hold `c1`, `c2`, `c3`, `reading:m5` and `reading:m27`. CONFIRMED (probe 4a): on a copy of `dry6b.db`, `merged_touch_notes` gives `[]`, `pending_asks` gives `['m31']`, and the state opens with "Waiting on you." and "Reply 'ok' to go ahead". R4 control 1 names this copy, but the test of the pass uses the refs `["b1", "i1"]` only. Fix: let a ref that is not a batch be any ref, and require that every batch ref is merged. Add R4 control 1 on the dry6b.db copy as a test.
+2. **S2. Medium. The second same-id replace of the red test of a claim lands, and the claim then merges with no word of the red test.** `rota/roles/api.py` 13152 to 13168. CONFIRMED (probe 2b): with `challenge.tools`, the first encode was refused and the second encode gave `{'id': 'tst1'}`. With a pass run, a Critic pass and the merge, the state says "The only evidence is 1 test that the team wrote, and it passes on the code as it was. The reviewer passed it." The refusal ends with "Then send the same encode again", and a refusal is an instruction that a small model follows. The one run against the claim then goes, and neither the Critic nor the principal reads that it was red. Fix: record the replace of a red claim test as a ledger row, show it to the Critic, and add one sentence to the claimed line: "One test was red on the code as it was, and the team changed it."
+3. **S3. Medium. A touch note about merged work stays an open message to the principal, and the loop says that it waits on him.** `rota/core/loop.py` 708, `_why_idle`, and `principal.py` 195 to 196. CONFIRMED (probe 4c): on the fixture of the pass, `pending_asks` is empty and `_why_idle` gives "gate: waiting on the principal (present)". PLAUSIBLE: no page shows m31, so his reply cannot land on it, and the message never closes. Fix: close the note when its last batch merges, or make `_why_idle` and `gates_open` skip the notes that `merged_touch_notes` returns.
+4. **S4. Low. The replay of s153 reads a stale junit report when a run writes none.** `p360c/replay_s153.py` 140 to 149. CONFIRMED (probe 7a): after a test with a failed assert, a run that pytest could not start gave `('assertion', '(no output)')`. Fix: delete `junit.xml` before each run, or name the report after the test.
+5. **S5. Low. The replay of s153 still counts a c3 test that fails on every code.** The same file, 211 to 216. The read says that c1 and c3 of run 1 contradict. So a hit can be a test that no code passes. Not fixed, as deviation 5 of the pass says. Fix: run each hit on a hand fold fix too, and count it only when it passes there.
+6. **S6. Low. The Critic replay finds a challenge only when its refs hold the batch id.** `p360c/replay_critic.py` 98 to 100. A challenge names a criterion and a test in its refs, as `developer/tests_failing.md` says for the Developer. A question to the Terminologist is not counted. PLAUSIBLE: dry6b.db holds no Critic challenge to check against. Then the outcome line says "no verdict and no challenge" for a session that challenged. Fix: select the messages that the sample's session wrote, by session or by `seq` after the rewind.
+
+## (c) Probes, second look
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/rv360/`. The folder `tree2/` holds a `git archive` of e23e7f23. No tracked file changed.
+
+- 2a. `tree2/tests/rota/test_rv360_note.py` and `test_rv360_probe.py`, the probes of pass 1 run again, output `probe_p1_again.out`.
+- 2b. `tree2/tests/rota/test_rv360_p2.py`, output `probe2_replace.out`. Two same-id encodes with `challenge.tools`, a pass run, a pass verdict and the merge.
+- 4a. `state_probe.py`, output `state_probe.out`. A backup copy of `arm362/runs/dry6b.db`, `render_state`, then one more open question.
+- 4b and 4c. `tree2/tests/rota/test_rv360_touch.py`, output `probe_touch.out`. `_why_idle` on the fixture of the pass, and the dry6b copy with the refs of m31 cut.
+- 5. A read-only scan of `D:/repos/rota/tests/rota/cassettes.db` for `claimed_head` and the claim words: 0 rows.
+- 6. The related set in `C:/Users/roman/rota_r362o`, output `related_wt.out`. The same set on `tree2` gave 14 reds only because the archive lacks `probes/` (`agent_principal.out`).
+- 7a. `verdict_probe2.py`, output `verdict_probe2.out`.
+- 7b. `replay_s153.py --dry`, output `dry2.out` and `dry2/results.json`.
+- 7c. `replay_critic.py --dry`, output `dryc.out` and `dryc/results.json`.
+
+## (d) Usage, second look
+
+No meter is available. Estimate: about 60k context for this look, about 3M input tokens over all turns of the session, about 30k output tokens.
