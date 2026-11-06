@@ -8808,6 +8808,24 @@ def _program_modules(conn: sqlite3.Connection) -> set[str]:
     return out
 
 
+def _ranked_test_dirs(conn: sqlite3.Connection,
+                      indexed: set[str] | None = None) -> list[str]:
+    """The test folders of `_test_dirs`, the folder with the most test files
+    first. A project with no test folder gets `tests`, the folder the
+    scaffold makes."""
+    from collections import Counter
+
+    if indexed is None:
+        indexed = {r["grain"].replace("\\", "/") for r in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    dirs = _test_dirs(indexed, conn)
+    # Frame 362, pass 5b (review high 2): a depth order put
+    # `.github/workflows`, with 1 test file, before `src/icalendar/tests`,
+    # with 111. The Tester wrote there (dry run 4 wall 16, dry run 5 wall 9).
+    count = Counter(g.rpartition("/")[0] for g in indexed if _test_shaped(g))
+    return sorted(dirs, key=lambda d: (-count[d], d.count("/"), d)) or ["tests"]
+
+
 def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
     """Refuse a test path that is a program file of the code index outside
     the test folders.
@@ -8831,13 +8849,7 @@ def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
             folder in dirs
             or any(d and folder.startswith(f"{d}/") for d in dirs)):
         return
-    from collections import Counter
-
-    # Frame 362, pass 5b (review high 2): a depth order put
-    # `.github/workflows`, with 1 test file, before `src/icalendar/tests`,
-    # with 111. The Tester wrote there (dry run 4 wall 16, dry run 5 wall 9).
-    count = Counter(g.rpartition("/")[0] for g in indexed if _test_shaped(g))
-    named = sorted(dirs, key=lambda d: (-count[d], d.count("/"), d)) or ["tests"]
+    named = _ranked_test_dirs(conn, indexed)
     stem = path.rpartition("/")[2][:-3].lstrip("_") or "thing"
     example = f"{named[0]}/test_{stem}.py" if named[0] else f"test_{stem}.py"
     if example in indexed:
@@ -10619,6 +10631,84 @@ def _definition_of(tree, test_path: str, name: str, refs: list[str],
     return None
 
 
+def _gives_a_value(node) -> bool:
+    """Whether the `def` `node` returns a value: a `return` of something
+    other than None, or a `yield`, in its own body. A nested `def`, class
+    or lambda returns for itself. A decorator decides what a call returns,
+    so a decorated `def` proves nothing, except for `staticmethod` and
+    `classmethod`."""
+    import ast as _ast
+
+    if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        return False
+    if any(not (isinstance(d, _ast.Name)
+                and d.id in ("staticmethod", "classmethod"))
+           for d in node.decorator_list):
+        return False
+    todo = list(node.body)
+    while todo:
+        n = todo.pop()
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                          _ast.ClassDef, _ast.Lambda)):
+            continue
+        if isinstance(n, (_ast.Yield, _ast.YieldFrom)):
+            return True
+        if (isinstance(n, _ast.Return) and n.value is not None
+                and not (isinstance(n.value, _ast.Constant)
+                         and n.value.value is None)):
+            return True
+        todo.extend(_ast.iter_child_nodes(n))
+    return False
+
+
+def _is_stub(node) -> bool:
+    """Whether the `def` `node` only declares a method: its body holds a
+    docstring, `...` or a `raise`, and nothing else. icalendar's Protocol
+    `HasToIcal` declares `to_ical` so."""
+    import ast as _ast
+
+    return all((isinstance(s, _ast.Expr) and isinstance(s.value, _ast.Constant)
+                and (s.value.value is Ellipsis or isinstance(s.value.value, str)))
+               or isinstance(s, _ast.Raise) for s in node.body)
+
+
+def _surface_gives_a_value(ctx: Ctx, name: str, defined, as_method: bool,
+                           read: Callable[[str], str | None]) -> bool:
+    """Whether the code of the surface `name` returns a value, in the tree
+    that the test runs against.
+
+    `defined` is what `_definition_of` found, and it decides when it is a
+    `def`. A method call such as `cal.to_ical()` names no module, and the
+    index holds no method row. So every `def name` of the program files
+    that `definers_of` finds must return a value, and a stub declares none.
+    No definition, or a file that does not read or parse, proves nothing.
+    """
+    import ast as _ast
+
+    if defined is not None:
+        return _gives_a_value(defined[2])
+    if not as_method:
+        return False
+    try:
+        files = definers_of(ctx.conn, name, defs_only=True,
+                            lenient_root=_worktree_of(ctx))
+    except Exception:  # noqa: BLE001 -- no tree and no index: nothing proved
+        return False
+    defs = []
+    for path in files:
+        src = read(path)
+        if src is None:
+            return False
+        try:
+            found = _ast.parse(src)
+        except SyntaxError:
+            return False
+        defs += [n for n in _ast.walk(found)
+                 if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                 and n.name == name and not _is_stub(n)]
+    return bool(defs) and all(_gives_a_value(n) for n in defs)
+
+
 def _run_tree_reader(ctx) -> tuple[bool, Callable[[str], str | None]]:
     """A reader of the files the test runs against, and whether they are
     the batch's worktree.
@@ -11068,6 +11158,29 @@ def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
     return candidate
 
 
+def _holds_a_check(tree) -> bool:
+    """Whether the test body `tree` checks a result: an `assert`, a
+    `pytest.raises`, `pytest.warns` or `pytest.fail` call, a
+    `self.assert...` or `self.fail` call, or a mock's `assert_...` call.
+    A `with pytest.raises(...)` block holds the call, so it counts."""
+    import ast as _ast
+
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Assert):
+            return True
+        if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)):
+            continue
+        attr = n.func.attr
+        owner = n.func.value.id if isinstance(n.func.value, _ast.Name) else None
+        if owner == "pytest" and attr in ("raises", "warns", "fail"):
+            return True
+        if owner == "self" and (attr.startswith("assert") or attr == "fail"):
+            return True
+        if attr.startswith("assert_"):
+            return True
+    return False
+
+
 def _project_holder(ctx: Ctx, path: str, batch_id: str | None) -> str | None:
     """The id of the project test that holds `path` in the batch, or None.
 
@@ -11331,12 +11444,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     _fence.check(path, tree, _criteria_texts(ctx))
     has_test = any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                    and n.name.startswith("test") for n in _ast.walk(tree))
-    has_assert = any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))
-    if not (has_test and has_assert):
+    # Two facts, and each text says its own. The one text refused 12 good
+    # tests on dry runs 3 and 6c: pytest collects a `pytest.raises` test and
+    # a `unittest.TestCase` method with no `assert` statement.
+    if not has_test:
         raise Wall(
-            "pytest will collect nothing from this body: it needs a "
-            "def test_...() containing at least one assert. A sentence about "
-            "the criterion is the criterion again, not a test of it")
+            "pytest collects nothing from this body: it holds no "
+            "def test_...(). A sentence about the criterion is the criterion "
+            "again, not a test of it")
+    if not _holds_a_check(tree):
+        raise Wall(
+            "pytest collects this body, and the test checks nothing: it holds "
+            "no assert, no pytest.raises or pytest.warns, no pytest.fail, no "
+            "self.assert... or self.fail call and no mock assert_... call. "
+            "Add a check of what the criterion says")
 
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
     # And a third harness fact, from walk nine: `assert test_valid_input()`
@@ -12288,6 +12409,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         "SELECT surface_refs FROM criteria WHERE id = ?", (criterion_id,)).fetchone()) else []
     surface_now = {s.rsplit("::", 1)[-1] for s in surface_refs}
     uses_return = None
+    as_method = False
     for node in _ast.walk(tree):
         call = None
         if isinstance(node, _ast.Assign) and isinstance(node.value, _ast.Call):
@@ -12302,6 +12424,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             name = fn.id if isinstance(fn, _ast.Name) else getattr(fn, "attr", None)
             if name in surface_now:
                 uses_return = name
+                as_method = isinstance(fn, _ast.Attribute)
                 break
     # The criterion's words say what prints, and the function's kind says
     # what a call returns. Frame 177: on night 128 this door refused 5
@@ -12311,6 +12434,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     defined = (_definition_of(tree, path, uses_return, surface_refs, read)
                if uses_return else None)
     if defined is not None and _returns_factory(defined[2], defined[3]):
+        uses_return = None
+    # The code is the fact, and the words are not (DECISIONS.md 944 to
+    # 957). On dry runs 4, 5 and 6c the words "output" and "writes" refused
+    # 18 tests of `q_split` and `to_ical`, which return a value. So a surface
+    # whose code returns a value passes this door. A surface not in the tree,
+    # or with no return value, keeps the word rule of clickI nights 28 to 45.
+    if uses_return and _surface_gives_a_value(ctx, uses_return, defined,
+                                              as_method, read):
         uses_return = None
 
     def _def_fact(where: str, node, src: str) -> None:
@@ -12712,12 +12843,19 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                       and w[2].get("path") == path), None)
         clash = {"id": clash[1]} if clash else None
     if clash:
+        # Frame 362: the constant hint named a root `tests/`, and icalendar
+        # keeps its tests in `src/icalendar/tests` (dry run 6c, s180). The
+        # folder comes from the index, as the program-file door's does.
+        here = path.rpartition("/")[0]
+        dirs = _ranked_test_dirs(ctx.conn)
+        folder = here if here in dirs else dirs[0]
         raise ValueError(
             f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
             f"{clash['id']}'s file; two tests in one file "
             f"overwrite each other on disk."
             f"{_docs_test_note(ctx, criterion_id)} Name this one for its own "
-            f"criterion -- tests/test_<what it checks>.py")
+            f"criterion -- {folder + '/' if folder else ''}"
+            f"test_<what it checks>.py")
     # law 14: some keys are cardinality, not content
     # A replace supersedes every test this session staged on the criterion.
     # The same id twice would move the version twice. Another id is the
