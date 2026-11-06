@@ -442,3 +442,141 @@ def test_a_boot_reconcile_keeps_the_claim_over_its_tests_commit(world):
                      "WHERE id = 'b1'").fetchone()
     assert row["head_commit"] == tests_commit
     assert row["claimed_head"] == tests_commit
+
+
+# ---------------------------------------------------------------------------
+# Slice 1 of the false claim design: the Tester's tests decide a claim
+# (plans/design-false-claim-2026-11-06.md, Revision R2 F and R4)
+# ---------------------------------------------------------------------------
+
+# The words of the design, R2 F, to the letter.
+CLAIM_DETAIL = ("No code changed on this batch. The Developer claims that the "
+                "code as it is already meets each criterion. Your tests decide "
+                "the claim.")
+S153_BATCH = "fold_long_lines_in_icalendar_batch"
+S153_FORK = "99619246f9c685ff407ab2559a12c18f6dbec9de"
+
+
+def _tester_detail(db, bid):
+    wakes = [w for w in predicates.tests_missing(db) if w.refs == (bid,)]
+    assert len(wakes) == 1, wakes
+    return wakes[0].detail
+
+
+@pytest.fixture
+def s153_rows(tmp_path):
+    """The rows of dry6b.db at the wake of s153: the claimed batch is
+    running, its head is the fork, and c1 to c3 have no test yet. The probe
+    of the report reads the same wake from a copy of dry6b.db itself."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('folds_long_lines_in_icalendar','fold a long "
+               "line at a space','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('t1','folds_long_lines_in_icalendar','fold at a space')")
+    for cid in ("c1", "c2", "c3"):
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 't1', ?)",
+                   (cid, f"criterion {cid}"))
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, "
+               "claimed_head) VALUES (?, 'folds_long_lines_in_icalendar', "
+               "'running', ?, ?)", (S153_BATCH, S153_FORK, S153_FORK))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES (?, 't1')",
+               (S153_BATCH,))
+    db.commit()
+    yield db
+    db.close()
+
+
+def test_the_wake_of_s153_carries_the_claim(s153_rows):
+    """R4 control 4: s153 read only "without a test: c1, c2, c3" and wrote
+    three tests that pass on the code as it was (the read, section 1)."""
+    detail = _tester_detail(s153_rows, S153_BATCH)
+
+    assert detail.splitlines()[0] == "without a test: c1, c2, c3", detail
+    assert CLAIM_DETAIL in detail, detail
+
+
+def test_a_change_batch_gets_no_claim_detail(s153_rows):
+    """A real commit is a change, and so is a claim that a later commit
+    replaced (review p1, F7). Neither wake says that no code changed."""
+    db = s153_rows
+    for claim in (None, "an_older_head"):
+        db.execute("UPDATE batches SET claimed_head = ? WHERE id = ?",
+                   (claim, S153_BATCH))
+        db.commit()
+
+        detail = _tester_detail(db, S153_BATCH)
+
+        assert detail == "without a test: c1, c2, c3", detail
+        assert "claim" not in detail
+
+
+def _claim_in_world(db):
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','t1','plural(2, \"cat\") returns \"2 cats\"')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.commit", message="the criteria are met")
+    _land(db, sb, sid="s_claim")
+    assert CLAIM_DETAIL in _tester_detail(db, "b1")
+
+
+def _encode(db, body):
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','tests/test_probe_f360.py', ?)", (body,))
+    db.commit()
+
+
+def test_a_red_test_disproves_a_claim_and_the_batch_runs_the_loop(world):
+    """R4 control 5: a criterion test red at the fork wakes the Developer
+    on `tests_failing`. A real commit then ends the claim, and the merge
+    shows the Done line and no claimed line."""
+    db, repo, tree = world
+    base = repo.head()
+    _claim_in_world(db)
+    _encode(db, "def test_x():\n    assert False\n")
+    lifecycle.record_test_run(db, "r1", "b1", "tst1", "fail", commit_sha=base)
+    db.commit()
+
+    woken = [w for w in predicates.tests_failing(db) if w.refs == ("b1",)]
+    assert [(w.role, w.kind) for w in woken] == [("developer", "tick:tests_failing")]
+
+    sb = build("developer", db, batch_id="b1")
+    sb.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
+    out = sb.call("code.commit", message="the change")
+    assert out["committed"] is True, out
+    session_commit(db, SessionResult(
+        session_id="s_change", role="developer", wake_kind="tick:tests_failing",
+        wake_refs=("b1",), writes=[_as_write(w) for w in sb.ctx.writes]))
+    db.commit()
+    row = db.execute("SELECT head_commit, claimed_head FROM batches "
+                     "WHERE id = 'b1'").fetchone()
+    assert row["head_commit"] == out["head_commit"]
+    assert row["claimed_head"] is None
+    assert ("b1",) in [w.refs for w in predicates.harness(db)]
+
+    lifecycle.record_test_run(db, "r2", "b1", "tst1", "pass",
+                              commit_sha=out["head_commit"])
+    db.commit()
+    assert [w for w in predicates.tests_failing(db) if w.refs == ("b1",)] == []
+    lifecycle.merge(db, "b1")
+
+    page = render_state(db)
+    assert "Done: 1 change built, tested and merged." in page, page
+    assert CLAIMED_LINE not in page, page
+
+
+def test_a_true_claim_whose_tests_pass_merges_as_before(world):
+    db, repo, tree = world
+    base = repo.head()
+    _claim_in_world(db)
+    _encode(db, "def test_x():\n    assert True\n")
+    lifecycle.record_test_run(db, "r1", "b1", "tst1", "pass", commit_sha=base)
+    db.commit()
+
+    assert [w for w in predicates.tests_failing(db) if w.refs == ("b1",)] == []
+    lifecycle.merge(db, "b1")
+
+    assert db.execute("SELECT status FROM batches WHERE id = 'b1'"
+                      ).fetchone()[0] == "merged"
+    assert CLAIMED_LINE in render_state(db)

@@ -1010,9 +1010,32 @@ def tests_missing(conn) -> list[Wake]:
     missing: dict[str, list[str]] = {}
     for r in rows:
         missing.setdefault(r["bid"], []).append(r["cid"])
+    claimed = _claimed_batches(conn)
     return [Wake("tester", "tick:tests_missing", refs=(bid,),
-                 detail="without a test: " + ", ".join(cids))
+                 detail="without a test: " + ", ".join(cids)
+                 + ("\n" + CLAIM_DETAIL if bid in claimed else ""))
             for bid, cids in missing.items()]
+
+
+# Run 1 of frame 362: s153 was not told of the claim, and its three tests
+# passed on the code as it was. So the Tester of a claimed batch is told,
+# and its tests decide the claim (plans/design-false-claim-2026-11-06.md,
+# Revision R2 F).
+CLAIM_DETAIL = ("No code changed on this batch. The Developer claims that the "
+                "code as it is already meets each criterion. Your tests decide "
+                "the claim.")
+
+
+def _claimed_batches(conn) -> set[str]:
+    """The batches whose head is a claim. Equality is the only test of a
+    claim, because a later real commit leaves no claim (review p1, F7)."""
+    from .db import _has_column
+
+    if not _has_column(conn, "batches", "claimed_head"):
+        return set()
+    return {r[0] for r in conn.execute(
+        "SELECT id FROM batches WHERE claimed_head IS NOT NULL "
+        "AND claimed_head = head_commit")}
 
 
 @predicate("harness", wakes=SCHEDULER, band="gate",

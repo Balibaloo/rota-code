@@ -24,6 +24,12 @@ glossary, so you can run the moment they exist. A test written against code that
 already exists tends to encode what the code does rather than what was asked for,
 which is precisely the failure Critic cannot catch.
 
+**A wake that says no code changed is a claim.** For each criterion, pick an
+input where code that meets the criterion's words and code that does not give
+different results. A test that fails on the code as it is shows that the claim
+is false. That is a right result, not a fault of your test. Do not change a
+test so that it passes.
+
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 
 **A test of a prompt gives the prompt a stream.** pytest captures stdin, so a
