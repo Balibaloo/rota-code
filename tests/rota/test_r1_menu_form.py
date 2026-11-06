@@ -107,8 +107,8 @@ def test_a_line_key_on_the_add_line_beside_a_clause_add_is_refused(
     words = ("Drop line 3. Line 2 should say per person. The page leaves out "
              "the tax.")
     sb, _ = _seat(db, ask, words=words)
-    with pytest.raises(ValueError, match=r"^line 2: line 2 gives 'other per "
-                                         r"person' and clause c3 gives"):
+    with pytest.raises(ValueError, match=r"^line 2: the line key gives "
+                                         r"'other', and c3 add to line 2"):
         sb.call("rulings.rule", rulings={
             "3": "drop", "2": "other per person",
             "c3": "add The page leaves out the tax.", "rest": "approve"})

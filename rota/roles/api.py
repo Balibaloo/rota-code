@@ -13669,10 +13669,18 @@ def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
         # Joined adds name the reply when each run is a span of it, as a
         # single add does (frame 362, review 2, item 4).
         runs = shape.pop("runs", None)
-        if runs and shape.get("words") and not shape.get("words_from") and all(
+        # The menu door knows where the words stand in his reply. The stamp
+        # then means: his words, from that place, in his order (review of
+        # 0c5e4a4d, finding 4).
+        placed = shape.pop("his_place", None)
+        if placed is not None and shape.get("words"):
+            shape.setdefault("words_from", ctx.trigger if placed else None)
+        elif runs and shape.get("words") and not shape.get(
+                "words_from") and all(
                 _words_from(ctx, r) == ctx.trigger for r in runs):
             shape["words_from"] = ctx.trigger
-        if shape.get("words") and not shape.get("words_from"):
+        if placed is None and shape.get("words") and not shape.get(
+                "words_from"):
             shape["words_from"] = _words_from(ctx, shape["words"])
         reading[ref] = {**shape, "verdict": verdict}
     rows = ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
@@ -15732,8 +15740,8 @@ def _one_option_text(n: int, other: str, other_value, add: str,
 
 
 def page_clauses(his: str, size: int,
-                 menu: dict[int, tuple[str, list[str]]] | None = None
-                 ) -> list[dict]:
+                 menu: dict[int, tuple[str, list[str]]] | None = None,
+                 offsets: bool = False) -> list[dict]:
     """The clauses of his reply in order, each with its words and the page
     lines that the binder `line_words` gives it.
 
@@ -15788,9 +15796,12 @@ def page_clauses(his: str, size: int,
                              if a < 0) and not all(
                 i in held for i in range(at, at + len(piece))
                 if text[i].isalnum()):
-            found.append((start, piece, []))
+            found.append((at, piece, []))
     found.sort(key=lambda f: (f[0], -len(f[1])))
-    out = [{"words": w, "lines": ns} for _, w, ns in found]
+    # The door asks for the offsets, so it reads no second search. The
+    # landing shows no offset, so its clauses keep their form.
+    out = [{"words": w, "lines": ns, **({"at": max(a, 0)} if offsets else {})}
+           for a, w, ns in found]
     if menu is not None:
         one_add = len(_add_lines(menu)) == 1
         for c in out:
@@ -15862,7 +15873,28 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     from .principal import is_test_row
 
     menu = page_menus(conn, order, page_text)[1]
-    clauses = page_clauses(his, len(order), menu)
+    clauses = page_clauses(his, len(order), menu, offsets=True)
+    # Each clause's offset in his reply comes from the cut, the one source.
+    # A second search gave two adjacent clauses with the same words one
+    # offset, and "Add the tax." landed once (frame 362, review of
+    # 0c5e4a4d, finding 1). The words are his when they start at a clause
+    # start and end at a clause end.
+    clause_at = {k_at: c_at.pop("at") for k_at, c_at in enumerate(clauses, 1)}
+
+    def his_place(start: int, words: str) -> bool | None:
+        """True when `words` stand at `start` in his reply as whole clauses
+        of the clauses there, None when they do not stand there. The stamp
+        `words_from` read the text anywhere in his reply, so "add tests."
+        of "Do not add tests." took the stamp of a later clause (review of
+        0c5e4a4d, finding 4)."""
+        end = start + len(words)
+        if not words or (his or "")[start:end] != words:
+            return None
+        near = [(clause_at[k], clause_at[k] + len(c["words"]))
+                for k, c in enumerate(clauses, 1)
+                if clause_at[k] < end and clause_at[k] + len(c["words"]) > start]
+        return bool(near) and _holds_clauses(
+            (his or "")[min(s for s, _ in near):max(e for _, e in near)], words)
     adds = _add_lines(menu)
     # The lines that the reply rules itself: a clause has the line as its
     # subject, and `_line_reading` reads a fault or a match there. On those
@@ -15987,6 +16019,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     # Each choice: its name in a refusal, the option, the lines it rules,
     # the span of each line, and the read-back rows it also rules.
     choices: list[tuple[str, object, list[int], dict[int, str], list]] = []
+    # The clause adds that a line key on the add line would displace.
+    displaced: list[str] = []
     for k in sorted(by_clause):
         value, c = by_clause[k], clauses[k - 1]
         # A key on his question lands nothing, whether it names a line or
@@ -16024,12 +16058,14 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # won with no refusal (pass R3e), and n174's `drop` and `other`
             # on line 11 so lost every clause add (frame 362, review 1,
             # finding 5). The record holds his words verbatim.
+            # One refusal names every clause add of the line. A refusal per
+            # add cost the seat a turn each on n174-m53-m58 (review of
+            # 0c5e4a4d, finding 3).
             theirs = _key_name(by_line.get(adds[0]))
             if theirs is not None and theirs not in (*_RIDES_WITH_ADD,
                                                      "add"):
-                raise ValueError(_one_option_text(
-                    adds[0], f"line {adds[0]}", by_line[adds[0]],
-                    f"clause c{k}", value))
+                displaced.append(f"c{k}")
+                continue
             choices.append((f"clause c{k}", value, [adds[0]],
                             {adds[0]: c["words"]}, []))
             continue
@@ -16044,6 +16080,16 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         if name in ("approve", "ok") and text in refused:
             continue
         raise ValueError(text)
+    if displaced:
+        # The way out lands in one call: an approve on the line lets every
+        # clause add ride, and the ask fits words that ask for no add.
+        raise ValueError(
+            f"line {adds[0]}: the line key gives "
+            f"{_key_name(by_line[adds[0]])!r}, and {', '.join(displaced)} "
+            f"add to "
+            f"line {adds[0]}. One ruling holds one option per line. Key line "
+            f"{adds[0]} \"approve\" to keep the adds, or call "
+            f"rulings.rule(ask=...) with no rulings.")
     # The clauses with no lines whose quote a line key carries.
     quoted: set[int] = set()
     for n in sorted(by_line):
@@ -16102,13 +16148,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     add_parts: dict[str, list[tuple[int, str]]] = {}
     # The key and the value that ruled each ref, for a refusal of two.
     key_of: dict[str, tuple[str, object]] = {}
-    # Each clause's offset in his reply. `page_clauses` lists the clauses in
-    # the order of their offsets, so each search starts at the one before.
-    clause_at: dict[int, int] = {}
-    seek = 0
-    for k_at, c_at in enumerate(clauses, 1):
-        place = (his or "").find(c_at["words"], seek)
-        clause_at[k_at] = seek = place if place >= 0 else seek
+    # Each add part's `his_place`, for the stamp of a joined row.
+    add_placed: dict[str, list[bool | None]] = {}
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
         if name in _LANDS_NOTHING:
@@ -16182,7 +16223,17 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             if opt in ("add", "other") and given and _holds_span(his, given):
                 place = _quote_place(his, given, lo, hi)
                 if place is not None:
-                    said, at = (his or "")[place[0]:place[1]], place[0]
+                    # A quote that cuts a word lands with the whole word.
+                    # "he page leaves out the t" landed as the row (review
+                    # of 0c5e4a4d, finding 2). A part of whole words stays.
+                    start, end, full = *place, his or ""
+                    while start > 0 and full[start - 1].isalnum() \
+                            and full[start].isalnum():
+                        start -= 1
+                    while end < len(full) and full[end].isalnum() \
+                            and full[end - 1].isalnum():
+                        end += 1
+                    said, at = full[start:end], start
                 elif not (own and act == "add"):
                     said = given
                 else:
@@ -16208,6 +16259,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                         raise ValueError(text)
             if at is None:
                 at = max((his or "").find(said), 0)
+            placed = his_place(at, said)
             # One ruling holds one verdict per ref. An add beside a contest
             # on one line lost the one that came first, in both orders
             # (frame 362, review 1, point 4). The refusal fires on every
@@ -16238,9 +16290,16 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 held = (add_parts.get(ref, []) if shape_of.get(ref, {}).get(
                     "act") == "add" else [])
                 add_parts[ref] = [*held, (at, said)]
+                add_placed[ref] = [*(add_placed.get(ref, []) if held else []),
+                                   placed]
                 if held:
                     shape["words"], shape["runs"] = _joined_add(
                         his, add_parts[ref])
+                placed = (None if None in add_placed[ref]
+                          else all(add_placed[ref]))
+            # The door knows the place of the words, so the stamp reads it.
+            if placed is not None:
+                shape["his_place"] = placed
             per_item[ref], shape_of[ref] = verdict, shape
             key_of[ref] = (label, value)
             ruled[n] = label

@@ -299,11 +299,16 @@ def test_a_line_key_that_lands_a_row_beside_clause_adds_is_refused(
     words = ("Line 2 is wrong. The page leaves out the tax, and it leaves out "
              "the rounding.")
     sb, _ = _seat(db, ask, words=words)
+    keys = {"2": line_value, "c2": "add", "c3": "add", "rest": "approve"}
+    # Pass 2: one refusal names every clause add of the line, and its way
+    # out lands in one call (review of 0c5e4a4d, finding 3).
     with pytest.raises(ValueError, match=(
-            r"^line 2: line 2 gives .* and clause c2 gives 'add'.*one "
-            r"option per line")):
-        sb.call("rulings.rule", rulings={"2": line_value, "c2": "add",
-                                         "c3": "add", "rest": "approve"})
+            r"^line 2: the line key gives .*, and c2, c3 add to line 2\. One "
+            r"ruling holds one option per line\. Key line 2 \"approve\"")):
+        sb.call("rulings.rule", rulings=keys)
+    sb.call("rulings.rule", rulings={**keys, "2": "approve"})
+    assert _rows(sb)["calculate_tip"]["words"] == words[len("Line 2 is "
+                                                            "wrong. "):]
 
 
 def test_a_line_add_and_a_clause_add_on_one_line_join(db):  # noqa: F811
@@ -359,11 +364,12 @@ def _in_his_order(his: str, words: str) -> bool:
 
 
 def _his_text(his: str, quote: str, clause: str) -> str:
-    """His own text of a quote, found case-folded inside the clause."""
-    at = his.lower().find(clause.lower())
+    """His own text of a quote, found case-folded inside the clause. A
+    quote from another clause lands the clause's own words, after the
+    refusal that fires once."""
     pat = re.compile(r"\s+".join(map(re.escape, quote.split())), re.I)
-    m = pat.search(his, at) or pat.search(his)
-    return m.group(0)
+    m = pat.search(clause)
+    return m.group(0) if m else clause
 
 
 # The built replies of the rule test. Each one holds a shape that broke the
@@ -394,6 +400,11 @@ RULE_REPLIES = [
     (TWO, {"c2": "add " + JOINED, "c3": "add it leaves out the rounding."}),
     ("Drop line 3. The page leaves out the tax.\nAlso the page leaves out "
      "the rounding.", {"c2": "add", "c3": "add"}),
+    # Pass 2: adjacent repeats, probes Q1 and Q4 of the review of 0c5e4a4d.
+    ("Drop line 3. Add the tax. Add the tax.", {"c2": "add", "c3": "add"}),
+    ("Drop line 3. Use the tax. Use the tax. Use the fee.",
+     {"c2": "add", "c3": "add", "c4": "add"}),
+    (TWO, {"c2": "add he page leaves out the t", "c3": "none"}),
 ]
 
 
@@ -412,7 +423,18 @@ def test_every_clause_add_is_on_the_record_or_the_door_names_a_clause(
     except ValueError as e:
         assert re.match(r"(clause c\d+|line \d+|c\d+(, c\d+)*): ",
                         str(e)), str(e)
-        return
+        # A refusal that fires once lets the repeat land, so the repeat's
+        # row must keep the rule too (review of 0c5e4a4d, finding 6). Each
+        # repeat can meet the once refusal of the next clause.
+        last = str(e)
+        for _ in range(4):
+            try:
+                sb.call("rulings.rule", rulings=rulings)
+                break
+            except ValueError as again:
+                if str(again) == last:
+                    return
+                last = str(again)
     row = _rows(sb)["calculate_tip"]
     adds = [(int(k[1:]), v) for k, v in sorted(keys.items())
             if k.startswith("c") and v.startswith("add")]
@@ -426,3 +448,86 @@ def test_every_clause_add_is_on_the_record_or_the_door_names_a_clause(
         at += 1
     assert _in_his_order(words, row["words"]), row["words"]
     assert row["words_from"] in (sb.ctx.trigger, None)
+
+
+# Pass 2, the review of 0c5e4a4d.
+@pytest.mark.parametrize("words, keys, joined", [
+    ("Drop line 3. Add the tax. Add the tax.", {"c2": "add", "c3": "add"},
+     "Add the tax. Add the tax."),
+    ("Drop line 3. Use the tax. Use the tax. Use the fee.",
+     {"c2": "add", "c3": "add", "c4": "add"},
+     "Use the tax. Use the tax. Use the fee.")])
+def test_adjacent_clauses_with_the_same_words_land_each(
+        db, words, keys, joined):  # noqa: F811
+    """Finding 1, high. A second search gave the second clause the offset
+    of the first, so his repeat landed once with no refusal."""
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=words)
+    rulings = {**keys, "rest": "approve"}
+    if words.startswith("Drop line 3."):
+        rulings["3"] = "drop"
+    sb.call("rulings.rule", rulings=rulings)
+    row = _rows(sb)["calculate_tip"]
+    assert (row["words"], row["words_from"]) == (joined, sb.ctx.trigger)
+
+
+def test_the_stamp_reads_the_place_of_the_words(db):  # noqa: F811
+    """Finding 4. "add tests." taken from c1 "Do not add tests." took the
+    stamp, because c4 holds the same text as a whole clause."""
+    row = _add_row(db, REPEATED_PIECE, {"c1": "add add tests.",
+                                        "c3": "add Use the tax",
+                                        "c4": "none"})
+    assert (row["words"], row["words_from"]) == ("add tests. Use the tax",
+                                                 None)
+
+
+def test_a_quote_that_cuts_a_word_lands_with_the_whole_word(
+        db):  # noqa: F811
+    """Finding 2, the mechanical part. A part of whole words stays a part,
+    as 84 of 189 recorded clause adds are."""
+    row = _add_row(db, TWO, {"c2": "add he page leaves out the t",
+                             "c3": "none"})
+    assert (row["words"], row["words_from"]) == (
+        "The page leaves out the tax", row["reply"])
+
+
+def test_the_named_way_out_lands_in_one_call_on_n174_m53_m58(tmp_path):
+    """Finding 3. The C refusal named one clause add, and its way out met
+    a second refusal for c3. The case expects an ask, and the ask lands."""
+    from pathlib import Path
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+    from rota.testkit import fixtures
+
+    case = next(c for c in fixtures.load_case(
+        Path("tests/rota/cases/l3_rulings.yaml"))
+        if c["id"] == "L3R-n174-m53-m58")
+    c2 = ("The docstring gains an example where, with shorten set to true, "
+          "the path a/b/c.txt shows as c.txt.")
+    c3 = ("Only the docstring in the termui file changes and the code stays "
+          "the same.")
+    keys = {**{str(n): "drop" for n in range(1, 11)}, "12": "approve",
+            "rest": "none", "11": "drop", "c2": "add " + c2, "c3": "add " + c3}
+    conn = init_db(tmp_path / "rota.db")
+    fixtures.seed(conn, case.get("fixture") or {})
+    msg = fixtures.seed_inbound(conn, case)
+    conn.commit()
+    with fixtures._page_as_seen(case):
+        sb = build("liaison", conn, mode="normal", session_id="s_w",
+                   allow=prompts.mode_tools("liaison", "landing"))
+        sb.ctx.trigger = msg
+        with pytest.raises(ValueError, match=(
+                r"^line 11: the line key gives 'drop', and c2, c3 add to "
+                r"line 11\. ")) as refusal:
+            sb.call("rulings.rule", rulings=keys)
+        assert len(str(refusal.value)) < 250
+        sb.call("rulings.rule", rulings={**keys, "11": "approve"})
+    row = next(w[2] for w in sb.ctx.writes
+               if w[0] == "ruled_refs" and w[2].get("line") == 11)
+    assert (row["verdict"], row["act"]) == ("approve", "add")
+    # His reply writes both in lower case, and the row keeps his spelling.
+    his = case["inbound"]["body_text"]
+    assert c3.lower() in row["words"] and c2[1:-1] in row["words"]
+    assert _in_his_order(his, row["words"])
