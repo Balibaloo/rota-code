@@ -95,21 +95,29 @@ def _faults(sb) -> list[str]:
     return [w[2]["text"] for w in sb.ctx.writes if w[0] == "faults"]
 
 
-def test_a_line_key_on_the_add_line_wins_with_no_note(db):  # noqa: F811
-    """Pass R3e: an option that lands a row on the add line wins with no
-    refusal. Re-check p12b, finding 3: the tool_calls row is the record,
-    so no faults row is written. An approve there lets the add ride (review
-    p12, low 2), as test_a_clause_key_add_lands_on_the_one_add_line
-    shows."""
+def test_a_line_key_on_the_add_line_beside_a_clause_add_is_refused(
+        db):  # noqa: F811
+    """Pass R3e let an option that lands a row on the add line win with no
+    refusal, so the clause add landed nothing. Frame 362, review 1, finding
+    5: the n174 recordings lost every clause add so. The record holds his
+    words verbatim, so the door refuses and names the way that keeps both.
+    An approve there lets the add ride (review p12, low 2), as
+    test_a_clause_key_add_lands_on_the_one_add_line shows."""
     ask = _page(db)
-    sb, _ = _seat(db, ask, words="Drop line 3. Line 2 should say per person. "
-                  "The page leaves out the tax.")
+    words = ("Drop line 3. Line 2 should say per person. The page leaves out "
+             "the tax.")
+    sb, _ = _seat(db, ask, words=words)
+    with pytest.raises(ValueError, match=r"^line 2: line 2 gives 'other per "
+                                         r"person' and clause c3 gives"):
+        sb.call("rulings.rule", rulings={
+            "3": "drop", "2": "other per person",
+            "c3": "add The page leaves out the tax.", "rest": "approve"})
     sb.call("rulings.rule", rulings={
-        "3": "drop", "2": "other per person",
-        "c3": "add The page leaves out the tax.", "rest": "approve"})
+        "3": "drop", "2": "other " + words[len("Drop line 3. "):],
+        "c3": "none", "rest": "approve"})
     row = _rows(sb)["calculate_tip"]
-    assert (row["verdict"], row.get("act")) == ("contest", None)
-    assert _faults(sb) == []
+    assert (row["verdict"], row.get("act"), row["words"]) == (
+        "contest", None, words[len("Drop line 3. "):])
 
 
 def test_a_line_key_wins_over_a_clause_key_with_no_refusal(

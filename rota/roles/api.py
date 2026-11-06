@@ -15701,6 +15701,36 @@ def _joined_add(his: str, parts: list[tuple[int, str]]
     return " ".join(out), out
 
 
+def _quote_place(his: str, quote: str, lo: int, hi: int
+                 ) -> tuple[int, int] | None:
+    """The start and the end of the first place of `quote` in his reply
+    that overlaps the span `lo` to `hi`, read as `_holds_span` reads it:
+    case folded, each run of white space as one space. None when no place
+    overlaps the span."""
+    text = his or ""
+    words = (quote or "").split()
+    if not words:
+        return None
+    pattern = re.compile(r"\s+".join(map(re.escape, words)), re.I)
+    m = pattern.search(text)
+    while m is not None:
+        if m.start() < hi and m.end() > lo:
+            return m.start(), m.end()
+        m = pattern.search(text, m.start() + 1)
+    return None
+
+
+def _one_option_text(n: int, other: str, other_value, add: str,
+                     add_value) -> str:
+    """The refusal of an add and another option that land on one line."""
+    return (f"line {n}: {other} gives {str(other_value)!r} and {add} gives "
+            f"{str(add_value)!r}, and one ruling holds one option per line. "
+            f"To keep his words of both, give line {n} \"other <quote>\" with "
+            f"a quote that holds both clauses, and key {add.split()[-1]} "
+            f"\"none\". When no option holds his words, call "
+            f"rulings.rule(ask=...) with no rulings.")
+
+
 def page_clauses(his: str, size: int,
                  menu: dict[int, tuple[str, list[str]]] | None = None
                  ) -> list[dict]:
@@ -15746,10 +15776,16 @@ def page_clauses(his: str, size: int,
     # p6 of frame 354, finding 4).
     held = {i for at, w, _ in found if at >= 0
             for i in range(at, at + len(w))}
+    # A piece is held only where a clause covers its own place. A test of
+    # its text against any clause dropped "add tests." of "Use the tax, and
+    # add tests." beside "Do not add tests.", and the seat had no key for
+    # his add (frame 362, review 3, finding 3). A clause with no place in
+    # his reply keeps the text test.
     for start, end, _sent in _clause_spans(text):
         piece = text[start:end].strip()
         at = text.find(piece, start)
-        if piece and not any(piece in w for _, w, _ in found) and not all(
+        if piece and not any(piece in w for a, w, _ in found
+                             if a < 0) and not all(
                 i in held for i in range(at, at + len(piece))
                 if text[i].isalnum()):
             found.append((start, piece, []))
@@ -15983,11 +16019,17 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # Code finds the line: the one line whose menu holds add. The
             # row is the row that the line key "1": "add <quote>" lands.
             # A line key there that lands no row of its own lets the add
-            # ride (review p12, low 2). One that lands a row wins (pass
-            # R3e), and the tool_calls row keeps the call (re-check p12b).
+            # ride (review p12, low 2). A line add rides too, and the two
+            # adds join. Any other line key is refused on every call. It
+            # won with no refusal (pass R3e), and n174's `drop` and `other`
+            # on line 11 so lost every clause add (frame 362, review 1,
+            # finding 5). The record holds his words verbatim.
             theirs = _key_name(by_line.get(adds[0]))
-            if theirs is not None and theirs not in _RIDES_WITH_ADD:
-                continue
+            if theirs is not None and theirs not in (*_RIDES_WITH_ADD,
+                                                     "add"):
+                raise ValueError(_one_option_text(
+                    adds[0], f"line {adds[0]}", by_line[adds[0]],
+                    f"clause c{k}", value))
             choices.append((f"clause c{k}", value, [adds[0]],
                             {adds[0]: c["words"]}, []))
             continue
@@ -16058,6 +16100,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     shape_of: dict[str, dict] = {}
     # The words of each add on a ref, for the join of the next one.
     add_parts: dict[str, list[tuple[int, str]]] = {}
+    # The key and the value that ruled each ref, for a refusal of two.
+    key_of: dict[str, tuple[str, object]] = {}
     # Each clause's offset in his reply. `page_clauses` lists the clauses in
     # the order of their offsets, so each search starts at the one before.
     clause_at: dict[int, int] = {}
@@ -16121,9 +16165,63 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                     and shape_of.get(ref, {}).get("act") == "add"):
                 continue
             # A quote stands as the words only when his reply holds it, so
-            # the row carries his words and never the seat's (law 6).
-            said = (given if opt in ("add", "other") and given
-                    and _holds_span(his, given) else spans[n])
+            # the row carries his words and never the seat's (law 6). The
+            # row takes his own text at the quote's place, so a quote in the
+            # seat's case lands in his spelling (frame 362, review 3,
+            # finding 2). A clause add quotes its own clause. A quote from
+            # another clause joined out of his order with his reply named
+            # as its source (review 3, finding 1). The door names the clause
+            # that holds the quote once, as the line key refusal does. The
+            # repeat lands the words of the keyed clause.
+            own = re.fullmatch(r"clause c(\d+)", label)
+            k_own = int(own.group(1)) if own else 0
+            lo = clause_at.get(k_own, 0) if own and act == "add" else 0
+            hi = (lo + len(clauses[k_own - 1]["words"])
+                  if own and act == "add" else len(his or ""))
+            said, at = spans[n], lo if own else None
+            if opt in ("add", "other") and given and _holds_span(his, given):
+                place = _quote_place(his, given, lo, hi)
+                if place is not None:
+                    said, at = (his or "")[place[0]:place[1]], place[0]
+                elif not (own and act == "add"):
+                    said = given
+                else:
+                    other = _quote_place(his, given, 0, len(his or ""))
+                    holder = next((
+                        j for j, c_j in enumerate(clauses, 1) if other
+                        and clause_at.get(j, -1) < other[1]
+                        and clause_at.get(j, -1) + len(c_j["words"])
+                        > other[0]), None)
+                    where = (f"clause c{holder}" if holder
+                             else f"his reply outside c{k_own}")
+                    text = (f"clause c{k_own}: the quote lies in {where}, not "
+                            f"in c{k_own}. An add quotes words of its own "
+                            f"clause. ")
+                    if holder:
+                        text += (f"Key \"c{holder}\": \"add <quote>\" when "
+                                 f"those words ask for something that the "
+                                 f"page leaves out. ")
+                    text += (f"Key c{k_own} by its own words: \"c{k_own}\": "
+                             f"\"none\", or \"c{k_own}\": \"add <quote>\" "
+                             f"with a quote from c{k_own}")
+                    if text not in refused:
+                        raise ValueError(text)
+            if at is None:
+                at = max((his or "").find(said), 0)
+            # One ruling holds one verdict per ref. An add beside a contest
+            # on one line lost the one that came first, in both orders
+            # (frame 362, review 1, point 4). The refusal fires on every
+            # call, because no repeat can keep both.
+            if ref in per_item and (
+                    (act == "add" and per_item[ref] != "approve")
+                    or (shape_of.get(ref, {}).get("act") == "add"
+                        and verdict != "approve")):
+                first = key_of.get(ref, ("an earlier key", ""))
+                now = (label, value)
+                other_key, add_key = ((first, now) if act == "add"
+                                      else (now, first))
+                raise ValueError(_one_option_text(
+                    n, other_key[0], other_key[1], add_key[0], add_key[1]))
             shape: dict = {"words": said}
             if act:
                 shape["act"] = act
@@ -16139,13 +16237,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             if act == "add":
                 held = (add_parts.get(ref, []) if shape_of.get(ref, {}).get(
                     "act") == "add" else [])
-                own = re.fullmatch(r"clause c(\d+)", label)
-                add_parts[ref] = [*held, (clause_at.get(
-                    int(own.group(1)), 0) if own else 0, said)]
+                add_parts[ref] = [*held, (at, said)]
                 if held:
                     shape["words"], shape["runs"] = _joined_add(
                         his, add_parts[ref])
             per_item[ref], shape_of[ref] = verdict, shape
+            key_of[ref] = (label, value)
             ruled[n] = label
         # A read-back line ruled with rows also rules those rows of the
         # earlier answer by their ids, as the head's call did.
