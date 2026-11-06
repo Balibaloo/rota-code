@@ -601,16 +601,19 @@ GIVE_UP = "I give the request up."
 
 
 @pytest.mark.parametrize("line_1", ["drop", f"other {GIVE_UP}"])
-def test_he_gives_the_request_up_and_nothing_is_owed(db, line_1):
+def test_he_gives_the_request_up_and_the_team_stops(db, line_1):
     # Item 4: the page says "Or say that you give the request up." A drop
-    # or a contest of line 1 lands, and the request waits on him, not on
-    # the code line.
+    # ends the owed fact. A contest of line 1 keeps it, because the request
+    # comes back, but the team stops all the same (pass 3b, finding 1).
     from rota.core.predicates import park_ask
     from rota.core.scheduler import frontier
 
     ask = _parked_page(db)
     _his_reply(db, ask, GIVE_UP, {"1": line_1, "2": "approve"})
-    assert owed(db, ITEM) is None and owed(db, "b_1") is None
+    if line_1 == "drop":
+        assert owed(db, ITEM) is None and owed(db, "b_1") is None
+    else:
+        assert owed(db, ITEM)["ruling"] == owed(db, "b_1")["ruling"] == "r_m27"
     assert ("do:cancel", ("b_1",)) in [(w.kind, w.refs) for w in frontier(db)]
     assert park_ask(db) == [] and _guess_wakes(db) == []
     assert db.execute("SELECT status FROM messages WHERE id = ?",
@@ -663,3 +666,47 @@ def test_the_page_counts_each_session_that_woke_on_the_ruling(db):
     assert text.splitlines()[1] == ("You corrected the team's guess at the code this "
                                     "request touches. The team tried, and it did not "
                                     "rewrite the guess.")
+
+
+# ---------------------------------------------------------------------------
+# Pass 3b: the third look at 3ebc5ac5
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("approval", ["contested", "pending"])
+def test_the_door_refuses_the_contested_set_while_the_request_is_out(db, approval):
+    # Finding 1: the request comes back, so his contest of the guess holds.
+    db.execute("UPDATE items SET approval = ?", (approval,))
+    assert owed(db, ITEM)["verdict"] == "m28"
+    sb = _architect(db, "guess", Wake("architect", "message", message_id="m29"),
+                    trigger="m29")
+    with pytest.raises(Exception, match="the same set"):
+        sb.call("batches.guess", item_id=ITEM,
+                paths=[g for g, k, _ in GUESS if k == "path"],
+                symbols=[g for g, k, _ in GUESS if k == "symbol"])
+
+
+ITEM2 = "keeps_crlf_in_values"
+KEY2 = f"guess:{ITEM2}"
+
+
+def test_each_page_counts_the_tries_of_its_own_request(db):
+    # Finding 2: one reply contests the guess of two requests, so one
+    # verdict, and each page counts only its own sessions.
+    from rota.roles.principal import _park_page
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES (?, 'Keep CRLF in values.', 'in_scope', 'approved', 1, 1)",
+               (ITEM2,))
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b_2', ?, 'pending')",
+               (ITEM2,))
+    db.execute("UPDATE rulings SET per_item = ? WHERE id = 'r_m27'",
+               (json.dumps({KEY: "contest", ITEM: "approve", KEY2: "contest"}),))
+    _woke(db)
+    for n in (1, 2, 3):
+        db.execute("INSERT INTO sessions (id, role, seq, wake_kind, wake_refs) VALUES "
+                   "(?, 'architect', ?, 'tick:guess', ?)",
+                   (f"s2{n}", 200 + n, json.dumps([ITEM2, "m28"])))
+    _spend(db, f"architect|tick:guess|{ITEM},m28")
+    _spend(db, f"architect|tick:guess|{ITEM2},m28")
+    assert "tried 4 times" in _park_page(db, "b_1", [ITEM, KEY])[0]
+    assert "tried 3 times" in _park_page(db, "b_2", [ITEM2, KEY2])[0]

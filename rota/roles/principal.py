@@ -2611,7 +2611,7 @@ def _owed_park_page(conn: sqlite3.Connection, batch: str, key: str,
     from ..core.scheduler import key_parts, owed_tries
 
     # Each session that woke on the ruling is a try, the relay included.
-    tries = owed_tries(conn, found["verdict"])
+    tries = owed_tries(conn, found["verdict"], found["item"])
     text = conn.execute("SELECT text FROM items WHERE id = ?",
                         (found["item"],)).fetchone()
     guess = key_parts(key)[1] == "tick:guess"

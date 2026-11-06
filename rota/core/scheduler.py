@@ -1893,11 +1893,11 @@ def owed(conn: sqlite3.Connection, ref: str) -> dict | None:
         row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
                            (ref,)).fetchone()
         item = row["item_id"] if row else ref
-    # A request that he dropped or contested waits on him, not on the code
-    # line. His "give the request up" on the owed park page ends the fact
-    # (frame 362, pass 3, item 4).
+    # A dropped request ends the fact (frame 362, pass 3, item 4). A
+    # contested or pending request comes back, so his contest holds. The
+    # equal-set door reads this fact (the third look at 3ebc5ac5, finding 1).
     live = conn.execute("SELECT approval FROM items WHERE id = ?", (item,)).fetchone()
-    if live is not None and live["approval"] not in ("draft", "approved"):
+    if live is not None and live["approval"] == "dropped":
         return None
     batches = {r["id"]: r["status"] for r in conn.execute(
         "SELECT id, status FROM batches WHERE item_id = ?", (item,))}
@@ -1971,13 +1971,26 @@ def owed_in_flight(conn: sqlite3.Connection, verdict: str) -> bool:
         (verdict, verdict)).fetchone() is not None
 
 
-def owed_tries(conn: sqlite3.Connection, verdict: str) -> int:
-    """The Architect sessions that woke on `verdict`: its relay, or a tick
-    that carries it. The tick attempts left the relay out, so the park page
-    counted low by one (the second look at 822311e0, point 4)."""
-    relays = {r["id"] for r in conn.execute(
-        "SELECT id FROM messages WHERE cause_id = ? AND verb = 'relay' "
-        "AND to_role = 'architect'", (verdict,))}
+def owed_tries(conn: sqlite3.Connection, verdict: str, item: str) -> int:
+    """The Architect sessions that woke on `verdict` for `item`: its relay,
+    or a tick that carries it. The tick attempts left the relay out, so the
+    park page counted low by one (the second look at 822311e0, point 4)."""
+    from .db import GUESS_REF
+
+    # One verdict can contest the guess of two requests. A session counts
+    # for the request that its refs name (the third look at 3ebc5ac5,
+    # finding 2).
+    mine = {item, f"{GUESS_REF}{item}"} | {r["id"] for r in conn.execute(
+        "SELECT id FROM batches WHERE item_id = ?", (item,))}
+    relays = set()
+    for r in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE cause_id = ? AND verb = "
+            "'relay' AND to_role = 'architect'", (verdict,)):
+        try:
+            if mine & set(json.loads(r["body_refs"] or "[]")):
+                relays.add(r["id"])
+        except (TypeError, ValueError):
+            continue
     tries = 0
     for r in conn.execute("SELECT trigger_msg, wake_kind, wake_refs FROM sessions "
                           "WHERE role = 'architect'"):
@@ -1987,7 +2000,7 @@ def owed_tries(conn: sqlite3.Connection, verdict: str) -> int:
             refs = []
         tries += (r["trigger_msg"] in relays
                   or (r["wake_kind"] in OWED_TICKS.values()
-                      and refs[1:2] == [verdict]))
+                      and refs[1:2] == [verdict] and refs[0] in mine))
     return tries
 
 
