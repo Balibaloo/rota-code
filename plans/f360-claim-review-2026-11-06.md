@@ -141,3 +141,66 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2
 ## (d) Usage, second look
 
 No meter is available. Estimate: about 60k context for this look, about 3M input tokens over all turns of the session, about 30k output tokens.
+
+# Third look, e534bf8f
+
+**Verdict: pick.** S1 to S4 are fixed, and the claim file and the related set are green. One medium finding is left. When the Developer's challenge opens the replace of a red test, the Critic reads about the replace and the principal does not. That fix is one sentence of the claimed line, and it can follow the pick. Findings: 0 high, 1 medium, 2 low.
+
+## (a) The points
+
+1. **S1 to S4: all fixed.**
+   - S1, fixed. On a copy of `dry6b.db`, `pending_asks` is `[]`, and the state has no "Waiting on you." (probe 3a, the full state below).
+   - S2, fixed for the Critic, not for the principal (finding T1).
+   - S3, fixed. `_why_idle` gives "idle with 14 open assumption(s)" on the copy. After `discharge_touch_notes`, m31 is `answered`, the ledger holds the resolved row, and no state line moves (probe 3c).
+   - S4, fixed. A run that writes no report now gives `no_report`, and the other five kinds stay right (probe 3d).
+2. **The red test of a claim: refused on every try outside a challenge from the Developer.**
+   - Path A: two tries each with the `challenge`, `answer` and `tests_missing` tools, and one try on a challenge from the Critic. Each try was refused with "The test stands, and its red goes to the Developer. Nothing was written." (probe 3b).
+   - Path B: on a challenge from the Developer, the replace lands as version 2. After a pass run, `code.read` and the wake of the Critic say "A test of this batch failed on the code as it is, and the Tester replaced it."
+   - The Developer can challenge each red test in turn, and the claim stands with no new claim. After the merge the principal reads only "The only evidence is 1 test that the team wrote, and it passes on the code as it was. The reviewer passed it." (finding T1).
+3. **"answered" is not true for a note that he did not answer. No reader takes it as his "ok".**
+   - The schema allows only `open`, `answered`, `unresolved` and `quarantined`, so `answered` is the one closed status.
+   - The limbo reader, `predicates.py` 757 to 770, skips every `present` that names a batch (`lifecycle.touch_notes`).
+   - "things approved so far" counts `items.approval`. A batch starts on an approved item. A reading comes from his own messages. None of these reads the status of a message.
+   - The three readers of a note that an older merge left open:
+     - `loop.gates_open` (733) lists the note. Its only caller is a test.
+     - `predicates.outstanding` (2398) counts it as `awaiting_principal` in the pane of what the system owes (finding T3).
+     - `scheduler.py` 1294 skips touch notes, so the note holds no agenda back.
+   - On a run that starts after this commit, such a note exists only when a touch note lands after its batch merged. It then stays open until the next merge (PLAUSIBLE).
+4. **The full-stop change touches only the two f-strings.** They are the claimed line, `principal.py` 328, and the touch line, `principal.py` 469. The diff changes no other page text.
+5. **The tests are green.** The claim file gives 31 passed. The related set, 144 files in the worktree, gives 4513 passed, 48 skipped and 10 xfailed.
+
+### The state on a copy of dry6b.db, in full (probe 3a)
+
+```
+The merged work carries 3 invented test values. Ask me to show them.
+When icalendar writes a long line, fold it at a space where it can, so that a word is not split, and keep everything else as before: no code changed. The team says the code already does this. The only evidence is 3 tests that the team wrote, and they pass on the code as it was. The reviewer passed them. Ask me to show them.
+The plan for When icalendar writes a long line, fold it at a space where it can, so that a word is not split, and keep everything else as before reached you after its merge. Ask me to show it.
+After the merge the team re-read the project and recorded 3 notes. Ask me to show them.
+The team read the project and recorded 201 notes. 161 wait in the ledger until a change touches them, 20 were shown when a change touched them, and 20 bind no code.
+Your answers about delivered work, as the team read them:
+  - Your answer "ok", as the team read it: 1 line approved.
+  - Your answer "Line 2 is wrong. The fold is _foldline ...", as the team read it: "When icalendar writes a long line, fold it at a space where it can, so that a word is not split, and keep everything else as before." is approved: add; line 2 of the earlier page is wrong: rewrite; 1 line approved.
+Rota itself failed 1 time this run. The people who build it have the list.
+```
+
+Each sentence is true on these rows. m31 is still `open` on the copy, because its merge came before the discharge. The state treats it as a line and not as an ask.
+
+## (b) Findings, third look
+
+1. **T1. Medium. After a challenge that replaces the red test of a claim, the principal reads no word of the red run.** `rota/roles/principal.py` 322 to 340, `claimed_lines`. CONFIRMED (probe 3b): the Critic note holds "A test of this batch failed on the code as it is, and the Tester replaced it." The merged state says only "The only evidence is 1 test that the team wrote, and it passes on the code as it was. The reviewer passed it." The party that claimed asked for the replace of the one run against its claim. That meets the ruling, because the Critic saw both facts. But the principal cannot see it ("no work stays invisible"). Fix: when `critic_claim_note` holds the replace sentence, add "A test failed on the code as it was, and the Tester replaced it after the Developer's challenge." to the claimed line.
+2. **T2. Low. A discharged touch note reads `answered` in the register, but he did not answer it.** `rota/core/lifecycle.py` 244. CONFIRMED (probe 3c): m31 became `answered`. No reader takes the status as his "ok" (point 3), and the resolved ledger row says the truth. A person who reads the messages table directly can misread it. Fix: none needed now. If the schema gets a closed status that is not an answer, use it here.
+3. **T3. Low. `predicates.outstanding` still counts a touch note left open by an older merge as `awaiting_principal`.** `rota/core/predicates.py` 2393 to 2416. PLAUSIBLE, from the code: the query reads every open message to the principal. On `dry6b.db` the pane of what the system owes names m31 until a merge discharges it. Fix: skip `open_merged_touch_notes` there, as `_why_idle` now does.
+
+## (c) Probes, third look
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/rv360/`. The folder `tree3/` holds a `git archive` of e534bf8f, with `probes/`. No tracked file changed.
+
+- 3a. `state3.py`, output `state3.out`. A backup copy of `dry6b.db`, `pending_asks`, `_why_idle` and `render_state`.
+- 3b. `tree3/tests/rota/test_rv360_p3.py`, output `probe3_paths.out`. Two tries for each Tester tool set, one try on a challenge from the Critic, one replace on a challenge from the Developer, a pass run, the Critic note, `code.read`, a pass verdict and the merge.
+- 3c. A run of `discharge_touch_notes` on the copy of 3a, output `discharge3.out`.
+- 3d. `verdict_probe2.py` on the revised `replay_s153.py`, output `verdict_probe3.out`.
+- 5. `tests/rota/test_f360_claimed_batch.py` on `tree3`, output `claimfile3.out`. The related set in `C:/Users/roman/rota_r362o`, output `related3.out`.
+
+## (d) Usage, third look
+
+No meter is available. Estimate: about 40k context for this look, about 4M input tokens over all turns of the session, about 40k output tokens.
