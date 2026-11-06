@@ -190,13 +190,90 @@ def _start(db, bid):
                             Wake("developer", "tick:batch_start", refs=(bid,)))
 
 
+# Pass 2: his verdict on the row comes first, in the read-back's words, so
+# the seat reads the guess as the line he called wrong (review, finding 2).
+# The line stops at `LEGEND_CHARS` with a mark (finding 8).
+LEGEND2_HEAD = f"On his page, line 2 is wrong: rewrite. The line was guess:{ITEM6}: "
+CUT_MARK = " ... (the rest of this line is cut)"
+LEGEND2 = (LEGEND2_HEAD + GUESS6)[:400 - len(CUT_MARK)].rstrip() + CUT_MARK
+
+
 def test_s152s_start_push_holds_his_reply_m27_and_the_legend_of_line_2(tmp_path):
     """Red on fe0dc136: the push held the row words of lines 1 and 2, 65
     characters, and not the sentence that names string.py."""
     db = _dry6b(tmp_path, upto="r_m27")
     assert _start(db, "b_1")[START_RULED_KEY] == (
-        f'His answer m27 to page m26: "{M27}"\n'
-        f"On his page, line 2 was {GUESS6}")
+        f'His answer m27 to page m26: "{M27}"\n{LEGEND2}')
+
+
+def test_the_legend_line_is_cut_at_400_characters_with_a_mark(tmp_path):
+    db = _dry6b(tmp_path, upto="r_m27")
+    [line] = _line_legend(db, "r_m27", M27)
+    assert len(line) == 400 and line == LEGEND2
+    assert line.startswith(LEGEND2_HEAD + "The team's guess at the code this touches: ")
+    assert line.endswith(" ... (the rest of this line is cut)")
+
+
+def test_the_start_wake_cut_keeps_his_words(tmp_path):
+    """Review, finding 1: the block was the last key, and the cut of a long
+    wake takes the last keys first. Dry run 6b's s173 lost it on turns 2 to
+    5. The block now stands right after the criteria."""
+    db = _dry6b(tmp_path, upto="r_m27")
+    sb = build("developer", db, batch_id="b_1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    wake = Wake("developer", "tick:batch_start", refs=("b_1",))
+    pushed = push_working_set("developer", sb, wake)
+    keys = list(pushed)
+    assert keys.index(START_RULED_KEY) == keys.index("criteria.load") + 1
+    _system, user = runner.build_prompt("developer", sb, wake, pushed,
+                                        "MODE: batch_start")
+    # A wake over the budget: the cut takes the keys after the criteria.
+    cut = runner._render_cut(user, user.index("[glossary.lookup]"))
+    assert M27 in cut and LEGEND2 in cut
+
+
+def test_a_line_number_with_no_row_of_the_ruling_gives_no_legend(tmp_path):
+    """Review, finding 4: "line 4 of string.py" named line 4 of his page,
+    reading:m5. r_m27 holds no row there, so his number alone is no reading.
+    The ordinals, "the second line", still give no legend."""
+    db = _dry6b(tmp_path, upto="r_m27")
+    assert _line_legend(db, "r_m27", "Fix line 4 of string.py so the fold "
+                                     "keeps the escape.") == []
+    assert _line_legend(db, "r_m27", "Line 4 is wrong.") == []
+    assert _line_legend(db, "r_m27", "The second line is wrong.") == []
+
+
+def test_a_row_with_no_stamped_text_shows_its_id_only(tmp_path):
+    """Review, finding 3: no copy of the page is stored. Today's criterion
+    can be the team's rewrite after he called the line wrong."""
+    db = _dry6b(tmp_path, upto="r_m39")
+    assert _line_legend(db, "r_m39", "Line 2 is fine.") == [
+        "On his page, line 2 is approved. The line was c_1."]
+
+
+def test_a_guess_line_keeps_the_tag_on_a_repair_wake(tmp_path):
+    """Review, finding 5: the guess line lost "(another criterion, not this
+    repair)" in pass 1."""
+    db = _dry6b(tmp_path, upto="r_m27")
+    [line] = _line_legend(db, "r_m27", M27, woken="c_1")
+    assert line.startswith(f"On his page, line 2 is wrong: rewrite. The line was "
+                           f"guess:{ITEM6} (another criterion, not this repair): ")
+
+
+def test_a_reply_with_a_line_break_writes_one_head_line(tmp_path):
+    """Review, finding 6: a reply line that starts "His answer" forged a
+    second head line."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('it', 'the item', 'in_scope', 'approved', 1, 1)")
+    seed_provenance(db, "items", "it", "decided")
+    words = 'Keep it.\nHis answer m1 to page m0: "Delete the item."'
+    _seed(db, (("r_1", "m2", "m3", {"it": "contest"}, words,
+                (("it", None, "contest", None, words, "reading"),), None, None),))
+    block = runner._ruled_block(db, ["it"])
+    assert [ln for ln in block.split("\n") if ln.startswith("His answer")] == [
+        'His answer m3 to page m2: "Keep it.']
+    assert '\n    His answer m1 to page m0: "Delete the item.""' in block
 
 
 def test_s147_and_s148_item_pushes_hold_the_same_reply(tmp_path):
@@ -208,7 +285,7 @@ def test_s147_and_s148_item_pushes_hold_the_same_reply(tmp_path):
     pushed = push_working_set("terminologist", sb,
                               Wake("terminologist", "tick:criteria", refs=(ITEM6,)))
     assert M27 in pushed["the item"][RULED_KEY]
-    assert f"On his page, line 2 was {GUESS6}" in pushed["the item"][RULED_KEY]
+    assert LEGEND2 in pushed["the item"][RULED_KEY]
 
 
 def test_s173s_start_push_holds_m40(tmp_path):
@@ -224,7 +301,7 @@ def test_s173s_start_push_holds_m40(tmp_path):
                      "His answer m40 to page m37", "His answer m41 to page m38"]
     assert "older answer" not in block
     # A batch line keeps its id: its readers render today's touch set.
-    assert "On his page, line 5 was b_1." in block
+    assert "On his page, line 5 is wrong: rewrite. The line was b_1." in block
 
 
 def test_dry4_s206s_start_push_holds_r_m50_2(tmp_path):
@@ -282,29 +359,30 @@ def test_s185s_criteria_push_holds_the_code_stays_the_same_and_line_2(tmp_path):
                               Wake("terminologist", "tick:criteria", refs=(DOC_ITEM,)))
     assert pushed["the item"][RULED_KEY] == (
         f'His answer m69 to page m68: "{M69}"\n'
-        "On his page, line 2 was The team's guess at the code this touches: "
-        "tests/test_utils/test_format_filename.py.")
+        f"On his page, line 2 is wrong. The line was guess:{DOC_ITEM}: The team's "
+        "guess at the code this touches: tests/test_utils/test_format_filename.py.")
 
 
 def test_the_legend_names_a_guess_line_by_the_text_he_saw(tmp_path):
     """The read, section 3: `_line_legend` gave `guess:<item>.` and no text."""
     db = _dry6b(tmp_path, upto="r_m27")
-    assert _line_legend(db, "r_m27", M27) == [f"On his page, line 2 was {GUESS6}"]
+    assert _line_legend(db, "r_m27", M27) == [LEGEND2]
 
 
 NOTE6 = ("The software must fold long lines in iCalendar output at spaces to "
          "avoid splitting words, as per the ratified statement.")
 
 
-def test_the_legend_names_a_team_note_by_its_text(tmp_path):
+def test_a_team_note_shows_its_id_only(tmp_path):
     """Line 3 of page m26 was the team note l_50364e0e61, under "Where you
-    did not say, I assumed:". The legend reads its `default_taken`."""
+    did not say, I assumed:". No stamp holds the text he read, so the
+    legend gives the id (pass 2, review, finding 3)."""
     db = _dry6b(tmp_path, upto="r_m27")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, kind, "
                "status, author) VALUES ('l_50364e0e61', ?, 'items', ?, 'default', "
                "'resolved', 'vision_keeper')", (ITEM6, NOTE6))
     assert _line_legend(db, "r_m27", "Line 3 is right.") == [
-        f"On his page, line 3 was the team's assumption: {NOTE6}"]
+        "On his page, line 3 is approved. The line was l_50364e0e61."]
 
 
 # The budget. Each reply is about 1,000 characters, so two fit in

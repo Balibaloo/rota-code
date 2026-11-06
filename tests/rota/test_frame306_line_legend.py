@@ -97,14 +97,15 @@ def test_s132_repair_wake_quotes_the_line_2_sentence_with_its_legend(tmp_path):
     user = _repair_prompt(_seed_m37(tmp_path))
     assert (f"The principal's last word on this criterion, c1 "
             f"(ruling r_ee6e30a55d, contest):\n{S1_M37}\n") in user
-    assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
+    # Frame 362: his verdict on the row comes first, then the text he read.
+    assert f"On his page, line 2 is wrong. The line was c1: {TEXTS_M37['c1']}\n" in user
     # The kept sentence also names line 3, so the seat learns it is c2.
-    assert f"On his page, line 3 was c2 (another criterion" in user
+    assert f"On his page, line 3 is wrong. The line was c2 (another criterion" in user
     assert "Write the behaviour his words ask for. His line numbers name " \
            "lines of his page, listed above." in user
     assert "Write the criterion in the principal's words." not in user
-    for gone in (S2_M37, S3_M37, "lines 5 and 6", "line 4 was",
-                 "line 5 was", "line 6 was", "line 7 was"):
+    for gone in (S2_M37, S3_M37, "lines 5 and 6", "On his page, line 4",
+                 "On his page, line 5", "On his page, line 6", "On his page, line 7"):
         assert gone not in user, gone
 
 
@@ -176,10 +177,15 @@ def test_s359_developer_block_names_lines_3_and_4_as_crit_2_and_crit_3(tmp_path)
     says which criteria lines 3 and 4 were, under his verbatim words."""
     block = _developer_block(_seed_m201(tmp_path))
     assert f"He said: {WORDS_M201}\n" in block
-    assert f"On his page, line 3 was {CRIT_2}: {TEXTS_M201[CRIT_2]}" in block
-    assert f"On his page, line 4 was {CRIT_3}: {TEXTS_M201[CRIT_3]}" in block
-    assert f"On his page, line 2 was {CRIT_1}: {TEXT_1}" in block
-    assert block.index("line 3 was") > block.index("He said:")
+    assert (f"On his page, line 3 is wrong. The line was {CRIT_2}: "
+            f"{TEXTS_M201[CRIT_2]}") in block
+    assert (f"On his page, line 4 is wrong. The line was {CRIT_3}: "
+            f"{TEXTS_M201[CRIT_3]}") in block
+    # Frame 362: an approved row has no text stamped at his page. Today's
+    # row can be the team's rewrite, so the line shows its id only.
+    assert f"On his page, line 2 is approved. The line was {CRIT_1}.\n" in block
+    assert TEXT_1 not in block
+    assert block.index("On his page, line 3") > block.index("He said:")
 
 
 def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
@@ -190,7 +196,8 @@ def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
     (the re-check of 2ece9cd2, point 5)."""
     db = _seed_check_line(tmp_path, "Line 2 is fine. Line 4 is wrong. Drop it.")
     block = _contest_block(db, [{"id": CRIT_2}])
-    assert block.endswith(f"On his page, line 4 was the check of {CRIT_2}.")
+    assert block.endswith(f"On his page, line 4 is wrong. The line was the "
+                          f"check of {CRIT_2}.")
     # On the row of line 4 the two sentences stay together, and line 2's
     # sentence leaves. The words are not the whole-words fallback.
     narrowed = _contest_block(db, [{"id": CRIT_2}], on_rows=True)
@@ -219,8 +226,8 @@ def test_the_check_line_of_crit_2_stays_on_its_wake(tmp_path):
     assert _words_on_rows(db, "r_39fbc7b24e", words, [CRIT_2]) == words
     # On crit_3's repair, the check of crit_2 is another criterion's row.
     assert _line_legend(db, "r_39fbc7b24e", words, woken=CRIT_3)[1] == (
-        f"On his page, line 4 was the check of {CRIT_2} (another criterion, "
-        f"not this repair).")
+        f"On his page, line 4 is wrong. The line was the check of {CRIT_2} "
+        f"(another criterion, not this repair).")
 
 
 # The block of 03f6e900 for a ruling that names no line, with the page
@@ -275,7 +282,7 @@ def test_a_sentence_with_no_line_stays_with_the_sentence_before_it(tmp_path):
     db = _seed_words(tmp_path, WORDS_B2)
     user = _repair_prompt(db)
     assert (f"(ruling r_ee6e30a55d, contest):\n{LINE_2_B2}\n"
-            f"On his page, line 2 was c1:") in user
+            f"On his page, line 2 is wrong. The line was c1:") in user
     assert "Delete it." not in user
     assert "Line 4 is wrong" not in user
     # The row of line 4 gets the two sentences together.
@@ -316,7 +323,7 @@ def test_the_repair_wake_shows_the_legend_once_under_the_quote(tmp_path):
     """Finding 3. The contest block on the repair wake narrows to the row and
     adds no legend. Two legends of one ruling can name different lines."""
     user = _repair_prompt(_seed_m37(tmp_path))
-    assert user.count("On his page, line 2 was c1") == 1
+    assert user.count("On his page, line 2 is wrong. The line was c1") == 1
     block = user[user.index(f"[{CONTESTS_KEY}]"):]
     assert "On his page" not in block
     assert block.endswith(f"He said: {S1_M37}")
@@ -326,9 +333,9 @@ def test_a_legend_row_of_another_criterion_is_marked_not_this_repair(tmp_path):
     """Finding 4. The c1 wake named "line 3 was c2" beside "change line 3",
     and nothing said that c2 is outside this repair."""
     user = _repair_prompt(_seed_m37(tmp_path))
-    assert (f"On his page, line 3 was c2 (another criterion, not this "
-            f"repair): {TEXTS_M37['c2']}\n") in user
-    assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
+    assert (f"On his page, line 3 is wrong. The line was c2 (another "
+            f"criterion, not this repair): {TEXTS_M37['c2']}\n") in user
+    assert f"On his page, line 2 is wrong. The line was c1: {TEXTS_M37['c1']}\n" in user
     (tmp_path / "dev").mkdir()
     dev = _developer_block(_seed_m201(tmp_path / "dev"))
     assert "not this repair" not in dev

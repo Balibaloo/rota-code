@@ -691,8 +691,9 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
 
 def _line_legend(conn, rid: str, words: str,
                  woken: str | None = None) -> list[str]:
-    """One line for each page line that ruling `rid`'s words name: the row
-    that stood on that line of his page. Empty when the words name no line.
+    """One line for each page line that ruling `rid`'s words name and that
+    the ruling holds a row for: his verdict on the row, then the row that
+    stood on that line of his page. Empty when the words name no such line.
     With `woken`, a row of another criterion says it is not this repair.
 
     His words stay verbatim, and the legend stands beside them (composition
@@ -700,7 +701,8 @@ def _line_legend(conn, rid: str, words: str,
     Night 165's s359 read "remove both lines" as docstring lines and cut 17
     of them (frame 306, W-A).
     """
-    from ..roles.principal import ruled, seen_order
+    from ..roles.principal import (_READ_BACK_VERDICT, _step_key,
+                                   one_row_per_ref, ruled, seen_order)
 
     row = conn.execute("SELECT reply_id, ask_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
@@ -714,40 +716,60 @@ def _line_legend(conn, rid: str, words: str,
         if ref.word == "note":
             continue
         named |= ref.lines
-    # The text he read first is `old_text` of the ruling's rows.
-    texts = {r["ref"]: r["old_text"] for r in ruled(conn, ruling=rid, landed=False)}
+    # The reading's rows, as the read-back reads them (fact F1). The row is
+    # the confirmed reading. A number in his words alone is not: "line 5 of
+    # string.py" named line 5 of the page (frame 362, review, finding 4).
+    rows = one_row_per_ref([r for r in ruled(conn, ruling=rid, landed=False, every=True)
+                            if r["source"] in ("reading", "backfill")])
     out: list[str] = []
     for n in sorted(x for x in named if 1 <= x <= len(order)):
         rid_n = order[n - 1]
         test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                             (rid_n,)).fetchone()
+        # A check line is its criterion's row (the re-check of 2ece9cd2).
+        about = test["criterion_id"] if test is not None else rid_n
+        held = next((r for r in rows if r["ref"] == about), None)
+        if held is None:
+            continue
+        # The read-back's words for his verdict come first, so a seat reads
+        # a contested line as contested before its text (review, finding 2).
+        step = f"step {held['verdict']}"
+        verdict = (step if _step_key(held["ref"]) and step in _READ_BACK_VERDICT
+                   else held["verdict"])
+        head = f"On his page, line {n} {_READ_BACK_VERDICT.get(verdict, verdict)}"
+        if held["act"]:
+            head += f": {held['act']} {held['target'] or ''}".rstrip()
+        tag = _other_row(woken, about)
         if test is not None:
-            tag = _other_row(woken, test["criterion_id"])
-            out.append(f"On his page, line {n} was the check of "
-                       f"{test['criterion_id']}{tag}.")
+            out.append(_legend_cut(f"{head}. The line was the check of "
+                                   f"{about}{tag}."))
             continue
-        # The text he read first. A row he did not contest keeps its text.
-        text = texts.get(rid_n)
-        if not isinstance(text, str):
-            got = conn.execute(
-                "SELECT text FROM criteria WHERE id = ? ORDER BY version DESC",
-                (rid_n,)).fetchone() or conn.execute(
-                "SELECT text FROM items WHERE id = ?", (rid_n,)).fetchone()
-            text = got["text"] if got else None
-        # A guess line and a team note name themselves in their text. The
-        # tag says "another criterion", so these lines take none.
-        shown = None if text else _line_words(conn, row["ask_id"], rid_n)
-        if shown:
-            out.append(f"On his page, line {n} was {shown}")
-            continue
-        tag = _other_row(woken, rid_n)
-        out.append(f"On his page, line {n} was {rid_n}{tag}: {text}" if text
-                   else f"On his page, line {n} was {rid_n}{tag}.")
+        # Only a text stamped at the time of his page. `old_text` is the
+        # text he read first. Today's criterion, item or note can be the
+        # team's rewrite after he called the line wrong (review, finding 3).
+        text = held["old_text"] if isinstance(held["old_text"], str) else None
+        text = text or _line_words(conn, row["ask_id"], rid_n)
+        out.append(_legend_cut(f"{head}. The line was {rid_n}{tag}: {text}"
+                               if text else f"{head}. The line was {rid_n}{tag}."))
     return out
 
 
+# One legend line at most, in characters. Dry run 5's guess line was about
+# 1,100 characters of paths he called wrong (frame 362, review, finding 2).
+LEGEND_CHARS = 400
+LEGEND_CUT = " ... (the rest of this line is cut)"
+
+
+def _legend_cut(line: str) -> str:
+    """`line`, or its start with a mark that says the line is cut."""
+    if len(line) <= LEGEND_CHARS:
+        return line
+    return line[:LEGEND_CHARS - len(LEGEND_CUT)].rstrip() + LEGEND_CUT
+
+
 def _line_words(conn, ask_id: str | None, ref: str) -> str:
-    """The words of a guess line or a team note on page `ask_id`, or ''.
+    """The words of a guess line on page `ask_id` as the send door stamped
+    them, or ''.
 
     Dry run 6b's m27 said "Line 2 is wrong." The legend said "line 2 was
     guess:folds_long_lines_in_icalendar.", and the guess was not in the
@@ -755,20 +777,17 @@ def _line_words(conn, ask_id: str | None, ref: str) -> str:
     """
     from ..roles.principal import code_line
 
-    if ref.startswith("guess:"):
-        # The send door stamped what the line showed. A guess renders
-        # frozen, and a batch target renders live (`code_line`).
-        target = api.code_stamp(conn, ask_id).get(ref)
-        return code_line(conn, ref[len("guess:"):], target)
-    note = conn.execute("SELECT default_taken FROM ledger WHERE id = ?",
-                        (ref,)).fetchone()
-    if note is not None and note["default_taken"]:
-        # The page shows a note under "Where you did not say, I assumed:".
-        return f"the team's assumption: {note['default_taken']}"
-    # A batch line keeps its id, because its readers render today's touch
-    # set. At the end of dry run 6b, b_1's set named string.py, his own fix.
-    # A legend beside "Line 5 is wrong." would show that fix as the wrong line.
-    return ""
+    if not ref.startswith("guess:"):
+        # A batch line, a team note, a criterion and an item have no stamp.
+        # Their readers render today's rows. At the end of dry run 6b, b_1's
+        # set named string.py, his own fix of the line he called wrong.
+        return ""
+    target = api.code_stamp(conn, ask_id).get(ref)
+    # A guess target renders the stamped set, frozen. A batch target
+    # renders live (`code_line`), so it keeps the id only.
+    if not (isinstance(target, dict) and "guess" in target):
+        return ""
+    return code_line(conn, ref[len("guess:"):], target)
 
 
 def _other_row(woken: str | None, rid: str) -> str:
@@ -4341,7 +4360,10 @@ def _ruled_block(conn, refs, *, item: str | None = None,
                             (rid,)).fetchone()
         answer = "His answer" + (f" {head['reply_id']}" if head["reply_id"] else "")
         page = f" to page {head['ask_id']}" if head["ask_id"] else ""
-        shown.append("\n".join([f'{answer}{page}: "{words}"',
+        # A continuation line of his reply is indented, so a reply cannot
+        # write a second head line (frame 362, review, finding 6).
+        quoted = "\n    ".join(words.splitlines())
+        shown.append("\n".join([f'{answer}{page}: "{quoted}"',
                                 *_line_legend(conn, rid, words)]))
     # Whole rulings only, the newest first. The newest stays when it alone
     # is over the budget: a push with no word of his newest ruling is frame
@@ -4574,7 +4596,16 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         said = _ruled_block(sb.ctx.conn, api.batch_ruled_refs(sb.ctx.conn, bid),
                             item=made["item_id"] if made else None)
         if said:
-            pushed[START_RULED_KEY] = said
+            # Right after the criteria block, because the cut of a long wake
+            # takes the last keys first. Dry run 6b's s173 held his words on
+            # turn 1 and lost them on turns 2 to 5 (frame 362, review,
+            # finding 1).
+            front = {"criteria.load", api.RETIRED_NOTE_KEY, CONTESTS_KEY}
+            last = max((i for i, k in enumerate(pushed) if k in front),
+                       default=len(pushed) - 1)
+            items = list(pushed.items())
+            items.insert(last + 1, (START_RULED_KEY, said))
+            pushed = dict(items)
     # Frame 362, door 2: the builder and the Tester get the constraints that
     # bind the batch's files unasked. The seat cannot send `model.load` an
     # id it never saw. The read is a push, because a tool here needs a line
@@ -4601,7 +4632,10 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if bound is not None:
             # Right after the criteria block, because the cut of a long
             # wake takes the last keys first (frame 362, review 1, finding 6).
-            block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY}
+            # His words stay ahead of the bound block (frame 362, review,
+            # finding 1).
+            block = {"criteria.load", RETIRED_NOTE_KEY, CONTESTS_KEY,
+                     START_RULED_KEY}
             last = max((i for i, k in enumerate(pushed) if k in block),
                        default=len(pushed) - 1)
             items = list(pushed.items())

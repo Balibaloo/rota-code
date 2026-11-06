@@ -1143,9 +1143,10 @@ def ruled_words(conn: sqlite3.Connection, refs, *, item: str | None = None,
     """His landed words on any of `refs`, one text per ruling, oldest first.
 
     The words are the rows' own. A ruling that also rules a ref of `skip`
-    gives none. It serves the commit door and the removal door (frame 322,
-    proposal lines 1 and 3). The pushes show his whole reply on the same
-    key set, through `runner._ruled_block` (frame 362).
+    gives none. Its one caller is `api._ruling_texts`, which `code_commit`
+    and `ledger_log` read (frame 322, proposal lines 1 and 3). The pushes
+    show his whole reply on the same key set, through
+    `runner._ruled_block` (frame 362).
     """
     rows = ruled(conn, refs, item=item)
     skipped = {r["ruling_id"] for r in ruled(conn, list(skip))} if skip else set()
