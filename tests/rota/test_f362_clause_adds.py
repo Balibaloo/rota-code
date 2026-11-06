@@ -132,3 +132,47 @@ def test_the_readers_of_the_row_read_every_clause_add(db):  # noqa: F811
         "The page leaves out the tax, and it leaves out the rounding."]
     line = reading_line(db, f"reading:{reply}")
     assert '"The software calculates the tip." is approved: add;' in line
+
+
+# Pass 2, the review of c91c9a5b, finding 2: the join follows his reply.
+TWO = "Drop line 3. The page leaves out the tax, and it leaves out the rounding."
+JOINED = "The page leaves out the tax, and it leaves out the rounding."
+
+
+def _add_row(db, words, keys) -> dict:  # noqa: F811
+    ask = _page(db)
+    sb, _ = _seat(db, ask, words=words)
+    sb.call("rulings.rule", rulings={"3": "drop", **keys, "rest": "approve"})
+    return {**_rows(sb)["calculate_tip"], "reply": sb.ctx.trigger}
+
+
+def test_a_repeated_quote_stands_once(db):  # noqa: F811
+    """Probe A of the review. One n175 recording keys c2 and c3 with the
+    same sentence."""
+    row = _add_row(db, TWO, {"c2": "add it leaves out the rounding.",
+                             "c3": "add it leaves out the rounding."})
+    assert row["words"] == "it leaves out the rounding."
+
+
+def test_an_overlapping_quote_stands_once(db):  # noqa: F811
+    """Probe B of the review: the quote of c2 holds the quote of c3."""
+    row = _add_row(db, TWO, {"c2": "add " + JOINED,
+                             "c3": "add it leaves out the rounding."})
+    assert (row["words"], row["words_from"]) == (JOINED, row["reply"])
+
+
+def test_turned_quotes_join_in_the_order_of_his_reply(db):  # noqa: F811
+    """Probe C of the review: the keys give the second clause first."""
+    row = _add_row(db, TWO, {"c2": "add it leaves out the rounding.",
+                             "c3": "add The page leaves out the tax"})
+    assert (row["words"], row["words_from"]) == (JOINED, row["reply"])
+
+
+def test_a_double_space_in_his_clause_keeps_his_text_between(
+        db):  # noqa: F811
+    words = ("Drop line 3. The page leaves out  the tax, and it leaves out "
+             "the rounding.")
+    row = _add_row(db, words, {"c2": "add The page leaves out  the tax",
+                               "c3": "add it leaves out the rounding."})
+    assert row["words"] == ("The page leaves out  the tax, and it leaves out "
+                            "the rounding.")

@@ -15651,14 +15651,40 @@ def _add_lines(menu: dict[int, tuple[str, list[str]]]) -> list[int]:
 _ADD_GAP = r"([\s.,;:!?]*(?:(?:and|but|or|so|then|also)\s+)?)"
 
 
-def _joined_add(his: str, words: str, last: str, new: str) -> str:
-    """The words of a row that a second add reaches, in the order of his
-    reply. `last` is the add before `new`. When his reply holds the two
-    clauses side by side, his own text between them joins them, so the
-    words stay a run of his reply. Else one space joins them."""
-    m = re.search(re.escape(last) + _ADD_GAP + re.escape(new), his or "",
-                  re.I)
-    return words + (m.group(1) if m else " ") + new
+def _joined_add(his: str, parts: list[str]) -> str:
+    """The words of a row that two or more adds reach, in the order of his
+    reply. Each part is found in his reply. Parts that touch or overlap
+    give his own text from the first word to the last, so the words stay a
+    run of his reply. One space joins the runs that do not touch.
+
+    The review of pass 1 (frame 362, finding 2) found three faults in a
+    join by key order: a repeated quote stood twice, turned quotes kept the
+    key order, and a double space in his clause lost his ", and"."""
+    text = his or ""
+    found: list[tuple[int, int]] = []
+    lost: list[str] = []
+    for part in parts:
+        # The quote's white space is folded, so any run of white space in
+        # his reply matches one space of the part.
+        m = re.search(r"\s+".join(map(re.escape, part.split())), text, re.I)
+        if m:
+            found.append((m.start(), m.end()))
+        else:
+            lost.append(part)
+    runs: list[list[int]] = []
+    for start, end in sorted(found):
+        if runs and (start <= runs[-1][1] or re.fullmatch(
+                _ADD_GAP, text[runs[-1][1]:start], re.I)):
+            runs[-1][1] = max(runs[-1][1], end)
+        else:
+            runs.append([start, end])
+    out = " ".join(text[s:e] for s, e in runs)
+    # A part that his reply does not hold keeps its place after the runs,
+    # once, so no word of the record is lost and none stands twice.
+    for part in lost:
+        if not _holds_span(out, part):
+            out = f"{out} {part}".strip()
+    return out
 
 
 def page_clauses(his: str, size: int,
@@ -16016,8 +16042,8 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     covered: set[int] = set()
     per_item: dict[str, str] = {}
     shape_of: dict[str, dict] = {}
-    # The words of the newest add on each ref, for the join of the next one.
-    last_add: dict[str, str] = {}
+    # The words of each add on a ref, for the join of the next one.
+    add_parts: dict[str, list[str]] = {}
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
         if name in _LANDS_NOTHING:
@@ -16089,11 +16115,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             # add overwrote the first. s143's row kept one sentence of three
             # (frame 362, dry run 6c wall 2). The table holds one row per
             # ruling and ref, so the words join on that row.
-            if act == "add" and shape_of.get(ref, {}).get("act") == "add":
-                shape["words"] = _joined_add(his, shape_of[ref]["words"],
-                                             last_add[ref], said)
             if act == "add":
-                last_add[ref] = said
+                held = (add_parts.get(ref, []) if shape_of.get(ref, {}).get(
+                    "act") == "add" else [])
+                add_parts[ref] = [*held, said]
+                if held:
+                    shape["words"] = _joined_add(his, add_parts[ref])
             per_item[ref], shape_of[ref] = verdict, shape
             ruled[n] = label
         # A read-back line ruled with rows also rules those rows of the
