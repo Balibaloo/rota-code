@@ -483,7 +483,7 @@ def test_an_unread_claim_returns_to_the_queue(box, capsys):
                "--confirm", "0.1") == 4
     path = claim(box, "aaaa1111")
     stale_claim = json.loads(path.read_text(encoding="utf-8"))
-    stale_claim["t"] = time.time() - 3600
+    stale_claim["t"] = stale_claim["claimed_at"] = time.time() - 3600
     path.write_text(json.dumps(stale_claim), encoding="utf-8")
     age_the_arm(box, "aaaa1111", 7200)   # the watcher armed before the claim
     capsys.readouterr()
@@ -509,7 +509,7 @@ def test_a_reclaim_does_not_offer_the_dead_watcher_again(box):
     thread.join(timeout=5)
     path = claim(box, "aaaa1111")
     aged = json.loads(path.read_text(encoding="utf-8"))
-    aged["t"] = time.time() - 3600
+    aged["t"] = aged["claimed_at"] = time.time() - 3600
     path.write_text(json.dumps(aged), encoding="utf-8")
     age_the_arm(box, "aaaa1111", 7200)   # the watcher armed before the claim
 
@@ -735,6 +735,77 @@ def test_a_reclaim_evicts_only_a_registration_older_than_the_claim(box):
     assert len(api.reclaim(60)) == 2, "both frames go back to the queue"
     assert not api.peer_file("aaaa1111").exists()
     assert api.peer_file("bbbb2222").exists(), "the newer registration survived"
+
+
+def post_old_vacancy(box_path, seconds):
+    """A vacancy that waited through a drought for `seconds` before anyone armed."""
+    assert run(box_path, "hand", "--frame", "7", "--commit", "abc1234",
+               "--sender", "ffff9999") == 5
+    path = vacancies(box_path)[0]
+    posted = json.loads(path.read_text(encoding="utf-8"))
+    posted["t"] = time.time() - seconds
+    _write_json(path, posted)
+
+
+def age_the_claim(box_path, sid, seconds):
+    """Move a claim and the arm that saw it back in time, as a quiet taker would."""
+    path = claim(box_path, sid)
+    aged = json.loads(path.read_text(encoding="utf-8"))
+    for key in ("t", "claimed_at"):
+        if key in aged:
+            aged[key] = float(aged[key]) - seconds
+    _write_json(path, aged)
+    age_the_arm(box_path, sid, seconds + 60)
+
+
+def test_a_vacancy_older_than_the_reclaim_is_not_reclaimed_at_once(box, capsys):
+    """The 2026-11-04 00:02 fault. A drought claim went back before its take.
+
+    The vacancy kept its post time, so the claim read as old the moment a
+    session consumed it, and the next peers call returned it to the queue.
+    """
+    post_old_vacancy(box, 2 * handover.RECLAIM)
+    thread, result = arm(box, "aaaa1111", wait=10)
+    thread.join(timeout=5)
+    assert result.get("code") == 0, "the standby took the old vacancy"
+    capsys.readouterr()
+
+    run(box, "peers")
+    assert "RECLAIMED" not in capsys.readouterr().out
+    assert claim(box, "aaaa1111").exists(), "the claim waits for its taker"
+    assert not vacancies(box)
+    assert run(box, "take", "--sid", "aaaa1111") == 0
+    assert peer(box, "aaaa1111")["frame"] == "7"
+
+
+def test_a_reclaimed_frame_gets_the_full_time_again_at_its_next_taker(box):
+    """A frame that went back once must not go back again before a take."""
+    post_old_vacancy(box, 2 * handover.RECLAIM)
+    api = handover.Box(box)
+    assert handover._consume_vacancy(api, "aaaa1111")
+    api.write_state("aaaa1111", {"sid": "aaaa1111", "since": 0, "armed_at": 0,
+                                 "beat": 0, "state": "standby", "frame": None})
+    age_the_claim(box, "aaaa1111", 2 * handover.RECLAIM)
+    assert len(api.reclaim(handover.RECLAIM)) == 1, "the quiet taker lost it"
+    again = json.loads(vacancies(box)[0].read_text(encoding="utf-8"))
+    assert "claimed_at" not in again, "a vacancy carries no claim time"
+
+    assert handover._consume_vacancy(api, "bbbb2222")
+    assert api.reclaim(handover.RECLAIM) == [], "the second taker has the full time"
+    assert claim(box, "bbbb2222").exists()
+
+
+def test_an_untaken_drought_claim_still_goes_back_after_the_reclaim(box):
+    """The new clock starts at the claim and still runs out."""
+    post_old_vacancy(box, 2 * handover.RECLAIM)
+    api = handover.Box(box)
+    assert handover._consume_vacancy(api, "aaaa1111")
+    api.write_state("aaaa1111", {"sid": "aaaa1111", "since": 0, "armed_at": 0,
+                                 "beat": 0, "state": "standby", "frame": None})
+    assert api.reclaim(handover.RECLAIM) == []
+    age_the_claim(box, "aaaa1111", handover.RECLAIM + 1)
+    assert len(api.reclaim(handover.RECLAIM)) == 1
+    assert len(vacancies(box)) == 1, "the frame is back in the queue"
 
 
 def test_a_newer_watcher_retires_the_older_one(box):

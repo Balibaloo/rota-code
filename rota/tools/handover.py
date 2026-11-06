@@ -74,7 +74,10 @@ mailbox entry and the stack is the record.
 A claim that nobody reads comes back. A session can wake and fail to act,
 and that happened twice in the history above, both times to a usage
 limit. So a claim with no receipt returns to the queue as a vacancy after
-`--reclaim` seconds, and the frame keeps moving without a person.
+`--reclaim` seconds, and the frame keeps moving without a person. The
+clock starts when the claim is written to its session, at `claimed_at`,
+and not at the post time `t`. A vacancy that waited all night would
+otherwise become a claim that is already too old.
 
 Eight hazards are the reason this is a tool and not six commands. Each
 one was measured, and six of them can lose a frame:
@@ -443,7 +446,9 @@ class Box:
         A session can wake and fail to act. It happened twice in the
         history this tool was built from, both times to a usage limit. A
         claim with no receipt is therefore not a frame that is moving, and
-        after a while it must move again.
+        after a while it must move again. The age counts from `claimed_at`,
+        the time the claim reached its session, and from `t` for a claim
+        written before that key existed.
         """
         if older_than <= 0:
             return []
@@ -453,7 +458,8 @@ class Box:
             claim = self.soft(path, "claim")
             if not claim:
                 continue
-            if now - float(claim.get("t", now)) < older_than:
+            claimed_at = _claimed_at(claim, now)
+            if now - claimed_at < older_than:
                 continue
             sid = path.stem
             state = self.read_state(sid) or {}
@@ -465,6 +471,7 @@ class Box:
             except OSError:
                 continue
             claim["reclaimed_from"] = sid
+            # `_post` drops `claimed_at`, so the next taker gets the full time.
             self._post(claim)
             try:
                 os.unlink(staging)
@@ -476,18 +483,20 @@ class Box:
             # re-armed, and is blocking again owns a NEWER registration, and
             # that one is alive. Evicting it would tell a healthy standby to
             # leave the reserve and never come back. So the registration
-            # goes only when it predates the claim.
+            # goes only when it predates the claim. The claim time decides,
+            # because a drought vacancy was posted before this watcher armed.
             armed_at = float(state.get("armed_at", 0) or 0)
-            if armed_at <= float(claim.get("t", 0)):
+            if armed_at <= claimed_at:
                 try:
                     self.peer_file(sid).unlink()
                 except FileNotFoundError:
                     pass
             else:
                 self.note("reclaim_kept_newer_watcher", sid=sid,
-                          armed_at=armed_at, claim_t=claim.get("t"))
+                          armed_at=armed_at, claim_t=claim.get("t"),
+                          claimed_at=claimed_at)
             self.note("reclaimed", sid=sid, frame=claim.get("frame"),
-                      after=round(now - float(claim.get("t", now))))
+                      after=round(now - claimed_at))
             back.append(claim)
         return back
 
@@ -502,8 +511,25 @@ class Box:
             n += 1
             target = self.waiting / ("frame-%s-%s-%d.json" % (safe, stamp, n))
         payload.pop("file", None)
+        # A vacancy is addressed to nobody, so it has no claim time. A stale
+        # value would let the next taker's claim read as old.
+        payload.pop("claimed_at", None)
         _write_json(target, payload)
         return target
+
+
+def _claimed_at(claim: dict, default: float) -> float:
+    """The time the claim was written to its session, the reclaim clock's start.
+
+    `t` is the post time, and a drought vacancy keeps it for hours. A claim
+    from before 2026-11-06 has no `claimed_at`, so `t` answers in its place.
+    """
+    for key in ("claimed_at", "t"):
+        try:
+            return float(claim[key])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return default
 
 
 def _post_vacancy(box: Box, args: argparse.Namespace) -> int:
@@ -623,6 +649,10 @@ def _consume_vacancy(box: Box, sid: str) -> dict | None:
                 pass
             box.note("vacancy_returned", sid=sid, frame=payload.get("frame"))
             return None
+        # `t` stays the post time, which `take` prints. The reclaim clock
+        # starts here. A vacancy that waited past the reclaim would otherwise
+        # go back before its taker woke (observed: 2026-11-04 00:02).
+        payload["claimed_at"] = time.time()
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=1)
         try:
@@ -913,6 +943,7 @@ def cmd_hand(args: argparse.Namespace, box: Box) -> int:
             "frame": args.frame, "commit": args.commit,
             "from_sid": args.sender or "", "note": args.note or "",
             "t": t, "iso": iso, "host": socket.gethostname(), "tool": VERSION,
+            "claimed_at": t,
         }
         if args.sender_name:
             claim["sender_name"] = args.sender_name
