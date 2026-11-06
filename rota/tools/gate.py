@@ -203,6 +203,24 @@ def register_path() -> Path:
     return paths.DEV_DB
 
 
+def prepare_register() -> list[tuple[str, float]]:
+    """
+    Put the register in WAL mode and build each missing `seq` index, before
+    the suite's workers start. Return each name built and its time.
+
+    Here one process holds the register. A worker that switched the mode
+    raised `database is locked` at once, and a worker that met no `seq`
+    index held the write lock for minutes (frame 362). A gate with no
+    register does nothing, because a connect would create an empty file.
+    """
+    path = register_path()
+    if not path.exists():
+        return []
+    from . import index_register
+
+    return index_register.prepare(path, say=lambda line: print(line, flush=True))
+
+
 def _stale(model: str) -> set[str] | None:
     """
     The case ids with no recording against the current prompt.
@@ -447,6 +465,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     # parametrised id or a fixed collection error stays in it for ever under
     # xdist (observed: the diff review of 2026-09-17, probe 1).
     (root / LASTFAILED).unlink(missing_ok=True)
+    prepare_register()
 
     log = root / LOG_NAME
     started = time.monotonic()

@@ -166,3 +166,184 @@ def test_the_tool_adds_the_indexes_keeps_every_row_and_runs_once(
     plans = _plans(conn)
     conn.close()
     _reads_each_seq_index(plans)
+
+
+# --- Pass 2: the journal mode switch, and the indexes after a pull ---------
+
+#: One opener of the register, started at one moment by several processes.
+_OPEN_CHILD = """
+import sys, time
+
+from rota.llm.cassettes import open_dev_db, record_case_run
+from rota.llm.llm import Pins
+
+path, worker, go = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
+pins = Pins(model="m", temperature=0.0).with_prompt("p")
+while time.time() < go:
+    time.sleep(0.005)
+try:
+    conn = open_dev_db(path)
+    record_case_run(conn, "case-%d" % worker, pins, 1, True, [], live=True)
+    conn.close()
+except Exception as e:
+    import traceback
+    frame = traceback.extract_tb(e.__traceback__)[-1]
+    print("ERR %s at %s:%s %s" % (e, frame.filename, frame.lineno, frame.line))
+    sys.exit(1)
+"""
+
+
+def _a_delete_mode_register(path) -> None:
+    """A register in delete mode, as a pulled snapshot and a new file are."""
+    open_dev_db(path).close()
+    conn = sqlite3.connect(str(path), isolation_level=None)
+    conn.execute("PRAGMA journal_mode = DELETE")
+    conn.close()
+
+
+@pytest.mark.timeout(60)
+def test_processes_that_open_a_delete_mode_register_at_once_all_land(
+        tmp_path):
+    """
+    `PRAGMA journal_mode = WAL` needs the exclusive lock, and it raises at
+    once when another connection holds a lock. It does not wait for the busy
+    handler (observed: the review of 4aceb1ea, probe `swarm.py`).
+
+    The holder makes the race certain. It holds the reserved lock while six
+    processes open the register at one moment, so each switch meets a lock.
+    On the parent 4aceb1ea every process raised at the switch.
+    """
+    import subprocess
+    import sys
+
+    from rota import paths
+
+    path = tmp_path / "pulled.db"
+    _a_delete_mode_register(path)
+    go = time.time() + 3.0
+    held = threading.Event()
+    holder = threading.Thread(target=_hold_the_write_lock,
+                              args=(path, held, 4.5))
+    holder.start()
+    assert held.wait(10), "the holder never took the lock"
+    children = [subprocess.Popen(
+        [sys.executable, "-c", _OPEN_CHILD, str(path), str(worker), str(go)],
+        cwd=str(paths.REPO), stdout=subprocess.PIPE, text=True)
+        for worker in range(6)]
+    outs = [child.communicate(timeout=45)[0].strip() for child in children]
+    holder.join()
+    assert [o for o in outs if o] == [], outs
+    conn = sqlite3.connect(str(path))
+    seqs = sorted(r[0] for r in conn.execute("SELECT seq FROM case_runs"))
+    mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    conn.close()
+    assert seqs == [1, 2, 3, 4, 5, 6]
+    assert mode == "wal"
+
+
+def _mode(path) -> str:
+    conn = sqlite3.connect(str(path))
+    mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    conn.close()
+    return mode
+
+
+def _a_pulled_register(path) -> None:
+    """Rows in both tables, no `seq` index and delete mode: the shape of the
+    published snapshot (`cassette_store.pack` sets delete mode)."""
+    _an_old_register(path)
+    conn = sqlite3.connect(str(path), isolation_level=None)
+    conn.execute("PRAGMA journal_mode = DELETE")
+    conn.close()
+
+
+def test_the_gate_prepares_the_register_before_its_workers(
+        tmp_path, monkeypatch, capsys):
+    from rota import paths
+    from rota.tools import gate
+
+    path = tmp_path / "cassettes.db"
+    _a_pulled_register(path)
+    before = _rows(path)
+    monkeypatch.setattr(paths, "DEV_DB", path)
+
+    built = gate.prepare_register()
+    assert [name for name, _ in built] == list(cassettes.SEQ_INDEXES)
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == 1 and out[0].startswith("register: built "), out
+    for name in cassettes.SEQ_INDEXES:
+        assert name in out[0]
+    assert _indexes(path) == set(cassettes.SEQ_INDEXES)
+    assert _mode(path) == "wal"
+    assert _rows(path) == before
+
+    assert gate.prepare_register() == []
+    assert capsys.readouterr().out == "", "a second call says nothing"
+
+
+def test_a_gate_with_no_register_prepares_nothing(tmp_path, monkeypatch,
+                                                  capsys):
+    from rota import paths
+    from rota.tools import gate
+
+    missing = tmp_path / "absent" / "cassettes.db"
+    monkeypatch.setattr(paths, "DEV_DB", missing)
+    assert gate.prepare_register() == []
+    assert not missing.exists() and not missing.parent.exists()
+    assert capsys.readouterr().out == ""
+
+
+def _packed(tmp_path, monkeypatch, db):
+    """`pack` of `db`, with the tracked manifest moved out of the tree."""
+    from rota.testkit import cassette_store
+
+    monkeypatch.setattr(cassette_store, "MANIFEST", tmp_path / "manifest.json")
+    return cassette_store.pack(db, out_dir=tmp_path / "packed", tag="t")
+
+
+def test_a_pull_places_a_wal_register_with_both_indexes(
+        tmp_path, monkeypatch, capsys):
+    import shutil
+
+    from rota.testkit import cassette_store
+    from rota.tools import index_register
+
+    source = tmp_path / "source.db"
+    _an_old_register(source)
+    gz, manifest = _packed(tmp_path, monkeypatch, source)
+    monkeypatch.setattr(cassette_store, "_download",
+                        lambda url, dest, *a, **k: shutil.copyfile(gz, dest))
+    dest = tmp_path / "checkout" / "cassettes.db"
+
+    cassette_store.pull(dest, manifest)
+    err = [line for line in capsys.readouterr().err.splitlines()
+           if "register: built" in line]
+    assert len(err) == 1, err
+    assert _indexes(dest) == set(cassettes.SEQ_INDEXES)
+    assert _mode(dest) == "wal"
+    assert _rows(dest) == _rows(source)
+    leftovers = sorted(p.name for p in dest.parent.iterdir())
+    assert leftovers == ["cassettes.db"], leftovers
+
+    assert index_register.prepare(dest) == [], "a second call builds nothing"
+    assert capsys.readouterr().out == ""
+
+
+def test_a_published_snapshot_of_an_indexed_register_carries_the_indexes(
+        tmp_path, monkeypatch):
+    """`pack` copies every page through the backup API, so a register that
+    holds the indexes publishes them."""
+    import gzip
+    import shutil
+
+    from rota.tools import index_register
+
+    source = tmp_path / "source.db"
+    _an_old_register(source)
+    index_register.prepare(source)
+    gz, _ = _packed(tmp_path, monkeypatch, source)
+    snap = tmp_path / "snap.db"
+    with gzip.open(gz, "rb") as g, open(snap, "wb") as f:
+        shutil.copyfileobj(g, f)
+    assert _indexes(snap) == set(cassettes.SEQ_INDEXES)
+    assert _mode(snap) == "delete"

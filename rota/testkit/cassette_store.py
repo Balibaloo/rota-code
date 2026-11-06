@@ -255,6 +255,15 @@ def pull(dest: Path = paths.DEV_DB, manifest: Manifest | None = None,
         raise SystemExit(f"unpacked database sha256 {got[:12]} != manifest "
                          f"{manifest.sha256_db[:12]}; nothing was placed")
     check = _quick_check(part)
+    if check == "ok":
+        # The snapshot is in delete mode and has no `seq` index. Here no
+        # other process can open the file, so the switch and the build hold
+        # the lock alone (frame 362).
+        from ..tools import index_register
+
+        index_register.prepare(
+            part, say=(lambda line: None) if quiet else
+            (lambda line: print(f"cassettes: {line}", file=sys.stderr)))
     # A read-only open of a WAL-headered file still creates -wal and -shm.
     for side in (Path(str(part) + "-wal"), Path(str(part) + "-shm")):
         if side.exists():

@@ -12,8 +12,10 @@ locked` (observed: `plans/l3r-load-reds-read-2026-11-06.md`).
 
 `open_dev_db` gives an empty table its index and never builds on a table with
 rows. A build on the 2.1 GB register holds the write lock for its whole time,
-and every worker of a gate would wait on it. So one person runs this tool once,
-on a quiet machine, with no gate and no recording pass running.
+and every worker of a gate would wait on it. So the build runs where one
+process holds the register: this tool, `rota cassettes pull` after it unpacks
+a snapshot, and the gate before its workers start. Run the tool on a quiet
+machine, with no gate and no recording pass running.
 
 The tool is additive. It writes two indexes and no row, and a second run builds
 nothing. `DROP INDEX` undoes it. It is not a step of `migrate_register`: that
@@ -29,35 +31,75 @@ from pathlib import Path
 
 from .. import paths
 from ..core.config import REGISTER_WAIT
-from ..llm.cassettes import SEQ_INDEXES, seq_index_sql
+from ..llm.cassettes import SEQ_INDEXES, seq_index_sql, to_wal
+
+#: What `ensure` did with one entry of `SEQ_INDEXES`.
+BUILT, HELD, NO_TABLE = "built", "held", "no table"
 
 
-def build(path: str | Path) -> list[tuple[str, float]]:
-    """Build each missing entry of `SEQ_INDEXES`. Return each name built and
-    its time in seconds. An index the register holds is not built again."""
+def ensure(path: str | Path) -> list[tuple[str, str, float]]:
+    """
+    Put the register in WAL mode, and build each missing entry of
+    `SEQ_INDEXES`. Return one `(name, state, seconds)` per entry.
+
+    The one build of the indexes. The tool, `cassette_store.pull` and the
+    gate call it, each at a moment when one process holds the register. A
+    gate's workers then find a WAL register with both indexes, so no worker
+    switches the mode or walks the key index (frame 362).
+    """
     conn = sqlite3.connect(str(path), isolation_level=None,
                            timeout=float(REGISTER_WAIT.default))
-    built: list[tuple[str, float]] = []
-    started = time.perf_counter()
+    out: list[tuple[str, str, float]] = []
     try:
+        to_wal(conn)
         held = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'index'")}
         tables = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'")}
         for name, table in SEQ_INDEXES.items():
             if table not in tables:
-                print(f"no table {table}: {name} not built")
+                out.append((name, NO_TABLE, 0.0))
                 continue
             if name in held:
-                print(f"already built: {name}")
+                out.append((name, HELD, 0.0))
                 continue
             one = time.perf_counter()
             conn.execute(seq_index_sql(name))
-            seconds = time.perf_counter() - one
-            built.append((name, seconds))
-            print(f"built {name} on {table} in {seconds:.1f}s")
+            out.append((name, BUILT, time.perf_counter() - one))
+        if any(state == BUILT for _, state, _ in out):
+            # `pull` deletes the side files of its part file after this
+            # call, so the index pages must be in the main file first.
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     finally:
         conn.close()
+    return out
+
+
+def prepare(path: str | Path, say=print) -> list[tuple[str, float]]:
+    """`ensure`, with one line through `say` when it builds and no line when
+    both indexes exist. Return each name built and its time in seconds."""
+    built = [(name, seconds) for name, state, seconds in ensure(path)
+             if state == BUILT]
+    if built:
+        say("register: built " + ", ".join(
+            f"{name} in {seconds:.1f}s" for name, seconds in built))
+    return built
+
+
+def build(path: str | Path) -> list[tuple[str, float]]:
+    """The tool's run: `ensure`, with one line per index and the total.
+    Return each name built and its time in seconds."""
+    started = time.perf_counter()
+    built: list[tuple[str, float]] = []
+    for name, state, seconds in ensure(path):
+        table = SEQ_INDEXES[name]
+        if state == NO_TABLE:
+            print(f"no table {table}: {name} not built")
+        elif state == HELD:
+            print(f"already built: {name}")
+        else:
+            built.append((name, seconds))
+            print(f"built {name} on {table} in {seconds:.1f}s")
     print(f"total {time.perf_counter() - started:.1f}s, "
           f"{len(built)} of {len(SEQ_INDEXES)} indexes built")
     return built

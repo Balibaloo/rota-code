@@ -166,6 +166,47 @@ def seq_index_sql(name: str) -> str:
             f"ON {SEQ_INDEXES[name]} (seq)")
 
 
+#: The busy wait of one try of the journal mode switch, in milliseconds. The
+#: loop of `to_wal` tries again until `REGISTER_WAIT` runs out.
+_SWITCH_TRY_MS = 100
+
+
+def to_wal(conn: sqlite3.Connection, wait: float | None = None) -> None:
+    """
+    Put the file of `conn` in WAL mode, and wait for a lock to do it.
+
+    The switch needs the exclusive lock. It raises `database is locked` at
+    once when another connection holds the reserved lock, because it does
+    not wait for the busy handler. A new file and a pulled snapshot are in
+    delete mode. So the gate's workers that opened one register together
+    raised at the switch (observed: the review of 4aceb1ea, frame 362).
+
+    The read of the mode waits for the busy handler, and it raises after
+    the wait when a holder keeps the exclusive lock (observed: probe
+    `probe_journal_mode.py`, 2026-11-06). So the loop retries both.
+    Each try waits `_SWITCH_TRY_MS`, so the loop ends near `wait`.
+    """
+    wait = float(REGISTER_WAIT.default) if wait is None else wait
+    deadline = time.monotonic() + wait
+    held = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+    conn.execute(f"PRAGMA busy_timeout = {_SWITCH_TRY_MS}")
+    try:
+        while True:
+            try:
+                mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+                if mode.lower() == "wal":
+                    return
+                # A file that cannot take WAL keeps its mode, with no raise.
+                conn.execute("PRAGMA journal_mode = WAL")
+                return
+            except sqlite3.OperationalError as e:
+                if "locked" not in str(e) or time.monotonic() >= deadline:
+                    raise
+                time.sleep(_SWITCH_TRY_MS / 1000)
+    finally:
+        conn.execute(f"PRAGMA busy_timeout = {held}")
+
+
 def open_dev_db(path: str | Path) -> sqlite3.Connection:
     # The gate's workers write one register, and one insert can hold the
     # write lock for minutes. The 5 s default made the others raise
@@ -178,7 +219,7 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     # for a whole recording pass. WAL batches the syncs; NORMAL is safe here
     # because this database is evidence, re-earnable by re-recording, not the
     # artefact store the durability rules exist for.
-    conn.execute("PRAGMA journal_mode = WAL")
+    to_wal(conn)
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(DEV_SCHEMA)
     # `CREATE TABLE IF NOT EXISTS` will not add a column to a table that already

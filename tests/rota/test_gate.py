@@ -107,6 +107,9 @@ def stage(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_run_suite", run_suite)
     monkeypatch.setattr(gate, "_rerun", rerun)
     monkeypatch.setattr(gate, "_stale", stale)
+    # `main` prepares `paths.DEV_DB`. On the checkout that is the live
+    # register, and a suite worker must never build its indexes (frame 362).
+    monkeypatch.setattr(gate, "prepare_register", lambda: [])
     monkeypatch.setattr(gate, "_head", lambda: state["head"])
     monkeypatch.setattr(gate, "_dirty", lambda: state["dirty"])
     # No test reaches a server. The main card reads free unless a test holds
