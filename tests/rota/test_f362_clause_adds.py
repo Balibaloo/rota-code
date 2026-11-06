@@ -162,10 +162,15 @@ def test_an_overlapping_quote_stands_once(db):  # noqa: F811
 
 
 def test_turned_quotes_join_in_the_order_of_his_reply(db):  # noqa: F811
-    """Probe C of the review: the keys give the second clause first."""
+    """Probe C of the review: the keys give the second clause first. Pass 3:
+    the quote of c3 lies before its clause, so it is not found from the
+    clause's offset. It joins at its clause's place with a space, as a part
+    that does not touch."""
     row = _add_row(db, TWO, {"c2": "add it leaves out the rounding.",
                              "c3": "add The page leaves out the tax"})
-    assert (row["words"], row["words_from"]) == (JOINED, row["reply"])
+    assert (row["words"], row["words_from"]) == (
+        "The page leaves out the tax it leaves out the rounding.",
+        row["reply"])
 
 
 def test_a_double_space_in_his_clause_keeps_his_text_between(
@@ -176,3 +181,34 @@ def test_a_double_space_in_his_clause_keeps_his_text_between(
                                "c3": "add it leaves out the rounding."})
     assert row["words"] == ("The page leaves out  the tax, and it leaves out "
                             "the rounding.")
+    assert row["words_from"] == row["reply"]
+
+
+# Pass 3, the review of ede08a30.
+def test_a_part_is_found_from_its_own_clause(db):  # noqa: F811
+    """Item 1: the first place in the whole reply took "add tests." from his
+    "Do not add tests." and turned the order. In the review's reply "Use the
+    tax, and add tests." `page_clauses` gives "add tests." no clause, so the
+    door case puts it in a sentence of its own."""
+    words = "Do not add tests. Drop line 3. Use the tax. Add tests."
+    row = _add_row(db, words, {"c1": "none", "c3": "add Use the tax.",
+                               "c4": "add Add tests."})
+    assert (row["words"], row["words_from"]) == (
+        "Use the tax. Add tests.", row["reply"])
+    # The review's own reply, at the level of the join.
+    his = "Do not add tests. Drop line 3. Use the tax, and add tests."
+    at = his.index("Use the tax")
+    assert api._joined_add(his, [(at, "Use the tax"), (at, "add tests.")]) == (
+        "Use the tax, and add tests.", ["Use the tax, and add tests."])
+
+
+def test_adds_that_do_not_touch_name_his_reply(db):  # noqa: F811
+    """Item 4: each run is a span of his reply, so the row names it, as a
+    single add does."""
+    words = ("The page leaves out the tax. Drop line 3. The page leaves out "
+             "the rounding.")
+    row = _add_row(db, words, {"c1": "add The page leaves out the tax.",
+                               "c3": "add The page leaves out the rounding."})
+    assert (row["words"], row["words_from"]) == (
+        "The page leaves out the tax. The page leaves out the rounding.",
+        row["reply"])

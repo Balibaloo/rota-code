@@ -13666,6 +13666,12 @@ def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
     for ref, verdict in per_item.items():
         shape = dict((shapes or {}).get(ref) or {})
         more[ref] = shape.pop("paths", [])[1:]
+        # Joined adds name the reply when each run is a span of it, as a
+        # single add does (frame 362, review 2, item 4).
+        runs = shape.pop("runs", None)
+        if runs and shape.get("words") and not shape.get("words_from") and all(
+                _words_from(ctx, r) == ctx.trigger for r in runs):
+            shape["words_from"] = ctx.trigger
         if shape.get("words") and not shape.get("words_from"):
             shape["words_from"] = _words_from(ctx, shape["words"])
         reading[ref] = {**shape, "verdict": verdict}
@@ -15651,40 +15657,48 @@ def _add_lines(menu: dict[int, tuple[str, list[str]]]) -> list[int]:
 _ADD_GAP = r"([\s.,;:!?]*(?:(?:and|but|or|so|then|also)\s+)?)"
 
 
-def _joined_add(his: str, parts: list[str]) -> str:
+def _joined_add(his: str, parts: list[tuple[int, str]]
+                ) -> tuple[str, list[str]]:
     """The words of a row that two or more adds reach, in the order of his
-    reply. Each part is found in his reply. Parts that touch or overlap
-    give his own text from the first word to the last, so the words stay a
-    run of his reply. One space joins the runs that do not touch.
+    reply, and the runs that make them. Each part is its clause's offset in
+    his reply and its words. Parts that touch or overlap give his own text
+    from the first word to the last, so the words stay a run of his reply.
+    One space joins the runs that do not touch.
 
     The review of pass 1 (frame 362, finding 2) found three faults in a
     join by key order: a repeated quote stood twice, turned quotes kept the
     key order, and a double space in his clause lost his ", and"."""
     text = his or ""
-    found: list[tuple[int, int]] = []
-    lost: list[str] = []
-    for part in parts:
+    # Each entry: the start, the end, and the words of a part that his
+    # reply does not hold from its clause's offset, else None.
+    found: list[tuple[int, int, str | None]] = []
+    for at, part in parts:
         # The quote's white space is folded, so any run of white space in
-        # his reply matches one space of the part.
-        m = re.search(r"\s+".join(map(re.escape, part.split())), text, re.I)
-        if m:
-            found.append((m.start(), m.end()))
-        else:
-            lost.append(part)
-    runs: list[list[int]] = []
-    for start, end in sorted(found):
-        if runs and (start <= runs[-1][1] or re.fullmatch(
-                _ADD_GAP, text[runs[-1][1]:start], re.I)):
+        # his reply matches one space of the part. The search starts at the
+        # part's own clause. The first place in the whole reply took "add
+        # tests." from his "Do not add tests." (frame 362, review 2, item 1).
+        m = re.compile(r"\s+".join(map(re.escape, part.split())),
+                       re.I).search(text, max(at, 0))
+        found.append((m.start(), m.end(), None) if m else (at, at, part))
+    runs: list[list] = []
+    for start, end, lost in sorted(found, key=lambda f: (f[0], f[1])):
+        # A part that is not found never joins a run, as a part that does
+        # not touch.
+        if lost is None and runs and runs[-1][2] is None and (
+                start <= runs[-1][1] or re.fullmatch(
+                    _ADD_GAP, text[runs[-1][1]:start], re.I)):
             runs[-1][1] = max(runs[-1][1], end)
         else:
-            runs.append([start, end])
-    out = " ".join(text[s:e] for s, e in runs)
-    # A part that his reply does not hold keeps its place after the runs,
-    # once, so no word of the record is lost and none stands twice.
-    for part in lost:
-        if not _holds_span(out, part):
-            out = f"{out} {part}".strip()
-    return out
+            runs.append([start, end, lost])
+    held = " ".join(text[s:e] for s, e, lost in runs if lost is None)
+    out: list[str] = []
+    for s, e, lost in runs:
+        # A lost part stands once, so no word of the record stands twice.
+        if lost is None:
+            out.append(text[s:e])
+        elif not _holds_span(held, lost) and lost not in out:
+            out.append(lost)
+    return " ".join(out), out
 
 
 def page_clauses(his: str, size: int,
@@ -16043,7 +16057,14 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     per_item: dict[str, str] = {}
     shape_of: dict[str, dict] = {}
     # The words of each add on a ref, for the join of the next one.
-    add_parts: dict[str, list[str]] = {}
+    add_parts: dict[str, list[tuple[int, str]]] = {}
+    # Each clause's offset in his reply. `page_clauses` lists the clauses in
+    # the order of their offsets, so each search starts at the one before.
+    clause_at: dict[int, int] = {}
+    seek = 0
+    for k_at, c_at in enumerate(clauses, 1):
+        place = (his or "").find(c_at["words"], seek)
+        clause_at[k_at] = seek = place if place >= 0 else seek
     for label, value, lines, spans, rows in choices:
         name, given = _menu_option(value)
         if name in _LANDS_NOTHING:
@@ -16118,9 +16139,12 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
             if act == "add":
                 held = (add_parts.get(ref, []) if shape_of.get(ref, {}).get(
                     "act") == "add" else [])
-                add_parts[ref] = [*held, said]
+                own = re.fullmatch(r"clause c(\d+)", label)
+                add_parts[ref] = [*held, (clause_at.get(
+                    int(own.group(1)), 0) if own else 0, said)]
                 if held:
-                    shape["words"] = _joined_add(his, add_parts[ref])
+                    shape["words"], shape["runs"] = _joined_add(
+                        his, add_parts[ref])
             per_item[ref], shape_of[ref] = verdict, shape
             ruled[n] = label
         # A read-back line ruled with rows also rules those rows of the
