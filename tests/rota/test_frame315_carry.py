@@ -92,11 +92,19 @@ def _night161(tmp_path, *, sliced: bool):
     return db
 
 
+def _said(block: str) -> list[str]:
+    """The replies of a ruling block, in its order (frame 362)."""
+    return [line.split(': "', 1)[1][:-1] for line in block.split("\n")
+            if line.startswith("His answer")]
+
+
 def _assert_carry(carry: dict) -> None:
     assert M131 in carry[RULED_KEY]
     assert M137 in carry[RULED_KEY]
-    # The cap keeps the last three, newest last.
-    assert carry[RULED_KEY] == [M128, M131, M137]
+    # Each whole reply once, newest last. The four fit the budget, so no
+    # count line ends the block (frame 362).
+    assert _said(carry[RULED_KEY]) == [M118, M128, M131, M137]
+    assert "older answer" not in carry[RULED_KEY]
     old = {c["id"]: c for c in carry[RETIRED_KEY]}
     assert old[f"c_1_{ITEM}"] == {"old ticket": TK1, "id": f"c_1_{ITEM}",
                                   "version": 4, "text": C1}
@@ -136,7 +144,7 @@ def test_an_item_with_no_old_ticket_carries_his_words_and_no_old_criteria(tmp_pa
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=(ITEM,)))
     assert set(pushed["the item"]) == {"text", "the principal said", RULED_KEY}
-    assert pushed["the item"][RULED_KEY] == [M118, M137]
+    assert _said(pushed["the item"][RULED_KEY]) == [M118, M137]
 
 
 def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
@@ -166,7 +174,7 @@ def test_rulings_on_the_live_ticket_do_not_push_his_correction_out(tmp_path):
                 "Lines 8 to 12 are about the confirm change, not this one, so please take them off this page.")
     db.commit()
     carry = _criteria_wake(db)
-    assert carry[RULED_KEY] == [M128, M131, M137]
+    assert _said(carry[RULED_KEY]) == [M118, M128, M131, M137]
 
 
 def test_a_ruling_that_names_only_the_old_ticket_is_carried(tmp_path):
@@ -174,7 +182,7 @@ def test_a_ruling_that_names_only_the_old_ticket_is_carried(tmp_path):
     db = _night161(tmp_path, sliced=True)
     _ruling(db, "r_tk1", 300, {TK1: "contest"}, "The old ticket said flag.")
     db.commit()
-    assert _criteria_wake(db)[RULED_KEY][-1] == "The old ticket said flag."
+    assert _said(_criteria_wake(db)[RULED_KEY])[-1] == "The old ticket said flag."
 
 
 def test_the_criteria_wake_never_counts_the_live_ticket_old(tmp_path):
@@ -226,5 +234,5 @@ def test_s185s_first_criteria_wake_carries_r_1ec1beb146(tmp_path):
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb,
                               Wake("terminologist", "tick:criteria", refs=(DOC_ITEM,)))
-    assert pushed["the item"][RULED_KEY] == [M69]
+    assert pushed["the item"][RULED_KEY] == f'His answer m69 to page m68: "{M69}"'
     assert RETIRED_KEY not in pushed["the item"]

@@ -702,7 +702,7 @@ def _line_legend(conn, rid: str, words: str,
     """
     from ..roles.principal import ruled, seen_order
 
-    row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
+    row = conn.execute("SELECT reply_id, ask_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
     # Only the order `principal.land` recorded at his reply (frame 272).
     # Today's render can put another row on his line, as night 158's did.
@@ -734,10 +734,41 @@ def _line_legend(conn, rid: str, words: str,
                 (rid_n,)).fetchone() or conn.execute(
                 "SELECT text FROM items WHERE id = ?", (rid_n,)).fetchone()
             text = got["text"] if got else None
+        # A guess line and a team note name themselves in their text. The
+        # tag says "another criterion", so these lines take none.
+        shown = None if text else _line_words(conn, row["ask_id"], rid_n)
+        if shown:
+            out.append(f"On his page, line {n} was {shown}")
+            continue
         tag = _other_row(woken, rid_n)
         out.append(f"On his page, line {n} was {rid_n}{tag}: {text}" if text
                    else f"On his page, line {n} was {rid_n}{tag}.")
     return out
+
+
+def _line_words(conn, ask_id: str | None, ref: str) -> str:
+    """The words of a guess line or a team note on page `ask_id`, or ''.
+
+    Dry run 6b's m27 said "Line 2 is wrong." The legend said "line 2 was
+    guess:folds_long_lines_in_icalendar.", and the guess was not in the
+    push (frame 362, the push read, section 3).
+    """
+    from ..roles.principal import code_line
+
+    if ref.startswith("guess:"):
+        # The send door stamped what the line showed. A guess renders
+        # frozen, and a batch target renders live (`code_line`).
+        target = api.code_stamp(conn, ask_id).get(ref)
+        return code_line(conn, ref[len("guess:"):], target)
+    note = conn.execute("SELECT default_taken FROM ledger WHERE id = ?",
+                        (ref,)).fetchone()
+    if note is not None and note["default_taken"]:
+        # The page shows a note under "Where you did not say, I assumed:".
+        return f"the team's assumption: {note['default_taken']}"
+    # A batch line keeps its id, because its readers render today's touch
+    # set. At the end of dry run 6b, b_1's set named string.py, his own fix.
+    # A legend beside "Line 5 is wrong." would show that fix as the wrong line.
+    return ""
 
 
 def _other_row(woken: str | None, rid: str) -> str:
@@ -4201,9 +4232,12 @@ def _guess_seed(conn, batch_id: str) -> dict | None:
 
 RULED_KEY = "the principal ruled on this item, newest last"
 RETIRED_KEY = "criteria of an old ticket, written before the item changed"
-# A 9b seat's window is small, so the carry keeps the last three rulings
-# (frame 315, pass 1).
-RULED_CAP = 3
+# The budget of his rulings in one push, in characters of the block text:
+# each whole reply, its legend lines and the line breaks. The count line is
+# outside it. A 9b seat's window is small (frame 315, pass 1). The largest
+# window of the 21 recorded pushes is 1,319 characters (frame 362, the push
+# read, section 4). `DECISIONS_PUSH_CHARS` is the precedent.
+RULED_CHARS = 3000
 START_RULED_KEY = "the principal's words on this change, newest last"
 # Frame 362, door 2: the key of the pushed constraint read.
 BOUND_KEY = "the constraints that bind the files of this batch"
@@ -4264,8 +4298,6 @@ def _item_ruled(conn, item_id: str, *, before_slice: bool = False) -> dict[str, 
     322, proposal line 2). Every word of the principal is a ruling on a row
     (ruling of 2026-10-08, point 4).
     """
-    from ..roles.principal import ruled_words
-
     old = [r["id"] for r in _old_tickets(conn, item_id, before_slice)]
     names = {item_id} | set(old) | {r["id"] for r in _old_criteria(conn, old)}
     # A ruling on a live ticket's criteria is that ticket's business, and
@@ -4277,8 +4309,58 @@ def _item_ruled(conn, item_id: str, *, before_slice: bool = False) -> dict[str, 
         "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
         "WHERE t.item_id = ?" + (f" AND t.id NOT IN ({marks})" if old else ""),
         (item_id, *old))}
-    words = ruled_words(conn, sorted(names), item=item_id, skip=live)
-    return {RULED_KEY: words[-RULED_CAP:]} if words else {}
+    block = _ruled_block(conn, sorted(names), item=item_id, skip=live)
+    return {RULED_KEY: block} if block else {}
+
+
+def _ruled_block(conn, refs, *, item: str | None = None,
+                 skip=frozenset()) -> str:
+    """His landed rulings on any of `refs`, each whole reply once, oldest
+    first, with a legend line for each page line the reply names. '' when
+    none.
+
+    The key set and `skip` are those of `ruled_words`, so a ruling shows
+    here when it gives that reader a text. The verbatim words and the
+    confirmed reading are two records (composition line 106), and the seat
+    that acts on his ruling reads his words. Dry run 6b's s152 got the row
+    words "Line 2 is wrong." and no sentence that named string.py (frame
+    362, the push read, section 2).
+    """
+    from ..roles.principal import ruled
+
+    skipped = {r["ruling_id"] for r in ruled(conn, list(skip))} if skip else set()
+    replies: dict[str, str] = {}
+    for r in ruled(conn, refs, item=item):
+        said = (r["words"] or "").strip()
+        if not said or r["ruling_id"] in skipped or r["ruling_id"] in replies:
+            continue
+        replies[r["ruling_id"]] = (r["reply_words"] or "").strip() or said
+    shown: list[str] = []
+    for rid, words in replies.items():
+        head = conn.execute("SELECT ask_id, reply_id FROM rulings WHERE id = ?",
+                            (rid,)).fetchone()
+        answer = "His answer" + (f" {head['reply_id']}" if head["reply_id"] else "")
+        page = f" to page {head['ask_id']}" if head["ask_id"] else ""
+        shown.append("\n".join([f'{answer}{page}: "{words}"',
+                                *_line_legend(conn, rid, words)]))
+    # Whole rulings only, the newest first. The newest stays when it alone
+    # is over the budget: a push with no word of his newest ruling is frame
+    # 312's fault again.
+    kept: list[str] = []
+    used = 0
+    for text in reversed(shown):
+        cost = len(text) + (1 if kept else 0)
+        if kept and used + cost > RULED_CHARS:
+            break
+        kept.insert(0, text)
+        used += cost
+    left = len(shown) - len(kept)
+    if left:
+        # A cut that says nothing reads as his whole word (frame 362, the
+        # push read, section 6: the count cut m40 from s173's push).
+        kept.append(f"This block does not show {left} older "
+                    f"answer{'s' if left != 1 else ''} of the principal.")
+    return "\n".join(kept)
 
 
 def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
@@ -4484,14 +4566,15 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # (frame 312, review w5, re-check). The commit door reads the same set.
     if (role == "developer" and wake is not None
             and wake.kind == "tick:batch_start" and wake.refs):
-        from types import SimpleNamespace
-
-        from ..roles.api import _ruling_texts
-
-        said = [t for t, principal in _ruling_texts(SimpleNamespace(
-            conn=sb.ctx.conn, batch_id=wake.refs[0])) if principal and t.strip()]
+        # The key set of `_ruling_texts`: the batch, its tickets and
+        # criteria, the item and a page key that names the item.
+        bid = wake.refs[0]
+        made = sb.ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                                   (bid,)).fetchone()
+        said = _ruled_block(sb.ctx.conn, api.batch_ruled_refs(sb.ctx.conn, bid),
+                            item=made["item_id"] if made else None)
         if said:
-            pushed[START_RULED_KEY] = said[-RULED_CAP:]
+            pushed[START_RULED_KEY] = said
     # Frame 362, door 2: the builder and the Tester get the constraints that
     # bind the batch's files unasked. The seat cannot send `model.load` an
     # id it never saw. The read is a push, because a tool here needs a line
