@@ -763,8 +763,11 @@ def _line_legend(conn, rid: str, words: str,
         # team's rewrite after he called the line wrong (review, finding 3).
         text = held["old_text"] if isinstance(held["old_text"], str) else None
         text = text or _line_words(conn, row["ask_id"], rid_n)
-        out.append(_legend_cut(f"{head}. The line was {rid_n}{tag}: {text}"
-                               if text else f"{head}. The line was {rid_n}{tag}."))
+        # A line with no stored text names its kind, so "c_2" has a
+        # referent (frame 362, third look, T1).
+        out.append(_legend_cut(f"{head}. The line was {rid_n}{tag}: {text}" if text
+                               else f"{head}. The line was {_line_kind(conn, rid_n)}"
+                                    f"{rid_n}{tag}."))
     return out
 
 

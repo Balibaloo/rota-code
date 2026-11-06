@@ -295,7 +295,7 @@ def test_a_row_with_no_stamped_text_shows_its_id_only(tmp_path):
     can be the team's rewrite after he called the line wrong."""
     db = _dry6b(tmp_path, upto="r_m39")
     assert _line_legend(db, "r_m39", "Line 2 is fine.") == [
-        "On his page, line 2 is approved. The line was c_1."]
+        "On his page, line 2 is approved. The line was a criterion, c_1."]
 
 
 def test_a_guess_line_keeps_the_tag_on_a_repair_wake(tmp_path):
@@ -438,7 +438,8 @@ def test_a_team_note_shows_its_id_only(tmp_path):
                "status, author) VALUES ('l_50364e0e61', ?, 'items', ?, 'default', "
                "'resolved', 'vision_keeper')", (ITEM6, NOTE6))
     assert _line_legend(db, "r_m27", "Line 3 is right.") == [
-        "On his page, line 3 is approved. The line was l_50364e0e61."]
+        "On his page, line 3 is approved. The line was one of the team's notes, "
+        "l_50364e0e61."]
 
 
 # The budget. Each reply is about 1,000 characters, so two fit in

@@ -183,7 +183,7 @@ def test_s359_developer_block_names_lines_3_and_4_as_crit_2_and_crit_3(tmp_path)
             f"{TEXTS_M201[CRIT_3]}") in block
     # Frame 362: an approved row has no text stamped at his page. Today's
     # row can be the team's rewrite, so the line shows its id only.
-    assert f"On his page, line 2 is approved. The line was {CRIT_1}.\n" in block
+    assert f"On his page, line 2 is approved. The line was a criterion, {CRIT_1}.\n" in block
     assert TEXT_1 not in block
     assert block.index("On his page, line 3") > block.index("He said:")
 
