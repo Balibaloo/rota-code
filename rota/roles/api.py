@@ -15739,21 +15739,18 @@ def _one_option_text(n: int, other: str, other_value, add: str,
             f"rulings.rule(ask=...) with no rulings.")
 
 
-def _displaced_text(n: int, name: str, kind: str, displaced: list[str]
-                    ) -> str:
+def _displaced_text(n: int, name: str, displaced: list[str]) -> str:
     """The refusal of a line key that lands a row on the add line beside
-    clause adds. Each way out lands in one call. The text offers no
-    verdict that the seat's own key contradicts. An approve beside a fault
-    key ruled against his words on n174-m53-m58, where his first clause
-    drops the lines (second look of frame 362, finding B)."""
-    head = (f"line {n}: the line key gives {name!r}, and "
+    clause adds. The way out, the ask, lands in one call. The text offers
+    no verdict that the seat's own key contradicts. An approve beside a
+    fault key ruled against his words on n174-m53-m58, where his first
+    clause drops the lines (second look of frame 362, finding B). Every
+    key that reaches here faults the line, because only a step line maps
+    `drop` to approve, and a step line offers no add (third look, finding
+    C)."""
+    return (f"line {n}: the line key gives {name!r}, and "
             f"{', '.join(displaced)} add to line {n}. One ruling holds one "
-            f"option per line")
-    rows = _STEP_ROWS if kind == "step" else _OPTION_ROWS
-    if (rows.get(name) or ("contest",))[0] in ("contest", "revise"):
-        return (f"{head}, and the key faults line {n}. Call "
-                f"rulings.rule(ask=...) with no rulings.")
-    return (f"{head}. Key line {n} \"approve\" to keep the adds, or call "
+            f"option per line, and the key faults line {n}. Call "
             f"rulings.rule(ask=...) with no rulings.")
 
 
@@ -16103,7 +16100,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
         raise ValueError(text)
     if displaced:
         raise ValueError(_displaced_text(
-            adds[0], _key_name(by_line[adds[0]]), menu[adds[0]][0], displaced))
+            adds[0], _key_name(by_line[adds[0]]), displaced))
     # The clauses with no lines whose quote a line key carries.
     quoted: set[int] = set()
     for n in sorted(by_line):

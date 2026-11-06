@@ -351,19 +351,6 @@ def test_a_quote_of_the_first_word_runs_to_the_start_of_his_reply(
     assert _rows(sb)["calculate_tip"]["words"] == "The page leaves out the tax."
 
 
-def test_the_refusal_offers_the_approve_only_beside_a_key_that_is_no_fault():
-    """Finding B, the other branch. A stopped step's `drop` lands approve,
-    so the text can offer the approve. No add line holds such a key today."""
-    fault = api._displaced_text(11, "drop", "request", ["c2", "c3"])
-    ok = api._displaced_text(4, "drop", "step", ["c2"])
-    assert "approve" not in fault and "ask=" in fault
-    assert ok == ('line 4: the line key gives \'drop\', and c2 add to line 4. '
-                  'One ruling holds one option per line. Key line 4 '
-                  '"approve" to keep the adds, or call rulings.rule(ask=...) '
-                  'with no rulings.')
-    assert len(fault) < 200 and len(ok) < 200
-
-
 def test_a_line_add_and_a_clause_add_on_one_line_join(db):  # noqa: F811
     """Case C by the add key. A line key `add` on the add line dropped every
     clause add, as a contest did. Both adds hold his words, so they join."""
