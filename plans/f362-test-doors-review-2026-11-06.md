@@ -43,3 +43,52 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029
 ## (d) Usage
 
 The harness shows no counter. The estimate is about 100k input tokens of context, about 16k output tokens, and about 116k in total.
+
+## Second look, bd10fb23
+
+### The result
+
+Verdict: accept, with two high follow-ups. The diff mends findings 1 to 8 for every shape that the first probes sent. The criterion path refuses all four bodies that must stay refused. Two high findings remain. On the guard path, `assert True` passes (S1). The fixture door still refuses a fixture from the project conftest (S2). The 11 door test files pass: 573 passed in 79 s. `tests/rota/test_triage_fork.py` passes: 53 passed.
+
+### (a) Verdict on each point
+
+1. Findings 1 to 8, with the same probes at `bd10fb23`:
+   - Finding 1: fixed. P1 to P5 are refused, and P5b is admitted.
+   - Finding 2: fixed. P6c, P9, P11b and P12 are admitted. P7, a property that the test calls, is now admitted too, and that is a doubt.
+   - Finding 3: fixed for the two texts. A `pytest.raises` guard test and a `TestCase` guard test land, and an empty guard test is refused. The guard path admits `assert True` (S1).
+   - Finding 4: fixed. C11, C11b and C13 land. C4b now meets the import door, not the collect door.
+   - Finding 5: fixed for `assertTrue(True)`. `self.assertEqual(1, 1)` lands (S4).
+   - Finding 6: fixed for C7 and C10b. C9, the `async def` test, lands by deviation.
+   - Finding 7: fixed for T1 and T5. T3 stays refused by deviation 1.
+   - Finding 8: fixed for C8. A class-level `parametrize` (R7) and a conftest fixture (R6) are still refused (S2).
+2. The rule. On the criterion path, these four bodies are refused: `def test_x(): pass` (R1), an English sentence (R2), a body with no test function (R3), and `assert True` (R4). On the guard path, `assert True` lands (S1). The diff refuses three tests that it is not certain of: a nested `Test` class (S3, new), a conftest fixture and a class-level `parametrize` (S2, older code in a door the diff edits).
+3. The three deviations:
+   - Triage in one direction: the deviation does not follow the rule. The criterion "q_split returns the folded line" against the ticket "When icalendar writes a long line" keeps the offer (T3). That ticket is the wording of the dry runs. The refusal is not certain, but it fired 0 times. It opens no certain wrong admit.
+   - The fixture door admits any test with a decorator that is not a mark: this follows the rule. A wrong admit is possible only when the decorator gives no argument, and the door cannot know that.
+   - A class with any base counts as collected: this follows the rule. The wrong admit is certain only for a stdlib base such as `dict`. R10 shows that such a body is still refused when it checks nothing.
+4. The old cases hold. The clickI tests of nights 28, 42 and 45 in `test_desk_guards.py` pass, and so does `test_f362_test_doors.py`. The prints probes P1, P6, P11c, P11d, P12b and P13 are refused as before. `test_triage_fork.py` and the offer test of the p2 file pass.
+5. New defects: S3 and S5. The test files pass.
+
+The import door, api.py 12290-12379, reads these names: the stdlib names, `pytest`, the `.py` files and folders at the worktree root, the program modules of the index, and the project name in `pyproject.toml`. It reads no installed package and no declared dependency, so it cannot know whether `numpy` or `hypothesis` is installed, and its refusal of them is not certain.
+
+### (b) Findings
+
+- S1. `rota/roles/api.py` 11514-11521, `_encode_guard`. High. CONFIRMED (test_probe_guard2.py: assert_true lands). The guard path runs the collect door and no constant door. So a guard test that cannot fail lands, and its commitment shows as guarded. The guard path had this gap before pass 2. Fix: move the F14 constant check of `tests_encode` into a function, and call it on both paths.
+- S2. `rota/roles/api.py` 12090-12131, the fixture door. High. CONFIRMED (probe_p2 R6, R7). A test that takes a fixture from the project `tests/conftest.py` is refused, and the refusal says that the harness has no such fixture. A method under a class-level `parametrize` is refused in the same way. `_conftest_fixtures` (line 23463) exists, and the unbound-name door at line 11745 uses it already. Fix: add `_conftest_fixtures(_worktree_of(ctx))` and the argnames of class-level marks to the given names.
+- S3. `rota/roles/api.py` 11333-11367, `_collected_tests`. Low. CONFIRMED (R9, and a real pytest run in rd362/collect_truth2 that passed 1 test). The door says "pytest collects nothing" for a test in a nested `Test` class, and pytest collects that test. Pass 1 admitted this body. Fix: read nested classes with the same class rule.
+- S4. `rota/roles/api.py` 12140-12150. Low. CONFIRMED (R5). `self.assertEqual(1, 1)` lands, because only the four one-argument truth asserts go to `assert_cannot_fail`. Fix: refuse a two-argument `self.assert...` call when both arguments are constants.
+- S5. `rota/roles/api.py` 11294 and 11325, `_CHECK_WORDS`. Low. CONFIRMED (R8). The door reads a word inside the name as a check, so a bare call of the surface `fail_safe` counts as a check. Fix: count a name only when it starts with `assert` or equals `fail`, `raises` or `warns`.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029756dd-9273-4a54-95d8-2da05a2bfe52/scratchpad/rd362/`. Each probe ran at `bd10fb23` and called no model.
+
+- `probe_prints.py`, `probe_collect.py` and `probe_triage.py` ran again with no change.
+- `test_probe_guard2.py`: seven guard bodies through the `proj` fixture. The first `test_probe_guard.py` stops at the first body that lands, because it slices a dict.
+- `probe_p2.py`: R1 to R10, the four bodies that must stay refused and the new edge cases.
+- `collect_truth2/`: a real pytest run of the nested class.
+- Suite: the 10 files of the first look and `tests/rota/test_f362_test_doors_p2.py`. Result: 573 passed. The implementer counted 665 tests in a different set of 10 files.
+
+### (d) Usage
+
+The harness shows no counter. This look used about 30k input tokens of context and about 8k output tokens. The total for both looks is about 155k.
