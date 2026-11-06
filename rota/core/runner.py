@@ -718,8 +718,8 @@ def _line_legend(conn, rid: str, words: str,
     # "line 5 of string.py" is a line of a file, not of his page (frame 362,
     # review, finding 4). `_line_reading` has 23 callers, so the legend
     # alone drops the phrase.
-    for ref in api._line_reading(_FILE_LINE.sub("", words), len(order)).refs:
-        if ref.word == "note":
+    for ref in api._line_reading(words, len(order)).refs:
+        if ref.word == "note" or _OF_FILE.match(words, ref.end):
             continue
         named |= ref.lines
     # The reading's rows, as the read-back reads them (fact F1), and a key
@@ -772,10 +772,11 @@ def _line_legend(conn, rid: str, words: str,
 
 
 # A line of a file: "line 5 of string.py", "lines 3 and 4 of src/x/y.py".
-_FILE_LINE = re.compile(
-    r"\blines?\s+\d+(?:(?:\s*,\s*|\s+and\s+|\s+to\s+|-)\d+)*\s+of\s+(?:the\s+)?"
-    r"(?:file\s+)?`?(?:[\w.-]+/)+[\w.-]*|\blines?\s+\d+(?:(?:\s*,\s*|\s+and\s+"
-    r"|\s+to\s+|-)\d+)*\s+of\s+(?:the\s+)?(?:file\s+)?`?[\w-]+\.\w+", re.I)
+# The words after a line reference that make it a line of a file: "of
+# string.py", "of src/x/y.py". The reference itself comes from
+# `api._line_reading`, the one reader of fact F2.
+_OF_FILE = re.compile(
+    r"\s+of\s+(?:the\s+)?(?:file\s+)?`?(?:(?:[\w.-]+/)+[\w.-]*|[\w-]+\.\w+)", re.I)
 
 
 def _line_kind(conn, ref: str) -> str:
