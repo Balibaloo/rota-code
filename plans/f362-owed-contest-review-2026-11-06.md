@@ -39,3 +39,69 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029
 ## (d) Usage
 
 The harness does not show this agent its token counts. The estimate is about 120k input tokens, about 17k output tokens, about 137k in total. No model call, no suite and no gate ran.
+
+## Second look, 822311e0
+
+### Result
+
+**Verdict: the eight findings are fixed. Two residual gaps stay, both low.** The 32 new tests and the related files pass: `2105 passed, 5 skipped, 10 xfailed`. All 11 mutations of the first look now turn a test red, and 3 new mutations of the pass 2 fixes do too. No model was called, and no tracked file was edited.
+
+### (a) The eight findings
+
+1. Fixed. `owed` takes only a contest or a revise as the newest ruling. Mutation `f1_approve_replaces` turns 2 tests red.
+2. Fixed where a relay woke the rewrite. My own run: w7 owes r_m27 with stamps empty and gives `[]`. w8 and the final database stamp `m44`, owe nothing and give `["b_1"]`.
+3. Fixed. The weak tests now assert a stamp value or a positive case first.
+4. Fixed. The 6 mutations that stayed green now fail 1 or 2 tests each (probe: `mutate2.py`).
+5. Fixed. `park_owns` keeps an owed park on the first live batch only. The page shows no contested set.
+6. Fixed. `_guess_seed` drops the guess only on the guess line.
+7. Fixed. A stamped `batches.guess` clears the plans of the pending batches. Mutation `f7_clear` turns 1 test red.
+8. Fixed. `connect` calls `touch_columns`. Mutation `f8_connect` turns 2 tests red.
+
+### (b) Point 2: which reading the rows support
+
+The rows support the wide reading. His m39 and m41 are on pages m31 and m38, with `b_1` in the refs. Both rulings contest `b_1`, the batch line, not `guess:<item>`. His words on m44 repeat m27 with the line number changed: "Line 5 is wrong. The fold is _foldline in src/icalendar/parser/string.py ...". So he contested the same fault on the batch plan that s150 copied from the guess. s172 wrote `string.py` and `test_icalendar.py` into `batch_touch` under m44, which is his correction. The strict reading keeps m27 owed after a true rewrite and holds b_1 for good.
+
+The wide reading cannot end an owed guess contest without a stamped write. A newer contest on the batch line becomes the owed ruling, and only a `batch_touch` row stamped with its verdict ends it. Two narrow ways remain:
+
+- Under a newer revise, the door admits a batch set that equals the contested one. The stamp then ends the fact with the old files. This is the revise rule of the design, so it is not a defect.
+- A newer contest on a merged or abandoned batch of the item makes `owed` give None. A guess contest on the same item then ends with no rewrite. No record shows this order, so it stays PLAUSIBLE.
+
+The guess line itself keeps the old set in `touch_guesses`, and `code_target` still shows it. That is slice 3.
+
+### (c) Point 3: the migration
+
+The w7, w8 and final runs agree with the implementer, as section (a) shows. On a copy of the final database with every `sessions.trigger_msg` set to NULL, no receipt names a relay. The backfill then stamps nothing, and `owed("b_1")` gives r_m41 again. So a database whose rewrites came from ticks, or from sessions with no recorded trigger, still owes a contest that was rewritten. That is fault 3 of the pass 2 report. The cost is one more Architect wake, and at worst a park page that asks him again.
+
+The backfill runs once, only when the column is missing. A database that pass 1 code already migrated keeps every stamp empty. `connect` now writes (`ALTER` and `UPDATE`) whenever a reader opens an old file, the cockpit included.
+
+### (d) Point 4: the page in the worst case
+
+The worst case is 1 relay, 3 `tick:guess` wakes, the quarantine report and one park ask.
+
+- "This change waits before it starts." True. `next_batch` holds the batch.
+- "The team tried 3 times, and it did not rewrite the guess." Mostly true. The count is the 3 tick attempts. The relay before them was a fourth try, so the page counts low by one.
+- "You said: ..." True. These are his words of the owed verdict.
+- "1." and "2. The code this request touches. It waits for the rewrite of the team." True.
+- "Reply to line 2 to say again what to change, and the team tries again." True in the code. The order is `[item, guess:<item>]`. `land` has no code stamp for the park page, so a contest of line 2 stays on `guess:<item>`. That makes a newer ruling with a fresh key, and the park ends (`test_a_second_contest_gets_a_fresh_key_and_ends_the_park`). No test lands that reply through the Liaison.
+- "Or say that you give the request up." No code reads these words. The Liaison landing seat must turn them into a ruling on line 1. A contest of the item goes to `do:cancel` through `park_owns`, but `rota/roles/api.py` 15267 reads only a "do not give up". This is PLAUSIBLE, as on the frame 87 page.
+- "Nothing else waits on you." True. The hold is per item.
+
+### (e) New findings
+
+1. `rota/core/db.py` 155 to 198. Severity low. CONFIRMED. With no relay receipt, the backfill stamps nothing, and a rewritten batch contest is owed again (probe: `mig2.py`, `m2_norelay.db`). Fix: also stamp a row whose session was a `tick:annotate` on the batch after the verdict landed.
+2. `rota/roles/principal.py` 2618 to 2634. Severity low. PLAUSIBLE. The page offers "give the request up", but no code or test turns those words into a drop of the request. Fix: add one landing case for a give-up reply on the owed park page.
+3. `rota/core/scheduler.py` 1917. Severity low. PLAUSIBLE. A newer contest on a merged batch of the item ends an owed guess contest with no rewrite. Fix: skip a ruling on a merged or abandoned batch when `owed` picks the newest ruling.
+
+### (f) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/029756dd-9273-4a54-95d8-2da05a2bfe52/scratchpad/ro362/`.
+
+- `head2/`: a `git archive` of `822311e0`.
+- `mutate2.py`: the 11 mutations of the first look on `head2/`, and the 32 tests per mutation. All 11 turn a test red.
+- `mutate3.py`: 3 mutations of the pass 2 fixes for findings 1, 7 and 8. All 3 turn a test red.
+- `mig2.py`: `init_db` at `822311e0` on copies of w7, w8, the final database, and a final copy with no trigger messages. It prints the stamps, `owed`, `next_batch` and the messages m39 to m46.
+- The worktree run: the new test file, the files in `p362o/files.txt`, and four pin files, `2105 passed, 5 skipped, 10 xfailed in 196.81s`.
+
+### (g) Usage
+
+The harness shows no token counts. The estimate for the second look is about 30k input tokens and 5k output tokens.

@@ -15,7 +15,9 @@ The last note named two walls: his correction lost a sentence on the record, and
 
 The design is `plans/design-contested-record-2026-11-06.md`, revision 2, after `plans/design-contested-record-review-2026-11-06.md`. One rule: a contest or revise of his on a ref stays owed until a row of the ref's owner carries the ruling. The fact is derived on each read. Two agents read R7 and R10 of 2026-09-02, P4 and frame 87 and see no departure, so no question went to Roman. The stack marks the build as assumed.
 
-Slice 1, the guess line and the batch line, is `36a2edd2` in `C:/Users/roman/rota_p362o`. Its three checks with no model pass. Its review runs to `plans/f362-owed-contest-review-2026-11-06.md`. It is not on the checkout.
+Slice 1, the guess line and the batch line, is `36a2edd2` and `822311e0` in `C:/Users/roman/rota_p362o`. Its three checks with no model pass, and 14 planted faults each turn a test red. The review and its second look are in `plans/f362-owed-contest-review-2026-11-06.md`: all eight findings fixed, none high left. It is not on the checkout.
+
+Left for one small pass 3 before the pick, each low: the backfill stamps nothing on a database where no receipt names a relay; a newer contest on a merged or abandoned batch ends an owed guess contest; the page says "tried 3 times" and the relay was a fourth try; no test lands his reply to line 2 of the park page, and no code or test turns "give the request up" into a drop. The implementer of slice 1 is at about 255k, so pass 3 goes to a new implementer with the report `f362_contested_record_report.md` and the review as its brief.
 
 ## What comes next, in order
 
