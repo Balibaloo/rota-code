@@ -40,3 +40,10 @@ Result first: the owed contest is accepted on the checkout, and it holds on a ru
 Briefs, reports and probes are in this session's scratchpad, `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/`: the `f362_*` and `f360_*` briefs and reports, `arm362/` with both runs of the live arm, `p360c/` with the two replay probes, `rv362/`, `rv360/`, `mr362/`, `l2r362/`, `dc360/`, `dr360/`, and `dry7/` with the run, its logs `t1.log` to `t6.log` and the copies before each turn. Worktrees: `rota_p360c` holds frame 360's slice 1; `rota_r362o` is the review worktree; `rota_p362o` and `rota_p362a` are picked or done and can go. The gate baseline is still 5bf2815 of 2026-10-31.
 
 This session keeps the end of its context to answer the taker.
+
+## Added at the hand-off, 2026-11-07
+
+- Frame 360's slice 1 is on the checkout as `5d4aa326`, `170e9250` and `c2fa3f40` after a clean third look. The gate on it runs in this session; its result file is `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/8b2312ef-0b14-4322-a20c-908058cac23b/tasks/bfad80wv0.output`. Its 7 stale Tester cases are `qwen3.5:9b` cases, so the gate's own re-record on `qwen3:8b` does not fit them: pass `--model qwen3.5:9b` or re-record them by hand. One medium finding follows the pick: the claimed line does not say when a challenge replaced a red test.
+- Roman said "stop all processes" at about 16:45 on 2026-11-06 and "resume" at about 04:10 on 2026-11-07. Both Ollama servers were down at the resume. This session started the main server again, detached, pid 17884. The Titan's server on 11435 is not started, and the router on 11436 still points gemma4 at it.
+- Dry run 7 stopped inside turn 7 and ran twice more on the same database. Its agenda says "Stuck: the code is written, but 58 tests are still failing". The third run's log is `dry7/t7c.log`. The harness decodes pytest output as cp1252 and died twice on byte 0x8d: a new wall, for `plans/operating-facts.md` by its error text.
+- The Critic replay, `p360c/replay_critic.py`, is still not run.
