@@ -24712,7 +24712,8 @@ def _claim_program_fault(text: str, names: dict[str, str],
     """Why the door refuses the program, or "", and the touch names that
     the program calls.
 
-    Four refusals, in the order of RA F5. The syntax tree is the only
+    Four refusals, in the order of RA F5. Before the third, an import that
+    is close to the touch gets the right line (frame 360, pass 2c). The syntax tree is the only
     check. A renamed copy beside a real call of the touch passes all four,
     because no check of the text can tell which call made the printout.
     A store through a name that holds a module's namespace passes too,
@@ -24808,7 +24809,54 @@ def _claim_program_fault(text: str, names: dict[str, str],
                     f"send a program that calls the code of the touch as it "
                     f"is."), []
     # 3. No import of a module of the touch or of a package that holds one.
+    # The project imports each module by its last form. An import that is
+    # close to that form gets the right line (frame 360, pass 2c: 5 of 5
+    # runs wrote `src.icalendar.parser.string`).
     shown = ", ".join(fs[-1] for _, fs in modules) or "the touch"
+    last = [(path, fs[-1]) for path, fs in modules]
+
+    def near_last(dotted: str) -> bool:
+        return any(dotted == f or dotted.startswith(f + ".")
+                   or f.startswith(dotted + ".") for _, f in last)
+
+    def line_for(path: str, module: str, wanted: str = "") -> str:
+        if wanted and names.get(wanted) == path:
+            return f"from {module} import {wanted}"
+        return next((claim_import_line(g) for g in symbols
+                     if _grain_path(g) == path), "") or f"import {module}"
+
+    froms = [(node.module, [a.name for a in node.names])
+             for node in _ast.walk(parsed)
+             if isinstance(node, _ast.ImportFrom) and node.module
+             and not node.level]
+    for m in imported:
+        if near_last(m):
+            continue
+        close = difflib.get_close_matches(m, [f for _, f in last], n=1,
+                                          cutoff=0.8)
+        if not close:
+            continue
+        path = next(p for p, f in last if f == close[0])
+        wanted = next((n for mod, ns in froms if mod == m for n in ns), "")
+        return (f"The program imports `{m}`, and the project imports as "
+                f"`{close[0]}`. Use this line: "
+                f"`{line_for(path, close[0], wanted)}`."), []
+    # 3b. An import from a module of the touch of a name that the module
+    # does not define and that is close to a name that it defines. Run 2
+    # to 4 of the recording wrote `foldline` for `_foldline`.
+    for mod, ns in froms:
+        path = next((p for p, f in last if f == mod), None)
+        if path is None:
+            continue
+        defined = [n for n, p in names.items() if p == path]
+        for n in ns:
+            if n == "*" or n in defined:
+                continue
+            close = difflib.get_close_matches(n, defined, n=1, cutoff=0.8)
+            if close:
+                return (f"The program imports `{n}`, and the touch defines "
+                        f"`{close[0]}`. Use this line: "
+                        f"`{line_for(path, mod, close[0])}`."), []
     if not any(near(m) for m in imported):
         return (f"The program imports nothing from the touch, so send a "
                 f"program that imports a name from {shown} and calls it."), []
