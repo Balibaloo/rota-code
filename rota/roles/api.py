@@ -11312,6 +11312,22 @@ def _live_rows(conn: sqlite3.Connection, col: str) -> str:
     return live_criteria(conn, col)
 
 
+def _refuse_owed(ctx: Ctx, criterion_id: str) -> None:
+    """Refuse an encode of a criterion that rests on a corrected guess.
+
+    The criterion's surface is the old guess's, and the Terminologist
+    rewrites it first. An open import door let a test that cannot import
+    land (the review of slice 2, pass 1, finding 1). The refusal holds
+    after a spent key too, so no stale encode lands (finding 4)."""
+    from ..core.scheduler import criterion_owed
+
+    if criterion_owed(ctx.conn, criterion_id) is not None:
+        raise ValueError(
+            f"criterion {criterion_id} rests on a guess of the code that the "
+            f"principal corrected. The Terminologist rewrites it first. Wait "
+            f"for your next wake, and do not encode {criterion_id} now")
+
+
 def _refuse_retired(ctx: Ctx, criterion_id: str) -> None:
     """Refuse a test of a criterion that his ruling retired."""
     if not _live_rows(ctx.conn, "retired_by"):
@@ -11741,6 +11757,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         return _encode_guard(ctx, id, guarded, path, body,
                              batch_id or ctx.batch_id)
     _refuse_retired(ctx, criterion_id)
+    _refuse_owed(ctx, criterion_id)
     # One form of the path for every door and for the stored row. A row
     # stored with backslashes ran as `error no tests ran` in
     # `harness._run_one` for good (frame 135's review at eb6c7ef).
@@ -12703,13 +12720,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # name, and the bare stem of a package module does not import.
         imports_ok = any(m == d or ("." not in d and m.rsplit(".", 1)[-1] == d)
                          for m in imported_from for d in surface_dotted)
-        # An owed criterion's surface is the old guess's, so a test of his
-        # newer set is not refused for it. A Tester's answer wake reaches
-        # this door before the respecify: dry run 7's s185 (frame 362, slice 2).
-        from ..core.scheduler import criterion_owed
-
-        if (surface_dotted and imported_from and not imports_ok
-                and criterion_owed(ctx.conn, criterion_id) is None):
+        if surface_dotted and imported_from and not imports_ok:
             want = sorted(surface_dotted)[0]
             # Night 142 (frame 215): this door made the Tester put back an
             # import the sandbox cannot load, 13 times.

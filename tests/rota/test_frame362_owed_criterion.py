@@ -158,3 +158,34 @@ def test_dry_run_7_c1_to_c3_are_owed_after_s147():
         found = criterion_owed(conn, cid)
         assert found["verdict"] == "m26"
         assert "src/icalendar/parser/string.py::_foldline" in found["grains"]
+
+
+def _encode(db, body):
+    sb = build("tester", db, mode="tests_missing", session_id="s2", batch_id="b1",
+               wake=Wake("tester", "tick:tests_missing", refs=("b1",)),
+               allow=prompts.mode_tools("tester", "tests_missing"))
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    return sb.call("tests.encode", id="tst_c1", criterion_id="c1",
+                   path="tests/test_c1.py", body=body)
+
+
+BODY = "from nowhere import calculate_tip\n\ndef test_tip():\n    assert calculate_tip(10) == 1\n"
+
+
+def test_an_encode_of_an_owed_criterion_is_refused_first(db):
+    """The review of pass 1, finding 1: the open import door let this
+    body land on an owed criterion."""
+    _correct(db)
+    with pytest.raises(Exception) as caught:
+        _encode(db, BODY)
+    assert str(caught.value).endswith(
+        "criterion c1 rests on a guess of the code that the principal "
+        "corrected. The Terminologist rewrites it first. Wait for your next "
+        "wake, and do not encode c1 now")
+
+
+def test_an_encode_of_a_criterion_not_owed_meets_the_old_doors(db):
+    with pytest.raises(Exception) as caught:
+        _encode(db, BODY)
+    assert "rests on a guess" not in str(caught.value)
+    assert "nowhere" in str(caught.value) or "q_split" in str(caught.value)
