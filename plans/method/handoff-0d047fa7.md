@@ -73,7 +73,14 @@ runs approves it (H1). Slice 2's first pass of H1 builds in
    `plans/design-contested-record-2026-11-06.md`: the touch moved and the
    criteria kept `parameter.py::q_split`, and the surface door refused the
    Tester's 13 encodes on `_foldline`. The biggest wall after the removal.
-5. The rest of the handover of 8b2312ef: the term answer that does not end
+5. **The restore as an act of the structure.** Roman, 2026-11-08: a restore of
+   recorded removed lines is not a model limitation. The stray rows hold the
+   statements and their base lines; when his word or the Architect's
+   judgement says keep, the structure puts them back from the fork and
+   commits, and the Developer works on the result. Read the reach first:
+   every stray row with status `mistake`, and `L1-DV-put-back-a-removed-block`
+   as the control. About 3 cycles after a read.
+6. The rest of the handover of 8b2312ef: the term answer that does not end
    the question, the legend beside his words, the backfill of the owed
    stamp, the rest line of frame 361, Roman's milestone of 2026-11-06.
 
