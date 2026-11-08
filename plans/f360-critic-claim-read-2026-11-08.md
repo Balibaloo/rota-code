@@ -157,6 +157,12 @@ Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 p
 - `L1-CR-a-kept-behaviour-passes-by-its-kept-line`: qwen3:8b 0 of 95. `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist`: qwen3:8b 0 of 90.
 - `L1-CR-fail-names-its-criterion`: qwen3:8b 95 of 95, and qwen3.5:9b 0 of 15 at an older hash.
 
+`python -m rota.tools.casestatus`, read under qwen3:8b with the gemma3:12b pins kept, at the live records of 2026-11-04 (observed):
+
+- FAIL 0 of 5: doubtful-criterion and kept-behaviour.
+- PROV 4 of 5: broken-pushed-commitment and purpose-in-a-docstring. PROV 5 of 5: finish-the-review.
+- Green: quote-the-tests-code 5 of 5. encodes-nothing 3 of 5, at its threshold. challenge-a-claim 5 of 5. dismiss-a-finding 4 of 5. fail-names-its-criterion 5 of 5. pass-a-conforming-diff 5 of 5.
+
 **So the register has measured the dry runs' Critic model on the act of a vacuous test, and it failed 0 of 20.** The gate does not show that, because the case is pinned to gemma3:12b (reasoned). The 1 of 5 of sample 4 is the only right act of qwen3.5:9b on a weak test in these records (observed).
 
 **Does a case measure a pass on a test that proves nothing? One measures the act, on another shape and another model.** `L1-CR-a-test-that-encodes-nothing-is-a-challenge` asks for the right act on a vacuous test. It has a diff, so the test is not the only evidence. It is pinned to gemma3:12b, and the dry runs' Critic is qwen3.5:9b. No case seeds a claim or an empty diff. The second look of pass 2 said so too: "no register case holds a claim" (observed: `plans/stack.md`, frame 360's line of 15:39). `L1-CR-a-kept-behaviour-passes-by-its-kept-line` pays for a `test:` pass, the route that s154 took. No case asks that the test encodes its criterion first (observed: its `expect`).
