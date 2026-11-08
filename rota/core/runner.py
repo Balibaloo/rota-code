@@ -626,6 +626,25 @@ def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
     return system
 
 
+CODE_LINE_KEY = "the code this request touches, as the principal corrected it"
+
+
+def code_line_shown(conn, item: str) -> dict | None:
+    """The newest ruled set of the item's code line and his words, as the
+    criteria push shows them, or None when no ruled set exists."""
+    from ..roles.principal import entry_for
+    from .scheduler import code_line_basis
+
+    basis = code_line_basis(conn, item)
+    if basis is None:
+        return None
+    shown: dict[str, Any] = {"files and functions": basis["grains"]}
+    words = entry_for(conn, basis["verdict"]) or basis["words"]
+    if words:
+        shown["the principal said"] = words
+    return shown
+
+
 def _owed_criterion_lines(conn, wake: Wake) -> list[str]:
     """
     The criterion, the ruled set it does not rest on, and his words.
@@ -4980,6 +4999,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 ruled_item = _item_ruled(conn, wake.refs[0])
                 if ruled_item:
                     pushed = {**ruled_item, **pushed}
+                # The criteria rest on the code he corrected. Dry run 7's
+                # s150 saw no line of his m26 set and wrote c1 to c3 on
+                # `q_split`. `criteria.specify` stamps the verdict shown
+                # here (the review of slice 2, pass 1, finding 3).
+                shown = code_line_shown(conn, wake.refs[0])
+                if shown:
+                    pushed[CODE_LINE_KEY] = shown
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
             # s157 never got `confirm`'s source.

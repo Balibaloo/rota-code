@@ -208,3 +208,46 @@ def test_an_amended_item_leaves_the_old_ruled_set_behind(db):
     db.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'b1'")
     db.commit()
     assert criterion_owed(db, "c1") is None
+
+
+def _specify(db, cid, surface):
+    """A `tick:criteria` session of the Terminologist that writes `cid`."""
+    for grain in NEW:
+        db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) VALUES (?, ?)",
+                   (grain, "symbol" if "::" in grain else "path"))
+    db.commit()
+    wake = Wake("terminologist", "tick:criteria", refs=(ITEM,))
+    sb = build("terminologist", db, mode="criteria", session_id="s3", wake=wake,
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    sb.call("criteria.specify", id=cid, ticket_id="tk_1",
+            text="Folding a long line never splits a word.", surface_refs=surface)
+    session_commit(db, SessionResult(
+        session_id="s3", role="terminologist", wake_kind=wake.kind,
+        wake_refs=wake.refs, writes=[_as_write(w) for w in sb.ctx.writes]))
+    return sb, wake
+
+
+def test_a_criterion_written_after_his_set_rests_on_it(db):
+    """The review of pass 1, finding 3: the push shows his set, and the
+    criterion written from it is not owed."""
+    _correct(db)
+    from rota.core.runner import CODE_LINE_KEY, push_working_set
+
+    sb, wake = _specify(db, "c4", ["src/icalendar/parser/string.py::_foldline"])
+    shown = push_working_set("terminologist", sb, wake)[CODE_LINE_KEY]
+    assert shown["files and functions"] == list(NEW)
+    assert shown["the principal said"] == WORDS
+    assert db.execute("SELECT guess_ruling FROM criteria WHERE id = 'c4'"
+                      ).fetchone()[0] == "m26"
+    assert criterion_owed(db, "c4") is None
+    # c1 was written before his set, so it stays owed.
+    assert criterion_owed(db, "c1")["verdict"] == "m26"
+
+
+def test_a_criterion_written_with_no_ruled_set_rests_on_nothing(db):
+    from rota.core.runner import CODE_LINE_KEY, push_working_set
+
+    sb, wake = _specify(db, "c4", None)
+    assert CODE_LINE_KEY not in push_working_set("terminologist", sb, wake)
+    assert db.execute("SELECT guess_ruling FROM criteria WHERE id = 'c4'"
+                      ).fetchone()[0] == ""

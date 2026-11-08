@@ -7248,6 +7248,24 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
         f"{tid}, {headline}, has no criterion yet." for tid, headline in empty)
 
 
+def _shown_verdict(ctx: Ctx, ticket_id: str) -> str:
+    """The verdict of the ruled set that the `tick:criteria` push showed
+    for the ticket's item, or ''.
+
+    The push shows the newest ruled set of the code line, so a criterion
+    written from it rests on that verdict. Another wake showed no set, so
+    its criterion rests on nothing, and a newer set makes it owed (the
+    review of slice 2, pass 1, finding 3)."""
+    if getattr(ctx, "wake_kind", "") != "tick:criteria":
+        return ""
+    from ..core.scheduler import code_line_basis
+
+    row = ctx.conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                           (ticket_id,)).fetchone()
+    basis = code_line_basis(ctx.conn, row["item_id"]) if row else None
+    return basis["verdict"] if basis else ""
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None,
@@ -7433,7 +7451,8 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     _exception_from_a_source(ctx, ticket_id, text, surface)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,
-        "surface_refs": json.dumps(surface)}))
+        "surface_refs": json.dumps(surface),
+        "guess_ruling": _shown_verdict(ctx, ticket_id)}))
     # The glossary entries the criterion rests on, as `term` refs.
     for ref in term_refs or []:
         if isinstance(ref, str):
