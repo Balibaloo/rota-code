@@ -76,11 +76,22 @@ ready. No correct merged change exists yet. The taker holds frame 362 with
    - `L1-TS-the-run-shows-a-split-word`: pass 2a did not move it. The door
      `tests.encode` told every run "the criterion, its ticket or the
      principal's words say it prints; nothing says it returns anything", so
-     the Tester asserted on stdout through `sys.stdin`. The word it read is
-     the run sentence's own "it printed:". The interview's second finding is
-     confirmed by the door's text. The fix: the run sentence says "showed"
-     or "gave", or the prints door leaves the run sentence out of the
-     material it reads. About 1 cycle, then re-record with the interview on.
+     the Tester asserted on stdout through `sys.stdin`. This session first
+     read the cause as the run sentence's "it printed:". Pass 2b's
+     implementer showed from the code that the door reads `_material_words`,
+     the criterion, its ticket and item, the glossary, the statements and the
+     ledger, never the run sentence, and the word that fires it is "writes"
+     in the request, "When icalendar writes a long line". The case has no
+     `repo:` block, so `_surface_gives_a_value` cannot see that `_foldline`
+     returns a value, and the word rule applies. A probe showed the refusal
+     with and without the run row. Two options, and the second is the
+     workflow fix: give the case a `repo:` block, or let the door read the
+     surface at a claimed batch's head, since a claim has a head. About 1
+     cycle, then re-record with the interview on. The test `f7b697fe` pins
+     that the run sentence does not fire the door.
+   - Pass 2b, `5b34cee5`: the claim prompt's step 5 shows one real program
+     inside the call, and the door refuses a text with no import and no
+     call. The wake line at `predicates.py` 1145 follows in the next commit.
    Store the baseline after those two passes, or now with the two as known
    reds: `python -m rota.tools.gate --baseline`.
 2. **Dry run 8 from zero**, the same request, from
