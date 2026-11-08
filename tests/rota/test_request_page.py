@@ -760,6 +760,22 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     # The Tester's wake shows the path the principal expects the tests in.
     bg2.execute("UPDATE batches SET status = 'running', head_commit = 'aa28d1d' "
                 "WHERE id = 'bg_2'")
+    # The criteria were written before his set, so the Tester waits until
+    # the Terminologist rests each on it (frame 362, slice 2).
+    assert P.REGISTRY["tests_missing"].fn(bg2) == []
+    for _ in range(6):
+        owed = P.criterion_owed(bg2)
+        if not owed:
+            break
+        cid = owed[0].refs[0]
+        text = bg2.execute("SELECT text FROM criteria WHERE id = ?",
+                           (cid,)).fetchone()["text"]
+        out = run_session(bg2, owed[0], backend=ScriptedBackend(
+            [f"TOOL: criteria.respecify(id={json.dumps(cid)}, "
+             f"text={json.dumps(text)})", "done"]), pins=PINS,
+            instructions="criterion_repair")
+        assert out.committed, out.errors
+    assert P.criterion_owed(bg2) == []
     (wake,) = P.REGISTRY["tests_missing"].fn(bg2)
     sb = build("tester", bg2, mode="tests_missing", batch_id="bg_2",
                allow=prompts.mode_tools("tester", "tests_missing"))
