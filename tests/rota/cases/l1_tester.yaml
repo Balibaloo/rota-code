@@ -1750,6 +1750,13 @@
               text_includes_any: [" not in ", ".split(", "endswith(",
                                   "startswith(", "isspace()", "== \" \"",
                                   "== ' '"],
-              text_excludes: ["wo\\r\\n rds are", "wo\r\n rds are"]}
+              # Only the positive forms: an `in` or an `==` on the split
+              # text. A `not in` quote of it is a right test (second look of
+              # review p1, fix 1).
+              text_excludes: ["wo\\r\\n rds\" in ", "wo\\r\\n rds' in ",
+                              "wo\\r\\n rds are not split\" in ",
+                              "wo\\r\\n rds are not split' in ",
+                              "== \"This is a very long line that needs to be folded at a space so that wo\\r\\n",
+                              "== 'This is a very long line that needs to be folded at a space so that wo\\r\\n"]}
   forbidden:
     writes: [criteria, items]

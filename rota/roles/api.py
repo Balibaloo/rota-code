@@ -24768,6 +24768,14 @@ def code_run(ctx: Ctx, text: str) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("The program is empty, so send the whole program "
                          "as text.")
+    # With no worktree row the run would land in the project root, and the
+    # cleanup would remove new files under rota's own .rota/ folder (second
+    # look of review p1 of frame 360, fix 2).
+    if not (ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                             (bid,)).fetchone() or [None])[0]:
+        raise ValueError(f"Batch {bid} has no worktree, so the door cannot "
+                         f"run a program apart from the project. End the "
+                         f"session.")
     tree = _worktree_of(ctx)
     touch = claim_touch(ctx.conn, bid)
     names = _touch_names(tree, touch["sources"])

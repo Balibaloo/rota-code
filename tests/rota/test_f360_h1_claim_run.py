@@ -503,6 +503,19 @@ def test_the_door_removes_what_the_program_wrote_in_hidden_paths(project):
     assert "the door put them back" in out["note"], out
 
 
+def test_a_batch_with_no_worktree_is_refused(project):
+    """Second look of review p1, fix 2: with no worktree row the cleanup
+    would reach rota's own .rota/ folder."""
+    db, _ = project
+    db.execute("UPDATE batches SET worktree = NULL WHERE id = ?", (BATCH,))
+    db.commit()
+
+    said = _refusal(_architect(db), A1_RUN2)
+
+    assert said == (f"Batch {BATCH} has no worktree, so the door cannot run a "
+                    f"program apart from the project. End the session."), said
+
+
 def test_one_run_per_session_and_only_on_a_claim(project):
     db, _ = project
     sb = _architect(db)
