@@ -1086,12 +1086,6 @@ def claim_settled(conn, batch_id: str) -> bool:
     return bool(quarantined_keys(conn, batch_id, kind="tick:claim"))
 
 
-def _is_test_path(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1]
-    return ("/tests/" in "/" + path or name.startswith("test_")
-            or name.endswith("_test.py") or name == "conftest.py")
-
-
 def claim_touch(conn, batch_id: str) -> dict:
     """The touch of a claimed batch: the expected files, the source files
     among them, and the symbols that the wake names.
@@ -1099,16 +1093,22 @@ def claim_touch(conn, batch_id: str) -> dict:
     A symbol is a `symbol` row of `batch_touch`, or a definition in a source
     file of the touch whose name holds a word of the request. The probe's
     wake named `_foldline` this way (frame 360, H5)."""
-    rows = conn.execute(
-        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ? "
-        "AND confidence = 'expected' ORDER BY rowid", (batch_id,)).fetchall()
+    # F35: the prediction has one reader, and it drops the grains his words
+    # decline. F11 and F9 give the path half and the test partition.
+    from ..roles.api import _is_test_file
+    from .lifecycle import predicted_rows
+    from .worktrees import grain_path
+
+    rows = [r for r in predicted_rows(conn, batch_id)
+            if r["confidence"] == "expected"]
     files = [r["grain"] for r in rows if r["grain_kind"] == "path"]
     symbols = [r["grain"] for r in rows if r["grain_kind"] == "symbol"]
     for grain in symbols:
-        path = grain.split("::", 1)[0]
+        path = grain_path(grain)
         if path not in files:
             files.append(path)
-    sources = [f for f in files if f.endswith(".py") and not _is_test_path(f)]
+    sources = [f for f in files
+               if f.endswith(".py") and not _is_test_file(conn, f)]
     words = set(re.findall(r"[a-z]{4,}", claim_request(conn, batch_id).lower()))
     for path in sources:
         for r in conn.execute(
@@ -1130,9 +1130,11 @@ def claim_request(conn, batch_id: str) -> str:
 
 def claim_wake_detail(conn, batch_id: str) -> str:
     """The request, the touch and the act, in the words of H1's wake."""
+    from .worktrees import grain_path
+
     touch = claim_touch(conn, batch_id)
     named = ", ".join(touch["files"] + [
-        f"`{g.split('::', 1)[1]}` in {g.split('::', 1)[0]}"
+        f"`{g.split('::', 1)[1]}` in {grain_path(g)}"
         for g in touch["symbols"]]) or "no file is named"
     return ("The Developer changed no code and says that the request is "
             f"already true of the code. The request: "
