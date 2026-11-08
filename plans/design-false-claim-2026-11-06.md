@@ -298,3 +298,212 @@ The first pass priced about 9 cycles for A and D. The revision prices about 10 f
 - Whether qwen3.5:9b writes a test that fails on the old code when it is told of the claim. The s153 replay measures it (reasoned).
 - Whether a Tester that sees its own test red on a claim changes the test to pass. F's paragraph forbids it. No sample shows it (reasoned).
 - G's stub is a prediction from the test bodies. I did not run it (reasoned: R1 item 7).
+
+## Amendment of 2026-11-08
+
+An amendment on Opus for frame 360, by the brief `f360_design_amend_brief.md` in the scratchpad of session 0d047fa7. Read-only at b2c67c3e on `rota/foundation`. No model ran. No tracked file changed except this page. The probes are `p360c/p1` and `p360c/arch` in the same scratchpad, and their rows are cited as "P1 sample n" and "A sample n". This section adds shape H. R4's slice 1 stays as built, and H1 is the next slice.
+
+### H0. Result
+
+- **Recommend H1 with its reach.** On a claim, the Architect writes one program, and the run door executes it at the claimed head. The door records the program, its stdout and its stderr in a new table. The seat types no output and no verdict (reasoned: H2 below).
+- **The fact gates nothing.** The batch closes as today. The run's stdout goes to the Tester's wake, to the Critic's note and to his claimed line in the turn of the merge (reasoned: H6).
+- **Price: about 9 cycles.** To his attention: one sentence and up to 600 characters of printed output per claim, and claims are 1 of 19 merges (observed: section 4).
+- **Departure: none from a ruling of his.** H1 departs from the session's reading of 2026-11-08 08:20, "records its output as the fact that gates". The status line of 09:29 already withdrew that reading (observed: `plans/stack.md`, frame 360).
+- **The limit.** A weak example prints an output that looks right. A sample 3 did that. Then F and A are what remain, and he judges the printed output himself after the merge (observed: H1; reasoned).
+- **H2 departs from ruling 2 of 2026-09-12. H3 cannot be a general door.** The only general check of the output is the Tester's test at the run's input, and H1's reach gives the Tester that input (reasoned: H4, H5).
+- **One more door fact from P1.** P1 sample 1 claimed `encodes=False` for c2 and then passed with `test: tst_fold_c2`. The `test:` route does not read the session's own claim. A door fix, about 2 cycles, with no departure (observed: H8).
+
+### H1. The counts, sample by sample
+
+The Architect probe, `arch/live/results.json`, qwen3.5:9b, sample 1 at temperature 0 and samples 2 to 5 at 0.6 (observed: each row).
+
+| Sample | The program | The real stdout | What the seat recorded | `holds` | Refusals met |
+|---|---|---|---|---|---|
+| A1 | imports `_foldline` from `icalendar.parser.string`. Run 1 failed on `assert "\n" not in line`, runs 2 and 3 completed | `'... without splitting wo\r\n rds like ...'`. A split word | "folded at space, words intact" | true | path |
+| A2 | imports `_foldline`. Run 1 imported `foldline` and failed on the same assert, run 2 caught it, run 3 split the input by line | `'... at a space w\r\n here it can ...'` and `'... as befo\r\n re.'`. Two split words | a paraphrase: "folded at spaces without splitting words (e.g., "before." remains intact)" | true | path, `holds` as a list, `holds` not a boolean |
+| A3 | imports `_foldline`, one run | `"... so that words "`, then `" are not split ..."`. The cut fell on a space, so no word split | "The claim is violated. ..." | true | path, two parse faults, `holds` not a boolean |
+| A4 | defines its own `def _foldline(line)` and imports nothing. Its first try wrote over `src/icalendar/parser/string.py` | three lines folded at spaces, by its own function | the stdout, copied | true | path, two parse faults, `holds` not a boolean |
+| A5 | no run. Its one `code.run` aimed at `src/icalendar/tests/test_icalendar.py` | none | four tries of "Claim verified: ..." before any run | none | path, `holds` as a list, "run the code first" four times |
+
+Counts (observed: the table):
+
+- 4 of 5 ran a program. 3 of 5 ran the project's function. 2 of 3 of those runs show a split word in the real stdout.
+- 3 of 4 records hold the seat's own words in place of the stdout. 4 of 4 records say `holds: true`.
+- 5 of 5 met the path refusal. 2 of 5 aimed the program at a file of the project. 4 of 5 met a `claim.record` refusal.
+- 0 of 5 called `code.source`, so no sample read `_foldline` before it wrote the program (observed: `turns.completion` of s164 in each sample database).
+
+P1, the Critic replay with the arm's root, `p1/run/results.json` (observed):
+
+- Pass in P1 samples 1, 2 and 4. No verdict in P1 samples 3 and 5. One challenge to the Tester, P1 sample 5, on c2.
+- 3 of 5 claimed `encodes=False` for c2: P1 samples 1, 3 and 5 met the refusal "it was claimed False". P1 sample 1 then landed a pass with `test: tst_fold_c2`.
+- 0 of 5 said that the claim is false.
+
+### H2. Shape H1: the Architect runs the code, and the door records the run
+
+**What changes, by file and door.**
+
+- `rota/core/db.py`: a table `claim_runs`, with `id` from the content (batch, commit, program), `batch_id`, `commit_sha`, `session_id`, `program`, `stdout`, `stderr`, `returncode` and `imported`. Its one writer is the `code.run` door.
+- `rota/roles/api.py`: `@op("code", "run") code_run(ctx, text)`. It takes no path. The door writes the program to a folder outside the worktree, and it runs the program with the worktree's interpreter, `python_for`, with the worktree as the working folder. The run uses `execute.run` with a timeout, as the harness does for tests (observed: `rota/core/harness.py` 376).
+- The door refuses before the run, with the reason named:
+  1. a batch whose head is not a claim;
+  2. a program whose syntax tree defines a function, a class or a name that a source file of the touch defines (A4's `def _foldline`);
+  3. a program that assigns to an attribute of a module of the touch;
+  4. a program that imports no module of the touch and no parent package of one (A4).
+- The door records each run that completes, returns the stdout and the stderr, and says "The run is recorded. End the session." It refuses a fourth run in one session, as `code.read` refuses a fourth read.
+- `rota/core/predicates.py`: a predicate wakes the Architect on `tick:claim` for a claimed batch with no `claim_runs` row and no ended `tick:claim` session at its head. Its detail carries the request, the touch files and the touch symbols, as the probe's `wake_detail` did. `tests_missing` on a claimed batch waits until that session ends. That is a wait on a seat, which frame 204's design keeps (observed: `rota/core/lifecycle.py` 1235 to 1236).
+- `rota/roles/prompts/architect/claim.md` and `claim.tools`: see H5.
+
+**What he reads.** One more sentence in the claimed line, in H6.
+
+**Cost.** One Architect session per claim, 7.7 to 20.2 seconds and 5 to 7 model calls per sample (observed: `arch/live.out`). To his attention: one sentence and up to 600 characters per claim.
+
+**How it fails.**
+
+- A weak example. A3's input folded at a space by chance, so its true stdout shows no fault (observed: H1). 1 of 3 runs of the project's function is that case.
+- No run. A5 ran nothing. The claimed line then says "No run of the code is on record", and F and A remain (reasoned).
+- He reads escapes. A1 and A2 printed `repr`, so the fold shows as `\r\n`. That is exact, and it is not plain words (reasoned).
+- The Tester copies the printed output as the expected value, and the test then encodes what the code does. The Tester's paragraph must forbid it (reasoned: `tests_missing.md` 23 to 25).
+- The syntax check closes the names and the attributes only. A program can still `exec` a string. The check stops the act of A4, not every dodge (reasoned).
+- The program is code that a model wrote, and it runs at the same trust as a test that a model wrote (reasoned: the harness runs the Tester's tests in the same worktree).
+
+**Measure.** With no model, each red on today's code because no door exists:
+
+1. A4's program text is refused, and the refusal names `_foldline`.
+2. A2's third program is accepted. One `claim_runs` row holds `befo\r\n re.` in its stdout.
+3. After A1's second program, `git status` of the worktree is empty, and no file of the program is under the tree.
+4. On a copy of `dry6b.db` with A1's row, the claimed line holds `splitting wo\r\n rds` and does not hold "folded at space, words intact".
+5. On the same copy, the Tester's wake and the Critic's `code.read` note hold the same stdout. The wake of dry3's change batch `bg_1` holds none.
+6. `architect/claim.tools` holds `code.run` and no door that takes `holds` or an output.
+
+With a model, the targets set before the run: the probe on the built door, 5 samples on qwen3.5:9b. H1 holds on this model if at least 3 of 5 runs import the touch and at least 2 of 5 show the split. Then replay s153 with the run in its wake. F with H1 holds if at least 1 of 5 c3 tests fails at `99619246`.
+
+**Departure.** None from his rulings. His ruling of 2026-11-06 14:19 stays met in form, by the Critic's pass. The run is evidence for him, not a verification (reasoned).
+
+### H3. Shape H2: as H1, and the claim waits for his word
+
+**What changes.** H1, and `mergeable` returns "waiting on the principal: the team says the code already does this" for a claimed batch with no ruling row of his. A hold page shows the request, the program and the printed output, then "Reply 'ok' to accept. Say what is wrong if it is not done." His "ok" writes a ruling row. His words go to the Developer and the Tester.
+
+**What he reads.** One page per claim. Against shape B, he judges a printed output and not the code of a test. A1's `wo\r\n rds` is one look (reasoned).
+
+**Cost.** About 5 to 6 cycles more than H1: the page form 2, `mergeable` and the land 2, one review 1, the gate 1 (reasoned: the anchors). To his attention: one page per claim, and every Developer escape to a claim is a page (observed: section 3 B).
+
+**How it fails.** A hold that he never answers holds the claim for ever. The page count rises with the escape rate, which nothing caps (observed: section 3 B).
+
+**Measure.** On a copy of `dry6b.db` before the merge, `mergeable` returns the wait (control: None, then merged). Live: count the holds and his rejections.
+
+**Departure.** Ruling 2 of 2026-09-12: "Hold at intent time only. No batch starts until the first page is answered. After that, nothing waits on a page" (ruled: Roman, `rota/DECISIONS.md` 1383 to 1384). It also departs from frame 204's design, "The merge waits on the seat, never on a page", and from "Sign-offs after that, including on merges, are opt-in" (observed: `lifecycle.py` 1235 to 1236; `plans/composition.md`, The parties).
+
+**The reading that a claim is an intent question.** The claim asks him whether what he meant is already true of the code. Intent is his to hold (observed: `plans/composition.md`, The parties). On that reading H2 holds at intent time, inside the reason of ruling 2. The letter still departs, because the batch started before the claim (reasoned). The opt-in form exists: `merge_gate=review` holds a claimed batch today, and no page presents that hold (observed: `lifecycle.py` 1241 is its one reader; the review, finding 8).
+
+### H4. Shape H3: a check judges the output
+
+**Not designed as a door.** A general door cannot write the check for an arbitrary request (reasoned). The check needs the meaning of the request in code. For the fold, it must find a word of the input that the output cuts across a CRLF and a space.
+
+**The fold case shows it.** The session wrote that check for this one request, `split_word` in `arch/probe_architect_claim.py`. It gave "no" for A1's run, and A1's stdout holds `wo\r\n rds`, because A1 printed a `repr` on one line (observed: `results.json`, `split_in_run` of sample 1). So a check written by hand for one request misread 1 of 4 runs. The clause "keep everything else as before" has no check on one run at all. A3 raised it and could not test it (observed: A3's record).
+
+**What the Tester's criteria give.** A check per request is a test, and the Tester writes the tests. c3 says "Folding does not split a word", which is the assertion at A1's input (observed: `criteria` in `dry6b.db`). So H3's check is the Tester's test at the run's input. That is F with the run in the Tester's wake, which is H1's reach (reasoned). c1 and c3 contradict when no whitespace falls inside 75 octets. A1's and A2's inputs hold spaces, so the contradiction does not reach them (reasoned).
+
+### H5. The seat
+
+**Why the Architect** (observed: each record named; reasoned: the choice):
+
+- The Developer made the claim. His ruling of 2026-11-06 14:19 asks for another seat.
+- The Tester's tests are the evidence under question. Its brief says that a test against existing code "tends to encode what the code does" (`tests_missing.md` 23 to 25). Under H1 the Tester reads the run and does not make it.
+- The Critic has no instrument and its brief says "there is nothing to fetch" (`critic/review.md`). Its pass is the verification of 14:19, so a run in its hands makes one seat both maker and judge of the evidence. On qwen3.5:9b it went 0 of 20 on the vacuous test case (the read, section F).
+- The Architect holds the touch. Its `annotate` writes the `batch_touch` rows. The probe's wake named their files and, from the index, `_foldline` (observed: `touch` in the probe). It already reads source with `code.source` and `code.probe` in `annotate.tools` and `touch_strayed.tools`.
+- On dry run 7 its `touch_strayed` note judged the removal in `_foldline` a mistake that "should be preserved" (`plans/dry7-read-2026-11-07.md` 91).
+- It has no stake. It wrote no code, no test and no verdict on the batch.
+
+**What the probe shows of the seat.** 4 of 5 ran a program at the touch, so the seat can do the act. 4 of 4 recorded `holds: true` against two stdouts that show a split, so the seat cannot do the judgement. H1 asks for the act only (observed: H1; reasoned).
+
+**What the brief and `.tools` gain.**
+
+- A new mode, `architect/claim.md`, about 700 characters: "MODE: claim. The Developer changed no code and says the request is already true of the code. Read the function at the touch with `code.source`. Import it from its module. Never write your own copy. Write one program that calls it with one example from the request. Pick an example where code that meets the request and code that does not print different results. Print the input, then print the result with `print(repr(...))`. Call `code.run(text)`. The run is the record. You type no output and no verdict. End the session after one run that completes."
+- `architect/claim.tools`: `code.source`, `code.probe`, `code.run`.
+- `architect/base.md`: no change. "You are woken once, act, and end" already fits (reasoned).
+
+**What the `annotate` piece cost the probe.** It filled 1,719 of the 5,628 characters of the system prompt, about 31 per cent. It set another task, "predict what one batch will touch". It named four tools the seat did not have: `tickets.scan`, `criteria.scan`, `code.probe` and `batches.annotate` (observed: `arch/dry/results.json`). That breaks "No brief grants what is not wired" (observed: `plans/composition.md`, The structure). 0 of 5 called one of them. 0 of 5 called `code.source`, and A4 wrote its own `_foldline`. The piece's part in that is not measured (reasoned). The door cost more: 5 of 5 met the path refusal and 4 of 5 a `claim.record` refusal. H1's door takes no path and has no record call, so both refusals go (reasoned).
+
+### H6. The record
+
+**Where the fact lives: the table `claim_runs`, written only by `code.run`** (reasoned). A ledger row does not fit. The ledger holds choices and defaults, its kinds are a fixed list, and frame 358's resolved row is written by the scheduler (observed: `lifecycle.discharge_touch_notes`). A run is a record observed from the code, and one word keeps one meaning.
+
+**Which run is the fact.** The last row of the batch that completed. No seat picks it (reasoned). The reader keys the row by batch and not by commit, because `boot.py` 172 to 179 moves `claimed_head` to the merge's tests commit (observed).
+
+**How his line reads it.** Frame 358's form: one sentence in the state view, no page, nothing asked, and "Ask me to show it" (observed: `principal.py`, `merged_touch_notes`). The run joins `claimed_lines`, which shows under a waiting ask too (observed: `principal.py` 399). The line, each sentence true in every state:
+
+> "Fold long lines: no code changed. The team says the code already does this. The architect ran the code on one example, and it printed: <the stdout, first 600 characters>. The only other evidence is 3 tests that the team wrote, and they pass on the code as it was. The reviewer passed them. Ask me to show the program and the tests."
+
+With no row, the third sentence reads "No run of the code is on record."
+
+### H7. The reach
+
+13 places read a claim today (observed: a search for `claimed_head`, `_claimed(`, `critic_claim_note`, `claimed_lines`, `CLAIM_DETAIL` and "check the claim" at b2c67c3e). What each becomes under H1 (reasoned):
+
+| # | Place | Today | Under H1 |
+|---|---|---|---|
+| 1 | `predicates._claimed_batches` | the one test of a claim, `claimed_head = head_commit` | unchanged. The new predicate reads it too |
+| 2 | `predicates.tests_missing`, `CLAIM_DETAIL` | "Your tests decide the claim." | waits for the Architect's session. Adds "The architect ran the code on one example, and it printed: <stdout>" |
+| 3 | `runner._claim_line` | the claim words in every Tester and Critic wake | adds the stdout for both seats |
+| 4 | `api.critic_claim_note`, in `code.read` | "The tests are the only evidence." | "The tests and one run of the code are the evidence. The run printed: <stdout>" |
+| 5 | `api` encode note, 23589 | a red on a claim stands and goes to the Developer | unchanged |
+| 6 | `api` replace refusal, 13157 | a red test on a claim stands on every try | unchanged |
+| 7 | `api.verdicts_emit` guard, 18612 | no pass on another batch's claim | unchanged |
+| 8 | `api.code_commit` claim branch, 26535 to 26541 | tells the Developer "The Tester's tests check the claim" | "The Architect runs the code, and the Tester's tests check the claim" |
+| 9 | `api.code_commit`, 26547 and 26574 | a second claim against a red; a real commit clears the mark | unchanged. A real commit makes the run stale, and the reader then drops it |
+| 10 | `boot.py` 172 to 179 | moves the claim with the merge's tests commit | unchanged. The run is keyed by batch |
+| 11 | `principal.claimed_lines` | the claimed line, also under a waiting ask | adds the run sentence of H6 |
+| 12 | `principal` Done count, 424 | a claim is not "built" | unchanged |
+| 13 | `principal._built_words`, 2734 to 2745, and the Tester paragraph, `tests_missing.md` 27 | "and the tests check the claim"; "pick an input where ..." | `_built_words` drops "and the tests check the claim" and names the run. The paragraph adds: "The run shows what the code does, not what was asked. Write the result the criterion's words give for that input." |
+
+**A finding outside the brief.** `_built_words` still says "and the tests check the claim" on the request-shift page (observed: `principal.py` 2738 to 2740). That is the assertion that the review's finding 2 removed from `CLAIMED_LINE`, and it is false on run 1 (observed: the review, finding 2). H1's reader pass fixes it.
+
+### H8. The P1 door fact
+
+`_route_fault`'s `test:` branch holds a value whose test is bound, live and passed at the head. It does not read `ctx.verdict_claims` (observed: the read, section C). P1 sample 1 claimed `encodes=False` for c2 and then landed a pass with `test: tst_fold_c2` (observed: P1 sample 1, `errors` and `verdicts`). The fix: the `test:` route refuses a test that the same session claimed does not encode its criterion. The refusal points to `msg.challenge_tester`. The door checks the seat's own recorded act, not its words, so it bounds no judgement (reasoned: "The door checks a fact, never the seat's words", the read, section C). About 2 cycles, a door text, in the same pass as H1 or before it. Measure: P1 sample 1's calls on a copy of `dry6b.db` give a refusal at the pass (control: the pass lands).
+
+### H9. The recommendation and the price
+
+**Build H1 with the reach of H7 and the door fact of H8. Do not build H2 or H3 now.** The reason, from the purpose and the ceiling (observed: `plans/composition.md`):
+
+- "Every claim cites a source. A seat can check the claim against the source." The run is the first source that a claim cites, and it is a run, not a word.
+- "A weak model is trusted only as far as the loop that checks it is short." The probe trusts the seat for the act, which 4 of 5 did, and not for the verdict, which 4 of 4 got wrong.
+- "No work stays invisible." He reads what the code printed in the turn of the merge.
+- "Sign-offs after that, including on merges, are opt-in." H1 adds no wait on him.
+
+**Price: about 9 cycles.** The door, the table and the predicate, 3. The mode, the tools and a register case, 2. The readers of H7 and the door fact of H8, 2. One review, 1. The gate, 1 (reasoned: the anchors of section 3).
+
+**Next on a count.** On the next 3 dry runs, count the claims whose printed output shows the request unmet and that merge. If one merges, H2 or its opt-in form goes to him again (reasoned).
+
+**The measure on the next dry run.** Each claim gets one `claim_runs` row (target: all). The claimed line shows the stdout in the turn of the merge (target: all). The count of claims whose Tester writes a red test after the run (no target, a first count).
+
+### H10. The question for the principal, in plain words
+
+> **On 12 September you ruled that after you approve the first page, nothing waits on a page. Option 2 below departs from that ruling for one case. Option 1 departs from no ruling.**
+>
+> How it came to be: you asked the team, "Fold long lines so that no word splits." The builder said "already done" and changed nothing. A tester wrote three checks, and all three passed on the old code. A reviewer passed them, and the job closed. In truth the code still splits words. You then said, "try the planner", the team member who knows where each job lives in the code.
+>
+> On a trial the planner wrote a small program and ran it on the old code, five times. In two runs the printout showed "splitting wo" and "rds" on two lines, so the code splits words. The planner then wrote "words intact" and "the claim holds" anyway, in all four of its reports.
+>
+> What happens today: the job closes by itself. Your screen says that no code changed and that three checks pass on the old code. No run of the code is shown.
+>
+> Option 1, recommended, the printout is the record: the planner runs the code, and the system keeps what the run printed, never the planner's words. The tester sees the printout before it writes its checks. The job still closes by itself, and your screen shows the printout the same day. Its limit: a poor example prints nothing wrong, and a false "already done" can still close before you read it.
+>
+> Option 2, the job waits for you: as option 1, and the job does not close until you read the printout and say "ok". Other jobs go on while it waits. If you never answer, it waits for ever.
+>
+> Option 3, a machine judges the printout: not possible in general. A judge for "no word splits" fits one job only. The one written by hand for this job misread one run in four.
+>
+> One exact analogy: a builder says the wall already stands. A surveyor takes a photo of it. The file keeps the photo, not the surveyor's caption. In option 1 the owner sees the photo the day the job closes. In option 2 the owner sees the photo before anyone signs.
+>
+> Recommended: option 1. If a job closes on a printout that shows the job undone on the next three trial runs, I ask you again about option 2.
+
+### H11. Doubt
+
+- **One run, one request.** Every count rests on the claim of dry run 6b, the fold of icalendar, and its three tests (observed).
+- **One model.** All ten samples ran on qwen3.5:9b. Four of five per probe ran at temperature 0.6, not the run's 0 (observed: `pins`).
+- **The probe's wake is not rota's.** It used the `annotate` piece, a patched runner and a backend that ends the session at the record call (observed: `probe_architect_claim.py`). The `claim` mode and the door with no path are unmeasured.
+- **The split in 2 of 5 depends on the example.** A3's example hid the fault by chance, so the rate is a property of the inputs the seat picks (reasoned).
+- **The Tester with the run is unmeasured.** Whether it writes a red test at the run's input, or copies the printed output as the expected value, is not known (reasoned).
+- **His reading of `repr` escapes is unmeasured** (reasoned).
+- **The claim rate is 1 of 19 merges, and no true claim has merged live** (observed: section 4). H1's cost on a true claim is one Architect session, from the probe's timing only.
+- **Not checked.** The register cases that a new Architect mode needs. The trust boundary of a run that a model wrote, beyond the harness's own runs of tests.
