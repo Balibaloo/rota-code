@@ -55,6 +55,18 @@ runs approves it (H1). Slice 2's first pass of H1 builds in
 
 ## What comes next, in order
 
+0. **A root-cause read across the week's walls, before any build below.**
+   Roman, 2026-11-08 10:2x: "we are finding more walls, are we doing proper
+   root cause analysis?" The session's answer: the reads stop at the door,
+   and the three biggest walls share one root, a thing with no row is
+   invisible to every seat (his line on the removal had no ref, so the
+   reading wrote `approve`; the correction moved the touch rows and not the
+   criteria rows; a claim has no diff). One read on Opus, cap 120k, no fix:
+   for each wall of dry runs 6b and 7, which fact had no row, which seat
+   needed it, and where the record layer should have made it one. If the
+   hypothesis holds, the fix is at the reading that turns his words into
+   rows, not at ten doors. Also count how many of the ten walls match a
+   frame that was pushed and never built, and name those frames.
 1. **Read the gate** on the checkout at `23e9395a` or later: its result is
    in this session's task file
    `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0d047fa7-9b87-4f76-a8a4-18bf24ea3678/tasks/b7k12tr2k.output`,
