@@ -780,3 +780,60 @@ def test_the_run_sentence_does_not_reach_the_prints_door(rows):
                        "    assert 'aa\\r\\n a' not in out\n")
 
     assert out.get("id") == "tst_fold", out
+
+
+def _split_word_case(tmp_path, with_repo: bool):
+    """The rows of L1-TS-the-run-shows-a-split-word, with its repository
+    or with none, and the Tester of its claimed batch."""
+    from rota.testkit import fixtures
+
+    case = next(c for c in fixtures.load_case(
+        Path("tests/rota/cases/l1_tester.yaml"))
+        if c["id"] == "L1-TS-the-run-shows-a-split-word")
+    conn = init_db(tmp_path / "case.db")
+    fixtures.seed(conn, case["fixture"])
+    if with_repo:
+        fixtures._with_repo(conn, case, tmp_path / "case.db")
+    conn.commit()
+    [crit] = conn.execute("SELECT id FROM criteria").fetchall()
+    tb = build("tester", conn, batch_id=case["refs"][0])
+    tb.call("tests.triage", criterion_id=crit["id"], verdict="encodable")
+    return conn, tb, crit["id"]
+
+
+SPLIT_CHECK = ("from icalendar.parser.string import _foldline\n\n"
+               "def test_fold_at_a_space():\n"
+               "    out = _foldline('This is a very long line that needs to "
+               "be folded at a space so that words are not split.', 75)\n"
+               "    assert 'wo\\r\\n rds' not in out\n")
+
+
+def test_the_split_word_case_reads_the_surface_of_the_claimed_batch(tmp_path):
+    """Pass 2d: in production a claimed batch's worktree holds the fork, and
+    the prints door reads that `_foldline` returns a value. The case had no
+    repository, so the word "writes" of the request refused all 5 runs. With
+    the case's repository the check on the return value lands."""
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=True)
+    assert conn.execute("SELECT claimed_head = head_commit FROM batches"
+                        ).fetchone()[0] == 1
+
+    out = tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                  path="tests/test_foldline.py", body=SPLIT_CHECK)
+
+    assert out.get("id") == "tst_fold", out
+    conn.close()
+
+
+def test_the_split_word_case_with_no_tree_keeps_the_word_rule(tmp_path):
+    """The control: with no tree no surface is readable, and the word rule
+    of clickI nights 28 to 45 keeps its text."""
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=False)
+
+    with pytest.raises(ValueError) as exc:
+        tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                path="tests/test_foldline.py", body=SPLIT_CHECK)
+
+    assert ("the test uses what _foldline returns, and the criterion, its "
+            "ticket or the principal's words say it prints; nothing says it "
+            "returns anything") in str(exc.value), exc.value
+    conn.close()
