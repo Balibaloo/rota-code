@@ -148,7 +148,16 @@ The Critic has 11 case ids (observed: `tests/rota/cases/*.yaml`).
 | L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist | A doubt goes to the Terminologist | qwen3:8b | | **FAILED** |
 | L1-CR-challenge-a-claim | The challenge mode on an Architect constraint, not a Developer's claim | default | | passed |
 
-Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 passed on qwen3:8b (observed). The gate in `.rota-gate.log` today is at 97 per cent at 08:05 and holds no `FAILED` line yet (observed). **Not read:** the recorded pass counts in `tests/rota/cassettes.db`. The query did not finish while the gate runs.
+Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 passed on qwen3:8b (observed). The gate in `.rota-gate.log` today is at 97 per cent at 08:05 and holds no `FAILED` line yet (observed).
+
+**The recorded runs, by model** (observed: `case_runs` in `tests/rota/cassettes.db`, read-only, the sum of `passed` over the runs of each model at its latest prompt hash):
+
+- `L1-CR-a-test-that-encodes-nothing-is-a-challenge`: gemma3:12b 65 of 114 at the current hash 8805d9c5. **qwen3.5:9b 0 of 20**, qwen3:8b 0 of 20, qwen2.5:14b 0 of 5, qwen3.5:4b 0 of 10, llama3.1:8b 0 of 15, all at older hashes.
+- `ACT-CR-quote-the-tests-code`: gemma3:12b 95 of 95, qwen3.5:9b 5 of 5 at an older hash. This case's test contradicts its own comment, so a word match finds it.
+- `L1-CR-a-kept-behaviour-passes-by-its-kept-line`: qwen3:8b 0 of 95. `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist`: qwen3:8b 0 of 90.
+- `L1-CR-fail-names-its-criterion`: qwen3:8b 95 of 95, and qwen3.5:9b 0 of 15 at an older hash.
+
+**So the register has measured the dry runs' Critic model on the act of a vacuous test, and it failed 0 of 20.** The gate does not show that, because the case is pinned to gemma3:12b (reasoned). The 1 of 5 of sample 4 is the only right act of qwen3.5:9b on a weak test in these records (observed).
 
 **Does a case measure a pass on a test that proves nothing? One measures the act, on another shape and another model.** `L1-CR-a-test-that-encodes-nothing-is-a-challenge` asks for the right act on a vacuous test. It has a diff, so the test is not the only evidence. It is pinned to gemma3:12b, and the dry runs' Critic is qwen3.5:9b. No case seeds a claim or an empty diff. The second look of pass 2 said so too: "no register case holds a claim" (observed: `plans/stack.md`, frame 360's line of 15:39). `L1-CR-a-kept-behaviour-passes-by-its-kept-line` pays for a `test:` pass, the route that s154 took. No case asks that the test encodes its criterion first (observed: its `expect`).
 
@@ -162,7 +171,7 @@ Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 p
 2. **A claim with no source.** "Every claim cites a source" (composition), and the Developer's claim cites none. The Critic has no line to check and no row to quote in a challenge (refusal 4).
 3. **A door that leads to a pass.** The `test:` route asks bound, live and passed. Refusal 1 names that route and asks only "passed". The hold skips `test:` values, and its commitment question has one answer on an empty diff. A pass costs nothing extra, and a fail costs a `claim_encodes` call (observed: section C).
 4. **A brief with no word for the case.** `review.md` says nothing of a claim or an empty diff. Step 1 comes before step 2, and the `test:` route depends on a step that comes later. The note states a fact and asks for no act (observed: section A).
-5. **A register that does not measure the act.** No case has a claim. One case pays for a `test:` pass. The weak-test case runs another model (observed: section F).
+5. **A register that does not measure the act on the seat's model.** No case has a claim. One case pays for a `test:` pass. The weak-test case is pinned to gemma3:12b, and its recorded runs on qwen3.5:9b gave 0 of 20 (observed: section F).
 6. **A wake that puts the view last.** The inherited rows fill about 90 per cent of `tests.load`, and `code.read` sits last. On the live arm, no cut fell (observed: section E).
 
 **What the model does with it:** in 4 of 5 samples and in s154, the model passed first and never read a test against its criterion. Sample 4, at 0.6, read the bodies and found the weak tests. So qwen3.5:9b can do step 2 with this view, at 1 of 5 at 0.6 and at 0 of 1 at temperature 0 (observed).
@@ -182,7 +191,7 @@ Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 p
 
 - The sample is small: 1 live session and 5 replays of one batch on one model (observed).
 - The replay differs from s154: a wrong base diff and a cut wake. Samples 1 to 3 never called `code.read`, so their view equals the live view plus the note, less the empty `code.read` block (reasoned). Sample 5's late doubt rests on the wrong diff (observed).
-- The recorded counts of the Critic cases are not read (section F).
+- The qwen3.5:9b counts of section F are at older prompt hashes, so they are stale for today's brief (observed: the hashes).
 - Not counted: how many landed passes over the night databases used the `test:` route for every criterion. The reach below counts merges, not routes.
 - The tests of the batch contradict each other: run 1's c1 and c3 contradict, so a right test of each fails on any code (observed: `plans/design-false-claim-2026-11-06.md`, shape F). A challenge that lands goes to a Tester who cannot write both right.
 
@@ -196,7 +205,6 @@ Sources: the yaml files and `.rota-gate.json`, which holds 34 failed and 6,465 p
 
 ## Not read
 
-- The recorded pass counts of the 11 Critic cases in `tests/rota/cassettes.db`.
 - The gate in `.rota-gate.log`, which is still running.
 - `s1/` was not opened apart from `s5/`, because `s5/sample_1` holds the same temperature 0 run.
 - The landed passes over the night databases by route.
