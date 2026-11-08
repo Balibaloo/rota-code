@@ -23276,12 +23276,69 @@ def claim_printout(raw, limit: int = CLAIM_PRINTOUT_CHARS) -> str:
     return text
 
 
+#: What the fold mark of `claim_printout` stands for (frame 360, the Tester
+#: interview of 2026-11-08, section 5, point 3).
+CLAIM_FOLD_MARK = "A ⏎ marks a fold: a line break and then a space."
+
+
+def claim_run_call(program: str, imported: str,
+                   limit: int = CLAIM_PRINTOUT_CHARS) -> str:
+    """The call of a run as a seat reads it, or "" when no call is read.
+
+    The call is the last call of a touch name that `imported` records. A
+    name that the program bound to one literal before the call shows as
+    the literal. On the interview of frame 360, 4 of 5 Testers saw no input
+    and no width, and asserted that `_foldline` gives the line back."""
+    try:
+        tree = _ast.parse(program or "")
+        names = {str(n).rsplit(".", 1)[-1] for n in _json.loads(imported or "[]")}
+    except (SyntaxError, ValueError, TypeError):
+        return ""
+
+    def name_of(func) -> str:
+        return (func.id if isinstance(func, _ast.Name) else
+                func.attr if isinstance(func, _ast.Attribute) else "")
+
+    calls = [n for n in _ast.walk(tree)
+             if isinstance(n, _ast.Call) and name_of(n.func) in names]
+    if not calls:
+        return ""
+    call = max(calls, key=lambda n: (n.lineno, n.col_offset))
+    # Only a top-level `name = <literal>` before the call binds a name. A
+    # loop variable or a computed value stays a name.
+    bound: dict = {}
+    for node in tree.body:
+        if node.lineno >= call.lineno:
+            break
+        if (isinstance(node, _ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], _ast.Name)
+                and isinstance(node.value, _ast.Constant)):
+            bound[node.targets[0].id] = node.value
+
+    class _Literal(_ast.NodeTransformer):
+        def visit_Name(self, node):
+            return bound.get(node.id, node)
+
+    text = _ast.unparse(_Literal().visit(_ast.parse(_ast.unparse(call))))
+    return text[:limit] + " (cut)" if len(text) > limit else text
+
+
 def claim_run_words(conn, batch_id) -> str:
     """The sentence of the last run, in each state of RC (frame 360)."""
     row = claim_run_row(conn, batch_id)
-    head = "The architect ran one program on the code, and it"
     if row is None:
         return "No run of the code is on record."
+    # The call with its input and width stands before the printout, so the
+    # Tester reads the output against its input (the Tester interview).
+    call = claim_run_call(row["program"], row["imported"])
+    lines = [ln.strip() for ln in (row["program"] or "").splitlines() if ln.strip()]
+    if call:
+        head = f"The architect called `{call}` on the code, and it"
+    elif lines:
+        head = (f"The architect ran a program that ends with `{lines[-1]}` "
+                f"on the code, and it")
+    else:
+        head = "The architect ran one program on the code, and it"
     if row["unfinished"]:
         return f"{head} did not finish in {CLAIM_RUN_TIMEOUT} seconds."
     if row["returncode"] != 0:
@@ -23289,7 +23346,10 @@ def claim_run_words(conn, batch_id) -> str:
         return (f"{head} stopped with an error: "
                 f"{lines[-1].strip() if lines else 'no error text'}.")
     shown = claim_printout(row["stdout"])
-    return f"{head} printed: {shown}." if shown else f"{head} printed nothing."
+    if not shown:
+        return f"{head} printed nothing."
+    mark = f" {CLAIM_FOLD_MARK}" if "⏎" in shown else ""
+    return f"{head} printed: {shown}.{mark}"
 
 
 def tester_claim_run_words(conn, batch_id) -> str:

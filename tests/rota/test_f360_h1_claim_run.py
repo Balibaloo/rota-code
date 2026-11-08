@@ -563,12 +563,18 @@ def test_the_tester_of_a_claim_reads_the_printout_with_fold_marks(project):
 
     user = _tester_prompt(db)
 
-    assert ("The architect ran one program on the code, and it printed: "
-            "Input length: 123") in user, user
+    # The Tester interview of 2026-11-08: the call shows the input and the
+    # width, the literal in place of the program's name `test_input`.
+    assert ("The architect called `_foldline('This is a very long line that "
+            "needs to be folded at a space so that words are not split but "
+            "keep everything else as before.', 75)` on the code, and it "
+            "printed: Input length: 123") in user, user
     # The fold's own space becomes the mark, and the word's space stays.
     assert "so that words  ⏎ are not split" in user, user
+    assert ("as before.. A ⏎ marks a fold: a line break and then a space. "
+            "The run shows what the code does") in user, user
     assert "Write the result that the criterion's words give" in user, user
-    assert user.count("The architect ran one program") == 1, user
+    assert user.count("The architect called") == 1, user
 
 
 def test_a_change_batch_wake_holds_no_printout(project):
@@ -579,7 +585,7 @@ def test_a_change_batch_wake_holds_no_printout(project):
 
     user = _tester_prompt(db)
 
-    assert "The architect ran" not in user, user
+    assert "The architect " not in user, user
     assert "⏎" not in user, user
 
 
@@ -594,7 +600,7 @@ def test_the_critic_note_names_the_run(project):
     assert note.startswith(
         "No code changed on this batch. The Developer claims the criteria "
         "are met. The tests and one run of the code are the evidence. The "
-        "architect ran one program on the code, and it printed: "), note
+        "architect called `_foldline('This is a very long line"), note
     assert "words  ⏎ are not split" in note, note
     assert build("critic", db, batch_id=BATCH).call("code.read")["note"] == note
 
@@ -617,14 +623,31 @@ def test_each_state_of_the_run_has_its_sentence(project):
                              "_foldline('a\\nb')\n")
     _land(db, sb)
     assert claim_run_words(db, BATCH) == (
-        "The architect ran one program on the code, and it stopped with an "
-        "error: AssertionError.")
+        "The architect called `_foldline('a\\nb')` on the code, and it "
+        "stopped with an error: AssertionError.")
     db.execute("UPDATE claim_runs SET returncode = 0, stdout = x'', "
                "stderr = ''")
     assert claim_run_words(db, BATCH).endswith("and it printed nothing.")
     db.execute("UPDATE claim_runs SET unfinished = 1")
     assert claim_run_words(db, BATCH).endswith(
         "and it did not finish in 60 seconds.")
+
+
+def test_a_run_with_no_readable_call_shows_its_last_line(project):
+    """With no call of a touch name on record, the sentence quotes the
+    program's last line. A printout with no fold has no mark phrase."""
+    from rota.roles.api import claim_run_words
+
+    db, _ = project
+    sb = _architect(db)
+    sb.call("code.run", text=A1_RUN2)
+    _land(db, sb)
+    db.execute("UPDATE claim_runs SET imported = '[]', stdout = CAST(? AS BLOB)",
+               ("short\n",))
+
+    assert claim_run_words(db, BATCH) == (
+        "The architect ran a program that ends with `print(repr(result))` on "
+        "the code, and it printed: short.")
 
 
 def test_the_shift_page_no_longer_says_the_tests_check_the_claim(rows):
