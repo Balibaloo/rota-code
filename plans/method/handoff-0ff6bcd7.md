@@ -89,9 +89,20 @@ ready. No correct merged change exists yet. The taker holds frame 362 with
      surface at a claimed batch's head, since a claim has a head. About 1
      cycle, then re-record with the interview on. The test `f7b697fe` pins
      that the run sentence does not fire the door.
-   - Pass 2b, `5b34cee5`: the claim prompt's step 5 shows one real program
-     inside the call, and the door refuses a text with no import and no
-     call. The wake line at `predicates.py` 1145 follows in the next commit.
+   - Pass 2b, `779989e4` to `fac4b516`: the claim prompt's step 5 shows one
+     real program inside the call, the door refuses a text with no import
+     and no call, and the wake points at the example. The gate at `b00e972f`
+     re-recorded the Architect case: still 0 of 5, and the cause moved. Every
+     run read now sends a real program, and the door accepts none: the
+     programs import `from src.icalendar.parser.string import ...`, the
+     `src.` prefix of frame 260 (W4), and 2 of the 3 read name `foldline`
+     without the underscore. Each run sent one `code.run` and ended after
+     the refusal. The next fix: the wake names the import line verbatim
+     from the touch, `from icalendar.parser.string import _foldline`, as the
+     Tester's import door already learned to, and the refusal of a wrong
+     import says the right line. About 1 cycle, then re-record. The gate's
+     suite is otherwise clean: 34 failed against 32, the two are these
+     cases, stale 0.
    Store the baseline after those two passes, or now with the two as known
    reds: `python -m rota.tools.gate --baseline`.
 2. **Dry run 8 from zero**, the same request, from
