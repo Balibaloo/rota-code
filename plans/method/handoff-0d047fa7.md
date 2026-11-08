@@ -129,3 +129,17 @@ Worktrees: `rota_p360h` holds slice 2's pass 1 when it lands. The other
 worktrees of earlier sessions are untouched.
 
 This session keeps the end of its context to answer the taker.
+
+## Added at the hand-off, 2026-11-08 10:27
+
+- The gate on the checkout at `23e9395a` is clean, exit 0: 33 failed and
+  7,231 passed, new reds 0, reds gone 2, stale 0. `L1-DV-put-back-a-removed-block`
+  went from 2 of 5 to 4 of 5 with the restore wake. Pass 1 of the removal
+  wall and the two fixes are accepted.
+- Slice 2's pass 1 of H1 still runs on an implementer in `rota_p360h`. Its
+  report lands at `f360_h1_p1_report.md` in this session's scratchpad, and
+  its commits in the worktree. Read the report, then review, pick and gate.
+  If no report is there, the agent was cut: read the worktree's log.
+- C77 is in `plans/method/reference.md`, section 10, in Roman's order:
+  provenance per wall, then reasoning over the list, then the plan. The
+  root-cause read, item 0 above, follows that order.
