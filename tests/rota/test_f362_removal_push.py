@@ -243,9 +243,16 @@ def test_every_developer_wake_on_the_batch_holds_the_same_block(tmp_path):
         wake = Wake("developer", f"tick:{kind}", refs=("b1",))
         sb = session_sandbox(conn, wake, batch_id="b1")
         blocks.add(push_working_set("developer", sb, wake).get(START_RULED_KEY))
-    for detail in ("answer", "challenge"):
-        wake = Wake("developer", "message", refs=("m1",), detail=detail)
-        sb = session_sandbox(conn, wake, batch_id="b1")
+    # The message wakes take their batch as the loop gives it, through the
+    # message's refs (the review of 805f5fb4, finding 5).
+    for seq, verb in ((60, "answer"), (61, "challenge")):
+        conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                     "verb, seq, body_refs) VALUES (?, ?, 'tester', 'developer', "
+                     "?, ?, '[\"c1\"]')", (f"m{seq}", f"m{seq}", verb, seq))
+        conn.commit()
+        wake = Wake("developer", "message", message_id=f"m{seq}", detail=verb)
+        assert _batch_of(conn, wake) == "b1"
+        sb = session_sandbox(conn, wake, batch_id=_batch_of(conn, wake))
         blocks.add(push_working_set("developer", sb, wake).get(START_RULED_KEY))
     [block] = blocks
     assert block and REMOVAL in block
@@ -310,14 +317,14 @@ def _inherited_id(n: int) -> str:
     return f"inh_{n:08x}"
 
 
-def _with_tests(conn, red: tuple[int, ...] = ()):
-    """160 inherited tests and the Tester's 3, each with a run at the head.
-    The inherited tests named by `red` failed there."""
+def _with_tests(conn, red=(), count: int = INHERITED):
+    """`count` inherited tests and the Tester's 3, each with a run at the
+    head. The inherited tests named by `red` failed there."""
     head = conn.execute("SELECT head_commit FROM batches WHERE id = 'b1'"
                         ).fetchone()[0]
     rows = [(tid, cid, path, _body(tid)) for tid, (cid, path) in TESTER.items()]
     rows += [(_inherited_id(n), None, f"src/icalendar/tests/test_module_{n}.py",
-              "def test_it():\n    assert True\n" * 50) for n in range(INHERITED)]
+              "def test_it():\n    assert True\n" * 50) for n in range(count)]
     for n, (tid, cid, path, body) in enumerate(rows):
         conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                      "VALUES (?, 'b1', ?, ?, ?)", (tid, cid, path, body))
@@ -378,13 +385,38 @@ def test_a_red_inherited_row_keeps_its_row_and_its_body(tmp_path):
     assert json.dumps(row["body"])[1:-1] in user
 
 
-# Fix 2, the guard: the read that the line names returns every row.
+def test_the_removed_lines_stand_before_200_red_inherited_rows(tmp_path):
+    """The review of 805f5fb4, finding 2: a red inherited row keeps its row,
+    so `batches.expect` has no size bound. The base text goes before it on
+    the restore wake, whatever the count of red rows."""
+    from rota.core.runner import PUSH_CHARS, _render
+
+    conn = _with_tests(_dry7(tmp_path), red=range(200), count=200)
+    [wake] = P.touch_mistaken(conn)
+    pushed, user = _prompt(conn, wake)
+    keys = list(pushed)
+    assert keys[0] == START_RULED_KEY
+    assert keys.index("code.diff") < keys.index("batches.expect")
+    assert user.index("[code.diff]") < user.index("[batches.expect]")
+    assert len([r for r in pushed["batches.expect"]["tests"]
+                if r["id"].startswith("inh_")]) == 200
+    diff = _render(pushed["code.diff"], PUSH_CHARS)
+    assert "[removed lines]" in diff and "CUT" not in diff
+    # Whole, and inside the front that the cut of the wake keeps.
+    assert 0 <= user.index(diff) and user.index(diff) + len(diff) < PUSH_CHARS
+    assert len(user) > PUSH_CHARS
+
+
+# Fix 2, the guard: the push folds the rows, and a call still returns them.
 
 def test_a_seat_that_asks_for_the_inherited_rows_gets_them(tmp_path):
     conn = _with_tests(_dry7(tmp_path))
     [wake] = P.touch_mistaken(conn)
     sb = session_sandbox(conn, wake, batch_id="b1")
     _pushed, user = _prompt(conn, wake)
-    assert "A call of tests.load returns their rows." in user
+    # The line names no read, because no read returns a row by its id
+    # (the review of 805f5fb4, finding 1).
+    assert f"{INHERITED} inherited tests pass, not shown.\n" in user + "\n"
+    assert "A call of" not in user
     rows = sb.call("tests.load")
     assert {r["id"] for r in rows} >= {_inherited_id(n) for n in range(INHERITED)}

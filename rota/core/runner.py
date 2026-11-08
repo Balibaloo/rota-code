@@ -1160,13 +1160,11 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # or not -- and this is the path where it matters more, because
             # nobody chose to fetch it.
             #
-            # A passing inherited test row is one line for the whole block,
-            # and the line names the read that returns the rows (frame 362,
-            # the removal read, F2).
+            # The passing inherited test rows are one line for the whole
+            # block (frame 362, the removal read, F2).
             value = _fold_inherited(
                 sb.ctx.conn, getattr(sb.ctx, "batch_id", None)
-                or (wake.refs[0] if wake.refs else None), value,
-                "tests.load" if "tests.load" in sb.functions() else key)
+                or (wake.refs[0] if wake.refs else None), value)
             body.append(f"\n[{key}]\n{_render(value, PUSH_CHARS)}")
     return system, "\n".join(body)
 
@@ -2118,8 +2116,10 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
 
 
 # The one line that stands for the passing inherited rows of a pushed block.
-INHERITED_LINE = ("{n} inherited tests pass, not shown. A call of {read} "
-                  "returns their rows.")
+# It names no read: no read takes a test id, and a call of `tests.load` on
+# the w6.db copy showed 0 of 105 passing rows under `RESULT_CHARS` (the
+# review of 805f5fb4, finding 1).
+INHERITED_LINE = "{n} inherited tests pass, not shown."
 
 
 def _passing_inherited(conn: sqlite3.Connection, batch_id: str | None,
@@ -2146,7 +2146,7 @@ def _passing_inherited(conn: sqlite3.Connection, batch_id: str | None,
 
 
 def _fold_inherited(conn: sqlite3.Connection, batch_id: str | None,
-                    value: Any, read: str) -> Any:
+                    value: Any) -> Any:
     """A pushed block with its passing inherited test rows taken out, and
     `INHERITED_LINE` in their place. Any other value comes back as it is.
 
@@ -2155,8 +2155,8 @@ def _fold_inherited(conn: sqlite3.Connection, batch_id: str | None,
     characters, and 0 of 16 restore wakes held `[removed lines]`. The
     Critic's review wake of dry run 6b lost 13,904 characters to the same
     rows (frame 362, the removal read, F2). A red inherited row says what
-    broke, so it keeps its row. The push only folds: a call of the read
-    returns every row.
+    broke, so it keeps its row. The push only folds, and a call of the
+    read still returns every row.
     """
     if isinstance(value, dict) and isinstance(value.get("tests"), list):
         gone = _passing_inherited(conn, batch_id, value["tests"])
@@ -2164,14 +2164,13 @@ def _fold_inherited(conn: sqlite3.Connection, batch_id: str | None,
             return value
         kept = [r for r in value["tests"]
                 if not (isinstance(r, dict) and r.get("id") in gone)]
-        return {**value, "tests": [*kept, INHERITED_LINE.format(
-            n=len(gone), read=read)]}
+        return {**value, "tests": [*kept, INHERITED_LINE.format(n=len(gone))]}
     if isinstance(value, list):
         gone = _passing_inherited(conn, batch_id, value)
         if not gone:
             return value
         kept = [r for r in value if not (isinstance(r, dict) and r.get("id") in gone)]
-        line = INHERITED_LINE.format(n=len(gone), read=read)
+        line = INHERITED_LINE.format(n=len(gone))
         if not kept:
             return line
         # The line goes last, where the rows stood, and the rows give it room
@@ -4759,6 +4758,17 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # (frame 101, night 103).
     if "code.read" in pushed:
         pushed["code.read"] = pushed.pop("code.read")
+    # The restore wake acts on the base text, so `code.diff` and its
+    # `[removed lines]` go before `batches.expect`, whose red and unrun
+    # inherited rows have no size bound. On the w6.db copy about 97 more
+    # such rows put the base text behind the cut (the review of 805f5fb4,
+    # finding 2; the removal read, F2, option 1).
+    if (wake is not None and wake.kind == "tick:touch_mistaken"
+            and "code.diff" in pushed and "batches.expect" in pushed):
+        keys = [k for k in pushed if k != "code.diff"]
+        at = keys.index("batches.expect")
+        keys.insert(at, "code.diff")
+        pushed = {k: pushed[k] for k in keys}
     # Frame 243, rung 5 of the ladder: the builder reads the source, not a
     # paraphrase. Night 148's s190 built from the criterion alone and
     # merged the format that ruling r_4c8fd5d3ad declined.
