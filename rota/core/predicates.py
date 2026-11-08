@@ -1025,10 +1025,11 @@ def tests_missing(conn) -> list[Wake]:
 # Run 1 of frame 362: s153 was not told of the claim, and its three tests
 # passed on the code as it was. So the Tester of a claimed batch is told,
 # and its tests decide the claim (plans/design-false-claim-2026-11-06.md,
-# Revision R2 F).
+# Revision R2 F). Shape H1 makes the Architect's run evidence too, so the
+# sentence names the run (review p1 of frame 360, finding 9).
 CLAIM_DETAIL = ("No code changed on this batch. The Developer claims that the "
-                "code as it is already meets each criterion. Your tests decide "
-                "the claim.")
+                "code as it is already meets each criterion. The Architect's "
+                "run of the code and your tests decide the claim.")
 
 
 def _claimed_batches(conn) -> set[str]:
@@ -1054,10 +1055,17 @@ def claim_settled(conn, batch_id: str) -> bool:
             (batch_id,)).fetchone():
         return True
     # A session row exists only for a session that ended, committed or not.
-    return conn.execute(
-        "SELECT 1 FROM sessions s, json_each(s.wake_refs) j "
-        "WHERE s.wake_kind = 'tick:claim' AND j.value = ? LIMIT 1",
-        (batch_id,)).fetchone() is not None
+    if conn.execute(
+            "SELECT 1 FROM sessions s, json_each(s.wake_refs) j "
+            "WHERE s.wake_kind = 'tick:claim' AND j.value = ? LIMIT 1",
+            (batch_id,)).fetchone() is not None:
+        return True
+    # The attempt cap can quarantine the key before any session row exists.
+    # The Tester then never woke on the batch (review p1 of frame 360,
+    # finding 8).
+    from .scheduler import quarantined_keys
+
+    return bool(quarantined_keys(conn, batch_id, kind="tick:claim"))
 
 
 def _is_test_path(path: str) -> bool:

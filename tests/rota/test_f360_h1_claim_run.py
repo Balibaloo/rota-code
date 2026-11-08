@@ -110,6 +110,18 @@ def test_a_claimed_batch_wakes_the_architect_once_before_the_tester(rows):
     assert len(_tester_wakes(rows)) == 1
 
 
+def test_a_quarantined_claim_key_settles_the_claim(rows):
+    """Review p1 of frame 360, finding 8: the attempt cap can quarantine
+    the key before any session row exists. The Tester must still wake."""
+    assert _tester_wakes(rows) == []
+    rows.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+                 "VALUES (?, 3, 1)", (f"architect|tick:claim|{BATCH}",))
+    rows.commit()
+
+    assert _claim_wakes(rows) == []
+    assert len(_tester_wakes(rows)) == 1
+
+
 def test_a_claim_run_row_settles_the_claim(rows):
     rows.execute("INSERT INTO claim_runs (id, batch_id, commit_sha, program, "
                  "returncode) VALUES ('cr_1', ?, ?, 'print(1)', 0)",
@@ -635,11 +647,15 @@ def test_a_pass_on_a_test_the_critic_said_does_not_encode_is_refused(db):
 
 
 def test_the_same_pass_with_no_claim_still_lands(db):
-    """The control: the route holds the test when no claim says otherwise."""
-    from tests.rota.test_critic_kept_route import C1, C3, _critic
+    """The control: the route holds the test when no claim says otherwise.
+    The pass lands, as review p1 of frame 360 (finding 5) asked."""
+    from tests.rota.test_critic_kept_route import C1, C3, _critic, _land
 
     sb = _critic(db)
     lines = {C1: "return True", C3: "test: tst_c3"}
     with pytest.raises(ValueError) as exc:
         sb.call("verdicts.emit", batch_id="bg_2", result="pass", lines=lines)
     assert "does not encode" not in str(exc.value)
+    row = _land(sb, lines, held=False)
+    assert row["result"] == "pass", row
+    assert json.loads(row["routes"]) == {C1: "added", C3: "test"}, row

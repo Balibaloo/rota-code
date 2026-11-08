@@ -1690,3 +1690,66 @@
               text_excludes: ["== \"y\"", "== 'y'", "== \"yes\"", "== 'yes'"]}
   forbidden:
     writes: [criteria, items]
+
+- id: L1-TS-the-run-shows-a-split-word
+  # Frame 360, shape H1, the measure of point 8 of review p1. On dry run 6b
+  # the Developer claimed "already done", three tests passed on the old
+  # code, and the claim merged false. The Architect's run is now on record
+  # before the Tester wakes. The state is `_a3_on_record` of
+  # `test_f360_h1_claim_run.py`, with the split fold of `_foldline`: the
+  # stdout holds "wo", CR LF, a space, "rds". The wake shows it as
+  # "wo ⏎ rds". The case measures whether the Tester encodes the request's
+  # words, that no word is split at the fold, or copies the printout.
+  # No repository: the claim changed no code, and the run is the evidence
+  # that the wake shows. The case waits for its recording.
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  detail: "without a test: <c1>\nNo code changed on this batch. The Developer
+    claims that the code as it is already meets each criterion. The
+    Architect's run of the code and your tests decide the claim."
+  refs: [<b1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "When icalendar writes a long line, fold it at a
+           space where it can, so that a word is not split, and keep
+           everything else as before.", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "fold a long line at a space"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When _foldline folds a long line that holds spaces, each
+           fold falls at a space, so that no word is split across the fold.",
+         term_refs: '[]',
+         surface_refs: "[\"src/icalendar/parser/string.py::_foldline\"]"}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: 99619246,
+         claimed_head: 99619246}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: src/icalendar/parser/string.py,
+         grain_kind: path}
+    claim_runs:
+      - {id: cr_split, batch_id: <b1>, commit_sha: 99619246,
+         session_id: s_arch,
+         program: "from icalendar.parser.string import _foldline\nprint(_foldline(\"This is a very long line that needs to be folded at a space so that words are not split but keep everything else as before.\", 75))\n",
+         stdout: "This is a very long line that needs to be folded at a space so that wo\r\n rds are not split but keep everything else as before.\n",
+         stderr: "", returncode: 0, timed_out: 0,
+         imported: '["icalendar.parser.string._foldline"]',
+         wrote_tree: 0, wrote_paths: '[]'}
+  expect:
+    writes:
+      # The body calls `_foldline` and asserts on the fold, not on the
+      # printout. A copy of "wo\r\n rds" as the expected value encodes
+      # what the code does (frame 360, H2).
+      tests: {count: "1..3", text_includes: ["_foldline("],
+              text_includes_any: [" not in ", ".split(", "endswith(",
+                                  "startswith(", "isspace()", "== \" \"",
+                                  "== ' '"],
+              text_excludes: ["wo\\r\\n rds are", "wo\r\n rds are"]}
+  forbidden:
+    writes: [criteria, items]

@@ -27019,8 +27019,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             return {"committed": False, "why": "nothing changed",
                     "claimed": fork,
                     "note": ("the tree is exactly as you found it. You "
-                             "claimed the criteria are met. The Tester's "
-                             "tests check the claim. Now end the session, "
+                             "claimed the criteria are met. The Architect's "
+                             "run of the code and the Tester's tests check "
+                             "the claim. Now end the session, "
                              "with no message to anybody")}
         # Frame 360, the review of pass 1, finding 3: on a claim with a red
         # test, "say so and end" sent a second claim against the red. That

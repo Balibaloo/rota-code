@@ -32,7 +32,8 @@ from rota.roles.principal import render_state
 from rota.testkit import gitfixture, venvtemplate
 
 # The words of the ruling, to the letter (design page, section 3 A).
-CLAIM_NOTE = "You claimed the criteria are met. The Tester's tests check the claim."
+CLAIM_NOTE = ("You claimed the criteria are met. The Architect's run of the "
+              "code and the Tester's tests check the claim.")
 # The claimed line of the false claim design, Revision R3 item 1.
 CLAIMED_LINE = "no code changed. The team says the code already does this."
 
@@ -465,10 +466,11 @@ def test_a_boot_reconcile_keeps_the_claim_over_its_tests_commit(world):
 # (plans/design-false-claim-2026-11-06.md, Revision R2 F and R4)
 # ---------------------------------------------------------------------------
 
-# The words of the design, R2 F, to the letter.
+# The words of the design, R2 F, with the Architect's run of shape H1
+# (review p1 of frame 360, finding 9).
 CLAIM_DETAIL = ("No code changed on this batch. The Developer claims that the "
-                "code as it is already meets each criterion. Your tests decide "
-                "the claim.")
+                "code as it is already meets each criterion. The Architect's "
+                "run of the code and your tests decide the claim.")
 S153_BATCH = "fold_long_lines_in_icalendar_batch"
 S153_FORK = "99619246f9c685ff407ab2559a12c18f6dbec9de"
 
