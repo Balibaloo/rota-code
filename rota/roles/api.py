@@ -8165,6 +8165,26 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
             raise exc
 
 
+def _respecify_rests_on(ctx: Ctx, id: str) -> tuple[str, str | None]:
+    """The verdict and the `rulings` id that a respecify of `id` rests on.
+
+    On a `tick:criterion_owed` wake the verdict is the ruled set's, from
+    the refs `(criterion, verdict)`. Otherwise the verdict is '' and the
+    ruling is the landed one on the wake's cause chain, or None."""
+    from ..core.scheduler import criterion_owed
+
+    refs = tuple(getattr(ctx, "wake_refs", ()) or ())
+    if (getattr(ctx, "wake_kind", "") == "tick:criterion_owed"
+            and len(refs) == 2 and refs[0] == id):
+        found = criterion_owed(ctx.conn, id)
+        if found is not None and found["verdict"] == refs[1]:
+            row = ctx.conn.execute(
+                "SELECT id FROM rulings WHERE verdict_id = ? AND status = "
+                "'landed' ORDER BY rowid DESC LIMIT 1", (refs[1],)).fetchone()
+            return refs[1], row["id"] if row else None
+    return "", _landed_ruling(ctx)
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -8185,6 +8205,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     where it lives.
     """
     _must_exist(ctx, "criteria", id)
+    stamp, ruling = _respecify_rests_on(ctx, id)
     # Roman's ruling of 2026-10-08, point 2: when his words fault only the
     # check, the Tester rewrites the test from the ruled words, and the
     # criterion keeps its text. So no new text lands. Night 160's s195 and
@@ -8364,6 +8385,13 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             f"the principal contested these words: {contested['words']!r}. "
             f"Write what he asked for")
     if cur and not surface_changed and _same_words(text, cur["text"]):
+        # On an owed wake the same words are a finding: the criterion holds
+        # under his new set. The stamp ends the owed fact (frame 362, slice 2).
+        if stamp:
+            ctx.writes.append(("criteria", id, {"guess_ruling": stamp}))
+            if ruling:
+                stage_ref(ctx, "criteria", id, "ruling", ruling)
+            return {"id": id, "kept": True, "rests_on": stamp}
         return {"id": id, "unchanged": True,
                 "note": "those are the criterion's own words; a repair changes "
                         "what a test can assert, and this did not. If this "
@@ -8384,9 +8412,15 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                                ticket_id=cur["ticket_id"] if cur else None)
         _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface)
     payload: dict = {"text": text, "surface_refs": json.dumps(surface)}
+    if stamp:
+        payload["guess_ruling"] = stamp
     # A respecified criterion is an amendment, so its version moves and the
     # Tester that gave up on it wakes. No reader reads a criterion's version.
     ctx.writes.append(("criteria", id, payload, True))
+    # The rewrite rests on his ruling, as `_adopt_rows` stamps an adopt
+    # (the contested record design, section 1, row 3).
+    if ruling:
+        stage_ref(ctx, "criteria", id, "ruling", ruling)
     # A list given replaces the list on file, and the list an earlier call
     # of this session staged: the refs not in it are retired. No list
     # leaves the refs as they are.

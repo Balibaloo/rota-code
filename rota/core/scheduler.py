@@ -2044,6 +2044,112 @@ def owed_grains(conn: sqlite3.Connection, found: dict) -> set[str]:
             } if last else set()
 
 
+def code_line_basis(conn: sqlite3.Connection, item: str) -> dict | None:
+    """The newest ruled set on the item's code line, or None.
+
+    A set is ruled when its rows carry a landed verdict of his. The guess
+    line and the batch line are one fact, so the newest verdict on either
+    stands (frame 362, the one rule)."""
+    from .db import _has_column
+
+    batches = [r["id"] for r in conn.execute(
+        "SELECT id FROM batches WHERE item_id = ?", (item,))]
+    found: list[tuple[str, str]] = []
+    if _has_column(conn, "touch_guesses", "ruling_id"):
+        found += [("guess", r[0]) for r in conn.execute(
+            "SELECT DISTINCT ruling_id FROM touch_guesses WHERE item_id = ? "
+            "AND ruling_id != ''", (item,))]
+    if batches and _has_column(conn, "batch_touch", "ruling_id"):
+        found += [("batch", r[0]) for r in conn.execute(
+            f"SELECT DISTINCT ruling_id FROM batch_touch WHERE ruling_id != '' "
+            f"AND batch_id IN ({','.join('?' * len(batches))})", tuple(batches))]
+    best = None
+    for line, verdict in found:
+        rank = _verdict_rank(conn, verdict)
+        if rank >= 0 and (best is None or rank > best[0]):
+            best = (rank, line, verdict)
+    if best is None:
+        return None
+    _, line, verdict = best
+    if line == "guess":
+        last = conn.execute(
+            "SELECT item_ver FROM touch_guesses WHERE item_id = ? AND ruling_id = ? "
+            "ORDER BY rowid DESC LIMIT 1", (item, verdict)).fetchone()
+        grains = [r["grain"] for r in conn.execute(
+            "SELECT grain FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
+            "AND ruling_id = ? ORDER BY rowid", (item, last["item_ver"], verdict))]
+    else:
+        grains = [r["grain"] for r in conn.execute(
+            f"SELECT grain FROM batch_touch WHERE ruling_id = ? AND batch_id IN "
+            f"({','.join('?' * len(batches))}) ORDER BY rowid",
+            (verdict, *batches))]
+    row = conn.execute("SELECT words FROM rulings WHERE verdict_id = ? AND "
+                       "status = 'landed' ORDER BY rowid DESC LIMIT 1",
+                       (verdict,)).fetchone()
+    return {"verdict": verdict, "line": line, "grains": grains,
+            "words": (row["words"] if row else "") or ""}
+
+
+def _verdict_rank(conn: sqlite3.Connection, verdict: str) -> int:
+    """The order of a landed verdict among his rulings, -1 for none."""
+    if not verdict:
+        return -1
+    row = conn.execute("SELECT MAX(rowid) AS n FROM rulings WHERE verdict_id = ? "
+                       "AND status = 'landed'", (verdict,)).fetchone()
+    return row["n"] if row and row["n"] is not None else -1
+
+
+def criterion_owed(conn: sqlite3.Connection, ref: str) -> dict | None:
+    """
+    The ruled set that a live criterion does not rest on yet, or None.
+
+    `ref` is a criterion, or a test, which rests on its criterion. The
+    criterion is owed when the newest ruled set of its item's code line is
+    newer than `criteria.guess_ruling`. Dry run 7's c1 to c3 named
+    `q_split` after his m26 set named `_foldline`, and the Tester's 13
+    encodes on `_foldline` were refused (frame 362, slice 2).
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "criteria", "guess_ruling"):
+        return None
+    test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                        (ref,)).fetchone()
+    cid = test["criterion_id"] if test and test["criterion_id"] else ref
+    row = conn.execute(
+        "SELECT c.id AS id, c.guess_ruling AS stamp, t.item_id AS item, "
+        "i.approval AS approval FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+        "JOIN items i ON i.id = t.item_id WHERE c.id = ?"
+        + live_criteria(conn, "c.retired_by"), (cid,)).fetchone()
+    # A dropped request ends the fact, as in `owed`.
+    if row is None or row["approval"] == "dropped":
+        return None
+    basis = code_line_basis(conn, row["item"])
+    if basis is None or basis["verdict"] == row["stamp"]:
+        return None
+    if _verdict_rank(conn, basis["verdict"]) <= _verdict_rank(conn, row["stamp"]):
+        return None
+    return {"criterion": row["id"], "item": row["item"], **basis}
+
+
+def criterion_owed_key(found: dict) -> str:
+    """The tick key of the respecify wake, bound per criterion and verdict,
+    as `owed_key` binds the guess tick per item and verdict."""
+    return tick_key(Wake("terminologist", "tick:criterion_owed",
+                         refs=(found["criterion"], found["verdict"])))
+
+
+def criterion_owed_held(conn: sqlite3.Connection, ref: str) -> bool:
+    """The criterion is owed and its owner still has attempts. A spent key
+    lifts the hold, so the batch goes on as before slice 2 and the
+    quarantine line tells him (R7: blockage is per item, never silent)."""
+    found = criterion_owed(conn, ref)
+    if found is None:
+        return False
+    key = criterion_owed_key(found)
+    return key not in quarantined_keys(conn, kind="tick:criterion_owed")
+
+
 def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """
     Return the schedulable batches in one order, priority first, then the schedule.

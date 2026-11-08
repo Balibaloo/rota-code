@@ -601,7 +601,14 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     -- The ruling that dropped the criterion's line. A retired criterion is
     -- read by no tick and shows on no page as live. It stays with its
     -- ruling, so the record keeps it (frame 306, pass 1b).
-    retired_by TEXT
+    retired_by TEXT,
+    -- The verdict of the code line the criterion was written from, as
+    -- `touch_guesses.ruling_id` holds it. '' when the writer saw no ruled
+    -- set. The Terminologist's criteria doors are the one writer, and
+    -- `criteria.respecify` stamps it on an owed wake. A newer ruled set
+    -- makes the criterion owed, so a surface of the old guess is rewritten
+    -- before a test rests on it (frame 362, slice 2, dry run 7's c1 to c3).
+    guess_ruling TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer

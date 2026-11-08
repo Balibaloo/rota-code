@@ -207,7 +207,14 @@ def commitment_columns(conn: sqlite3.Connection) -> None:
     # t.commitment_id` in `scheduler.park_reds` (frame 362, gate 3).
     have = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' "
-        "AND name IN ('constraints', 'verdicts', 'tests', 'test_runs')")}
+        "AND name IN ('constraints', 'verdicts', 'tests', 'test_runs', "
+        "'criteria')")}
+    # '' is every older criterion's truth: no criteria push showed a ruled
+    # set. A missing stamp costs one respecify wake, and a wrong one hides
+    # an old surface (frame 362, slice 2).
+    if "criteria" in have and not _has_column(conn, "criteria", "guess_ruling"):
+        conn.execute("ALTER TABLE criteria ADD COLUMN guess_ruling TEXT "
+                     "NOT NULL DEFAULT ''")
     # The empty string is every older constraint's truth, since no door
     # stated a party before the columns (pass 2).
     for column in ("party", "behaviour", "witness"):
