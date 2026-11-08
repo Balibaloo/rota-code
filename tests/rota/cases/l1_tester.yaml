@@ -1700,8 +1700,10 @@
   # stdout holds "wo", CR LF, a space, "rds". The wake shows it as
   # "wo ⏎ rds". The case measures whether the Tester encodes the request's
   # words, that no word is split at the fold, or copies the printout.
-  # No repository: the claim changed no code, and the run is the evidence
-  # that the wake shows. The case waits for its recording.
+  # The repository holds the fork, as a claimed batch's worktree does in
+  # production. With no tree the prints door read "writes" in the request
+  # and refused every check on the return value of `_foldline` (frame 360,
+  # pass 2d). The case waits for its recording.
   tier: T1
   role: tester
   runs: 5
@@ -1711,6 +1713,46 @@
     claims that the code as it is already meets each criterion. The
     Architect's run of the code and your tests decide the claim."
   refs: [<b1>]
+  repo:
+    batch: <b1>
+    # The form of L1-AR-run-the-code-at-a-claim. The prints door reads the
+    # surface in the worktree and needs no index. `change:` puts the fork's
+    # touch in the base, and the fixture reads it only with `onboard:`. An
+    # `edit:` commits a new head, and the batch is then no claim.
+    onboard: true
+    change:
+      src/icalendar/__init__.py: ""
+      src/icalendar/parser/__init__.py: ""
+      src/icalendar/parser/string.py: |
+        """Functions for manipulating strings."""
+
+        DEFAULT_ENCODING = "utf-8"
+
+
+        def _escape_char(text):
+            return text.replace("\\", "\\\\")
+
+
+        def _foldline(line, limit=75, fold_sep="\r\n "):
+            assert isinstance(line, str)
+            assert "\n" not in line
+            folded_lines = []
+            current_chars = []
+            byte_count = 0
+            for char in line:
+                char_byte_len = len(char.encode(DEFAULT_ENCODING))
+                if current_chars and byte_count + char_byte_len >= limit:
+                    folded_lines.append("".join(current_chars))
+                    current_chars = []
+                    byte_count = 0
+                current_chars.append(char)
+                byte_count += char_byte_len
+            if current_chars:
+                folded_lines.append("".join(current_chars))
+            return fold_sep.join(folded_lines)
+
+
+        foldline = _foldline
   fixture:
     items:
       - {id: <i1>, text: "When icalendar writes a long line, fold it at a
