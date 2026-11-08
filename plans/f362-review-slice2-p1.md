@@ -42,3 +42,37 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0ff
 ## (d) Usage
 
 This is an estimate, because the session shows no counter. Input is about 90k tokens of context, output is about 15k, and the total is about 105k.
+
+## Second look, pass 1b at 5306b8e6
+
+Verdict: pick. Pass 1b fixes findings 1, 2, 3, 4 and 6. Finding 5 stays open for slice 3, as the design says. I found 1 new low finding.
+
+### Each fix, by diff and by probe
+
+- Finding 1, fixed (5e9fa4ab). `api._refuse_owed` runs after `_refuse_retired` and before every surface door, and the import door is as it was before pass 1. The probe `door.py owed` encoded `from nowhere import calculate_tip`, and the door refused it with "criterion c1 rests on a guess of the code that the principal corrected. The Terminologist rewrites it first." `door.py fresh` still meets the old import door.
+- Finding 2, fixed by the same line. The test of the new set gets the same refusal, so no refusal moves to the "never calls" door.
+- Finding 3, fixed (afde687d). The `tick:criteria` push shows `code_line_shown`, which holds the newest ruled set and his words. `criteria.specify` stamps the verdict of that set through `_shown_verdict`. The test `test_a_criterion_written_after_his_set_rests_on_it` shows that c4, written on `_foldline` after m26, is stamped m26 and is not owed. The w5 copy still gives m26 on c1 to c3, because s150 wrote them with no stamp.
+- Finding 4, fixed (5306b8e6). With a spent key, `hold.py` shows: "Stuck: the team could not rewrite the check "Folding a long line keeps every character of the line." for the code you corrected after 3 attempts. Nothing waits on you. The change goes on, and no test is written for that check until it is rewritten." `_refuse_owed` ignores the quarantine, so the encode stays shut.
+- Finding 6, fixed (317f18a5). `code_line_basis` reads the guess rows at the item's current version, and the batch rows of batches that are not merged or abandoned. The test `test_an_amended_item_leaves_the_old_ruled_set_behind` covers it.
+- Tests: `test_frame362_owed_criterion.py` and `test_request_page.py` give 82 passed and 1 skipped. The skip is the w5 test, because its copy path is relative to the worktree.
+
+### The writers of the stamp
+
+The map lists three writers of `criteria`, and each one either stamps or keeps the stamp:
+
+- `criteria.specify` is only in the `criteria` mode. It stamps the shown verdict on a `tick:criteria` wake. On any other wake it writes '', so the criterion is owed when a ruled set exists. That is the safe side, and it costs one rewrite wake.
+- `criteria.respecify` is only in the `criterion_repair` mode. It stamps on a `tick:criterion_owed` wake whose refs match the live fact. On a repair wake it does not write the column, so the old stamp stays. The probe `stamp.py` stamped c1 m26 on the owed wake, then respecified it on a `tick:criterion_repair` wake. The stamp stayed m26, and c1 was not owed.
+- `criteria.retire` writes `retired_by` only. A retired criterion is never owed.
+- No Tester, Developer or Liaison door writes `criteria`. No mode on an answer wake holds `criteria.specify` or `criteria.respecify`.
+
+### New finding
+
+7. `rota/core/predicates.py:1013` (`tests_missing`), low, PLAUSIBLE. After a spent key, `tests_missing` offers the batch and still names the owed criterion as "without a test". The Tester then wakes for a criterion that `_refuse_owed` refuses. The refusal says "Wait for your next wake", but the next wake is the same `tests_missing` wake. So the Tester can spend the `tests_missing` cap, and then a second Stuck line says "nothing moves". I did not probe this path. Fix: after a spent key, `tests_missing` leaves the owed criterion out of the batch's missing list.
+
+### Probes of the second look
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0ff6bcd7-73e0-40b9-af75-01c8fdc9ed9a/scratchpad/r362s2/`. I ran `door.py owed`, `door.py fresh`, `dry7.py` and `hold.py` again. The new `stamp.py` respecifies c1 on the owed wake and then on a repair wake, and reads the stamp each time. I planted no fault. `git status` in the worktree is clean.
+
+### Usage of the second look
+
+This is an estimate. The second look used about 15k tokens of context, inside the 25k cap.
