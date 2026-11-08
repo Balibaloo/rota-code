@@ -24356,6 +24356,327 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------------
+# code.run: one program at the touch of a claim (frame 360, shape H1)
+# ---------------------------------------------------------------------------
+
+#: The folder of the run. It is in the worktree and outside the project's
+#: source, and `worktrees.discard` never touches `.rota/`.
+CLAIM_RUN_DIR = ".rota/claim_run"
+CLAIM_RUN_TIMEOUT = 60
+#: The tail of the stderr that the row keeps (frame 360, RA F4).
+CLAIM_STDERR_KEEP = 1500
+CLAIM_RUN_SHOWN = 3000
+CLAIM_RUN_DONE = "The run is recorded. End the session."
+
+# The child writes its own stdout and stderr to files opened with
+# newline="". `execute._local` decodes the pipe with universal newlines, so
+# a fold's CR LF would reach the row as a bare LF (frame 360, RA F3). The
+# review's probe saw A3's seat read those LFs as "two newlines".
+_CLAIM_WRAP = '''import runpy
+import sys
+import traceback
+
+program, out_path, err_path = sys.argv[1:4]
+out = open(out_path, "w", encoding="utf-8", newline="")
+err = open(err_path, "w", encoding="utf-8", newline="")
+sys.stdout, sys.stderr = out, err
+sys.argv = [program]
+code = 0
+try:
+    runpy.run_path(program, run_name="__main__")
+except SystemExit as exc:
+    code = exc.code if isinstance(exc.code, int) else int(exc.code is not None)
+except BaseException:
+    traceback.print_exc()
+    code = 1
+finally:
+    out.flush()
+    err.flush()
+sys.exit(code)
+'''
+
+
+def _touch_modules(sources: list[str]) -> list[tuple[str, list[str]]]:
+    """Each source file of the touch with the dotted names it imports as.
+    A `src/` or `lib/` layout imports without its first folder."""
+    out = []
+    for path in sources:
+        parts = path[:-3].split("/") if path.endswith(".py") else []
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        if not parts:
+            continue
+        forms = [".".join(parts)]
+        if parts[0] in ("src", "lib") and len(parts) > 1:
+            forms.append(".".join(parts[1:]))
+        out.append((path, forms))
+    return out
+
+
+def _touch_names(tree, sources: list[str]) -> dict[str, str]:
+    """The top-level names that each source file of the touch defines:
+    name -> path. A name bound by an import is not a definition."""
+    names: dict[str, str] = {}
+    for path in sources:
+        try:
+            body = (tree / path).read_text(encoding="utf-8", errors="replace")
+            parsed = _ast.parse(body)
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in parsed.body:
+            found = []
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                 _ast.ClassDef)):
+                found = [node.name]
+            elif isinstance(node, _ast.Assign):
+                found = [n.id for t in node.targets for n in _ast.walk(t)
+                         if isinstance(n, _ast.Name)]
+            elif isinstance(node, _ast.AnnAssign) and isinstance(
+                    node.target, _ast.Name):
+                found = [node.target.id]
+            for name in found:
+                if not (name.startswith("__") and name.endswith("__")):
+                    names.setdefault(name, path)
+    return names
+
+
+def _import_binds(parsed) -> tuple[dict[str, str], list[str]]:
+    """The names that the program's imports bind, name -> dotted target,
+    and the modules that the imports name."""
+    binds: dict[str, str] = {}
+    modules: list[str] = []
+    for node in _ast.walk(parsed):
+        if isinstance(node, _ast.Import):
+            for a in node.names:
+                modules.append(a.name)
+                if a.asname:
+                    binds[a.asname] = a.name
+                else:
+                    top = a.name.split(".")[0]
+                    binds[top] = top
+        elif isinstance(node, _ast.ImportFrom) and node.module and not node.level:
+            modules.append(node.module)
+            for a in node.names:
+                if a.name != "*":
+                    binds[a.asname or a.name] = f"{node.module}.{a.name}"
+    return binds, modules
+
+
+def _dotted_of(node, binds: dict[str, str]) -> str | None:
+    """The dotted target of a name or an attribute chain on an imported
+    name, or None."""
+    parts = []
+    while isinstance(node, _ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, _ast.Name) and node.id in binds:
+        return ".".join([binds[node.id], *reversed(parts)])
+    return None
+
+
+def _claim_program_fault(text: str, names: dict[str, str],
+                         modules: list[tuple[str, list[str]]],
+                         symbols: list[str]) -> tuple[str, list[str]]:
+    """Why the door refuses the program, or "", and the touch names that
+    the program calls.
+
+    Four refusals, in the order of RA F5. The syntax tree is the only
+    check. A renamed copy beside a real call of the touch passes all four,
+    because no check of the text can tell which call made the printout."""
+    try:
+        parsed = _ast.parse(text)
+    except SyntaxError as exc:
+        return (f"The program does not parse at line {exc.lineno}: {exc.msg}, "
+                f"so send a program that Python can run."), []
+    forms = [f for _, fs in modules for f in fs]
+    binds, imported = _import_binds(parsed)
+
+    def inside(dotted: str) -> bool:
+        return any(dotted == f or dotted.startswith(f + ".") for f in forms)
+
+    def near(dotted: str) -> bool:
+        return inside(dotted) or any(f.startswith(dotted + ".") for f in forms)
+
+    module_of = {path: fs[-1] for path, fs in modules}
+    # 1. A definition of a name that a source file of the touch defines.
+    for node in _ast.walk(parsed):
+        bound: list[str] = []
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                             _ast.ClassDef)):
+            bound = [node.name]
+        elif isinstance(node, _ast.Assign):
+            bound = [n.id for t in node.targets for n in _ast.walk(t)
+                     if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store)]
+        elif isinstance(node, (_ast.AnnAssign, _ast.AugAssign, _ast.NamedExpr)) \
+                and isinstance(node.target, _ast.Name):
+            bound = [node.target.id]
+        for name in bound:
+            if name in names:
+                path = names[name]
+                return (f"The program defines `{name}`, and {path} already "
+                        f"defines it, so send a program that imports "
+                        f"`{name}` from {module_of.get(path, path)} and "
+                        f"calls it."), []
+    # 2. A change to a module of the touch.
+    for node in _ast.walk(parsed):
+        targets = []
+        if isinstance(node, (_ast.Assign, _ast.Delete)):
+            targets = node.targets
+        elif isinstance(node, (_ast.AnnAssign, _ast.AugAssign)):
+            targets = [node.target]
+        changed = None
+        for t in targets:
+            for n in _ast.walk(t):
+                if isinstance(n, _ast.Attribute) and not isinstance(n.ctx, _ast.Load):
+                    base = _dotted_of(n.value, binds)
+                    if base and near(base):
+                        changed = f"{base}.{n.attr}"
+        if isinstance(node, _ast.Call) and node.args:
+            fn = node.func
+            word = fn.attr if isinstance(fn, _ast.Attribute) else getattr(fn, "id", "")
+            first = node.args[0]
+            if word in ("setattr", "delattr", "object", "patch"):
+                if isinstance(first, _ast.Constant) and isinstance(first.value, str):
+                    if near(first.value.rsplit(".", 1)[0]):
+                        changed = first.value
+                else:
+                    base = _dotted_of(first, binds)
+                    if base and near(base):
+                        changed = base
+        if changed:
+            return (f"The program changes `{changed}`, a part of the touch, so "
+                    f"send a program that calls the code of the touch as it "
+                    f"is."), []
+    # 3. No import of a module of the touch or of a package that holds one.
+    shown = ", ".join(fs[-1] for _, fs in modules) or "the touch"
+    if not any(near(m) for m in imported):
+        return (f"The program imports nothing from the touch, so send a "
+                f"program that imports a name from {shown} and calls it."), []
+    # 4. No call of a name that the program imports from the touch.
+    called = sorted({d for node in _ast.walk(parsed)
+                     if isinstance(node, _ast.Call)
+                     for d in [_dotted_of(node.func, binds)]
+                     if d and inside(d) and d not in forms})
+    if not called:
+        example = next((g.split("::", 1)[1] for g in symbols), None) \
+            or next(iter(names), "a function")
+        return (f"The program calls no name that it imports from the touch, "
+                f"so send a program that calls one, such as `{example}` "
+                f"from {shown}."), []
+    return "", called
+
+
+def _dirty_paths(tree) -> set[str]:
+    """The paths of the worktree that differ from its head now."""
+    import subprocess
+
+    run = subprocess.run([*GIT, "-C", str(tree), "status", "--porcelain", "-z",
+                          "--untracked-files=all"], capture_output=True)
+    if run.returncode != 0:
+        return set()
+    return {tok[3:] for tok in run.stdout.decode("utf-8", "surrogateescape")
+            .split("\0") if len(tok) > 3}
+
+
+@op("code", "run")
+def code_run(ctx: Ctx, text: str) -> dict:
+    """
+    Run one program at the touch of a claimed batch, and record what it
+    printed.
+
+    Frame 360, shape H1 (ruled: Roman, 2026-11-08 10:01). The door takes no
+    path: on the probe 5 of 5 seats met a path refusal, and 2 of 5 aimed the
+    program at a file of the project. The door writes the program under
+    `CLAIM_RUN_DIR`, runs it with the worktree's interpreter and the worktree
+    as the working folder, and puts back what it wrote in the tree. The row
+    keeps the exact bytes of the stdout. The seat types no output and no
+    verdict, because 4 of 4 probe records said "holds" against a printout
+    that showed the split word.
+    """
+    import hashlib
+    import os
+    import shutil
+
+    from ..core import execute, worktrees
+    from ..core.predicates import claim_touch
+    from ..core.provision import python_for
+
+    bid = ctx.batch_id
+    if not _claimed(ctx.conn, bid):
+        raise ValueError(f"The head of batch {bid} is not a claim, so no run "
+                         f"is asked for. End the session.")
+    if any(w[0] == "claim_runs" for w in ctx.writes):
+        raise ValueError("The run of this session is recorded already. "
+                         "End the session.")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("The program is empty, so send the whole program "
+                         "as text.")
+    tree = _worktree_of(ctx)
+    touch = claim_touch(ctx.conn, bid)
+    names = _touch_names(tree, touch["sources"])
+    fault, called = _claim_program_fault(
+        text, names, _touch_modules(touch["sources"]), touch["symbols"])
+    if fault:
+        raise ValueError(fault)
+
+    before = {_grain_path(p) for p in _dirty_paths(tree)}
+    made_rota = not (tree / ".rota").exists()
+    folder = tree / CLAIM_RUN_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    program, wrap = folder / "claim_program.py", folder / "claim_wrap.py"
+    out_file, err_file = folder / "stdout.txt", folder / "stderr.txt"
+    program.write_bytes(text.encode("utf-8"))
+    wrap.write_bytes(_CLAIM_WRAP.encode("utf-8"))
+    # The project imports as the harness makes it: the worktree's own
+    # interpreter, and the root and `src/` for a tree with no environment.
+    path_parts = [str(tree / "src"), str(tree)]
+    if os.environ.get("PYTHONPATH"):
+        path_parts.append(os.environ["PYTHONPATH"])
+    env = {"PYTHONPATH": os.pathsep.join(path_parts),
+           "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
+    try:
+        out = execute.run(tree, [python_for(tree), str(wrap), str(program),
+                                 str(out_file), str(err_file)],
+                          timeout=CLAIM_RUN_TIMEOUT, env=env)
+        stdout = b"" if out.timed_out or not out_file.exists() \
+            else out_file.read_bytes()
+        stderr = "" if out.timed_out or not err_file.exists() \
+            else err_file.read_text(encoding="utf-8", errors="replace")
+        # The wrapper itself did not start: the pipe holds why.
+        stdout = stdout or (out.stdout or "").encode("utf-8")
+        stderr = stderr or out.stderr or out.error or ""
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+        if made_rota:
+            try:
+                (tree / ".rota").rmdir()
+            except OSError:
+                pass
+    # What the program wrote in the tree goes back to the head (RA F13).
+    wrote = worktrees.discard(tree, keep=before)
+    head = _head_commit(ctx, bid) or ""
+    rid = "cr_" + hashlib.sha256(
+        f"{bid}|{head}|{text}".encode("utf-8")).hexdigest()[:12]
+    ctx.writes.append(("claim_runs", rid, {
+        "batch_id": bid, "commit_sha": head, "session_id": ctx.session_id or "",
+        "program": text, "stdout": stdout, "stderr": stderr[-CLAIM_STDERR_KEEP:],
+        "returncode": out.returncode, "timed_out": int(out.timed_out),
+        "imported": json.dumps(called), "wrote_tree": int(bool(wrote)),
+        "wrote_paths": json.dumps(wrote)}, False))
+    shown = {"returncode": out.returncode,
+             "stdout": stdout.decode("utf-8", "replace")[:CLAIM_RUN_SHOWN],
+             "stderr": stderr[-CLAIM_STDERR_KEEP:]}
+    if out.timed_out:
+        shown["error"] = f"the run did not finish in {CLAIM_RUN_TIMEOUT} seconds"
+    note = CLAIM_RUN_DONE
+    if wrote:
+        note = (f"The program wrote {', '.join(wrote)} in the worktree, and "
+                f"the door put them back. " + note)
+    shown["note"] = note
+    return shown
+
+
 @op("code", "write")
 def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) -> dict:
     """

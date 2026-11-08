@@ -1482,6 +1482,16 @@
       "s": "architect",
       "t": "code",
       "type": "reads",
+      "v": "run",
+      "n": "one program run at the touch of a claimed batch",
+      "rows": "batch",
+      "depth": "body",
+      "label": "the printout of a claim is the record, never the seat's words; claim_runs is the door's own table (frame 360, H1)"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
       "v": "diff",
       "n": "batch diff",
       "label": "structural review needs the change",
