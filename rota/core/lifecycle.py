@@ -242,7 +242,10 @@ def discharge_touch_notes(conn: sqlite3.Connection) -> list[str]:
             "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()), None)
         words = TOUCH_MERGED_WORDS + mid + ", because its batch merged."
         lid = "l_" + hashlib.sha256(words.encode()).hexdigest()[:10]
-        conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?", (mid,))
+        # The mark has one writer, `db.mark_answered` (fact F16). The landed
+        # fact here is the merge, and the words stay on the row as its reason.
+        from . import db as _db
+        _db.mark_answered(conn, mid, words)
         conn.execute(
             "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
             "default_taken, kind, status, author) VALUES (?, ?, ?, ?, 'other', "
