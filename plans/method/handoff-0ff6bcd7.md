@@ -62,15 +62,27 @@ ready. No correct merged change exists yet. The taker holds frame 362 with
 
 ## What comes next, in order
 
-1. **Read the gate** on the checkout at `f1122b6f` or later: this session's
-   task file
-   `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0ff6bcd7-73e0-40b9-af75-01c8fdc9ed9a/tasks/b44qysar4.output`,
-   or run it again. Expect 0 new reds beside the two register cases it
-   records, `L1-TS-the-run-shows-a-split-word` and
-   `L1-AR-run-the-code-at-a-claim`. If the Tester case passes 4 of 5, pass 2a
-   moved the measure. If it stays red, it is a known red of the next baseline
-   and a measure of where qwen3:8b stops, by C36 after more than one sample.
-   Then store the baseline: `python -m rota.tools.gate --baseline`.
+1. **The gate's result, read at the hand-off:** 34 failed and 7,288 passed
+   against the baseline's 32, the six guard reds gone, stale 0, 2 new reds
+   and both are the register cases, each 0 of 5 on qwen3:8b. Two findings
+   from their recordings, both in the record and neither built:
+   - `L1-AR-run-the-code-at-a-claim`: the Architect sent `code.run(text)`
+     three times per run, the word `text` and no program, copied from the
+     tools line, so the door wrote no row and no refusal names the cause.
+     The fix is in the claim mode's prompt or the door: the prompt shows one
+     real program inside the call, and the door refuses a bare `text` with
+     one sentence. About 1 cycle, then re-record. The probe of 2026-11-08
+     had 4 of 5 run a program, with a different wake.
+   - `L1-TS-the-run-shows-a-split-word`: pass 2a did not move it. The door
+     `tests.encode` told every run "the criterion, its ticket or the
+     principal's words say it prints; nothing says it returns anything", so
+     the Tester asserted on stdout through `sys.stdin`. The word it read is
+     the run sentence's own "it printed:". The interview's second finding is
+     confirmed by the door's text. The fix: the run sentence says "showed"
+     or "gave", or the prints door leaves the run sentence out of the
+     material it reads. About 1 cycle, then re-record with the interview on.
+   Store the baseline after those two passes, or now with the two as known
+   reds: `python -m rota.tools.gate --baseline`.
 2. **Dry run 8 from zero**, the same request, from
    `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0ff6bcd7-73e0-40b9-af75-01c8fdc9ed9a/scratchpad/dry8/dry8_start.sh <commit>`
    and `dry8_turn.sh <copy> <msg>=<words> ...`, copied from dry run 7's. The
