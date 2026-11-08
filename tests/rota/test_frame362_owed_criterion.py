@@ -189,3 +189,22 @@ def test_an_encode_of_a_criterion_not_owed_meets_the_old_doors(db):
         _encode(db, BODY)
     assert "rests on a guess" not in str(caught.value)
     assert "nowhere" in str(caught.value) or "q_split" in str(caught.value)
+
+
+def test_an_amended_item_leaves_the_old_ruled_set_behind(db):
+    """The review of pass 1, finding 6: the ruled set of version 1 is no
+    basis for the criteria of version 2."""
+    _correct(db)
+    assert criterion_owed(db, "c1") is not None
+    db.execute("UPDATE items SET version = 2, approval_ver = 2 WHERE id = ?", (ITEM,))
+    db.commit()
+    assert criterion_owed(db, "c1") is None
+    db.execute("UPDATE items SET version = 1, approval_ver = 1 WHERE id = ?", (ITEM,))
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, ruling_id) "
+               "VALUES ('b1', 'src/icalendar/parser/string.py', 'path', 'm26')")
+    db.execute("DELETE FROM touch_guesses WHERE ruling_id = 'm26'")
+    db.commit()
+    assert criterion_owed(db, "c1")["line"] == "batch"
+    db.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'b1'")
+    db.commit()
+    assert criterion_owed(db, "c1") is None

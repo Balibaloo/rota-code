@@ -2052,13 +2052,19 @@ def code_line_basis(conn: sqlite3.Connection, item: str) -> dict | None:
     stands (frame 362, the one rule)."""
     from .db import _has_column
 
+    # The item's current version and its live batches only. After an
+    # amendment the old version's ruled set is no basis, and an abandoned
+    # batch's plan is no code the request touches (the review of slice 2,
+    # pass 1, finding 6).
     batches = [r["id"] for r in conn.execute(
-        "SELECT id FROM batches WHERE item_id = ?", (item,))]
+        "SELECT id FROM batches WHERE item_id = ? AND status NOT IN "
+        "('merged', 'abandoned')", (item,))]
+    ver = conn.execute("SELECT version FROM items WHERE id = ?", (item,)).fetchone()
     found: list[tuple[str, str]] = []
-    if _has_column(conn, "touch_guesses", "ruling_id"):
+    if ver is not None and _has_column(conn, "touch_guesses", "ruling_id"):
         found += [("guess", r[0]) for r in conn.execute(
             "SELECT DISTINCT ruling_id FROM touch_guesses WHERE item_id = ? "
-            "AND ruling_id != ''", (item,))]
+            "AND item_ver = ? AND ruling_id != ''", (item, ver["version"]))]
     if batches and _has_column(conn, "batch_touch", "ruling_id"):
         found += [("batch", r[0]) for r in conn.execute(
             f"SELECT DISTINCT ruling_id FROM batch_touch WHERE ruling_id != '' "
@@ -2072,12 +2078,9 @@ def code_line_basis(conn: sqlite3.Connection, item: str) -> dict | None:
         return None
     _, line, verdict = best
     if line == "guess":
-        last = conn.execute(
-            "SELECT item_ver FROM touch_guesses WHERE item_id = ? AND ruling_id = ? "
-            "ORDER BY rowid DESC LIMIT 1", (item, verdict)).fetchone()
         grains = [r["grain"] for r in conn.execute(
             "SELECT grain FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
-            "AND ruling_id = ? ORDER BY rowid", (item, last["item_ver"], verdict))]
+            "AND ruling_id = ? ORDER BY rowid", (item, ver["version"], verdict))]
     else:
         grains = [r["grain"] for r in conn.execute(
             f"SELECT grain FROM batch_touch WHERE ruling_id = ? AND batch_id IN "
