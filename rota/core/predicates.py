@@ -1139,8 +1139,8 @@ def claim_wake_detail(conn, batch_id: str) -> str:
         for g in touch["symbols"]]) or "no file is named"
     # A seat turns a path into `src.icalendar...`, so the wake names the
     # line itself (frame 360, pass 2c), as the Tester's door does.
-    lines = list(dict.fromkeys(filter(None, map(claim_import_line,
-                                                touch["symbols"]))))
+    lines = list(dict.fromkeys(filter(None, (
+        claim_import_line(conn, g) for g in touch["symbols"]))))
     if lines:
         how = ("Import the function of the touch with this line, copied "
                "exactly: " if len(lines) == 1 else "Import the function of "

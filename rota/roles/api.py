@@ -24621,16 +24621,16 @@ def _touch_modules(sources: list[str]) -> list[tuple[str, list[str]]]:
     return out
 
 
-def claim_import_line(grain: str) -> str:
+def claim_import_line(conn, grain: str) -> str:
     """The import line of a touch symbol `path::name`, or "" for a path.
 
     A small model turned the path `src/icalendar/parser/string.py` into
     `src.icalendar.parser.string` 5 of 5 times (frame 360, pass 2c). The
-    Tester's door names the line itself for the same cause (frame 260), and
-    this line uses the same module helper."""
+    Tester's door names the line itself for the same cause (frame 260). The
+    module comes from `module_of`, the one reader of F13."""
     name = _ref_symbol(grain)
-    module = _dotted_module(_grain_path(grain)) if name else ""
-    return f"from {module} import {name}" if module else ""
+    found = module_of(conn, grain) if name else None
+    return f"from {found[0]} import {name}" if found else ""
 
 
 def _touch_names(tree, sources: list[str]) -> dict[str, str]:
@@ -24708,7 +24708,7 @@ def _not_a_program(text: str) -> bool:
 
 def _claim_program_fault(text: str, names: dict[str, str],
                          modules: list[tuple[str, list[str]]],
-                         symbols: list[str]) -> tuple[str, list[str]]:
+                         symbols: list[str], conn=None) -> tuple[str, list[str]]:
     """Why the door refuses the program, or "", and the touch names that
     the program calls.
 
@@ -24822,7 +24822,7 @@ def _claim_program_fault(text: str, names: dict[str, str],
     def line_for(path: str, module: str, wanted: str = "") -> str:
         if wanted and names.get(wanted) == path:
             return f"from {module} import {wanted}"
-        return next((claim_import_line(g) for g in symbols
+        return next((claim_import_line(conn, g) for g in symbols
                      if _grain_path(g) == path), "") or f"import {module}"
 
     froms = [(node.module, [a.name for a in node.names])
@@ -24990,7 +24990,8 @@ def code_run(ctx: Ctx, text: str) -> dict:
     touch = claim_touch(ctx.conn, bid)
     names = _touch_names(tree, touch["sources"])
     fault, called = _claim_program_fault(
-        text, names, _touch_modules(touch["sources"]), touch["symbols"])
+        text, names, _touch_modules(touch["sources"]), touch["symbols"],
+        conn=ctx.conn)
     if fault:
         raise ValueError(fault)
 
