@@ -41,3 +41,18 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0d0
 - Total: about 124k.
 
 fix before the pick
+
+## Second look: pass 1b, abc32d2f
+
+The verdict is pick. Both medium findings are fixed, and low 4 is the only finding left. The review read abc32d2f in the implementer's worktree `C:/Users/roman/rota_p362r` and ran its tests there. The review did not run `git checkout` in `C:/Users/roman/rota_r362r`, because the reviewer's rules forbid a git command that changes a tree. No tracked file changed, and the gate did not run.
+
+1. Medium 1 is fixed (CONFIRMED). `INHERITED_LINE` at `runner.py` 2122 is now "{n} inherited tests pass, not shown." It names no read. The guard test asserts that no "A call of" text is left. Low 3 goes with medium 1, because the fold line now makes no claim about a call.
+2. Medium 2 is fixed by construction (CONFIRMED). `push_working_set`, at about `runner.py` 4761 to 4771, puts `code.diff` right before `batches.expect` on `tick:touch_mistaken`. The `START_RULED_KEY` block is added after that step, so his words stay first. On the `w6.db` copy, the offsets are now: his words at 801, `[code.diff]` at 1,999, `[removed lines]` at 2,241 and `[batches.expect]` at 5,295. Inherited rows no longer move the base text. The wake head, his newest reply and the diff are still not bounded, but they are not this wall.
+3. The planted fault: a pytest plugin put `batches.expect` before `code.diff` on the restore wake, in memory. `test_the_removed_lines_stand_before_200_red_inherited_rows` went red: 1 failed, 9 passed. The probe is `scratchpad/r362/plug/fault_expect_first.py`.
+4. Low 5 is fixed (CONFIRMED). The ten-mode test writes real `answer` and `challenge` messages with refs `["c1"]`. It asserts that `_batch_of` gives `b1`, and it builds the sandbox from that batch.
+5. Low 4 is left, as the implementer says. No recorded case renders the fold line or the ruled block on a fix wake, and a recording needs a model run.
+6. The tests at abc32d2f: the pass's file gave 10 passed. The related set gave 550 passed, 7 skipped. The offset probe is `scratchpad/r362/p5_offsets_1b.py`.
+
+Second look usage: about 15k input tokens and 3k output tokens, an estimate.
+
+pick
