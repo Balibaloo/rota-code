@@ -12786,9 +12786,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # The door stands after the import doors, so the body it reads imports.
     copied = _printout_literal(ctx.conn, getattr(ctx, "batch_id", None), tree)
     if copied:
+        # The re-record of 16:47 on qwen3:8b: 5 of 5 resent the same copy
+        # three times after this refusal. The seat cannot compute the right
+        # text, so the door names the shape of a check that needs none.
         raise Wall(
             f"the string literal {copied!r} of this test is the printout of "
-            f"the Architect's run. {CLAIM_RUN_TESTER}")
+            f"the Architect's run. {CLAIM_RUN_TESTER} Do not write the "
+            f"expected text. Assert what the criterion says of the result, "
+            f"one assert per clause.")
 
     # `CliRunner.invoke` runs a command, and a plain function fails it at
     # `cli.name`. Frame 131: s139 stored three such tests on five nights,
