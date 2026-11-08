@@ -51,8 +51,10 @@ def test_the_missing_tests_wake_keeps_its_blocks_at_16384(scene):
             "tests.consult", "tickets.load"])
 
 
-@pytest.mark.xfail(strict=True, reason="held by frame 134: the diff block stands before "
-                                       "the red rows and the source, and the cut takes them")
+@pytest.mark.xfail(strict=True, reason="held by frame 362: the diff block stands before "
+                                       "the red rows and the source, and the cut takes them "
+                                       "(the old owner closed into "
+                                       "plans/archive/stack-2026-11-08.md)")
 def test_the_fix_wake_keeps_its_blocks_at_16384(scene):
     # The diff is not in the list. It announces its own cut at 20,000
     # characters, and frame 134's repair gives it a size limit.
