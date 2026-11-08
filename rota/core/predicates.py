@@ -1008,9 +1008,14 @@ def tests_missing(conn) -> list[Wake]:
         + " ORDER BY bt.batch_id, c.id"
     ).fetchall()
     missing: dict[str, list[str]] = {}
-    for r in rows:
-        missing.setdefault(r["bid"], []).append(r["cid"])
     claimed = _claimed_batches(conn)
+    for r in rows:
+        # The Tester of a claim waits for the Architect's run, so it reads
+        # the printout before it writes a test (frame 360, shape H1, RA F12).
+        # A wait on a seat, which frame 204's design keeps.
+        if r["bid"] in claimed and not claim_settled(conn, r["bid"]):
+            continue
+        missing.setdefault(r["bid"], []).append(r["cid"])
     return [Wake("tester", "tick:tests_missing", refs=(bid,),
                  detail="without a test: " + ", ".join(cids)
                  + ("\n" + CLAIM_DETAIL if bid in claimed else ""))
@@ -1036,6 +1041,101 @@ def _claimed_batches(conn) -> set[str]:
     return {r[0] for r in conn.execute(
         "SELECT id FROM batches WHERE claimed_head IS NOT NULL "
         "AND claimed_head = head_commit")}
+
+
+def claim_settled(conn, batch_id: str) -> bool:
+    """The claim of `batch_id` has a run on record, or its `tick:claim`
+    session ended. The key is the batch, because `boot.py` moves the
+    claimed head to the merge's tests commit (frame 360, RA F12)."""
+    has_runs = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                            "AND name = 'claim_runs'").fetchone()
+    if has_runs and conn.execute(
+            "SELECT 1 FROM claim_runs WHERE batch_id = ? LIMIT 1",
+            (batch_id,)).fetchone():
+        return True
+    # A session row exists only for a session that ended, committed or not.
+    return conn.execute(
+        "SELECT 1 FROM sessions s, json_each(s.wake_refs) j "
+        "WHERE s.wake_kind = 'tick:claim' AND j.value = ? LIMIT 1",
+        (batch_id,)).fetchone() is not None
+
+
+def _is_test_path(path: str) -> bool:
+    name = path.rsplit("/", 1)[-1]
+    return ("/tests/" in "/" + path or name.startswith("test_")
+            or name.endswith("_test.py") or name == "conftest.py")
+
+
+def claim_touch(conn, batch_id: str) -> dict:
+    """The touch of a claimed batch: the expected files, the source files
+    among them, and the symbols that the wake names.
+
+    A symbol is a `symbol` row of `batch_touch`, or a definition in a source
+    file of the touch whose name holds a word of the request. The probe's
+    wake named `_foldline` this way (frame 360, H5)."""
+    rows = conn.execute(
+        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ? "
+        "AND confidence = 'expected' ORDER BY rowid", (batch_id,)).fetchall()
+    files = [r["grain"] for r in rows if r["grain_kind"] == "path"]
+    symbols = [r["grain"] for r in rows if r["grain_kind"] == "symbol"]
+    for grain in symbols:
+        path = grain.split("::", 1)[0]
+        if path not in files:
+            files.append(path)
+    sources = [f for f in files if f.endswith(".py") and not _is_test_path(f)]
+    words = set(re.findall(r"[a-z]{4,}", claim_request(conn, batch_id).lower()))
+    for path in sources:
+        for r in conn.execute(
+                "SELECT grain FROM code_index WHERE grain LIKE ? AND "
+                "grain_kind = 'symbol' ORDER BY line_start",
+                (path.replace("%", "") + "::%",)):
+            name = r["grain"].split("::", 1)[1]
+            if (r["grain"] not in symbols and "." not in name
+                    and any(w in name.lower() for w in words)):
+                symbols.append(r["grain"])
+    return {"files": files, "sources": sources, "symbols": symbols}
+
+
+def claim_request(conn, batch_id: str) -> str:
+    row = conn.execute("SELECT i.text FROM items i JOIN batches b ON "
+                       "b.item_id = i.id WHERE b.id = ?", (batch_id,)).fetchone()
+    return (row["text"] or "") if row else ""
+
+
+def claim_wake_detail(conn, batch_id: str) -> str:
+    """The request, the touch and the act, in the words of H1's wake."""
+    touch = claim_touch(conn, batch_id)
+    named = ", ".join(touch["files"] + [
+        f"`{g.split('::', 1)[1]}` in {g.split('::', 1)[0]}"
+        for g in touch["symbols"]]) or "no file is named"
+    return ("The Developer changed no code and says that the request is "
+            f"already true of the code. The request: "
+            f"\"{claim_request(conn, batch_id)}\". The touch: {named}.\n"
+            "Show what the code does with one run. Import the function of the "
+            "touch from its module, call it with one example from the request, "
+            "and print the input and the result. Send the program with "
+            "code.run(text). The run is the record.")
+
+
+@predicate("claim", wakes="architect", band="start")
+def claim(conn) -> list[Wake]:
+    """
+    A claimed batch with no run of its code on record.
+
+    Frame 360, shape H1 (ruled: Roman, 2026-11-08 10:01, "Yes, it closes
+    with approval"). On dry run 6b the Developer said "already done", three
+    tests passed on the old code, and the claim merged false. The Architect
+    runs one program at the touch, and the door records what it printed.
+    One wake per batch: an ended `tick:claim` session settles it, run or no
+    run. The Tester's `tests_missing` waits for it.
+    """
+    rows = conn.execute(
+        "SELECT id FROM batches WHERE status = 'running' ORDER BY id").fetchall()
+    claimed = _claimed_batches(conn)
+    return [Wake("architect", "tick:claim", refs=(r["id"],),
+                 detail=claim_wake_detail(conn, r["id"]))
+            for r in rows
+            if r["id"] in claimed and not claim_settled(conn, r["id"])]
 
 
 @predicate("harness", wakes=SCHEDULER, band="gate",

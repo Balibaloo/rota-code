@@ -89,6 +89,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
                                   "(item, item version, ruling)"),
     "touch_strays": ("content", "paths a commit touched outside the predicted touch set, per commit"),
     "drop_notes": ("content", "one open note per batch and path, written by code.write"),
+    "claim_runs": ("content", "the id hashes the batch, the commit and the "
+                              "program; code.run is the one writer"),
 
     # ---- journals: re-saying is two events, on purpose --------------------
     "entries": ("journal", "the principal's words, in order; ts_order is "

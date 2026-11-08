@@ -457,7 +457,11 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:criteria",
                 # Which grains strayed, and the removed line of a removal
                 # (frame 339). No case carries this detail yet.
-                "tick:touch_strayed"}
+                "tick:touch_strayed",
+                # The request and the touch of a claim, so the Architect
+                # knows what to run (frame 360, RA F6). The probe's seat read
+                # them on 5 of 5 samples. No case carries this detail yet.
+                "tick:claim"}
 
 
 def _claim_line(conn: sqlite3.Connection, role: str, batch_id: str | None) -> str:
@@ -6772,6 +6776,13 @@ def run_session(
             if wake.kind == "tick:frame" and any(
                     w[0] == "frame_rulings" for w in sb.ctx.writes):
                 _derive_frame_record(conn, sb)
+                break
+
+            # A claim session ends on its one recorded run. The seat types
+            # no verdict, so a later turn can only add words that are not
+            # the record (frame 360, H1).
+            if wake.kind == "tick:claim" and any(
+                    w[0] == "claim_runs" for w in sb.ctx.writes):
                 break
 
             # A challenge session ends on its verdict, the same shape as a

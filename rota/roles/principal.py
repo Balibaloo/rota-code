@@ -2546,6 +2546,8 @@ TICK_WORDS = {
     # The Critic's `tick:challenge` checks a claim. `code_gaps` kept these
     # words in a second table before (fact F21).
     "challenge": "the team could not check a claim",
+    # The Architect's `tick:claim` runs the code of a claim (frame 360, RA F6).
+    "claim": "the team could not run the code",
     "boundary": "the team could not settle a boundary",
     "reconcile": "the team could not compare the account with the code",
     "survey": "the team could not read a part of the code",

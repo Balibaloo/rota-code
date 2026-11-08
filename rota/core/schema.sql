@@ -433,6 +433,28 @@ CREATE TABLE IF NOT EXISTS touch_strays (
     PRIMARY KEY (batch_id, commit_sha, path)
 );
 
+-- One run of a program at the touch of a claimed batch, written only by
+-- `code.run`. Frame 360, shape H1: the seat's own words are never the record.
+-- On the probe, 4 of 4 seats wrote "holds" against a printout that showed
+-- the fault. So the row keeps the program and the exact bytes that it
+-- printed. `imported` is JSON: the touch names that the program called.
+-- `wrote_paths` is JSON: the paths that the program wrote in the worktree,
+-- which the door put back.
+CREATE TABLE IF NOT EXISTS claim_runs (
+    id          TEXT PRIMARY KEY,
+    batch_id    TEXT NOT NULL REFERENCES batches(id),
+    commit_sha  TEXT NOT NULL,
+    session_id  TEXT NOT NULL DEFAULT '',
+    program     TEXT NOT NULL,
+    stdout      BLOB NOT NULL DEFAULT x'',
+    stderr      TEXT NOT NULL DEFAULT '',
+    returncode  INTEGER NOT NULL,
+    timed_out   INTEGER NOT NULL DEFAULT 0,
+    imported    TEXT NOT NULL DEFAULT '[]',
+    wrote_tree  INTEGER NOT NULL DEFAULT 0,
+    wrote_paths TEXT NOT NULL DEFAULT '[]'
+);
+
 -- The `dropped` notes of a batch's worktree that no write or ledger note has
 -- closed yet: one row per batch and path, written by `code.write`. Frame 283:
 -- night 154's s340 and s388 committed the dropped lines away in a later

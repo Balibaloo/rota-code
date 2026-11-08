@@ -185,7 +185,10 @@ def test_every_predicate_is_either_spine_or_register():
     # code at each item version -- frame 298, 2026-10-18). 49 with
     # `commitments` (register: a surveyed area with a witness line is owed
     # one session that states its lines -- frame 362, pass 4b, 2026-11-04).
-    assert len(every) == 49, (
+    # 50 with `claim` (spine: a claimed batch's own run at the touch, drained
+    # by the Architect's one session, and the Tester waits until then --
+    # frame 360, shape H1, 2026-11-08).
+    assert len(every) == 50, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

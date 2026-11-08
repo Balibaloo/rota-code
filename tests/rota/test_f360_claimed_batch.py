@@ -59,6 +59,14 @@ def _land(db, sb, sid="s_f360"):
     db.commit()
 
 
+def _end_claim_session(db, bid, sid="s_f360_arch"):
+    """The Architect's `tick:claim` session ended with no run, so the
+    Tester of the claim wakes (frame 360, shape H1)."""
+    session_commit(db, SessionResult(session_id=sid, role="architect",
+                                     wake_kind="tick:claim", wake_refs=(bid,)))
+    db.commit()
+
+
 def _heads(sb):
     return [w for w in sb.ctx.writes if w[0] == "batches"
             and "head_commit" in w[2]]
@@ -130,6 +138,10 @@ def test_the_measure_on_dry2w3(dry2w3):
     assert row["head_commit"] == fork
     assert row["claimed_head"] == fork
     assert tick_batch_start(db) == []
+    # Shape H1: the Architect runs the code first, and the Tester waits.
+    assert [w.refs for w in predicates.claim(db)] == [("b_2",)]
+    assert "b_2" not in [w.refs[0] for w in predicates.tests_missing(db)]
+    _end_claim_session(db, "b_2")
     assert [w for w in predicates.tests_missing(db) if w.refs == ("b_2",)], \
         "the Tester is not woken for the claimed batch"
     # The four inherited tests of b_2 are owed a run at the claimed head.
@@ -485,6 +497,7 @@ def s153_rows(tmp_path):
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES (?, 't1')",
                (S153_BATCH,))
     db.commit()
+    _end_claim_session(db, S153_BATCH)
     yield db
     db.close()
 
@@ -520,6 +533,7 @@ def _claim_in_world(db):
     sb = build("developer", db, batch_id="b1")
     sb.call("code.commit", message="the criteria are met")
     _land(db, sb, sid="s_claim")
+    _end_claim_session(db, "b1")
     assert CLAIM_DETAIL in _tester_detail(db, "b1")
 
 
