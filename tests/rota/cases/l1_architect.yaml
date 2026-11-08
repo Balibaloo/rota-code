@@ -526,3 +526,109 @@
   forbidden:
     writes: [ledger, criteria, tickets, items, constraints]
     recipients: [principal, vision_keeper, developer, tester]
+
+- id: L1-AR-run-the-code-at-a-claim
+  # Frame 360, shape H1. On dry run 6b the Developer said "already done",
+  # three tests passed on the old code, and the claim merged false. A
+  # claimed batch now wakes the Architect once on `tick:claim`, and the
+  # seat runs one program at the touch. The touch is the fixture of
+  # `test_f360_h1_claim_run.py`: icalendar's `_foldline` at the fork
+  # 99619246, which splits a word at the fold. The probe's programs A1 to A3
+  # import `_foldline` from its module, and A4 defined its own. The door
+  # refuses a program that imports nothing of the touch, so a row in
+  # `claim_runs` holds an import of the touch. The case waits for its
+  # recording.
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  tick: claim
+  # The detail is `predicates.claim_wake_detail` on the onboarded case.
+  detail: "The Developer changed no code and says that the request is
+    already true of the code. The request: \"When icalendar writes a long
+    line, fold it at a space where it can, so that a word is not split, and
+    keep everything else as before.\". The touch:
+    src/icalendar/parser/string.py, src/icalendar/tests/test_icalendar.py,
+    `_foldline` in src/icalendar/parser/string.py.\nShow what the code does
+    with one run. Import the function of the touch from its module, call it
+    with one example from the request, and print the input and the result.
+    Send the program with code.run(text). The run is the record."
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    # The door imports from the worktree, and the probe reads the index.
+    # `change:` puts the fork's touch in the base before the worktree.
+    onboard: true
+    change:
+      src/icalendar/__init__.py: ""
+      src/icalendar/parser/__init__.py: ""
+      src/icalendar/parser/string.py: |
+        """Functions for manipulating strings."""
+
+        DEFAULT_ENCODING = "utf-8"
+
+
+        def _escape_char(text):
+            return text.replace("\\", "\\\\")
+
+
+        def _foldline(line, limit=75, fold_sep="\r\n "):
+            assert isinstance(line, str)
+            assert "\n" not in line
+            folded_lines = []
+            current_chars = []
+            byte_count = 0
+            for char in line:
+                char_byte_len = len(char.encode(DEFAULT_ENCODING))
+                if current_chars and byte_count + char_byte_len >= limit:
+                    folded_lines.append("".join(current_chars))
+                    current_chars = []
+                    byte_count = 0
+                current_chars.append(char)
+                byte_count += char_byte_len
+            if current_chars:
+                folded_lines.append("".join(current_chars))
+            return fold_sep.join(folded_lines)
+
+
+        foldline = _foldline
+      src/icalendar/tests/test_icalendar.py: |
+        def test_nothing():
+            pass
+  fixture:
+    items:
+      - {id: <i1>, text: "When icalendar writes a long line, fold it at a
+           space where it can, so that a word is not split, and keep
+           everything else as before.", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "fold a long line at a space"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When _foldline folds a long line that holds spaces, each
+           fold falls at a space, so that no word is split across the fold.",
+         term_refs: '[]'}
+    # The claim: the head is the fork, and no code changed on the batch.
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: 99619246,
+         claimed_head: 99619246}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: src/icalendar/parser/string.py,
+         grain_kind: path}
+      - {batch_id: <b1>, grain: src/icalendar/tests/test_icalendar.py,
+         grain_kind: path}
+  expect:
+    calls: [code.run]
+    writes:
+      # One run, and its program imports `_foldline` from the touch's
+      # module. A program that defines its own `_foldline`, as A4 did,
+      # never lands (frame 360, the amendment, H1).
+      claim_runs: {count: 1, text_includes: ["_foldline"],
+                   text_includes_any: ["from icalendar.parser.string import",
+                                       "import icalendar.parser.string"],
+                   fields_nonempty: [imported]}
+  forbidden:
+    writes: [criteria, tickets, items, tests, batch_touch, constraints]
+    recipients: [principal, vision_keeper, developer, tester]
