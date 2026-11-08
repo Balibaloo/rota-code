@@ -695,3 +695,51 @@ def test_the_same_pass_with_no_claim_still_lands(db):
     row = _land(sb, lines, held=False)
     assert row["result"] == "pass", row
     assert json.loads(row["routes"]) == {C1: "added", C3: "test"}, row
+
+
+# ---------------------------------------------------------------------------
+# Pass 2b: the call form of the run, and the run sentence at the prints door
+# ---------------------------------------------------------------------------
+
+def test_the_bare_word_text_is_refused_with_its_cause(project):
+    """On the register case the Architect sent `code.run(text)` three times
+    per run. The protocol binds the bare name to the word "text", and the
+    refusal named the import, not the missing program."""
+    db, _ = project
+
+    said = _refusal(_architect(db), "text")
+
+    assert said == ("The door got `text`, which is not a program with an "
+                    "import and a call, so send the program's source inside "
+                    "the call, from its import line to its last print "
+                    "line."), said
+    # A text with an import or a call keeps the refusal of the touch, which
+    # names the part that it lacks.
+    assert _refusal(_architect(db), "_foldline\n").startswith(
+        "The door got `_foldline`"), "_foldline"
+    assert _refusal(_architect(db), "print('x')\n").startswith(
+        "The program imports nothing from the touch")
+
+
+def test_the_claim_prompt_shows_a_program_inside_the_call():
+    """The prompt's step 5 said `code.run(text)`, and the seat copied it.
+    The example call parses to a text of four lines at most that holds an
+    import and a call."""
+    import ast
+    import textwrap
+
+    from rota.llm.toolproto import extract
+
+    prompt = Path("rota/roles/prompts/architect/claim.md").read_text(
+        encoding="utf-8")
+    assert "code.run(text)" not in prompt, prompt
+    lines = prompt.splitlines()
+    start = next(i for i, ln in enumerate(lines) if "code.run(text=" in ln)
+    end = next(i for i in range(start, len(lines)) if lines[i].endswith("')"))
+    [call] = extract("TOOL: " + textwrap.dedent("\n".join(lines[start:end + 1])))
+    program = call.args["text"]
+    nodes = list(ast.walk(ast.parse(program)))
+    assert call.name == "code.run" and not call.pos, call
+    assert len(program.splitlines()) <= 4, program
+    assert any(isinstance(n, ast.ImportFrom) for n in nodes), program
+    assert any(isinstance(n, ast.Call) for n in nodes), program

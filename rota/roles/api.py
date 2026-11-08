@@ -24682,6 +24682,18 @@ def _dotted_of(node, binds: dict[str, str]) -> str | None:
     return None
 
 
+def _not_a_program(text: str) -> bool:
+    """True when the text holds no import and no call. A text with one of
+    the two gets the touch refusal, which names the import or the call that
+    it lacks. A text that does not parse gets the syntax refusal."""
+    try:
+        nodes = list(_ast.walk(_ast.parse(text)))
+    except SyntaxError:
+        return False
+    return not any(isinstance(n, (_ast.Import, _ast.ImportFrom, _ast.Call))
+                   for n in nodes)
+
+
 def _claim_program_fault(text: str, names: dict[str, str],
                          modules: list[tuple[str, list[str]]],
                          symbols: list[str]) -> tuple[str, list[str]]:
@@ -24898,6 +24910,14 @@ def code_run(ctx: Ctx, text: str) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("The program is empty, so send the whole program "
                          "as text.")
+    # The register case sent `code.run(text)` three times per run, and the
+    # protocol binds the bare name as the word "text". The touch refusals
+    # then named the import, not the missing program (frame 360, pass 2b).
+    if _not_a_program(text):
+        raise ValueError(f"The door got `{text.strip()[:60]}`, which is not a "
+                         f"program with an import and a call, so send the "
+                         f"program's source inside the call, from its import "
+                         f"line to its last print line.")
     # With no worktree row the run would land in the project root, and the
     # cleanup would remove new files under rota's own .rota/ folder (second
     # look of review p1 of frame 360, fix 2).
