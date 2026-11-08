@@ -270,6 +270,10 @@ ALLOWED = {
     ("rota/core/scheduler.py", "owed"),
     ("rota/core/scheduler.py", "owed_grains"),
     ("rota/core/db.py", "touch_columns"),
+    # The set that his verdict ruled on the item's code line, from the guess
+    # rows or the batch rows. `predicted_rows` reads one batch and no guess
+    # row (frame 362, slice 2).
+    ("rota/core/scheduler.py", "code_line_basis"),
     # Tools that read the raw record.
     ("rota/tools/audit.py", "orphaned_grain_refs"),
     ("rota/tools/nightreport.py", "_guess_section"),
