@@ -743,3 +743,38 @@ def test_the_claim_prompt_shows_a_program_inside_the_call():
     assert len(program.splitlines()) <= 4, program
     assert any(isinstance(n, ast.ImportFrom) for n in nodes), program
     assert any(isinstance(n, ast.Call) for n in nodes), program
+
+
+def test_the_run_sentence_does_not_reach_the_prints_door(rows):
+    """The prints door of `tests.encode` reads the criterion, its ticket and
+    item, the glossary, the statements, the principal's entries and the
+    ledger. The run sentence says "printed", and it is in none of them, so
+    an encode on the return value lands."""
+    from rota.roles.api import claim_run_words
+
+    rows.execute("UPDATE items SET text = 'When icalendar folds a long line, "
+                 "fold it at a space so that a word is not split.'")
+    rows.execute("UPDATE criteria SET text = 'Each fold of _foldline falls at "
+                 "a space.', surface_refs = ? WHERE id = 'c1'",
+                 (json.dumps([f"{SOURCE}::_foldline"]),))
+    rows.execute(
+        "INSERT INTO claim_runs (id, batch_id, commit_sha, session_id, "
+        "program, stdout, stderr, returncode, unfinished, imported, "
+        "wrote_tree, wrote_paths) VALUES ('cr1', ?, ?, 's_arch', ?, ?, '', 0, "
+        "0, ?, 0, '[]')",
+        (BATCH, FORK, "from icalendar.parser.string import _foldline\n"
+                      "print(_foldline('wo rds', 3))\n",
+         b"wo\r\n rds\n", json.dumps(["icalendar.parser.string._foldline"])))
+    rows.commit()
+    assert " printed: " in claim_run_words(rows, BATCH)
+    tb = build("tester", rows, batch_id=BATCH)
+    tb.call("tests.triage", criterion_id="c1", verdict="encodable")
+
+    out = tb.call("tests.encode", id="tst_fold", criterion_id="c1",
+                  path="src/icalendar/tests/test_fold.py",
+                  body="from icalendar.parser.string import _foldline\n\n"
+                       "def test_fold():\n"
+                       "    out = _foldline('aaa bbb ' * 20, 75)\n"
+                       "    assert 'aa\\r\\n a' not in out\n")
+
+    assert out.get("id") == "tst_fold", out
