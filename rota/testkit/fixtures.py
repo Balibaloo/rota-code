@@ -534,6 +534,12 @@ def _junction_rows(conn: sqlite3.Connection, table: str,
     return out
 
 
+# The tables a door stages that are not artefact tables, so no receipt names
+# their rows. Each one has a `session_id` column. A guard test reads the doors
+# and fails when a new such table is missing here.
+SESSION_TABLES = ("claim_runs", "faults")
+
+
 def capture(conn: sqlite3.Connection, session_id: str,
             versions_before: dict[str, int],
             messages_before: set[str] | None = None) -> Delta:
@@ -556,6 +562,19 @@ def capture(conn: sqlite3.Connection, session_id: str,
     )]
     if refs:
         writes["ruled_refs"] = refs
+    # A door stages a row of these tables, and `session_commit` gives it no
+    # receipt. The row carries the session's id, so the case reads it by that
+    # id. Without this, all 5 runs of `L1-AR-run-the-code-at-a-claim` landed
+    # a run and the case counted 0 (frame 360, pass 2e).
+    for table in SESSION_TABLES:
+        try:
+            ids = [r[0] for r in conn.execute(
+                f"SELECT id FROM {table} WHERE session_id = ? ORDER BY id",
+                (session_id,))]
+        except sqlite3.Error:
+            ids = []
+        if ids:
+            writes[table] = ids
 
     # Everything this role sent *in this session*, and nothing else.
     #
