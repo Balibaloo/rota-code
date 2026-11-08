@@ -550,8 +550,9 @@
     keep everything else as before.\". The touch:
     src/icalendar/parser/string.py, src/icalendar/tests/test_icalendar.py,
     `_foldline` in src/icalendar/parser/string.py.\nShow what the code does
-    with one run. Import the function of the touch from its module, call it
-    with one example from the request, and print the input and the result.
+    with one run. Import the function of the touch with this line, copied
+    exactly: `from icalendar.parser.string import _foldline`. Call it with
+    one example from the request, and print the input and the result.
     Send the program's source inside the call, as step 5 of the claim mode
     shows. The run is the record."
   refs: [<b1>]

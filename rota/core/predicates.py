@@ -1130,18 +1130,33 @@ def claim_request(conn, batch_id: str) -> str:
 
 def claim_wake_detail(conn, batch_id: str) -> str:
     """The request, the touch and the act, in the words of H1's wake."""
+    from ..roles.api import claim_import_line
     from .worktrees import grain_path
 
     touch = claim_touch(conn, batch_id)
     named = ", ".join(touch["files"] + [
         f"`{g.split('::', 1)[1]}` in {grain_path(g)}"
         for g in touch["symbols"]]) or "no file is named"
+    # A seat turns a path into `src.icalendar...`, so the wake names the
+    # line itself (frame 360, pass 2c), as the Tester's door does.
+    lines = list(dict.fromkeys(filter(None, map(claim_import_line,
+                                                touch["symbols"]))))
+    if lines:
+        how = ("Import the function of the touch with this line, copied "
+               "exactly: " if len(lines) == 1 else "Import the function of "
+               "the touch with one of these lines, copied exactly: ")
+        act = (how + ", ".join(f"`{x}`" for x in lines) + ". Call it with "
+               "one example from the request, and print the input and the "
+               "result. ")
+    else:
+        act = ("Import the function of the touch from its module, call it "
+               "with one example from the request, and print the input and "
+               "the result. ")
     return ("The Developer changed no code and says that the request is "
             f"already true of the code. The request: "
             f"\"{claim_request(conn, batch_id)}\". The touch: {named}.\n"
-            "Show what the code does with one run. Import the function of the "
-            "touch from its module, call it with one example from the request, "
-            "and print the input and the result. Send the program's source "
+            "Show what the code does with one run. " + act +
+            "Send the program's source "
             "inside the call, as step 5 of the claim mode shows. The run is "
             "the record.")
 

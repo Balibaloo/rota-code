@@ -24621,6 +24621,18 @@ def _touch_modules(sources: list[str]) -> list[tuple[str, list[str]]]:
     return out
 
 
+def claim_import_line(grain: str) -> str:
+    """The import line of a touch symbol `path::name`, or "" for a path.
+
+    A small model turned the path `src/icalendar/parser/string.py` into
+    `src.icalendar.parser.string` 5 of 5 times (frame 360, pass 2c). The
+    Tester's door names the line itself for the same cause (frame 260), and
+    this line uses the same module helper."""
+    name = _ref_symbol(grain)
+    module = _dotted_module(_grain_path(grain)) if name else ""
+    return f"from {module} import {name}" if module else ""
+
+
 def _touch_names(tree, sources: list[str]) -> dict[str, str]:
     """The top-level names that each source file of the touch defines:
     name -> path. A name bound by an import is not a definition."""
