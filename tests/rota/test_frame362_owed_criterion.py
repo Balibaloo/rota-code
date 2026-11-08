@@ -251,3 +251,25 @@ def test_a_criterion_written_with_no_ruled_set_rests_on_nothing(db):
     assert CODE_LINE_KEY not in push_working_set("terminologist", sb, wake)
     assert db.execute("SELECT guess_ruling FROM criteria WHERE id = 'c4'"
                       ).fetchone()[0] == ""
+
+
+def test_a_spent_rewrite_names_the_check_and_keeps_the_encode_shut(db):
+    """The review of pass 1, finding 4: the page said "c1, m26" and
+    "nothing moves until that is cleared", and the batch went on."""
+    from rota.core.scheduler import criterion_owed_key
+    from rota.roles.principal import _render_state
+
+    _correct(db)
+    key = criterion_owed_key(criterion_owed(db, "c1"))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 3, 1)", (key,))
+    db.commit()
+    assert [w.refs for w in predicates.tests_missing(db)] == [("b1",)]
+    page = _render_state(db)
+    assert (f'Stuck: the team could not rewrite the check "{TEXT}" for the code '
+            f"you corrected after 3 attempts. Nothing waits on you. The change "
+            f"goes on, and no test is written for that check until it is "
+            f"rewritten. Tell me what to change.") in page, page
+    assert "c1, m26" not in page
+    with pytest.raises(Exception, match="The Terminologist rewrites it first"):
+        _encode(db, BODY)

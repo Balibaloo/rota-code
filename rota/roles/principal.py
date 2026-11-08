@@ -639,7 +639,7 @@ def _render_state(conn: sqlite3.Connection) -> str:
     # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
     # without a verdict, was quarantined, the batch stayed running, and the
     # seat said "Building" because nothing else was pending.
-    from ..core.scheduler import quarantined_keys
+    from ..core.scheduler import key_parts, quarantined_keys
 
     # A step he dropped is no stall to him, so "Stuck" does not stay for
     # ever (review p4 of frame 354, finding 2).
@@ -650,9 +650,15 @@ def _render_state(conn: sqlite3.Connection) -> str:
     if gave_up:
         # The words of a kind name who failed, so the line does not say the
         # team twice (review of F20 pass 1, finding 4).
+        # A spent rewrite of a check lifts the hold, so the change goes on
+        # and only that check waits (the review of slice 2, pass 1, finding 4).
+        rest = ("Nothing waits on you. The change goes on, and no test is "
+                "written for that check until it is rewritten."
+                if all(key_parts(k)[1] == "tick:criterion_owed" for k in gave_up)
+                else "Nothing waits on you, and nothing moves until that is "
+                     "cleared.")
         out.append(f"Stuck: {'; '.join(_gave_up_words(conn, gave_up))}. "
-                   "Nothing waits on you, and nothing moves until that is "
-                   "cleared. Tell me what to change.")
+                   f"{rest} Tell me what to change.")
         out.extend(parked_lines)
         if looping is not None:
             out.append(looping.line())
@@ -2454,6 +2460,14 @@ def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
             error = next((errors[f] for f in shown if errors[f]), "")
             room = RED_CLAUSE_WORDS - len(head.split())
             return head + (f": {_cut_words(error, room)}" if error and room > 0 else "")
+    if kind == "criterion_owed":
+        # The fallback said "c1, m26", rota's ids (the review of slice 2,
+        # pass 1, finding 4). The check goes by its words.
+        crit = conn.execute("SELECT text FROM criteria WHERE id = ?",
+                            (next(iter(key_parts(key)[2]), ""),)).fetchone()
+        if crit is not None:
+            return (f'the team could not rewrite the check "{crit["text"]}" '
+                    f"for the code you corrected{tail}")
     return f"{_tick_words(kind)}{f' for {what}' if what else ''}{tail}"
 
 
