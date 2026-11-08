@@ -24560,7 +24560,11 @@ def _claim_program_fault(text: str, names: dict[str, str],
 
     Four refusals, in the order of RA F5. The syntax tree is the only
     check. A renamed copy beside a real call of the touch passes all four,
-    because no check of the text can tell which call made the printout."""
+    because no check of the text can tell which call made the printout.
+    A store through a name that holds a module's namespace passes too,
+    such as `d = vars(m)` and then `d["f"] = g`, or `getattr(m, "__dict__")`.
+    The check refuses the three direct forms only: a subscript store on
+    `vars(<module>)`, on `<module>.__dict__` and on `sys.modules`."""
     try:
         parsed = _ast.parse(text)
     except SyntaxError as exc:
@@ -24605,6 +24609,30 @@ def _claim_program_fault(text: str, names: dict[str, str],
         changed = None
         for t in targets:
             for n in _ast.walk(t):
+                # A subscript store on a namespace changes the module as an
+                # attribute store does (review p1 of frame 360, finding 2).
+                if isinstance(n, _ast.Subscript) and not isinstance(n.ctx, _ast.Load):
+                    held = n.value
+                    if isinstance(held, _ast.Call) and getattr(
+                            held.func, "id", "") == "vars" and held.args:
+                        base = _dotted_of(held.args[0], binds)
+                        if base and near(base):
+                            return (f"The program changes `vars({base})`, the "
+                                    f"names of a module of the touch, so send "
+                                    f"a program that calls the code of the "
+                                    f"touch as it is."), []
+                    if isinstance(held, _ast.Attribute) and held.attr == "__dict__":
+                        base = _dotted_of(held.value, binds)
+                        if base and near(base):
+                            return (f"The program changes `{base}.__dict__`, "
+                                    f"the names of a module of the touch, so "
+                                    f"send a program that calls the code of "
+                                    f"the touch as it is."), []
+                    if _dotted_of(held, binds) == "sys.modules":
+                        return ("The program changes `sys.modules`, which can "
+                                "put another module in the place of the touch, "
+                                "so send a program that imports the touch as "
+                                "it is."), []
                 if isinstance(n, _ast.Attribute) and not isinstance(n.ctx, _ast.Load):
                     base = _dotted_of(n.value, binds)
                     if base and near(base):
@@ -24656,6 +24684,57 @@ def _dirty_paths(tree) -> set[str]:
             .split("\0") if len(tok) > 3}
 
 
+def _hidden_paths(tree) -> set[str]:
+    """The files and folders of the worktree that `worktrees.discard` does
+    not see: the paths that git ignores, and `.rota/`. A folder ends in /.
+
+    Review p1 of frame 360, finding 3: a program wrote `build/left.txt`
+    and `.rota/left.txt`, and both stayed after the run."""
+    import os
+    import subprocess
+
+    tops = {".rota"}
+    run = subprocess.run([*GIT, "-C", str(tree), "status", "--porcelain", "-z",
+                          "--ignored", "--untracked-files=all"],
+                         capture_output=True)
+    if run.returncode == 0:
+        tops |= {tok[3:].rstrip("/") for tok in run.stdout.decode(
+            "utf-8", "surrogateescape").split("\0") if tok.startswith("!! ")}
+    found: set[str] = set()
+    for top in tops:
+        where = tree / top
+        if where.is_file():
+            found.add(top)
+        elif where.is_dir():
+            found.add(top + "/")
+            for root, dirs, files in os.walk(where):
+                rel = os.path.relpath(root, tree).replace(os.sep, "/")
+                found |= {f"{rel}/{d}/" for d in dirs}
+                found |= {f"{rel}/{f}" for f in files}
+    # Git lists each ignored file of a folder alone, so a folder that the
+    # run made must enter the set through its files.
+    found |= {"/".join(p.split("/")[:i]) + "/" for p in list(found)
+              for i in range(1, p.rstrip("/").count("/") + 1)}
+    return found
+
+
+def _remove_new_hidden(tree, before: set[str]) -> list[str]:
+    """Remove the hidden paths that the run made, and return the files."""
+    removed = []
+    # The deepest path first, so that a folder is empty when its turn comes.
+    for path in sorted(_hidden_paths(tree) - before,
+                       key=lambda p: p.rstrip("/").count("/"), reverse=True):
+        try:
+            if path.endswith("/"):
+                (tree / path).rmdir()
+            else:
+                (tree / path).unlink()
+                removed.append(path)
+        except OSError:
+            pass
+    return removed
+
+
 @op("code", "run")
 def code_run(ctx: Ctx, text: str) -> dict:
     """
@@ -24698,6 +24777,7 @@ def code_run(ctx: Ctx, text: str) -> dict:
         raise ValueError(fault)
 
     before = {_grain_path(p) for p in _dirty_paths(tree)}
+    hidden = _hidden_paths(tree)
     made_rota = not (tree / ".rota").exists()
     folder = tree / CLAIM_RUN_DIR
     folder.mkdir(parents=True, exist_ok=True)
@@ -24718,8 +24798,11 @@ def code_run(ctx: Ctx, text: str) -> dict:
                           timeout=CLAIM_RUN_TIMEOUT, env=env)
         stdout = b"" if out.timed_out or not out_file.exists() \
             else out_file.read_bytes()
+        # Bytes, as for stdout: `read_text` turns each CR LF into LF, and
+        # the row must hold stderr as the program wrote it (review p1 of
+        # frame 360, finding 1).
         stderr = "" if out.timed_out or not err_file.exists() \
-            else err_file.read_text(encoding="utf-8", errors="replace")
+            else err_file.read_bytes().decode("utf-8", "replace")
         # The wrapper itself did not start: the pipe holds why.
         stdout = stdout or (out.stdout or "").encode("utf-8")
         stderr = stderr or out.stderr or out.error or ""
@@ -24732,6 +24815,7 @@ def code_run(ctx: Ctx, text: str) -> dict:
                 pass
     # What the program wrote in the tree goes back to the head (RA F13).
     wrote = worktrees.discard(tree, keep=before)
+    wrote = sorted({*wrote, *_remove_new_hidden(tree, hidden)})
     head = _head_commit(ctx, bid) or ""
     rid = "cr_" + hashlib.sha256(
         f"{bid}|{head}|{text}".encode("utf-8")).hexdigest()[:12]

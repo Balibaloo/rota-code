@@ -432,6 +432,65 @@ def test_a_failing_program_is_recorded_with_its_error(project):
     assert row["stderr"].rstrip().splitlines()[-1] == "AssertionError", row["stderr"]
 
 
+def test_the_row_holds_stderr_as_the_program_wrote_it(project):
+    """Review p1 of frame 360, finding 1: `read_text` turned CR LF into LF."""
+    db, _ = project
+    text = ("import sys\n"
+            "from icalendar.parser.string import _foldline\n"
+            "print(_foldline('a b'))\n"
+            "sys.stderr.write('one\\r\\ntwo\\r\\n')\n")
+    sb = _architect(db)
+
+    sb.call("code.run", text=text)
+    _land(db, sb)
+
+    assert "one\r\ntwo\r\n" in _row(db)["stderr"], repr(_row(db)["stderr"])
+
+
+def test_a_program_that_patches_vars_of_the_touch_is_refused(project):
+    """Review p1 of frame 360, finding 2: a subscript store on `vars(s)`
+    passed all four refusals, and the run printed "patched"."""
+    db, _ = project
+    text = ("import icalendar.parser.string as s\n"
+            "vars(s)['_foldline'] = lambda line: 'patched'\n"
+            "print(s._foldline('x'))\n")
+
+    said = _refusal(_architect(db), text)
+
+    assert said == ("The program changes `vars(icalendar.parser.string)`, the "
+                    "names of a module of the touch, so send a program that "
+                    "calls the code of the touch as it is."), said
+
+
+def test_the_door_removes_what_the_program_wrote_in_hidden_paths(project):
+    """Review p1 of frame 360, finding 3: a write to an ignored path and to
+    `.rota/` stayed after the run."""
+    db, root = project
+    exclude = root / _git(root, "rev-parse", "--git-path",
+                          "info/exclude").strip()
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    exclude.write_bytes(b"build/\n")
+    (root / ".rota").mkdir()
+    (root / ".rota" / "kept.txt").write_bytes(b"kept")
+    text = ("import os\n"
+            "from icalendar.parser.string import _foldline\n"
+            "print(_foldline('a b'))\n"
+            "os.makedirs('build', exist_ok=True)\n"
+            "open('build/left.txt', 'w').write('x')\n"
+            "open('.rota/left.txt', 'w').write('x')\n")
+    sb = _architect(db)
+
+    out = sb.call("code.run", text=text)
+    _land(db, sb)
+
+    assert not (root / "build").exists()
+    assert not (root / ".rota" / "left.txt").exists()
+    assert (root / ".rota" / "kept.txt").read_bytes() == b"kept"
+    assert sorted(json.loads(_row(db)["wrote_paths"])) == [
+        ".rota/left.txt", "build/left.txt"]
+    assert "the door put them back" in out["note"], out
+
+
 def test_one_run_per_session_and_only_on_a_claim(project):
     db, _ = project
     sb = _architect(db)
