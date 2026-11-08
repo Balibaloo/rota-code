@@ -507,3 +507,84 @@ With no row, the third sentence reads "No run of the code is on record."
 - **His reading of `repr` escapes is unmeasured** (reasoned).
 - **The claim rate is 1 of 19 merges, and no true claim has merged live** (observed: section 4). H1's cost on a true claim is one Architect session, from the probe's timing only.
 - **Not checked.** The register cases that a new Architect mode needs. The trust boundary of a run that a model wrote, beyond the harness's own runs of tests.
+
+### Revision of the amendment
+
+The review is `plans/design-false-claim-amend-review-2026-11-08.md`: revise, 2 high, 7 medium and 5 low. I take all 14 findings. This section supersedes the parts of H0 to H11 that it names (observed: the review). No model ran. No tracked file changed except this page.
+
+#### RA. The findings, taken
+
+1. **F1, taken. The limit of H1 is wider than a weak example.** Under H1 the fact gates nothing, so only a red test stops a false claim. In A1 and A2 the printout shows the split, and H1 still merges both. He reads the printout after the merge (observed: H1 table; reasoned: H2). The limit, in place of H0's fifth bullet and H10's option 1: **"A false claim closes even when the printout shows the fault, unless a test goes red. He reads the printout after the merge."** On the measured case the trigger of H9 is predicted to fire on the first such claim, because 2 of 5 printouts showed the fault and nothing in H1 acts on them (reasoned). So H9's "Next on a count" is a check of that prediction, not an open question.
+2. **F2, taken. "Departs from no ruling" is withdrawn.** His ruling of 2026-11-06 14:19: "It can close as long as it is verified by another seat (and the review every merge setting is not on)" (ruled: Roman, `plans/stack.md`, frame 360). Under H1 the Critic's pass meets "verified by another seat" in form only. P1 gave 0 of 5 Critics who said that the claim is false, and the read, section G, shows that the Critic has no means to verify a claim (observed). So H1 keeps the letter of the 14:19 ruling and not its intent. RE opens the question with that ruling.
+3. **F3, taken. The door stores the exact bytes.** `execute._local` decodes with universal newlines, so a plain print of a fold is stored as two line feeds and no CR (observed: the review's probe `rev360/crlf.py`; `rota/core/execute.py` 43 to 45). A3's seat read those two line feeds as "inserts two newlines" (observed: A3's record). The door therefore sets `PYTHONIOENCODING=utf-8`, runs the child with its stdout opened with `newline=""`, captures bytes, and stores the bytes as `stdout_bytes`. The text the line shows comes from those bytes. Each CR LF followed by a space shows as the visible mark ` ⏎ ` and each other CR LF as ` ↵ `. The door does not depend on the brief's `repr`.
+4. **F4, taken. Every run that does not time out is recorded.** "Completes" means "ended before the timeout". The row holds the return code, the stdout bytes and the last 1,500 characters of the stderr. A timeout is recorded with `timed_out = 1` and no output. The line reads the last row (RC).
+5. **F5, taken. Refusals 2 and 4 are restated.** Refusal 2 counts definitions and assignment targets only: a `def`, a `class`, an `=` or a `lambda` bound to a name that a source file of the touch defines. A name bound by an import is exempt, so A1 to A3 pass and A4 is refused (observed: the review's probe `rev360/refusals.py`). Refusal 4 asks for a call of a name that the program imports from a touch module, so `import icalendar` with no such call is refused. **The renamed copy.** A program that imports `_foldline`, calls it once, and prints the result of its own `def fold` passes every text check. No check of the text can tell which call made the printout (reasoned). The door records the touch names that the program imported and called in the row's `imported`. His line does not show them, because it holds no identifiers, and "Ask me to show the program" reaches them. The honest statement: the door stops A4's act and a renamed copy with no call of the touch. It does not stop a copy beside a real call.
+6. **F6, taken. The wiring is in the reach and the price.** The probe patched four things (observed: `probe_architect_claim.py` 125 to 159):
+   - `runner._wake_allow`, the tools of the wake. `tick:claim` must map to `architect/claim.tools` (`rota/core/runner.py` 442).
+   - `runner.DETAIL_SHOWN`, the wake kinds whose detail the seat reads (`rota/core/runner.py` 288). Without `tick:claim` in the set, the seat does not see the request or the touch.
+   - The graph, `rota/design/graph.py`: an edge `architect -> code`, reads, `run`, and the table node `claim_runs` with its one writer.
+   - `TICK_WORDS`, `rota/roles/principal.py` 2539: `"claim": "the team could not run the code"`, so a stuck claim tick does not read "the team could not finish a step".
+   Price: one more cycle, in RD.
+7. **F7, taken. The claim rate since the claim door.** The claim mark landed at 657cf1a81, 2026-11-02 17:32 (observed: `git log`). Since then, 2 batches merged on the records: dry run 3's `bg_1`, a change, and the arm's run 1, the claim (observed: `plans/dry3-wall1-read-2026-11-02.md`; the arm read). Dry runs 4, 5, 6, 6b, 6c and 7 merged no batch (observed: each read's Result). So the rate since the door is 1 claim of 2 merges, and 1 of 1 claims is false. The 1 of 19 is a rate from before the door, because the claim branch did not exist on the nights (reasoned). The nights after 2026-11-02 are not checked.
+8. **F8, taken. The opt-in form is option 3.** `merge_gate=review` holds a claimed batch today, and no page shows the hold (observed: `rota/core/lifecycle.py` 1241, its one reader). His 14:19 ruling names that setting, so a claim that waits only when he switches the setting on departs from no ruling (reasoned). H2-opt: a hold page for a claimed batch under `merge_gate=review`, with the printout of RC and "Reply 'ok' to accept. Say what is wrong if it is not done." Price: the page form 2, the land of "ok" and of his words 2, one review 1, the gate 1, so about 6 cycles over H1 (reasoned: the anchors). A merge page for change batches under the same setting is not in it.
+9. **F9, taken. The story keeps to the counts.** RE says "ran a program four times, three of them on the project's own code" and "in all four reports it marked the claim as holding". Option 2 and option 3 say what happens after his "no": his words go to the builder and the tester, and the job goes back to them.
+10. **F10, taken. The reach is 14 places.** Row 13 of H7 holds two places, `_built_words` and `tests_missing.md` 27 (observed: the review). With the four places of F6, H1 touches 18.
+11. **F11, taken. The line's words.** "ran the code on one example" becomes "ran one program". "The only other evidence" becomes "The only evidence" when no run is on record. RC gives the line.
+12. **F12, taken. The predicate keys the wake by batch.** The wake fires for a claimed batch with no `claim_runs` row and no ended `tick:claim` session for that batch. `boot.py` 167 to 179 moves the head, and the key by batch survives the move (reasoned).
+13. **F13, taken. The door puts the tree back.** After each run the door reads `git status --porcelain` of the worktree. A change is put back with `git checkout -- .` and `git clean -fd` on the changed paths only, and the row records `wrote_tree = 1` with the paths. Measure 3 then runs for A4's first program, which aimed at `src/icalendar/parser/string.py`, as well as for A1.
+14. **F14, taken. The 08:20 reading is deferred, not withdrawn.** The status of 09:29 says "Roman rules its gate after the page". So H1 departs from the session's 08:20 reading that the fact gates, and that question is his (observed: `plans/stack.md`, frame 360, 09:29).
+
+No finding is left untaken.
+
+#### RB. The result, restated
+
+- **Recommend H1 with the reach of H7, the wiring of F6 and the door fact of H8.** The Architect runs one program on a claim. The door records the exact printout. The fact gates nothing.
+- **Departure: H1 meets his ruling of 2026-11-06 14:19 in form only.** "Verified by another seat" stays the Critic's pass, and that pass cannot verify a claim (RA item 2). It also leaves open the session's 08:20 reading that the fact gates, which he rules (RA item 14).
+- **The limit:** a false claim closes even when the printout shows the fault, unless a test goes red. He reads the printout after the merge (RA item 1).
+- **Options 2 and 3:** the default wait, which departs from ruling 2 of 2026-09-12, and the opt-in wait under the review setting, which departs from no ruling (RA item 8).
+
+#### RC. The line, in every state
+
+The line joins `claimed_lines`, in frame 358's form, one sentence and nothing asked. The first two sentences stay: "<request>: no code changed. The team says the code already does this." The third sentence reads the last `claim_runs` row of the batch:
+
+| State of the last row | Third sentence |
+|---|---|
+| Return code 0 and a printout | "The architect ran one program on the code, and it printed: <the text, with ⏎ for each fold, first 600 characters>." |
+| Return code 0 and no printout | "The architect ran one program on the code, and it printed nothing." |
+| Return code not 0 | "The architect ran one program on the code, and it stopped with an error: <the last line of the stderr>." |
+| Timed out | "The architect ran one program on the code, and it did not finish in <n> seconds." |
+| No row | "No run of the code is on record." |
+
+Then, with a row: "The only other evidence is <n> tests that the team wrote, and they pass on the code as it was." With no row: "The only evidence is <n> tests ...". Then "The reviewer passed them." when a pass is at the head, and "Ask me to show the program and the tests." Each sentence states a fact of a row, so it is true for a true claim, for a false claim and for no run (reasoned). A1's first run, the `AssertionError` inside `_foldline` on a line that holds a line feed, is a fact about the code, and the line shows it if it is the last run.
+
+#### RD. The price, restated
+
+**About 10 cycles for H1.** The door with exact bytes, the tree check and the table, 3. The predicate keyed by batch and the wiring of F6, 1. The mode, the tools and a register case, 2. The readers of H7, the line of RC and the door fact of H8, 2. One review, 1. The gate, 1 (reasoned: the anchors of section 3). Option 2 adds about 5 to 6. Option 3 adds about 6, with its hold page (RA item 8).
+
+#### RE. The question for the principal, in plain words
+
+This replaces H10.
+
+> **On 6 November you ruled that a job with no code change can close "as long as it is verified by another seat", unless the review setting is on. Option 1 below meets that ruling in form only: a reviewer still passes the job, and the trial shows that the reviewer cannot tell a true "already done" from a false one. Option 2 departs from your ruling of 12 September that nothing waits on a page after the first one. Option 3 departs from no ruling.**
+>
+> How it came to be: you asked the team, "Fold long lines so that no word splits." The builder said "already done" and changed nothing. A tester wrote three checks, and all three passed on the old code. A reviewer passed them, and the job closed. In truth the code still splits words. On a replay, five reviewers looked at the same job, and none of them said it was false. You then said, "try the planner", the team member who knows where each job lives in the code.
+>
+> On a trial the planner ran a program four times, three of them on the project's own code. In two of those three runs the printout showed "splitting wo" and "rds" on two lines, so the code splits words. In all four reports the planner marked the claim as holding.
+>
+> What happens today: the job closes by itself. Your screen says that no code changed and that three checks pass on the old code. No run of the code is shown.
+>
+> Option 1, recommended, the printout goes on your screen: the planner runs the code, and the system keeps what the run printed, never the planner's words. The tester sees the printout before it writes its checks. If a check then fails, the builder must change the code. If no check fails, the job closes by itself, and your screen shows the printout the same day. Its limit: a false "already done" closes even when the printout shows the fault, and you read it after the job closed. Then you say so, and the team opens a new job on top.
+>
+> Option 2, every such job waits for you: as option 1, and the job does not close until you read the printout and say "ok". Other jobs go on while it waits. If you say "no", your words go to the builder and the tester, and the job goes back to them. If you never answer, it waits for ever.
+>
+> Option 3, such a job waits only when you switch on the review setting: as option 1 when the setting is off. When it is on, you get a page with the printout, and the job waits for your "ok". A "no" goes back to the builder and the tester, as in option 2. The setting exists today, but no page shows you a job that waits on it.
+>
+> One exact analogy: a builder says the wall already stands. A surveyor takes a photo of it. The file keeps the photo, not the surveyor's caption. In option 1 the owner sees the photo after the wall is signed off. In option 2 the owner sees every photo before anyone signs. In option 3 the owner sees the photo before anyone signs, on the days the owner asked to.
+>
+> Recommended: option 1, with its departure named: your ruling of 6 November is met in form only. If a job closes on a printout that shows the job undone on the next three trial runs, I ask you again about option 3.
+
+#### RF. Doubt, added
+
+- The rate since the claim door is 1 claim in 2 merges. Two merges are no rate (observed: RA item 7).
+- The exact-bytes capture and the fold mark are a design from the review's probe on one machine, Windows. Not run on the door (reasoned).
+- The tree check puts back what a program wrote. A program that writes outside the worktree is not covered (reasoned).
