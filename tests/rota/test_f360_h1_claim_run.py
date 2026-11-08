@@ -24,6 +24,7 @@ from rota.core import predicates
 from rota.core.db import SessionResult, init_db, session_commit
 from rota.core.runner import _as_write
 from rota.core.sandbox import build
+from tests.rota.test_critic_kept_route import db  # noqa: F401
 
 FORK = "99619246f9c685ff407ab2559a12c18f6dbec9de"
 BATCH = "fold_long_lines_in_icalendar_batch"
@@ -552,3 +553,34 @@ def test_the_shift_page_no_longer_says_the_tests_check_the_claim(rows):
     assert "check the claim" not in said, said
     assert said.startswith(f" The change {BATCH} changes no code. The team "
                            f"claims that the code already does this."), said
+
+
+# ---------------------------------------------------------------------------
+# Part 4: the P1 door defect (the amendment, H8)
+# ---------------------------------------------------------------------------
+
+def test_a_pass_on_a_test_the_critic_said_does_not_encode_is_refused(db):
+    """P1 sample 1 claimed `encodes=False` for c2 and then passed with
+    `test: tst_fold_c2`. The `test:` route did not read the claim."""
+    from tests.rota.test_critic_kept_route import C1, C3, _critic, _refused
+
+    sb = _critic(db)
+    sb.call("verdicts.claim_encodes", criterion_id=C3, encodes=False)
+
+    said = _refused(sb, {C1: "return True", C3: "test: tst_c3"})
+
+    assert said.startswith(
+        f"you claimed in this session that the test of {C3} does not encode "
+        f"{C3}, so send msg.challenge_tester with refs naming {C3} and "
+        f"tst_c3, not a pass that rests on it."), said
+
+
+def test_the_same_pass_with_no_claim_still_lands(db):
+    """The control: the route holds the test when no claim says otherwise."""
+    from tests.rota.test_critic_kept_route import C1, C3, _critic
+
+    sb = _critic(db)
+    lines = {C1: "return True", C3: "test: tst_c3"}
+    with pytest.raises(ValueError) as exc:
+        sb.call("verdicts.emit", batch_id="bg_2", result="pass", lines=lines)
+    assert "does not encode" not in str(exc.value)

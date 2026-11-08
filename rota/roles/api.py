@@ -19371,6 +19371,14 @@ def _three_forms(cid: str) -> str:
             f"of a test of {cid} that passed on the last run>`. ")
 
 
+def _no_encode_fault(cid: str, test_id: str) -> str:
+    """The refusal of a `test:` value whose test the session claimed does
+    not encode its criterion (frame 360, H8)."""
+    return (f"you claimed in this session that the test of {cid} does not "
+            f"encode {cid}, so send msg.challenge_tester with refs naming "
+            f"{cid} and {test_id}, not a pass that rests on it.")
+
+
 def _route_fault(ctx, batch_id: str, cid: str, route: str,
                  parts: list[str], kept: list[tuple[str, str | None]],
                  added: list[str]) -> str:
@@ -19422,6 +19430,11 @@ def _route_fault(ctx, batch_id: str, cid: str, route: str,
         return f"the test {value} is a test of {bound}, not of {cid}.{named}"
     if row["retired_by"]:
         return f"the test {value} is retired.{named}"
+    # The seat's own recorded act, not its words. P1 sample 1 claimed that
+    # c2's test does not encode c2, then passed with `test: tst_fold_c2`
+    # (frame 360, H8).
+    if ctx.verdict_claims.get(cid) is False:
+        return _no_encode_fault(cid, value)
     run = ctx.conn.execute(
         "SELECT result, commit_sha FROM latest_runs WHERE batch_id = ? AND "
         "test_id = ?", (batch_id, value)).fetchone()
@@ -19563,6 +19576,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> dict[str, str]:
                    if asks_for_docs(texts_of[cid]) else kept)
         why = _route_fault(ctx, batch_id, cid, routes[cid], parts[cid],
                            kept_of, added_texts)
+        # The session's claim closes the fail route on this criterion, so
+        # the refusal names the challenge alone (frame 360, H8).
+        if why and why == _no_encode_fault(cid, _route_value(parts[cid])):
+            raise LinesRefusal(why)
         if why:
             raise LinesRefusal(
                 f"{why} {_three_forms(cid)}{listed}If no line and no test "
