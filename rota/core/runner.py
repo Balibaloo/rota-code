@@ -388,9 +388,11 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
         # tells the Tester. A tool added to `relay` is an invitation
         # (measured: `decisions.author` in a relay mode, 2026-09-03), and
         # `criterion_repair` already holds both calls (frame 142's design,
-        # 2.F, amendment 4). Only a park page's ruling, and only criteria:
-        # a term ruling beside one needs `glossary.adopt`, which the repair
-        # mode lacks (the diff review of b0a2086e, finding 1).
+        # 2.F, amendment 4). A park page's ruling, or a ruling of any page
+        # that rules each ref as a criterion line (frame 190's design,
+        # 2.2.7). Only criteria: a term ruling beside one needs
+        # `glossary.adopt`, which the repair mode lacks (the diff review of
+        # b0a2086e, finding 1).
         if (verb == "relay" and wake.role == "terminologist" and conn is not None
                 and wake.message_id):
             from .scheduler import park_criterion_relay
@@ -413,6 +415,11 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
             if batch_relay(conn, wake.message_id):
                 return "annotate"
         return verb
+    # An owed criterion is rewritten in the mode that holds
+    # `criteria.respecify`. A new mode would copy the repair brief
+    # (frame 362, slice 2).
+    if wake.kind == "tick:criterion_owed":
+        return "criterion_repair"
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
     return wake.kind
@@ -617,6 +624,32 @@ def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
         )
     )
     return system
+
+
+def _owed_criterion_lines(conn, wake: Wake) -> list[str]:
+    """
+    The criterion, the ruled set it does not rest on, and his words.
+
+    Dry run 7's s150 wrote c1 to c3 on `q_split` with no line of his m26 set
+    in its push (frame 362, slice 2). The wake gives the set and the words.
+    """
+    from .scheduler import criterion_owed
+
+    found = criterion_owed(conn, wake.refs[0]) if wake.refs else None
+    if found is None or list(wake.refs[1:2]) != [found["verdict"]]:
+        return []
+    row = conn.execute("SELECT text, surface_refs FROM criteria WHERE id = ?",
+                       (found["criterion"],)).fetchone()
+    lines = [f"Criterion {found['criterion']} was written before the principal "
+             f"corrected the code this request touches. Its words: "
+             f"{row['text']!r}. Its surface: {row['surface_refs']}.",
+             "The code the request touches now: "
+             + (", ".join(found["grains"]) or "no file named") + "."]
+    if found["words"]:
+        lines.append(f"The principal said: {found['words']!r}")
+    lines.append(f"Send criteria.respecify for {found['criterion']} with a "
+                 f"surface in that code. Keep the words when they still hold.")
+    return lines
 
 
 def _last_word_lines(conn, wake: Wake) -> list[str]:
@@ -1109,6 +1142,8 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         body.extend(_mistake_rows(sb.ctx.conn, wake.refs[0]))
     if wake.kind == "tick:criterion_repair":
         body.extend(_last_word_lines(sb.ctx.conn, wake))
+    if wake.kind == "tick:criterion_owed":
+        body.extend(_owed_criterion_lines(sb.ctx.conn, wake))
     # Frame 317: a Tester woken by an answer reads the same failed runs as a
     # challenged one. s370 saw them and fixed tst_v3. s364 did not.
     if inbound and role == "tester" and wake.detail in ("challenge", "answer"):

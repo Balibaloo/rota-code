@@ -12703,7 +12703,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # name, and the bare stem of a package module does not import.
         imports_ok = any(m == d or ("." not in d and m.rsplit(".", 1)[-1] == d)
                          for m in imported_from for d in surface_dotted)
-        if surface_dotted and imported_from and not imports_ok:
+        # An owed criterion's surface is the old guess's, so a test of his
+        # newer set is not refused for it. A Tester's answer wake reaches
+        # this door before the respecify: dry run 7's s185 (frame 362, slice 2).
+        from ..core.scheduler import criterion_owed
+
+        if (surface_dotted and imported_from and not imports_ok
+                and criterion_owed(ctx.conn, criterion_id) is None):
             want = sorted(surface_dotted)[0]
             # Night 142 (frame 215): this door made the Tester put back an
             # import the sandbox cannot load, 13 times.

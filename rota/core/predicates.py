@@ -1016,6 +1016,16 @@ def tests_missing(conn) -> list[Wake]:
         if r["bid"] in claimed and not claim_settled(conn, r["bid"]):
             continue
         missing.setdefault(r["bid"], []).append(r["cid"])
+    # A batch waits while a live criterion of it rests on an older ruled
+    # set than his newest. Dry run 7's Tester encoded c1 to c3 on the old
+    # `q_split` surface, and the door refused 13 encodes (frame 362, slice 2).
+    from .scheduler import criterion_owed_held
+    for bid in list(missing):
+        if any(criterion_owed_held(conn, c["id"]) for c in conn.execute(
+                "SELECT c.id AS id FROM batch_tickets bt JOIN criteria c "
+                "ON c.ticket_id = bt.ticket_id WHERE bt.batch_id = ?"
+                + live_criteria(conn, "c.retired_by"), (bid,))):
+            del missing[bid]
     return [Wake("tester", "tick:tests_missing", refs=(bid,),
                  detail="without a test: " + ", ".join(cids)
                  + ("\n" + CLAIM_DETAIL if bid in claimed else ""))
@@ -1706,6 +1716,8 @@ def criterion_repair(conn) -> list[Wake]:
     repair session that leaves it unresolved has said the criterion is not
     the problem, and the ladder resumes.
     """
+    # An owed criterion wakes the same writer in the same mode (frame 362,
+    # slice 2). One predicate keeps the register split of REGISTER.md.
     return [
         Wake("terminologist", "tick:criterion_repair", refs=(r["id"],),
              detail=r["unresolved_note"] or "")
@@ -1715,7 +1727,27 @@ def criterion_repair(conn) -> list[Wake]:
             "ORDER BY seq")
         if _names_a_criterion(conn, r["id"])
         and not _repair_attempted(conn, r["id"])
-    ]
+    ] + criterion_owed(conn)
+
+
+def criterion_owed(conn) -> list[Wake]:
+    """A live criterion written from an older ruled set than his newest.
+
+    The refs are the criterion and the verdict, so each ruling has its own
+    bound, as `tick:guess` binds the item and the verdict (frame 362,
+    slice 2). The wake waits while his ruling on the code line is still
+    owed, because the new set does not exist yet."""
+    from .scheduler import (criterion_owed as owed_criterion,
+                            criterion_owed_held, live_criteria, owed)
+
+    for r in conn.execute("SELECT id FROM criteria WHERE 1 = 1"
+                          + live_criteria(conn, "retired_by") + " ORDER BY id"):
+        found = owed_criterion(conn, r["id"])
+        if (found is not None and owed(conn, found["item"]) is None
+                and criterion_owed_held(conn, r["id"])):
+            return [Wake("terminologist", "tick:criterion_owed",
+                         refs=(found["criterion"], found["verdict"]))]
+    return []
 
 
 @predicate("review", wakes="critic", band="gate")
