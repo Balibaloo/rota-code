@@ -513,6 +513,21 @@ comes first, then the state print, then the sender's note.
   2026-10-15, "we have to be sure of it"). A placement from one replay
   never gates, and the night gates the close.
 
+- [C77] **A run's walls are read together before any one of them is fixed**
+  (ruled: Roman, 2026-11-08 10:2x, "we are finding more walls, are we
+  doing proper root cause analysis?", then "The root cause is part of the
+  workflow, is it not?", after dry run 7 gave ten walls of which seven
+  matched older frames by heading and the two behind the biggest wall,
+  frames 127 and 134, were pushed a month before and never built). The
+  moment: after a dry run's read and before the first C76 read of one
+  wall. One agent, no fix: for each wall, which fact had no row, which
+  seat needed it, and where the record layer should have made it one;
+  then what the walls share, and how many match a frame that was pushed
+  and never built, by number. A shared root is the biggest wall, and its
+  read comes first. A wall that matches an unbuilt frame is not a new
+  frame: the old frame moves to the front with the new count. The
+  session judges the hypothesis; the agent retrieves.
+
 ## 11. A question to Roman
 
 - [C57] Escalate as a blocked frame: the question and a recommended answer.
