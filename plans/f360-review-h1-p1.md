@@ -51,3 +51,38 @@ I changed the row value of stdout in `code_run` from the bytes to their utf-8 de
 ## (d) Usage
 
 No exact counter is visible to this agent. The estimate is about 72k input tokens of context against the cap of 60k. The output is about 14k tokens, so the total is about 86k. I ran no sub-agent and no model call.
+
+## Second look: pass 1b at 19030c2e
+
+Verdict: pick. Pass 1b fixes findings 1, 2, 3, 5, 8 and 9, and each fix follows its one-line fix. Fix the exclusion of the new case before the gate records it (item S1). The worktree is clean at `19030c2e` after the revert of the planted fault.
+
+### The fixes
+
+- Finding 1: fixed. The door reads `err_file.read_bytes()` and decodes it. The stderr probe now gives "one", CR LF, "two", CR LF in the row.
+- Finding 2: fixed. The door refuses a subscript store on `vars(<module>)`, on `<module>.__dict__` and on `sys.modules`. The `vars()` probe now gets "The program changes `vars(icalendar.parser.string)`, the names of a module of the touch". The docstring states the indirect forms that still pass.
+- Finding 3: fixed. `_hidden_paths` and `_remove_new_hidden` remove new ignored files and new `.rota/` files. The probe left no `left.txt`, and the note named both files.
+- Finding 5: fixed. The control lands the pass. My probe landed it too, with the routes `added` and `test`.
+- Finding 8: fixed. `claim_settled` returns true for a quarantined `tick:claim` key of the batch.
+- Finding 9: fixed. Both seat-facing sentences name the run of the Architect.
+- Tests: the two test files with `test_case_reachability.py` gave `919 passed, 35 skipped`. A planted fault put `read_text` back for stderr. `test_the_row_holds_stderr_as_the_program_wrote_it` failed (`1 failed, 28 passed`). I reverted the fault, and `git status` and `git diff` are empty.
+
+### The case L1-TS-the-run-shows-a-split-word
+
+The case follows the `tests_missing` form of `l1_tester.yaml`: `tick`, `detail`, `refs`, `fixture`, `expect.writes.tests` and `forbidden`. Its detail matches the new `CLAIM_DETAIL`.
+
+S1. `tests/rota/cases/l1_tester.yaml`, the `text_excludes` of the new case. Low. CONFIRMED by reading `fixtures.py` 761 to 770: the check is a plain substring test on the JSON of the rows and on their raw text values. The risk is real, but it is narrower than the example of the coordinator. The excluded strings end in " are". So a right test that asserts the escape text of "wo", CR LF, " rds" is `not in` the output passes. A right test fails when its negated quote includes " are" or copies the whole printout. A test row whose description quotes the printout fails too. Fix: exclude only the positive forms, an `in` test or an `==` test on the printout, for example `"rds are" in ` and `== "This is a very long line`, so that a `not in` quote passes.
+
+### New, outside the six findings
+
+- S2. `rota/roles/api.py`, `_hidden_paths` and `_worktree_of`. Low. PLAUSIBLE: a batch with no `worktree` row falls back to the project root. Then `.rota/` is the state folder of rota, with all the batch worktrees. The door then deletes each new file under it that appeared during the run, and not only the files of the program. Fix: refuse `code.run` when the batch has no `worktree` row.
+- S3. `rota/roles/api.py`, `_hidden_paths`. Low. PLAUSIBLE: the function walks each ignored folder, such as an ignored `.venv/`, before and after each run. That costs time and does nothing for correctness. A change to an existing ignored file stays, because only new paths are removed. Fix: skip `.venv/` in the walk, and state in the docstring that changed ignored files stay.
+- S4. `tests/rota/cases/l1_tester.yaml`, the `detail` of the new case. Low. CONFIRMED by reading: the detail is a copy of `CLAIM_DETAIL` by hand. A later change of `CLAIM_DETAIL` makes the case wrong with no red test. Fix: add a test that compares the detail of the case with `"without a test: <c1>" + newline + CLAIM_DETAIL`.
+
+### Probes of the second look
+
+- `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/0ff6bcd7-73e0-40b9-af75-01c8fdc9ed9a/scratchpad/r360h/test_probe_r360h.py`, run again with probes p1, p3, p4 and p5. Result: p1, p4 and p5 passed. p3 raised the new `vars()` refusal, which is the expected result now.
+- The planted fault and its revert, as stated above.
+
+### Usage of the second look
+
+The estimate is about 24k input tokens of context against the cap of 25k, and about 5k output tokens. I ran no sub-agent and no model call.
