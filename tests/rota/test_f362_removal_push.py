@@ -284,3 +284,107 @@ def test_a_ruling_on_another_batch_does_not_appear(tmp_path):
     pushed, user = _prompt(conn, wake)
     assert START_RULED_KEY not in pushed
     assert words not in user
+
+
+# Fix 2: the push is not cut by inherited rows. On dry run 7,
+# `batches.expect` held 162 `inh_` rows in 18,450 of its 20,000 characters,
+# and 0 of 16 restore wakes held `[removed lines]`. The Critic's review wake
+# of dry run 6b was cut at 30,215 characters by the same rows.
+
+# The Tester's three tests of b1, as dry run 7 named them.
+TESTER = {
+    "tst_fold_c1": ("c1", "tests/test_fold_long_lines.py"),
+    "tst_fold_c2": ("c2", "tests/test_fold_no_split_delimiters.py"),
+    "tst_fold_c3": ("c3", "tests/test_fold_preserve_chars.py"),
+}
+INHERITED = 160
+
+
+def _body(tid: str) -> str:
+    return (f"from icalendar.parser.string import _foldline\n\n\n"
+            f"def test_{tid}():\n    line = 'x ' * 60\n"
+            f"    assert _foldline(line).replace('\\r\\n ', '') == line  # {tid}\n")
+
+
+def _inherited_id(n: int) -> str:
+    return f"inh_{n:08x}"
+
+
+def _with_tests(conn, red: tuple[int, ...] = ()):
+    """160 inherited tests and the Tester's 3, each with a run at the head.
+    The inherited tests named by `red` failed there."""
+    head = conn.execute("SELECT head_commit FROM batches WHERE id = 'b1'"
+                        ).fetchone()[0]
+    rows = [(tid, cid, path, _body(tid)) for tid, (cid, path) in TESTER.items()]
+    rows += [(_inherited_id(n), None, f"src/icalendar/tests/test_module_{n}.py",
+              "def test_it():\n    assert True\n" * 50) for n in range(INHERITED)]
+    for n, (tid, cid, path, body) in enumerate(rows):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                     "VALUES (?, 'b1', ?, ?, ?)", (tid, cid, path, body))
+        failed = tid in {_inherited_id(k) for k in red}
+        conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+                     "result, output) VALUES (?, 'b1', ?, ?, ?, ?)",
+                     (f"tr_{n}", tid, head, "fail" if failed else "pass",
+                      f"{path}:2: AssertionError" if failed else ""))
+    conn.commit()
+    return conn
+
+
+def _inherited_ids_in(text: str) -> set[str]:
+    return {_inherited_id(n) for n in range(INHERITED) if _inherited_id(n) in text}
+
+
+def test_the_restore_wake_holds_the_removed_lines_whole(tmp_path):
+    """Red at d833194b: the inherited rows filled `batches.expect` and
+    `tests.load`, and the wake ran past `PUSH_CHARS`."""
+    from rota.core.runner import PUSH_CHARS, _render
+
+    conn = _with_tests(_dry7(tmp_path))
+    [wake] = P.touch_mistaken(conn)
+    pushed, user = _prompt(conn, wake)
+    diff = _render(pushed["code.diff"], PUSH_CHARS)
+    assert "[removed lines]" in diff and "CUT" not in diff
+    assert diff in user
+    assert 'if len(current_chars) > 1 and current_chars[-1] in r"\\^":' in user
+    assert len(user) < PUSH_CHARS, len(user)
+    assert _inherited_ids_in(user) == set()
+    assert f"{INHERITED} inherited tests pass, not shown." in user
+
+
+def test_the_review_wake_holds_every_criterion_and_tester_body(tmp_path):
+    from rota.core.runner import PUSH_CHARS
+
+    conn = _with_tests(_dry7(tmp_path))
+    wake = Wake("critic", "tick:review", refs=("b1",))
+    _pushed, user = _prompt(conn, wake)
+    for text in CRITERIA.values():
+        assert text in user
+    for tid in TESTER:
+        # A table cell shows a line break as a space.
+        assert _body(tid).replace("\n", " ") in user, tid
+    assert len(user) < PUSH_CHARS, len(user)
+    assert f"{INHERITED} inherited tests pass, not shown." in user
+
+
+def test_a_red_inherited_row_keeps_its_row_and_its_body(tmp_path):
+    conn = _with_tests(_dry7(tmp_path), red=(7,))
+    red = _inherited_id(7)
+    [wake] = P.touch_mistaken(conn)
+    pushed, user = _prompt(conn, wake)
+    assert _inherited_ids_in(user) == {red}
+    assert f"{INHERITED - 1} inherited tests pass, not shown." in user
+    [row] = [r for r in pushed["tests.load"] if r["id"] == red]
+    assert row["last_result"] == "fail"
+    assert json.dumps(row["body"])[1:-1] in user
+
+
+# Fix 2, the guard: the read that the line names returns every row.
+
+def test_a_seat_that_asks_for_the_inherited_rows_gets_them(tmp_path):
+    conn = _with_tests(_dry7(tmp_path))
+    [wake] = P.touch_mistaken(conn)
+    sb = session_sandbox(conn, wake, batch_id="b1")
+    _pushed, user = _prompt(conn, wake)
+    assert "A call of tests.load returns their rows." in user
+    rows = sb.call("tests.load")
+    assert {r["id"] for r in rows} >= {_inherited_id(n) for n in range(INHERITED)}

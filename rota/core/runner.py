@@ -1159,6 +1159,14 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # One rule for how much of anything a session sees, whether it asked
             # or not -- and this is the path where it matters more, because
             # nobody chose to fetch it.
+            #
+            # A passing inherited test row is one line for the whole block,
+            # and the line names the read that returns the rows (frame 362,
+            # the removal read, F2).
+            value = _fold_inherited(
+                sb.ctx.conn, getattr(sb.ctx, "batch_id", None)
+                or (wake.refs[0] if wake.refs else None), value,
+                "tests.load" if "tests.load" in sb.functions() else key)
             body.append(f"\n[{key}]\n{_render(value, PUSH_CHARS)}")
     return system, "\n".join(body)
 
@@ -2107,6 +2115,69 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
                     f"end={result.get('end')}) returns the rest.")
     return text[:limit] + chr(10) + cut_note(
         "the result", len(text) - limit, len(text), "characters", call)
+
+
+# The one line that stands for the passing inherited rows of a pushed block.
+INHERITED_LINE = ("{n} inherited tests pass, not shown. A call of {read} "
+                  "returns their rows.")
+
+
+def _passing_inherited(conn: sqlite3.Connection, batch_id: str | None,
+                       rows: list) -> set[str]:
+    """The ids of `rows` that are inherited tests whose latest run in their
+    batch passed. A row with no run, a red row and a row of the batch's own
+    stay out of the set."""
+    inherited = [r for r in rows if isinstance(r, dict)
+                 and isinstance(r.get("id"), str) and r["id"].startswith("inh_")
+                 and not r.get("criterion_id") and not r.get("guards")]
+    passing = {r["id"] for r in inherited if r.get("last_result") == "pass"}
+    # `batches.expect` and `tests.consult` carry no result, so the latest run
+    # of the row's batch says it, as `tests.load` reads it (frame 210).
+    asked: dict[str, set[str]] = {}
+    for r in inherited:
+        bid = r.get("batch_id") or batch_id
+        if "last_result" not in r and bid:
+            asked.setdefault(bid, set()).add(r["id"])
+    for bid, ids in asked.items():
+        passing |= {row[0] for row in conn.execute(
+            "SELECT test_id FROM latest_runs WHERE batch_id = ? "
+            "AND result = 'pass'", (bid,)) if row[0] in ids}
+    return passing
+
+
+def _fold_inherited(conn: sqlite3.Connection, batch_id: str | None,
+                    value: Any, read: str) -> Any:
+    """A pushed block with its passing inherited test rows taken out, and
+    `INHERITED_LINE` in their place. Any other value comes back as it is.
+
+    One rule for every pushed block that lists test rows. On dry run 7,
+    `batches.expect` held 162 `inh_` rows in 18,450 of its 20,000
+    characters, and 0 of 16 restore wakes held `[removed lines]`. The
+    Critic's review wake of dry run 6b lost 13,904 characters to the same
+    rows (frame 362, the removal read, F2). A red inherited row says what
+    broke, so it keeps its row. The push only folds: a call of the read
+    returns every row.
+    """
+    if isinstance(value, dict) and isinstance(value.get("tests"), list):
+        gone = _passing_inherited(conn, batch_id, value["tests"])
+        if not gone:
+            return value
+        kept = [r for r in value["tests"]
+                if not (isinstance(r, dict) and r.get("id") in gone)]
+        return {**value, "tests": [*kept, INHERITED_LINE.format(
+            n=len(gone), read=read)]}
+    if isinstance(value, list):
+        gone = _passing_inherited(conn, batch_id, value)
+        if not gone:
+            return value
+        kept = [r for r in value if not (isinstance(r, dict) and r.get("id") in gone)]
+        line = INHERITED_LINE.format(n=len(gone), read=read)
+        if not kept:
+            return line
+        # The line goes last, where the rows stood, and the rows give it room
+        # under the cap, so a cut never takes the line.
+        return _render(kept, PUSH_CHARS - len(line) - 1) + "\n" + line
+    return value
 
 
 def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
