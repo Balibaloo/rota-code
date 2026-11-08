@@ -513,20 +513,24 @@ comes first, then the state print, then the sender's note.
   2026-10-15, "we have to be sure of it"). A placement from one replay
   never gates, and the night gates the close.
 
-- [C77] **A run's walls are read together before any one of them is fixed**
-  (ruled: Roman, 2026-11-08 10:2x, "we are finding more walls, are we
-  doing proper root cause analysis?", then "The root cause is part of the
-  workflow, is it not?", after dry run 7 gave ten walls of which seven
-  matched older frames by heading and the two behind the biggest wall,
-  frames 127 and 134, were pushed a month before and never built). The
-  moment: after a dry run's read and before the first C76 read of one
-  wall. One agent, no fix: for each wall, which fact had no row, which
-  seat needed it, and where the record layer should have made it one;
-  then what the walls share, and how many match a frame that was pushed
-  and never built, by number. A shared root is the biggest wall, and its
-  read comes first. A wall that matches an unbuilt frame is not a new
-  frame: the old frame moves to the front with the new count. The
-  session judges the hypothesis; the agent retrieves.
+- [C77] **A run's walls are reasoned over together, with their provenances,
+  before any one of them is planned** (ruled: Roman, 2026-11-08 10:2x, "we
+  are finding more walls, are we doing proper root cause analysis?", "The
+  root cause is part of the workflow, is it not?", then "after we find wall
+  provenance we need to reason on the list of walls and their provenances
+  before planning?", after dry run 7 gave ten walls of which seven matched
+  older frames by heading and the two behind the biggest wall, frames 127
+  and 134, were pushed a month before and never built). The moment, in
+  order: the run's read lists the walls; each wall gets its provenance by
+  C64, the build or ruling that made the mechanism and the frame it
+  matches; then one reasoning over the list with the provenances, by the
+  session with an agent for the retrieval and no fix: for each wall, which
+  fact had no row and which seat needed it; what the walls share; which
+  root sits under several; how many match a frame pushed and never built,
+  by number. The biggest root goes first. Only then the plan: the C76 read
+  of that root and its fix at the smallest place that covers the reach. A
+  wall that matches an unbuilt frame opens no new frame: the old frame
+  moves to the front with the new count.
 
 ## 11. A question to Roman
 
