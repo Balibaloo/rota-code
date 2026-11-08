@@ -140,7 +140,9 @@ def test_the_claim_wake_names_the_request_and_the_touch(rows):
     assert f"`_foldline` in {SOURCE}" in detail, detail
     # A name with no word of the request is not the touch's function.
     assert "_escape_char" not in detail, detail
-    assert "code.run(text)" in detail, detail
+    # The bare `code.run(text)` was copied as the word "text" (pass 2b).
+    assert "code.run(text)" not in detail, detail
+    assert "inside the call, as step 5 of the claim mode shows" in detail, detail
 
 
 def test_the_claim_wake_selects_the_claim_mode(rows):

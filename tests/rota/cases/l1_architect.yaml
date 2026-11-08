@@ -552,7 +552,8 @@
     `_foldline` in src/icalendar/parser/string.py.\nShow what the code does
     with one run. Import the function of the touch from its module, call it
     with one example from the request, and print the input and the result.
-    Send the program with code.run(text). The run is the record."
+    Send the program's source inside the call, as step 5 of the claim mode
+    shows. The run is the record."
   refs: [<b1>]
   repo:
     batch: <b1>

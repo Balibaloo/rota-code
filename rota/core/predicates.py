@@ -1141,8 +1141,9 @@ def claim_wake_detail(conn, batch_id: str) -> str:
             f"\"{claim_request(conn, batch_id)}\". The touch: {named}.\n"
             "Show what the code does with one run. Import the function of the "
             "touch from its module, call it with one example from the request, "
-            "and print the input and the result. Send the program with "
-            "code.run(text). The run is the record.")
+            "and print the input and the result. Send the program's source "
+            "inside the call, as step 5 of the claim mode shows. The run is "
+            "the record.")
 
 
 @predicate("claim", wakes="architect", band="start")
