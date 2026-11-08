@@ -474,6 +474,19 @@ def _claim_line(conn: sqlite3.Connection, role: str, batch_id: str | None) -> st
     return CLAIM_DETAIL if role == "tester" and _claimed(conn, batch_id) else ""
 
 
+def _claim_run_line(conn: sqlite3.Connection, role: str,
+                    batch_id: str | None) -> str:
+    """The Architect's run for a Tester of a claimed batch, or "".
+
+    The Critic reads the run in its claim note. The run is not in the
+    wake's detail, because the detail is the cycle key (frame 360, RC)."""
+    from ..roles.api import _claimed, tester_claim_run_words
+
+    if role != "tester" or not _claimed(conn, batch_id):
+        return ""
+    return tester_claim_run_words(conn, batch_id)
+
+
 def _review_pending_line(conn: sqlite3.Connection, batch_id: str) -> str:
     """The line for a Developer on `tick:exhausted` when the batch's tests
     pass at its head and no verdict is at its head, or "".
@@ -1081,6 +1094,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     claim = _claim_line(sb.ctx.conn, role, getattr(sb.ctx, "batch_id", None))
     if claim and not any(claim in line for line in body):
         body.append(claim)
+    run_line = _claim_run_line(sb.ctx.conn, role, getattr(sb.ctx, "batch_id", None))
+    if run_line:
+        body.append(run_line)
     if role == "developer" and wake.kind == "tick:exhausted" and wake.refs:
         pending = _review_pending_line(sb.ctx.conn, wake.refs[0])
         if pending:

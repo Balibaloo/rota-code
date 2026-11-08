@@ -23147,9 +23147,69 @@ def critic_claim_note(conn, batch_id) -> str:
         "AND j.result IN ('fail', 'error') AND l.result = 'pass' "
         "AND l.commit_sha = b.head_commit AND t.criterion_id IS NOT NULL "
         "AND t.version > 1 LIMIT 1", (batch_id,)).fetchone()
-    return CRITIC_CLAIM_NOTE + (
+    # The note names the Architect's run when one is on record (frame 360,
+    # H7 row 4). With no row the words stay as the recorded cases hold them.
+    note = (CRITIC_CLAIM_RUN_NOTE + " " + claim_run_words(conn, batch_id)
+            if claim_run_row(conn, batch_id) else CRITIC_CLAIM_NOTE)
+    return note + (
         " A test of this batch failed on the code as it is, and the Tester "
         "replaced it." if replaced else "")
+
+
+#: The Critic's note when the Architect's run is on record (frame 360, H7).
+CRITIC_CLAIM_RUN_NOTE = ("No code changed on this batch. The Developer claims "
+                         "the criteria are met. The tests and one run of the "
+                         "code are the evidence.")
+#: The printout that a line shows, in characters (frame 360, RC).
+CLAIM_PRINTOUT_CHARS = 600
+#: What the Tester must not do with the printout (frame 360, H2 and H7 row
+#: 13): a test that copies the printout encodes what the code does.
+CLAIM_RUN_TESTER = ("The run shows what the code does, not what was asked. "
+                    "Write the result that the criterion's words give for "
+                    "that input.")
+
+
+def claim_run_row(conn, batch_id):
+    """The last `claim_runs` row of the batch, or None. No seat picks the
+    run: the last one is the fact (frame 360, H6)."""
+    if not batch_id:
+        return None
+    return conn.execute(
+        "SELECT * FROM claim_runs WHERE batch_id = ? ORDER BY rowid DESC "
+        "LIMIT 1", (batch_id,)).fetchone()
+
+
+def claim_printout(raw, limit: int = CLAIM_PRINTOUT_CHARS) -> str:
+    """The stdout of a run as a seat reads it. Each CR LF and space of a
+    fold shows as ⏎, and each other CR LF as ↵ (frame 360, RA F3)."""
+    text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw or "")
+    text = text.replace("\r\n ", " ⏎ ").replace("\r\n", " ↵ ").rstrip()
+    if len(text) > limit:
+        text = text[:limit] + " (cut)"
+    return text
+
+
+def claim_run_words(conn, batch_id) -> str:
+    """The sentence of the last run, in each state of RC (frame 360)."""
+    row = claim_run_row(conn, batch_id)
+    head = "The architect ran one program on the code, and it"
+    if row is None:
+        return "No run of the code is on record."
+    if row["timed_out"]:
+        return f"{head} did not finish in {CLAIM_RUN_TIMEOUT} seconds."
+    if row["returncode"] != 0:
+        lines = [ln for ln in (row["stderr"] or "").splitlines() if ln.strip()]
+        return (f"{head} stopped with an error: "
+                f"{lines[-1].strip() if lines else 'no error text'}.")
+    shown = claim_printout(row["stdout"])
+    return f"{head} printed: {shown}." if shown else f"{head} printed nothing."
+
+
+def tester_claim_run_words(conn, batch_id) -> str:
+    """The run for the Tester of a claim, or "" with no run on record."""
+    if claim_run_row(conn, batch_id) is None:
+        return ""
+    return claim_run_words(conn, batch_id) + " " + CLAIM_RUN_TESTER
 
 
 def _claimed(conn, batch_id) -> bool:

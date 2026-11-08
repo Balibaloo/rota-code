@@ -2737,9 +2737,10 @@ def _built_words(conn: sqlite3.Connection, batch: sqlite3.Row) -> str:
             "SELECT 1 FROM batches WHERE id = ? AND claimed_head = head_commit",
             (batch["id"],)).fetchone():
         failing = sum(1 for r in runs if r["result"] in ("fail", "error"))
+        # "and the tests check the claim" is gone. On run 1 the tests passed
+        # on the code as it was, so the words were false (frame 360, H7).
         said = (f" The change {batch['id']} changes no code. The team claims "
-                f"that the code already does this, and the tests check the "
-                f"claim.")
+                f"that the code already does this.")
         if not runs:
             return said + " No test has run yet."
         if not failing:

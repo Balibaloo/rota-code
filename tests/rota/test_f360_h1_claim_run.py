@@ -450,3 +450,105 @@ def test_the_claim_tools_hold_no_door_that_takes_an_output():
     tools = Path("rota/roles/prompts/architect/claim.tools").read_text(
         encoding="utf-8").split()
     assert tools == ["code.source", "code.probe", "code.run"]
+
+
+# ---------------------------------------------------------------------------
+# Part 3: the readers of the run
+# ---------------------------------------------------------------------------
+
+def _a3_on_record(db):
+    sb = _architect(db)
+    sb.call("code.run", text=A3_RUN1)
+    _land(db, sb)
+
+
+def _tester_prompt(db):
+    from rota.core.runner import build_prompt
+    from rota.core.scheduler import Wake
+
+    [wake] = _tester_wakes(db)
+    _, user = build_prompt("tester", build("tester", db, batch_id=BATCH),
+                           wake, {}, "")
+    return user
+
+
+def test_the_tester_of_a_claim_reads_the_printout_with_fold_marks(project):
+    db, _ = project
+    _a3_on_record(db)
+
+    user = _tester_prompt(db)
+
+    assert ("The architect ran one program on the code, and it printed: "
+            "Input length: 123") in user, user
+    # The fold's own space becomes the mark, and the word's space stays.
+    assert "so that words  ⏎ are not split" in user, user
+    assert "Write the result that the criterion's words give" in user, user
+    assert user.count("The architect ran one program") == 1, user
+
+
+def test_a_change_batch_wake_holds_no_printout(project):
+    db, _ = project
+    _a3_on_record(db)
+    db.execute("UPDATE batches SET claimed_head = NULL WHERE id = ?", (BATCH,))
+    db.commit()
+
+    user = _tester_prompt(db)
+
+    assert "The architect ran" not in user, user
+    assert "⏎" not in user, user
+
+
+def test_the_critic_note_names_the_run(project):
+    from rota.roles.api import critic_claim_note
+
+    db, _ = project
+    _a3_on_record(db)
+
+    note = critic_claim_note(db, BATCH)
+
+    assert note.startswith(
+        "No code changed on this batch. The Developer claims the criteria "
+        "are met. The tests and one run of the code are the evidence. The "
+        "architect ran one program on the code, and it printed: "), note
+    assert "words  ⏎ are not split" in note, note
+    assert build("critic", db, batch_id=BATCH).call("code.read")["note"] == note
+
+
+def test_the_critic_note_with_no_run_stays_as_it_was(project):
+    from rota.roles.api import CRITIC_CLAIM_NOTE, critic_claim_note
+
+    db, _ = project
+
+    assert critic_claim_note(db, BATCH) == CRITIC_CLAIM_NOTE
+
+
+def test_each_state_of_the_run_has_its_sentence(project):
+    from rota.roles.api import claim_run_words
+
+    db, _ = project
+    assert claim_run_words(db, BATCH) == "No run of the code is on record."
+    sb = _architect(db)
+    sb.call("code.run", text="from icalendar.parser.string import _foldline\n"
+                             "_foldline('a\\nb')\n")
+    _land(db, sb)
+    assert claim_run_words(db, BATCH) == (
+        "The architect ran one program on the code, and it stopped with an "
+        "error: AssertionError.")
+    db.execute("UPDATE claim_runs SET returncode = 0, stdout = x'', "
+               "stderr = ''")
+    assert claim_run_words(db, BATCH).endswith("and it printed nothing.")
+    db.execute("UPDATE claim_runs SET timed_out = 1")
+    assert claim_run_words(db, BATCH).endswith(
+        "and it did not finish in 60 seconds.")
+
+
+def test_the_shift_page_no_longer_says_the_tests_check_the_claim(rows):
+    from rota.roles.principal import _built_words
+
+    batch = rows.execute("SELECT * FROM batches WHERE id = ?", (BATCH,)).fetchone()
+
+    said = _built_words(rows, batch)
+
+    assert "check the claim" not in said, said
+    assert said.startswith(f" The change {BATCH} changes no code. The team "
+                           f"claims that the code already does this."), said

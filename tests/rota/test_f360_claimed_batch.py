@@ -372,7 +372,9 @@ def test_the_shift_page_does_not_call_a_claim_built(project):
 
     assert "built" not in said, said
     assert "no code" in said.lower(), said
-    assert "tests check the claim" in said, said
+    # Frame 360, H7: the tests passed on the code as it was, so the words
+    # "and the tests check the claim" were false and are gone.
+    assert "tests check the claim" not in said, said
 
 
 def test_a_refused_test_write_does_not_block_the_claim(project):
