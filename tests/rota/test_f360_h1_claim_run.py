@@ -837,3 +837,75 @@ def test_the_split_word_case_with_no_tree_keeps_the_word_rule(tmp_path):
             "ticket or the principal's words say it prints; nothing says it "
             "returns anything") in str(exc.value), exc.value
     conn.close()
+
+
+# Pass 2f: the run's input, and the forms of the printout that the five
+# Testers of the 15:25 recording wrote as the expected value.
+SPLIT_INPUT = ("This is a very long line that needs to be folded at a space so "
+               "that words are not split but keep everything else as before.")
+SPLIT_HEAD = "This is a very long line that needs to be folded at a space so that wo"
+SPLIT_TAIL = "rds are not split but keep everything else as before."
+COPY_FORMS = [SPLIT_HEAD + "\\r\\n " + SPLIT_TAIL, SPLIT_HEAD + "\\n " + SPLIT_TAIL,
+              SPLIT_HEAD + " ⏎ " + SPLIT_TAIL, SPLIT_HEAD]
+PRINTOUT_SAID = ("is the printout of the Architect's run. The run shows what the "
+                 "code does, not what was asked. Write the result that the "
+                 "criterion's words give for that input.")
+
+
+def _copy_body(expected: str) -> str:
+    return ("from icalendar.parser.string import _foldline\n\n"
+            "def test_foldline():\n"
+            f"    assert _foldline(\"{SPLIT_INPUT}\", 75) == \"{expected}\"\n")
+
+
+@pytest.mark.parametrize("expected", COPY_FORMS, ids=["crlf", "lf", "glyph", "piece"])
+def test_a_body_that_expects_the_printout_is_refused(tmp_path, expected):
+    """Pass 2f: 5 of 5 Testers asserted equality with the printout, and the
+    door landed it. Each form of the fold reads as the same copy."""
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=True)
+
+    with pytest.raises(ValueError) as exc:
+        tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                path="tests/test_foldline.py", body=_copy_body(expected))
+
+    assert PRINTOUT_SAID in str(exc.value), exc.value
+    conn.close()
+
+
+def test_a_body_on_the_fold_pieces_with_the_input_lands(tmp_path):
+    """The input literal is not the result, and a check on the pieces and
+    on the split word quotes no printout."""
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=True)
+    body = ("from icalendar.parser.string import _foldline\n\n"
+            "def test_each_fold_falls_at_a_space():\n"
+            f"    out = _foldline(\"{SPLIT_INPUT}\", 75)\n"
+            "    assert 'wo\\r\\n rds' not in out\n"
+            "    for piece in out.split(\"\\r\\n \")[:-1]:\n"
+            "        assert piece.endswith(\" \")\n")
+
+    out = tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                  path="tests/test_foldline.py", body=body)
+
+    assert out.get("id") == "tst_fold", out
+    conn.close()
+
+
+def test_the_printout_door_is_silent_with_no_run_row(tmp_path):
+    """A batch with no `claim_runs` row has no printout to copy."""
+    from rota.roles.api import _printout_literal
+    import ast
+
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=True)
+    [batch] = conn.execute("SELECT batch_id FROM claim_runs").fetchall()
+    tree = ast.parse(_copy_body(COPY_FORMS[0]))
+    assert _printout_literal(conn, batch[0], tree)
+    conn.execute("DELETE FROM claim_runs")
+    conn.commit()
+
+    assert _printout_literal(conn, batch[0], tree) is None
+    try:
+        tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                path="tests/test_foldline.py", body=_copy_body(COPY_FORMS[0]))
+    except ValueError as exc:
+        assert "printout of the Architect's run" not in str(exc), exc
+    conn.close()

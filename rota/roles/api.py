@@ -12781,6 +12781,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"mocked builtin, a different function) cannot tell a "
                 f"correct {surface[0]} from a stub that never runs")
 
+    # Frame 360, pass 2f: the Architect's printout as the expected value
+    # passes on any code, so a false claim merges. 5 of 5 Testers copied it.
+    # The door stands after the import doors, so the body it reads imports.
+    copied = _printout_literal(ctx.conn, getattr(ctx, "batch_id", None), tree)
+    if copied:
+        raise Wall(
+            f"the string literal {copied!r} of this test is the printout of "
+            f"the Architect's run. {CLAIM_RUN_TESTER}")
+
     # `CliRunner.invoke` runs a command, and a plain function fails it at
     # `cli.name`. Frame 131: s139 stored three such tests on five nights,
     # and the Developer wrapped `echo_json` to fit them. The fact and no
@@ -23350,6 +23359,58 @@ def claim_run_words(conn, batch_id) -> str:
         return f"{head} printed nothing."
     mark = f" {CLAIM_FOLD_MARK}" if "⏎" in shown else ""
     return f"{head} printed: {shown}.{mark}"
+
+
+#: The shortest piece of a fold-split printout that the printout door reads
+#: as a copy. A short fold fragment such as "wo ⏎ rds" is the word a right
+#: test asserts `not in` the result (frame 360, pass 2f).
+CLAIM_COPY_PIECE = 12
+_FOLD = "\x00"
+
+
+def _fold_form(text: str) -> str:
+    """One form of a printout or a literal: each fold is `_FOLD` and each
+    other line break is LF. A Tester writes the fold as CR LF and a space,
+    as LF and a space or as the glyph of `claim_printout`."""
+    text = (text.replace(" ⏎ ", _FOLD).replace("⏎", _FOLD)
+            .replace("\r\n ", _FOLD).replace("\n ", _FOLD)
+            .replace(" ↵ ", "\n").replace("\r\n", "\n"))
+    return text.strip()
+
+
+def _printout_literal(conn, batch_id, tree) -> str | None:
+    """The first string literal of the test body `tree` that copies the
+    stdout of the batch's claim run, or None.
+
+    A copy is the whole stdout, a line of it, a piece of it between two
+    folds, or a span over a fold whose pieces are each `CLAIM_COPY_PIECE`
+    characters or more. A literal of the run's program is the input, not
+    the result, so it stays allowed. No run row gives None."""
+    row = claim_run_row(conn, batch_id)
+    if row is None or row["returncode"] != 0 or row["unfinished"]:
+        return None
+    shown = _fold_form(claim_printout(row["stdout"], limit=10 ** 9))
+    if not shown:
+        return None
+    lines = {ln.strip() for ln in shown.split("\n") if ln.strip()}
+    pieces = {p.strip() for ln in lines for p in ln.split(_FOLD)
+              if len(p.strip()) >= CLAIM_COPY_PIECE}
+    try:
+        inputs = {_fold_form(n.value) for n in _ast.walk(_ast.parse(row["program"] or ""))
+                  if isinstance(n, _ast.Constant) and isinstance(n.value, str)}
+    except SyntaxError:
+        inputs = set()
+    for node in _ast.walk(tree):
+        if not (isinstance(node, _ast.Constant) and isinstance(node.value, str)):
+            continue
+        lit = _fold_form(node.value)
+        if not lit or lit in inputs:
+            continue
+        span = (_FOLD in lit and lit in shown
+                and all(len(p.strip()) >= CLAIM_COPY_PIECE for p in lit.split(_FOLD)))
+        if lit == shown or lit in lines or lit in pieces or span:
+            return node.value
+    return None
 
 
 def tester_claim_run_words(conn, batch_id) -> str:
