@@ -32,7 +32,12 @@ WORDS = ("Line 2 is wrong. The fold is _foldline in src/icalendar/parser/string.
          "and its tests are in src/icalendar/tests/test_icalendar.py. Do not touch "
          "parameter.py or property.py.")
 TEXT = "Folding a long line keeps every character of the line."
-COPY = Path(__file__).resolve().parents[2] / "scratch" / "dry7_w5.db"
+# The worktree's copy, or the run's own file, so a review worktree finds it.
+COPY = next((p for p in (
+    Path(__file__).resolve().parents[2] / "scratch" / "dry7_w5.db",
+    Path("C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/"
+         "8b2312ef-0b14-4322-a20c-908058cac23b/scratchpad/dry7/copies/w5.db"))
+    if p.exists()), Path("dry7_w5.db"))
 
 
 @pytest.fixture
@@ -264,7 +269,7 @@ def test_a_spent_rewrite_names_the_check_and_keeps_the_encode_shut(db):
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
                "VALUES (?, 3, 1)", (key,))
     db.commit()
-    assert [w.refs for w in predicates.tests_missing(db)] == [("b1",)]
+    assert predicates.tests_missing(db) == []
     page = _render_state(db)
     assert (f'Stuck: the team could not rewrite the check "{TEXT}" for the code '
             f"you corrected after 3 attempts. Nothing waits on you. The change "
@@ -273,3 +278,19 @@ def test_a_spent_rewrite_names_the_check_and_keeps_the_encode_shut(db):
     assert "c1, m26" not in page
     with pytest.raises(Exception, match="The Terminologist rewrites it first"):
         _encode(db, BODY)
+
+
+def test_a_spent_rewrite_leaves_only_the_owed_check_out(db):
+    """The second look at slice 2, finding 7: after a spent key the Tester
+    was woken for the owed check, which `_refuse_owed` refuses."""
+    from rota.core.scheduler import criterion_owed_key
+
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs, guess_ruling) "
+               "VALUES ('c2', 'tk_1', 'An empty line stays empty.', '[]', 'm26')")
+    _correct(db)
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 3, 1)", (criterion_owed_key(criterion_owed(db, "c1")),))
+    db.commit()
+    (wake,) = predicates.tests_missing(db)
+    assert wake.refs == ("b1",) and wake.detail.startswith("without a test: c2")
+    assert "c1" not in wake.detail

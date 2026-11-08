@@ -1019,12 +1019,20 @@ def tests_missing(conn) -> list[Wake]:
     # A batch waits while a live criterion of it rests on an older ruled
     # set than his newest. Dry run 7's Tester encoded c1 to c3 on the old
     # `q_split` surface, and the door refused 13 encodes (frame 362, slice 2).
-    from .scheduler import criterion_owed_held
+    from .scheduler import criterion_owed, criterion_owed_held
     for bid in list(missing):
         if any(criterion_owed_held(conn, c["id"]) for c in conn.execute(
                 "SELECT c.id AS id FROM batch_tickets bt JOIN criteria c "
                 "ON c.ticket_id = bt.ticket_id WHERE bt.batch_id = ?"
                 + live_criteria(conn, "c.retired_by"), (bid,))):
+            del missing[bid]
+            continue
+        # A spent key lifts the hold, and `_refuse_owed` still refuses the
+        # owed criterion. So the wake leaves it out, and the Tester's
+        # attempts go to the other checks (the second look at slice 2,
+        # finding 7).
+        missing[bid] = [c for c in missing[bid] if criterion_owed(conn, c) is None]
+        if not missing[bid]:
             del missing[bid]
     return [Wake("tester", "tick:tests_missing", refs=(bid,),
                  detail="without a test: " + ", ".join(cids)
