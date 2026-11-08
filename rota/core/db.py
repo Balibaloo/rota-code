@@ -233,6 +233,11 @@ def commitment_columns(conn: sqlite3.Connection) -> None:
     # (frame 362, review of pass 5c, finding 12).
     if "test_runs" in have and not _has_column(conn, "test_runs", "red_nodes"):
         conn.execute("ALTER TABLE test_runs ADD COLUMN red_nodes TEXT")
+    # A file of the first H1 build names the flag `timed_out`. Law 13 keeps
+    # a clock word out of the schema, so the file takes the new name.
+    if _has_column(conn, "claim_runs", "timed_out"):
+        conn.execute("ALTER TABLE claim_runs RENAME COLUMN timed_out "
+                     "TO unfinished")
 
 
 def message_columns(conn: sqlite3.Connection) -> None:

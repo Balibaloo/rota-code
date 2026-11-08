@@ -439,7 +439,8 @@ CREATE TABLE IF NOT EXISTS touch_strays (
 -- the fault. So the row keeps the program and the exact bytes that it
 -- printed. `imported` is JSON: the touch names that the program called.
 -- `wrote_paths` is JSON: the paths that the program wrote in the worktree,
--- which the door put back.
+-- which the door put back. `unfinished` is 1 when the door stopped the
+-- program at its limit. Law 13 keeps a clock word out of the column name.
 CREATE TABLE IF NOT EXISTS claim_runs (
     id          TEXT PRIMARY KEY,
     batch_id    TEXT NOT NULL REFERENCES batches(id),
@@ -449,7 +450,7 @@ CREATE TABLE IF NOT EXISTS claim_runs (
     stdout      BLOB NOT NULL DEFAULT x'',
     stderr      TEXT NOT NULL DEFAULT '',
     returncode  INTEGER NOT NULL,
-    timed_out   INTEGER NOT NULL DEFAULT 0,
+    unfinished  INTEGER NOT NULL DEFAULT 0,
     imported    TEXT NOT NULL DEFAULT '[]',
     wrote_tree  INTEGER NOT NULL DEFAULT 0,
     wrote_paths TEXT NOT NULL DEFAULT '[]'

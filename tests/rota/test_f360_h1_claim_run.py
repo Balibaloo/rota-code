@@ -383,7 +383,7 @@ def test_a2_is_accepted_and_the_row_holds_the_exact_bytes(project):
     assert b"as befo\\r\\n re.'" in row["stdout"], row["stdout"]
     assert b"at a space w\\r\\n here" in row["stdout"], row["stdout"]
     assert json.loads(row["imported"]) == ["icalendar.parser.string._foldline"]
-    assert row["returncode"] == 0 and row["timed_out"] == 0
+    assert row["returncode"] == 0 and row["unfinished"] == 0
     assert row["session_id"] == sb.ctx.session_id or row["session_id"] == ""
 
 
@@ -622,7 +622,7 @@ def test_each_state_of_the_run_has_its_sentence(project):
     db.execute("UPDATE claim_runs SET returncode = 0, stdout = x'', "
                "stderr = ''")
     assert claim_run_words(db, BATCH).endswith("and it printed nothing.")
-    db.execute("UPDATE claim_runs SET timed_out = 1")
+    db.execute("UPDATE claim_runs SET unfinished = 1")
     assert claim_run_words(db, BATCH).endswith(
         "and it did not finish in 60 seconds.")
 

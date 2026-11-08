@@ -1738,7 +1738,7 @@
          session_id: s_arch,
          program: "from icalendar.parser.string import _foldline\nprint(_foldline(\"This is a very long line that needs to be folded at a space so that words are not split but keep everything else as before.\", 75))\n",
          stdout: "This is a very long line that needs to be folded at a space so that wo\r\n rds are not split but keep everything else as before.\n",
-         stderr: "", returncode: 0, timed_out: 0,
+         stderr: "", returncode: 0, unfinished: 0,
          imported: '["icalendar.parser.string._foldline"]',
          wrote_tree: 0, wrote_paths: '[]'}
   expect:

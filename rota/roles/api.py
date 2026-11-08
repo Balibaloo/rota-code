@@ -23282,7 +23282,7 @@ def claim_run_words(conn, batch_id) -> str:
     head = "The architect ran one program on the code, and it"
     if row is None:
         return "No run of the code is on record."
-    if row["timed_out"]:
+    if row["unfinished"]:
         return f"{head} did not finish in {CLAIM_RUN_TIMEOUT} seconds."
     if row["returncode"] != 0:
         lines = [ln for ln in (row["stderr"] or "").splitlines() if ln.strip()]
@@ -24900,7 +24900,7 @@ def code_run(ctx: Ctx, text: str) -> dict:
     ctx.writes.append(("claim_runs", rid, {
         "batch_id": bid, "commit_sha": head, "session_id": ctx.session_id or "",
         "program": text, "stdout": stdout, "stderr": stderr[-CLAIM_STDERR_KEEP:],
-        "returncode": out.returncode, "timed_out": int(out.timed_out),
+        "returncode": out.returncode, "unfinished": int(out.timed_out),
         "imported": json.dumps(called), "wrote_tree": int(bool(wrote)),
         "wrote_paths": json.dumps(wrote)}, False))
     shown = {"returncode": out.returncode,
