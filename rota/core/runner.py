@@ -4705,15 +4705,24 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # The stopped page tells him the team reads his answer, and his answer
     # lifts the start key. Night 163's start windows held no word of his
     # (frame 312, review w5, re-check). The commit door reads the same set.
-    if (role == "developer" and wake is not None
-            and wake.kind == "tick:batch_start" and wake.refs):
+    # Every Developer wake on a batch and the Architect's stray judgement
+    # read it. On dry run 7, r_m42 said "Do not remove that branch in
+    # _foldline." and reached 0 of 22 Developer sessions and 0 of 4 stray
+    # judgements, because only `batch_start` read it (frame 362, the
+    # removal read, F1).
+    bid = None
+    if wake is not None and (
+            role == "developer"
+            or (role == "architect" and wake.kind == "tick:touch_strayed")):
+        bid = getattr(sb.ctx, "batch_id", None) or (
+            wake.refs[0] if wake.refs else None)
+    made = sb.ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                               (bid,)).fetchone() if bid else None
+    if made is not None:
         # The key set of `_ruling_texts`: the batch, its tickets and
         # criteria, the item and a page key that names the item.
-        bid = wake.refs[0]
-        made = sb.ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
-                                   (bid,)).fetchone()
         said = _ruled_block(sb.ctx.conn, api.batch_ruled_refs(sb.ctx.conn, bid),
-                            item=made["item_id"] if made else None)
+                            item=made["item_id"])
         if said:
             # At the front, because the cut of a long wake takes the last
             # keys first. On dry run 6b, `batches.expect` came first with
