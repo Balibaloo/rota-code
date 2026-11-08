@@ -909,3 +909,26 @@ def test_the_printout_door_is_silent_with_no_run_row(tmp_path):
     except ValueError as exc:
         assert "printout of the Architect's run" not in str(exc), exc
     conn.close()
+
+
+def test_the_name_error_door_names_the_surface_doors_line(tmp_path):
+    """Pass 2f: the case's tree had no build system, so the NameError door
+    named `src.icalendar...` and the surface door refused it. The fork is
+    installed, and with its pyproject.toml both doors name one line."""
+    conn, tb, crit = _split_word_case(tmp_path, with_repo=True)
+    line = "from icalendar.parser.string import _foldline"
+    unimported = ("def test_fold_at_a_space():\n"
+                  f"    assert ' ' in _foldline(\"{SPLIT_INPUT}\", 75)\n")
+
+    with pytest.raises(ValueError) as exc:
+        tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                path="tests/test_foldline.py", body=unimported)
+    assert f"add `{line}`" in str(exc.value), exc.value
+
+    with pytest.raises(ValueError) as exc:
+        tb.call("tests.encode", id="tst_fold", criterion_id=crit,
+                path="tests/test_foldline.py",
+                body="from src.icalendar.parser.string import _foldline\n\n"
+                     + unimported)
+    assert f"`{line}`" in str(exc.value), exc.value
+    conn.close()

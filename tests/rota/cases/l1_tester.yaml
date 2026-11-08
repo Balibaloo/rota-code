@@ -1721,6 +1721,16 @@
     # `edit:` commits a new head, and the batch is then no claim.
     onboard: true
     change:
+      # The fork's two tables that `project_installable` reads. The fork is
+      # an installed package, so a test imports `icalendar.parser.string`
+      # (frame 360, pass 2f). No dependency: the harness installs none.
+      pyproject.toml: |
+        [build-system]
+        requires = ["hatchling>=1.27.0", "hatch-vcs"]
+        build-backend = "hatchling.build"
+
+        [project]
+        name = "icalendar"
       src/icalendar/__init__.py: ""
       src/icalendar/parser/__init__.py: ""
       src/icalendar/parser/string.py: |
