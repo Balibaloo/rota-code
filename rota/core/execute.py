@@ -34,9 +34,15 @@ def _local(worktree: Path, argv: list[str], timeout: int,
     # The mapping goes over the process environment and never replaces it,
     # because the child still needs PATH and the venv's own variables.
     full = None if env is None else {**os.environ, **env}
+    # The child's output is decoded as UTF-8, and a byte that is not UTF-8
+    # becomes U+FFFD. With `text=True` alone the decode runs in the console
+    # codepage, cp1252 here, and byte 0x8d in a pytest output killed the
+    # reader thread six times on dry run 7 (observed:
+    # `plans/dry7-read-2026-11-07.md`, question G, 2026-11-07).
     try:
         out = subprocess.run(argv, cwd=worktree, capture_output=True,
-                             text=True, timeout=timeout, env=full)
+                             encoding="utf-8", errors="replace",
+                             timeout=timeout, env=full)
     except subprocess.TimeoutExpired:
         return Result(-1, "", "", timed_out=True, error=f"timed out after {timeout}s")
     except OSError as exc:

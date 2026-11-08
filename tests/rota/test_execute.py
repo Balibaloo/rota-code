@@ -74,3 +74,22 @@ def test_a_packaged_project_is_installable(tmp_path):
         "[build-system]" + nl + "requires=['flit_core']" + nl + "build-backend='flit_core.buildapi'" + nl
         + "[project]" + nl + "name='click'" + nl, encoding="utf-8")
     assert project_installable(tmp_path)
+
+
+def test_a_byte_outside_the_console_codepage_does_not_kill_the_runner(tmp_path):
+    """Dry run 7: byte 0x8d in a pytest output killed the reader thread.
+
+    The child's output is decoded as UTF-8 with replacement, whatever the
+    console codepage (observed: `plans/dry7-read-2026-11-07.md`, G).
+    """
+    import sys
+
+    from rota.core import execute
+
+    # 'ok ', byte 0x8d, ' end', newline, written as bytes with no escape.
+    code = ("import sys; sys.stdout.buffer.write("
+            "bytes([111, 107, 32, 141, 32, 101, 110, 100, 10]))")
+    out = execute.run(tmp_path, [sys.executable, "-c", code], timeout=30)
+    assert out.returncode == 0 and not out.error
+    assert out.stdout.startswith("ok ") and out.stdout.rstrip().endswith("end")
+    assert "�" in out.stdout
