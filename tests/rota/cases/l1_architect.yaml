@@ -626,8 +626,10 @@
     writes:
       # One run, and its program imports `_foldline` from the touch's
       # module. A program that defines its own `_foldline`, as A4 did,
-      # never lands (frame 360, the amendment, H1).
-      claim_runs: {count: 1, text_includes: ["_foldline"],
+      # never lands (frame 360, the amendment, H1). The module defines
+      # `foldline` as an alias, so a program that imports the alias is a
+      # correct run, and "foldline" matches both names (pass 2c).
+      claim_runs: {count: 1, text_includes: ["foldline"],
                    text_includes_any: ["from icalendar.parser.string import",
                                        "import icalendar.parser.string"],
                    fields_nonempty: [imported]}
