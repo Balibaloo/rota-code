@@ -13392,6 +13392,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                                      notes=_run_notes)
     if _past_run:
         raise Wall(_past_run)
+    # Frame 182, dry run 8: tst_c1 v2 passed on the unchanged code, and
+    # tst_c3 failed on code that kept its commitment. The base run judges
+    # the test before any Developer is asked to fit it.
+    _base_wall = _base_verdict_refusal(ctx, batch_id, criterion_id, path, body)
+    if _base_wall:
+        raise Wall(_base_wall)
     if invented_note:
         _stage_ledger(ctx, criterion_id, "criteria", invented_note, "invented")
     if noted:
@@ -23747,6 +23753,100 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
         f"test is stored. The batch's head holds the Developer's commit. If the "
         f"criterion's words give the value that the run shows, the test is "
         f"wrong. Encode it again with the same id.")
+
+
+def _same_words(a: str, b: str) -> bool:
+    """Two texts that differ only in case, spaces and a last full stop."""
+    def norm(s: str) -> str:
+        return " ".join(str(s or "").casefold().split()).rstrip(".")
+    return bool(norm(a)) and norm(a) == norm(b)
+
+
+def criterion_commitment(conn, batch_id, criterion_id) -> str | None:
+    """
+    The commitment that a criterion restates, or None for a change criterion.
+
+    The rows decide, never a reading of the words (frame 182). A criterion
+    restates a commitment when its test row cites a `commitment_id`, when
+    its own surface refs cite a bound commitment, or when its text is the
+    text of a commitment that binds the batch.
+    """
+    row = conn.execute(
+        "SELECT commitment_id FROM tests WHERE criterion_id = ? AND batch_id = ? "
+        "AND commitment_id IS NOT NULL LIMIT 1", (criterion_id, batch_id)).fetchone()
+    if row is not None:
+        return row["commitment_id"]
+    crit = conn.execute("SELECT text, surface_refs FROM criteria WHERE id = ?",
+                        (criterion_id,)).fetchone()
+    if crit is None or not batch_id:
+        return None
+    try:
+        from ..core import worktrees as _wt
+        bound = _bound_rows(conn, batch_id, _wt.batch_files(conn, batch_id) or [])[1]
+    except Exception:  # noqa: BLE001 -- no index or no tree: nothing binds
+        return None
+    try:
+        refs = {str(r) for r in json.loads(crit["surface_refs"] or "[]")}
+    except ValueError:
+        refs = set()
+    for b in bound:
+        heads = [b.get("text"), b.get("behaviour"),
+                 str(b.get("headline") or "").partition(": ")[2]]
+        if b["id"] in refs or any(_same_words(crit["text"], h) for h in heads):
+            return b["id"]
+    return None
+
+
+#: The base-verdict refusals of `tests.encode` (frame 182, dry run 8).
+BASE_GREEN_WORDS = (
+    "This test passes on the code before the change. A test of a change "
+    "must fail before the change and pass after it. Write a check that the "
+    "code as it is fails.")
+BASE_RED_WORDS = (
+    "This test fails on the code before the change, and that code already "
+    "keeps {commitment}. The test is wrong, not the code.")
+
+
+def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
+                          body: str) -> str | None:
+    """
+    The refusal for a body whose base verdict contradicts its criterion.
+
+    A test of a change that passes at the base proves nothing about the
+    change. A test of a kept commitment that fails at the base is wrong,
+    because the base keeps the commitment. A claimed batch changes no code,
+    so its tests must pass at the base, and the first refusal stays silent.
+    A batch with no git worktree has no base to run, and the door is silent.
+    """
+    from ..core import harness as _harness
+
+    if not batch_id:
+        return None
+    kept = criterion_commitment(ctx.conn, batch_id, criterion_id)
+    if kept is None and _claimed(ctx.conn, batch_id):
+        return None
+    try:
+        ran = _harness.run_at_base(ctx.conn, batch_id, path, body)
+    except Exception:  # noqa: BLE001 -- a run that cannot start proves nothing
+        return None
+    if ran is None:
+        return None
+    verdict, said = ran
+    last = _harness.last_line(said)
+    if kept is None and verdict == "pass":
+        return f"{BASE_GREEN_WORDS} The base run ended with: {last}"
+    if kept is None or verdict == "pass":
+        return None
+    crit = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                            (criterion_id,)).fetchone()
+    words = [BASE_RED_WORDS.format(commitment=kept),
+             f"The base run ended with: {last}"]
+    if claim_run_row(ctx.conn, batch_id) is not None:
+        words.append(claim_run_words(ctx.conn, batch_id))
+    if crit is not None:
+        words.append(f"Make the test check only what {criterion_id} says: "
+                     f"{crit['text']}")
+    return " ".join(words)
 
 
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
