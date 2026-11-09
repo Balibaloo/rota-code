@@ -1170,6 +1170,10 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the challenge as a criterion question. Asked in plain words, it
         # blamed the test. The JSON below stays as it is for other readers.
         body.extend(_failed_run_blocks(inbound))
+        # Frame 171, dry run 8: s166 weakened a right test and s171 held a
+        # wrong one. The base verdict is a fact, so the wake states it.
+        if wake.detail == "challenge":
+            body.extend(_base_verdict_lines(sb.ctx.conn, inbound))
         # Frame 223, night 153: 0 of 3 seats read the callable that raised,
         # though the brief told them to call `code.source`.
         raised = _raised_signature_pushes(sb, inbound)
@@ -3702,6 +3706,28 @@ def _has_failed_run_block(row: Any) -> bool:
         return False
     run = row.get("last_run")
     return bool(run) and run.get("result") != "pass"
+
+
+def _base_verdict_lines(conn: sqlite3.Connection,
+                        inbound: dict[str, Any]) -> list[str]:
+    """One line for each challenged criterion test with a base verdict on
+    record: whether the test is red or green on the code before the change.
+    A test with no base run on record gets no line."""
+    from .harness import base_verdict
+
+    lines: list[str] = []
+    for ref in (inbound.get("resolved_refs") or {}):
+        row = conn.execute("SELECT batch_id FROM tests WHERE id = ? "
+                           "AND criterion_id IS NOT NULL", (ref,)).fetchone()
+        if row is None:
+            continue
+        verdict, last = base_verdict(conn, row["batch_id"], ref)
+        if verdict == "none":
+            continue
+        colour = "green" if verdict == "pass" else "red"
+        lines.append(f"\n{ref}: at the base this test is {colour}. "
+                     f"The base run ended with: {last}")
+    return lines
 
 
 def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
