@@ -195,6 +195,9 @@ def run(conn: sqlite3.Connection, batch_id: str,
                                   output=output.get(test_id, ""),
                                   red_nodes=nodes.get(test_id))
     lift_on_red_move(conn, batch_id, head, before, same_head)
+    # Frame 182: the base verdict of each new criterion test body. A door
+    # and the Tester's challenge wake read it (dry run 8, W1 and W2).
+    record_criterion_bases(conn, batch_id, timeout=timeout)
     return results
 
 
@@ -700,3 +703,155 @@ def record_base_run(conn: sqlite3.Connection, batch_id: str, worktree: Path,
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                  (_base_key(batch_id), json.dumps(record, sort_keys=True)))
     return record
+
+
+# The base verdict of a criterion test (frames 182 and 171, dry run 8, W1
+# and W2). `test_runs` holds no test version, so its row at the base can
+# describe a body that a replace removed: tst_c1 v1 was red at 99619246,
+# and v2 never ran there. So the record keys each verdict by the body.
+def _criterion_base_key(batch_id: str) -> str:
+    return f"criterion_base:{batch_id}"
+
+
+def body_key(body: str) -> str:
+    """The key of one test body in the base record."""
+    import hashlib
+
+    return hashlib.sha256((body or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _base_file(root: Path, base: str, rel: str) -> bytes | None:
+    """The bytes of `rel` at `base`, or None when the base lacks the file."""
+    from .worktrees import GIT
+
+    got = subprocess.run([*GIT, "-C", str(root), "show", f"{base}:{rel}"],
+                         capture_output=True)
+    return got.stdout if got.returncode == 0 else None
+
+
+def run_at_base(conn: sqlite3.Connection, batch_id: str, path: str, body: str,
+                *, timeout: int = 120) -> tuple[str, str] | None:
+    """
+    Run one test body on the code that the batch forked from.
+
+    Each tracked file that differs from the base gets its base bytes for the
+    run, and its own bytes after it. The worktree's environment imports the
+    worktree, so a second checkout would need a second environment. None
+    when the batch has no git worktree or no fork to read.
+    """
+    from . import config as _config
+    from . import worktrees as _wt
+
+    worktree = worktree_of(conn, batch_id)
+    if not worktree or not (Path(worktree) / ".git").exists():
+        return None
+    root = Path(worktree)
+    try:
+        base = _wt.base(root, _wt.project_root(conn))
+        if base == "HEAD~1":
+            return None
+        listed = _wt._git(root, "diff", "--name-only", "--no-renames", "-z",
+                          base, check=True)
+    except (_wt.WorktreeError, OSError):
+        return None
+    rel = path.replace("\\", "/")
+    changed = [p for p in listed.split("\0") if p and p != rel]
+    saved: dict[Path, bytes | None] = {}
+
+    def keep(f: Path) -> None:
+        saved[f] = f.read_bytes() if f.is_file() else None
+
+    try:
+        for p in changed:
+            f = root / p
+            keep(f)
+            old = _base_file(root, base, p)
+            if old is None:
+                f.unlink(missing_ok=True)
+            else:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_bytes(old)
+        target = root / rel
+        keep(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(body.encode("utf-8"))
+        return _run_one(root, rel, timeout,
+                        runner=_config.get(conn, "runner"), own=True)
+    finally:
+        for f, data in saved.items():
+            if data is None:
+                f.unlink(missing_ok=True)
+            else:
+                f.write_bytes(data)
+
+
+def _criterion_base(conn: sqlite3.Connection, batch_id: str) -> dict:
+    import json
+
+    row = conn.execute("SELECT value FROM config WHERE key = ?",
+                       (_criterion_base_key(batch_id),)).fetchone()
+    try:
+        data = json.loads(row["value"]) if row else {}
+    except (TypeError, ValueError):
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def record_criterion_bases(conn: sqlite3.Connection, batch_id: str,
+                           *, timeout: int = 120) -> dict:
+    """
+    Run each criterion test of the batch at the base once per body, and
+    record the verdict. This is the one writer of the base verdict.
+
+    The harness pass after an encode calls it, so a test that lands after
+    the Developer's commits still gets its base run.
+    """
+    import json
+
+    record = _criterion_base(conn, batch_id)
+    moved = False
+    for t in live_tests_for(conn, batch_id):
+        if t["criterion_id"] is None:
+            continue
+        key = body_key(t["body"])
+        if (record.get(t["id"]) or {}).get("body") == key:
+            continue
+        ran = run_at_base(conn, batch_id, t["path"], t["body"], timeout=timeout)
+        if ran is None:
+            return record
+        verdict, said = ran
+        record[t["id"]] = {"body": key, "result": verdict,
+                           "last": last_line(said)}
+        moved = True
+    if moved:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (_criterion_base_key(batch_id),
+                      json.dumps(record, sort_keys=True)))
+    return record
+
+
+def last_line(said: str) -> str:
+    """The last line of a run's text that holds a character, less pytest's
+    run time. A record that holds a run time differs between two builds."""
+    lines = [ln.strip() for ln in (said or "").splitlines() if ln.strip()]
+    return _RUN_TIME.sub("", lines[-1]) if lines else ""
+
+
+_RUN_TIME = re.compile(r"\s+in\s+[\d.]+s(?:\s+\([\d:]+\))?\s*$")
+
+
+def base_verdict(conn: sqlite3.Connection, batch_id: str,
+                 test_id: str) -> tuple[str, str]:
+    """
+    The verdict of the test's current body at the batch base, and the base
+    run's last line. The verdict is `pass`, `fail` or `none`.
+
+    An error at the base is `fail`, because the body could not pass there.
+    `none` means no run of this body at the base is on record.
+    """
+    row = conn.execute("SELECT body FROM tests WHERE id = ? AND batch_id = ?",
+                       (test_id, batch_id)).fetchone()
+    entry = _criterion_base(conn, batch_id).get(test_id) or {}
+    if row is None or entry.get("body") != body_key(row["body"]):
+        return "none", ""
+    return ("pass" if entry.get("result") == "pass" else "fail"), entry.get("last", "")
