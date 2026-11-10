@@ -735,6 +735,52 @@ on 2 of 2 pages. Frame 364 does not close on this read: the run has no
 merge to score. The stop is a wall of rota's, and the redirect of frame
 363 holds the order in which a wall becomes a frame.
 
+## Step 6: the second view on the one design
+
+Session 7fd2421e wrote `plans/method/meta-design-2026-11-10.md` and
+asked for the second view. This session read that page whole, and the 32
+lines of "Step 5, the design" in `plans/method/meta-map-2026-11-10.md`.
+It read no other meta page.
+
+**Expected** (on frame 364 before the read): the design steers the work
+by a measure that counts merges with a seat that agrees, so the steering
+shape waits on a new measure. The design names no measure of a person's
+reading.
+
+**Found:** the expectation holds, and the design says the same. Shape B
+names its weakest point as the measure of the step, "a merge with the
+session in the seat". The design gives the measure to this review.
+
+**The second view, from this map** (reasoned: this session, on the
+counts of the compares above):
+
+1. The form of shape B does not wait. The plan's line, the step line and
+   the tally hold for any measure. The intake by the step waits. With
+   today's measure, the intake puts down each wall that no seat that
+   agrees can meet. The wall of blind run 1 is such a wall, and so are
+   the cost walls: 6 to 16 pages and 54 to 206 sessions before the first
+   batch stop no merge.
+2. The measure of the step is not outside the loop. A merge is sound by
+   the merge conditions on 77 of 77, and the loop's own tests were green
+   on wrong code in dry runs 5 and 8. The 69 hours behind shape B hold
+   the three requests that merged on one Developer commit each.
+3. One run must tell the session three things. Who sat in the seat, and
+   whether that seat agreed with every page. Which parts of the
+   destination sentence the run tested. Whether the merged change is
+   right by a check that the loop did not write, with the count of pages
+   that the person got and the desk and the act at which the model
+   stopped.
+4. Shape B puts the other walls down "as a group in one line". That line
+   loses the evidence for "honest about where small models stop". Shape
+   A has the mark `model stops here`. Shape B must keep that mark.
+5. A count over two runs is sound only for runs that share no state.
+   395 of 1,855 sessions repeat word for word between runs, and dry run
+   6b is inside dry run 6c.
+6. With a measure that needs a seat that does not agree, shape B orders
+   the wall of blind run 1 first, because that measure cannot pass
+   without it. Roman does not sit in the seat yet, so a blind agent is
+   the only such seat.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
