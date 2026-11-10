@@ -3255,7 +3255,7 @@ def _removal_named(conn: sqlite3.Connection, batches: list
                    ) -> tuple[str, list[str]]:
     """The words of `_removal_words` and the removal key of each named
     statement, in the order of the words."""
-    from .api import _gone_targets, batch_ruled_refs
+    from .api import _gone_targets, _grain_path, batch_ruled_refs
 
     places: dict[str, list[str]] = {}
     keys: dict[str, list[str]] = {}
@@ -3267,7 +3267,9 @@ def _removal_named(conn: sqlite3.Connection, batches: list
                 "SELECT path, note FROM touch_strays WHERE batch_id = ? AND "
                 "commit_sha = ? AND note LIKE 'removal: %' ORDER BY path",
                 (batch["id"], batch["head_commit"])):
-            path, _sep, owner = r["path"].partition("::")
+            # The path half goes through the one reader (F11).
+            path = _grain_path(r["path"])
+            owner = r["path"].partition("::")[2]
             for g in _removal_pieces(r["note"], owner):
                 if ruled is None:
                     ruled = batch_ruled_refs(conn, batch["id"])

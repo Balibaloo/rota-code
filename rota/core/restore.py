@@ -77,7 +77,9 @@ def restore_head(conn: sqlite3.Connection, batch_id: str,
     nows: dict[str, list[str]] = {}
     rows: list[dict] = []
     for grain, only, act in asks:
-        path, _sep, owner = grain.partition("::")
+        # The path half goes through the one reader (F11).
+        path = worktrees.grain_path(grain)
+        owner = grain.partition("::")[2]
         base = _base_texts(tree, fork, [path]).get(path)
         if not base:
             return {"reason": f"the fork does not hold {path}", "grain": grain}
