@@ -27660,6 +27660,12 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
             "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
             "status": "foreseen", "note": note}))
+    # Frame 173, pass 2: on dry run 8 the restore commit's reply named no
+    # next step, and s198 made two more fold changes in the same wake.
+    if (getattr(ctx, "wake_kind", "") == "tick:touch_mistaken"
+            and not mistaken and _mistake_grains_back(ctx, sha)):
+        out["next"] = ("the removed statement is back. This wake is done. "
+                       "End the session")
     if mistaken:
         out["removals judged a mistake"] = [f"{g}: {n}" for g, n in mistaken.items()]
         out["mistakes note"] = (
@@ -27959,6 +27965,16 @@ def _base_texts(tree, fork: str, paths: list[str]) -> dict[str, str | None]:
     if texts[0] is None:
         return {}
     return {p: ("" if t is None else t) for p, t in zip(rels, texts[1:])}
+
+
+def _mistake_grains_back(ctx: Ctx, sha: str) -> bool:
+    """True when the head before commit `sha` held a `mistake` row. The
+    caller knows that `sha` leaves no mistake gone, so each is back."""
+    return ctx.conn.execute(
+        "SELECT 1 FROM touch_strays t JOIN batches b ON b.id = t.batch_id "
+        "WHERE t.batch_id = ? AND t.commit_sha = b.head_commit AND "
+        "t.commit_sha != ? AND t.status = 'mistake'",
+        (ctx.batch_id, sha)).fetchone() is not None
 
 
 def removed_statements(base: str, now: str) -> tuple[list, list] | bool:

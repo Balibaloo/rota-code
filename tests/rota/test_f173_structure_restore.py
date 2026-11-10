@@ -209,3 +209,21 @@ def test_two_mistake_rows_at_one_head_both_read_restored(run):
     assert (root / PATH).read_bytes() == FORK
     assert [r[0] for r in conn.execute("SELECT status FROM touch_strays")] == [
         "restored", "restored"]
+
+
+def test_the_restore_commit_in_the_wake_says_the_wake_is_done(run):
+    """The context is gone, so the wake runs. The Developer's commit that
+    puts the statement back gets the next step: the wake is done."""
+    from rota.roles.api import Ctx, code_commit
+    conn, root = run
+    gone = FORK.replace(GONE, b"", 1).replace(
+        b"    assert isinstance(line, str)\n", b"    line = str(line)\n", 1)
+    _head(conn, root, gone)
+    assert restore_wake(conn, "bg_1")[0] == []
+    (root / PATH).write_bytes(gone.replace(
+        b"    line = str(line)\n", b"    line = str(line)\n" + GONE, 1))
+    ctx = Ctx(conn=conn, role="developer", batch_id="bg_1",
+              wake_kind="tick:touch_mistaken")
+    out = code_commit(ctx, "put the assert back")
+    assert out["committed"] is True, out
+    assert "This wake is done" in out.get("next", ""), out
