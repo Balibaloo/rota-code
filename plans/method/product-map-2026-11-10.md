@@ -669,6 +669,43 @@ This is the session's reading after nine masses and one break test
    removed lines. The records read so far cannot tell a wrong edit by
    the model from a right edit that the stray rule refuses.
 
+## The fold read: point 5 of the reading, narrowed
+
+The read is `plans/method/product-fold-read-2026-11-10.md`, one agent on
+Opus, about 294k. It read the head commit of each fold batch and called
+the base and the head `_foldline` on chosen strings in a scratch script.
+
+The expectation, 07:03: one head or more holds a right fold whose
+strays name lines the change must remove, and one head or more holds
+wrong code. It fails if all three heads are wrong code. **The
+expectation fails.**
+
+- No head of dry runs 5, 7 and 8 folds a plain long line at a space.
+  Dry run 5 writes the separator as literal text, with every backslash
+  of the file doubled. Dry run 7 returns an empty string. Dry run 8
+  keeps the base cut with a shorter window. Dry run 4 folds at a space
+  and breaks the line limit.
+- None of the removals that the stray rows name is a removal that a
+  right fold must make: 0 of 20 rows. So the stray rule did not refuse
+  a right edit in these runs.
+- No stray row and no judgement names the real fault of a head.
+- The batch's own tests are green on wrong code: 3 of 3 pass on the
+  head of dry run 5, after a test was written again, and 2 of 2 on the
+  head of dry run 8.
+- What held the wrong code back was not a judgement of it. Dry runs 5
+  and 7 parked on the ladder of the mistake rows. Dry run 8 parked on
+  two of the repository's own tests. Dry run 5 ran 1 of the 162
+  repository test files.
+
+Point 5 of the reading changes. On this one request, with the right
+function named, the Developer's code did not do the work in 4 of 4
+runs. The stop is the edit and not the stray rule. The count is one
+sentence on one repository with one Developer model, and the read ran
+the function alone and no test.
+
+This also gives claim 2 its plainest case: the tests that the loop
+wrote passed on code that does not fold at a space, in 2 of 3 runs.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
