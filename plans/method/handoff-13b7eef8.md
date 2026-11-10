@@ -41,19 +41,34 @@ the baseline. The taker holds frame 362 with 357, 358, 360 and 361.
    test must be red at the base or it proves nothing. A kept commitment's
    test must be green at the base or the test is wrong. Both rules are
    mechanical and rest on rows that exist.
-4. **Frames 182 and 171 moved to the front by C77.** Pass 1 runs in
-   `C:/Users/roman/rota_p182` from `f182_base_verdict_brief.md` in this
-   session's scratchpad, cap 100k, report to
-   `f182_base_verdict_report.md` beside it. Part 0 is a reach count,
-   parts 1 to 3 are the reader, the two refusals and the challenge line,
-   part 4 the tests on dry run 8's rows.
+4. **Frames 182 and 171 moved to the front by C77, and pass 1 is
+   built** in `C:/Users/roman/rota_p182`: `53f3f214` (harness:
+   `run_at_base`, `record_criterion_bases`, `base_verdict`), `9f68d160`
+   (api: the two refusals, `criterion_commitment`), `c1a25764` (runner:
+   the challenge line), `5ef8dc11` (tests, 9 of 9), `077a7b5f` (the scene
+   bodies in `rota/testkit/scenes.py` now fail at the base, and
+   `run_at_base` removes an uncommitted Developer file for the run only).
+   Related set 440 passed. The report is `f182_base_verdict_report.md`
+   in this session's scratchpad, with an addendum. The review runs from
+   `f182_review_brief.md` to `plans/f182-review-p1.md`, ten points, the
+   late change in `077a7b5f` the tenth.
+5. **Pass 2's design item, from the implementer's reach:** on dry run
+   8's real rows c3 has no `commitment_id`, so the kept-commitment
+   refusal would not fire on a rerun. The proposal, not built: the
+   Terminologist sends `keeps=<constraint id>` in `criteria.specify`,
+   the door stores it in `criteria.commitment_id` and accepts only an id
+   from the bound commitments the criteria wake showed (`_bound_rows`),
+   and `criterion_commitment` reads that column first. Decide it with the
+   reach in view, by C76.
 
 ## What comes next, in order
 
-1. **Pass 1's report, then a review and the pick.** The reviewer reads
-   the two refusals against the rows of dry run 8's `final.db` and the
-   planted fault. Then one gate, then the baseline if clean. About 2
-   cycles after the report.
+1. **The review's verdict, the fix if any, the pick, one gate.** If
+   this session handed off before the review returned, read
+   `plans/f182-review-p1.md` first; if it is not there, the reviewer is
+   still running or was cut, and the review brief says what to probe.
+   Then the pick onto the checkout, the gate, the baseline if clean.
+   Then pass 2, the commitment tie, item 5 above. About 3 cycles.
 2. **The clarify door reads three rows that exist**, frames 183 and 114
    with the read's W3 and W7, about 3 cycles: a clarify on refs with a
    landed ruling goes back to the seat; a red-at-base inherited test
