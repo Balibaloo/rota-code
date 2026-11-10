@@ -67,8 +67,9 @@ the baseline. The taker holds frame 362 with 357, 358, 360 and 361.
    picked onto the checkout as six commits ending at `3ca24c92`'s pick,
    after the review's second look said pick (`plans/f182-review-p1.md`).
    The gate runs on the pick with re-record from about 01:30 on
-   2026-11-10; its output is in this session's tasks folder, and the gate
-   prints only what moved. Store the baseline if it is clean.
+   2026-11-10; its output is
+   `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/13b7eef8-9ba8-4251-a72e-fd3511e65682/tasks/bjp4eywgk.output`,
+   and the gate prints only what moved. Store the baseline if it is clean.
 2. **Pass 2 of frame 182, cold implementer**, two items. First, the
    medium the second look carried: `criterion_kind` reads `change` when
    `_bound_rows` returns no rows because no file was predicted or no
