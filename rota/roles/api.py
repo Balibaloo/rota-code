@@ -4855,6 +4855,29 @@ def item_commitments(conn: sqlite3.Connection, item_id: str
                    for c in stated_commitments(conn, files)[0]]
 
 
+def refs_item(conn: sqlite3.Connection, refs) -> str:
+    """The item that a wake's refs name, or ''.
+
+    The criteria wake names the item. The owed and repair wakes name a
+    criterion or a test, so the bound block reads the item through the row
+    (frame 182, pass 2b)."""
+    for ref in refs or ():
+        if not isinstance(ref, str):
+            continue
+        for sql in ("SELECT id FROM items WHERE id = ?",
+                    "SELECT item_id FROM tickets WHERE id = ?",
+                    "SELECT t.item_id FROM criteria c JOIN tickets t "
+                    "ON t.id = c.ticket_id WHERE c.id = ?",
+                    "SELECT t.item_id FROM tests x JOIN criteria c ON "
+                    "c.id = x.criterion_id JOIN tickets t ON t.id = c.ticket_id "
+                    "WHERE x.id = ?",
+                    "SELECT item_id FROM batches WHERE id = ?"):
+            row = conn.execute(sql, (ref,)).fetchone()
+            if row and row[0]:
+                return row[0]
+    return ""
+
+
 def commitments_held(conn: sqlite3.Connection) -> bool:
     """Whether the file holds the stated-commitment columns and the harvest
     tables. The page reads this before it reads a commitment.
@@ -8274,9 +8297,12 @@ def _respecify_rests_on(ctx: Ctx, id: str) -> tuple[str, str | None]:
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
-                       surface_refs: list[str] | None = None) -> dict:
+                       surface_refs: list[str] | None = None,
+                       keeps: str | None = None) -> dict:
     """
-    Rewrite a criterion that was discovered unencodable or wrong.
+    Rewrite a criterion that was discovered unencodable or wrong. `keeps`
+    names the stated commitment that the criterion restates, by the door of
+    `criteria.specify`. With no `keeps` the criterion keeps its tie.
 
     `specify` inserts, so a second specify of the same id dies on the primary
     key inside the transaction -- and that was the whole of why a criterion,
@@ -8349,6 +8375,17 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # left the fourth, which was the one that could not be encoded.
     cur = ctx.conn.execute("SELECT text, ticket_id, surface_refs FROM criteria "
                            "WHERE id = ?", (id,)).fetchone()
+    # The criteria wake runs under the first guess. Dry run 7's right file
+    # came with his correction, and this rewrite is the only write after it.
+    # So the tie gets the door of `criteria.specify` here (frame 182, pass 2b).
+    from ..core.db import _has_column
+
+    held_tie = (ctx.conn.execute("SELECT commitment_id FROM criteria WHERE "
+                                 "id = ?", (id,)).fetchone()[0]
+                if cur and _has_column(ctx.conn, "criteria", "commitment_id")
+                else None)
+    tie = (_kept_commitment(ctx, cur["ticket_id"] if cur else "", keeps)
+           if keeps else None)
     from .principal import last_ruling_on
 
     # The surface is read before the text is judged. A new surface with the
@@ -8471,13 +8508,21 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             f"the principal contested these words: {contested['words']!r}. "
             f"Write what he asked for")
     if cur and not surface_changed and _same_words(text, cur["text"]):
+        # A new tie with the same words changes what gates the test, so it
+        # lands (frame 182, pass 2b).
+        new_tie = {"commitment_id": tie} if tie and tie != held_tie else {}
         # On an owed wake the same words are a finding: the criterion holds
         # under his new set. The stamp ends the owed fact (frame 362, slice 2).
         if stamp:
-            ctx.writes.append(("criteria", id, {"guess_ruling": stamp}))
+            ctx.writes.append(("criteria", id, {"guess_ruling": stamp,
+                                                **new_tie}))
             if ruling:
                 stage_ref(ctx, "criteria", id, "ruling", ruling)
-            return {"id": id, "kept": True, "rests_on": stamp}
+            return {"id": id, "kept": True, "rests_on": stamp,
+                    **_tie_reply(tie, held_tie)}
+        if new_tie:
+            ctx.writes.append(("criteria", id, new_tie))
+            return {"id": id, "keeps": tie}
         return {"id": id, "unchanged": True,
                 "note": "those are the criterion's own words; a repair changes "
                         "what a test can assert, and this did not. If this "
@@ -8500,6 +8545,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     payload: dict = {"text": text, "surface_refs": json.dumps(surface)}
     if stamp:
         payload["guess_ruling"] = stamp
+    if tie:
+        payload["commitment_id"] = tie
     # A respecified criterion is an amendment, so its version moves and the
     # Tester that gave up on it wakes. No reader reads a criterion's version.
     ctx.writes.append(("criteria", id, payload, True))
@@ -8524,8 +8571,24 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # The refs read back by rowid, as a set: the list's order is not kept.
     if surface_changed:
         return {"id": id, "respecified": True, "surface_changed": True,
-                "from": was, "to": surface}
-    return {"id": id, "respecified": True}
+                "from": was, "to": surface, **_tie_reply(tie, held_tie)}
+    return {"id": id, "respecified": True, **_tie_reply(tie, held_tie)}
+
+
+#: The note of a respecify that sends no `keeps` on a tied criterion.
+TIE_HELD_WORDS = "the criterion keeps its tie to {commitment}"
+
+
+def _tie_reply(tie: str | None, held: str | None) -> dict:
+    """The tie in a respecify's reply: the one sent, else the one held.
+
+    The update writes no `commitment_id` when no `keeps` came, so the old
+    tie stays. The reply says so, because the seat did not send it."""
+    if tie:
+        return {"keeps": tie}
+    if held:
+        return {"keeps": held, "note": TIE_HELD_WORDS.format(commitment=held)}
+    return {}
 
 
 @op("criteria", "load")

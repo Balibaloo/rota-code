@@ -427,3 +427,112 @@ def test_a_claim_gets_no_base_refusal_of_either_kind(rows8, cid, path, body, tie
     out = _encode(rows8, cid, path, body)
     assert out["id"] == f"tst_{cid}"
     assert api.BASE_GREEN_NOTE not in out.get("note", "")
+
+
+# --- pass 2b: the tie survives a correction of the guess --------------------
+
+def _repair_seat(db, refs=("c3",)):
+    from rota.roles import prompts
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    sb.ctx.wake_refs = list(refs)
+    return sb
+
+
+def _commit(db, sb, sid):
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    session_commit(db, SessionResult(session_id=sid, role="terminologist",
+                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+
+
+@pytest.fixture
+def wrong_guess(rows8):
+    """Dry run 7's turn 1: the guess names another file, and no batch has a
+    plan yet. fold.py stands for string.py, the file of his correction."""
+    rows8.execute("DELETE FROM batch_touch")
+    rows8.execute("UPDATE touch_guesses SET grain = 'parameter.py'")
+    rows8.commit()
+    return rows8
+
+
+def _rule_the_code_line(db):
+    """His correction at turn 5: the ruled code line names fold.py."""
+    for mid, frm, to, verb, cause, seq in (
+            ("m22", "liaison", "principal", "present", None, 22),
+            ("m24", "principal", "liaison", "converse", "m22", 24),
+            ("m26", "principal", "liaison", "verdict", "m22", 26)):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq, status) VALUES (?, ?, 't', ?, "
+                   "?, ?, ?, ?, 'answered')",
+                   (mid, cause, frm, to, verb, json.dumps(["guess:i1"]), seq))
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+               "status, verdict_id) VALUES ('r_m24', 'm22', 'm24', ?, "
+               "'the fold is in fold.py', 'landed', 'm26')",
+               (json.dumps({"guess:i1": "contest"}),))
+    db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
+               "grain_kind) VALUES ('i1', 1, 'm26', 'fold.py', 'path')")
+    db.commit()
+
+
+def test_after_his_correction_respecify_lands_the_tie_refused_under_the_guess(
+        wrong_guess):
+    kept = DRY8_BOUND["id"]
+    with pytest.raises(ValueError) as got:
+        _seat(wrong_guess).call("criteria.specify", id="c3", ticket_id="tk_1",
+                                text=C3, keeps=kept)
+    assert kept in str(got.value)
+    _specify_c3(wrong_guess)
+    assert api.criterion_kind(wrong_guess, "bg_1", "c3")[0] != api.KEPT
+    _rule_the_code_line(wrong_guess)
+    sb = _repair_seat(wrong_guess)
+    assert sb.call("criteria.respecify", id="c3", text=C3,
+                   keeps=kept)["keeps"] == kept
+    _commit(wrong_guess, sb, "s160")
+    assert api.criterion_kind(wrong_guess, "bg_1", "c3") == (api.KEPT, kept)
+
+
+def test_a_respecify_outside_the_bound_set_is_refused_as_specify_is(rows8):
+    _specify_c3(rows8)
+    with pytest.raises(ValueError) as got:
+        _repair_seat(rows8).call("criteria.respecify", id="c3", text=C3,
+                                 keeps=KEPT)
+    said = str(got.value)
+    assert KEPT in said and DRY8_BOUND["id"] in said
+
+
+def test_a_respecify_with_no_keeps_keeps_the_tie_and_says_so(rows8):
+    kept = DRY8_BOUND["id"]
+    _specify_c3(rows8, keeps=kept)
+    sb = _repair_seat(rows8)
+    out = sb.call("criteria.respecify", id="c3",
+                  text=C3.replace("at most 75", "no longer than 75"),
+                  surface_refs=["fold.py::_foldline"])
+    assert out.get("respecified") and out["keeps"] == kept
+    assert api.TIE_HELD_WORDS.format(commitment=kept) in out["note"]
+    _commit(rows8, sb, "s161")
+    assert rows8.execute("SELECT commitment_id FROM criteria WHERE id = 'c3'"
+                         ).fetchone()[0] == kept
+
+
+@pytest.mark.parametrize("kind, refs", [
+    ("tick:criterion_repair", ("c3",)),
+    ("tick:criterion_owed", ("c3", "m26")),
+], ids=["repair", "owed"])
+def test_the_repair_wakes_show_the_bound_commitments(rows8, kind, refs):
+    from rota.core.runner import CRITERIA_BOUND_KEY, Wake, push_working_set
+    _specify_c3(rows8)
+    pushed = push_working_set("terminologist", _repair_seat(rows8, refs),
+                              Wake("terminologist", kind, refs=refs))
+    assert [r["id"] for r in pushed[CRITERIA_BOUND_KEY]] == [DRY8_BOUND["id"]]
+
+
+def test_a_raise_in_the_bound_read_does_not_end_the_wake(rows8, monkeypatch):
+    from rota.core.runner import CRITERIA_BOUND_KEY, Wake, push_working_set
+
+    def boom(*a, **k):
+        raise RuntimeError("bound read")
+    monkeypatch.setattr(api, "item_commitments", boom)
+    pushed = push_working_set("terminologist", _seat(rows8),
+                              Wake("terminologist", "tick:criteria", refs=("i1",)))
+    assert CRITERIA_BOUND_KEY not in pushed
