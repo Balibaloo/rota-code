@@ -781,6 +781,51 @@ counts of the compares above):
    without it. Roman does not sit in the seat yet, so a blind agent is
    the only such seat.
 
+## Step 6: the product design, six shapes
+
+Roman asked on 2026-11-10 whether the review explored what it said, or
+was stuck on the first thing. The second view above named one wall and
+one run line, and no shape of what to change in rota. One design agent
+on Opus, about 159k, then wrote
+`plans/method/product-design-2026-11-10.md` from the code and the
+records.
+
+**Expected** (on frame 364, 10:48): the shapes divide on where the small
+model works. At least one shape changes the measure only. The code holds
+parts that are built and not used for the care loop. Fails if each shape
+is a list of fixes for the walls of the map.
+
+**Found:** the fail condition did not occur. The first expectation was
+too narrow: only one of six shapes moves the work between models. The
+six shapes move six axes: what a run reports (A), what judges a change
+(B), which model does which act (C), what rota takes on (D), what the
+person sees and when (E), what rota learns first (F). The parts that
+exist and are not used are a ruled design and not built code for the
+care loop: the worked example of the first page (ruled 2026-09-13, not
+built). `local-gemma-dev` is built and not used. `merge_gate=review`
+holds a merge with no page and no release.
+
+**The session's judgement** (reasoned):
+
+- The recommendation stands: A first, then B, with the stop row of D.
+  Shape A is the run line of the second view, so the two designs join
+  there. Shape B of the meta design waits on shape A of this page.
+- The page understates one cost of shape A. It says that nothing must
+  exist first. Blind run 1 stopped because no seat can answer a question
+  from the Liaison. A seat that says no meets that wall again. Shape A
+  needs the driver to offer the open page again, or the reply route, and
+  its card must name the wall.
+- The largest doubt of the page is the answer to the review's question
+  at this resolution. The destination has two halves. Shape B with the
+  stop row gives "honest about where small models stop". A merge on the
+  request that rewrites a function body needs shape C or a smaller
+  request, and the choice of the model is Roman's.
+- The code widens two claims: no seat of the three can answer a Liaison
+  `converse`, and a dropped constraint likely still feeds the build
+  (observed by grep, not by a run).
+- Dry run 9 exists (`plans/dry9-read-2026-11-10.md`) and is outside the
+  11 runs of this map.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
