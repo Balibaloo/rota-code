@@ -248,6 +248,47 @@ fields needed to find their 34%. The fields also put weight where I put
 none: on the moment that the responsibility passes, and on a check by
 the sender after the receiver's first acts.
 
+### Read 4, theory from first principles, landed 14:14
+
+The page is `boundary-theory-read-2026-11-10.md`. The conditions are
+the reader's own derivation from sourced results, and the page marks
+them so. Several figures come from abstracts.
+
+Against the expectation: held. The theory says that a restatement is
+weak evidence and that action on new cases is the strong kind. It gives
+more than I expected.
+
+The seven conditions for a second mind to hold the goal:
+
+1. Delivery. The record arrives whole and the receiver reads it.
+2. Shared code. The words mean the same thing to both.
+3. The goal above the tasks: the reason, the test for "done", the
+   limits.
+4. The current state: done, in progress, rejected, next.
+5. The unwritten part: what the sender knows and did not state.
+6. Ownership. The receiver adopts the goal, and all agree who is
+   responsible from which moment.
+7. The known gaps, and a path to repair them.
+
+An observer can check 1 and 4 against the world. No check confirms 2,
+3, 5 or the adoption in 6 for certain.
+
+The order of evidence, weakest first: silence, a delivery receipt, "I
+understand", a restatement, and at the top correct action over many
+real cases that the record did not cover, judged by a mind that knows
+the goal, with the check not known in advance. The sender's own
+confidence is no evidence. The open problem is the stop rule: no theory
+says how much evidence is enough.
+
+What it changes. Today's notes carry condition 4 well and little else.
+The channel read shows condition 1 failing for rota-3d. The words
+"spiral well" are condition 2, and Roman declined to settle them by a
+definition. My case for rota-a4 is one case, announced as a test, and
+judged by me and not by the mind that knows the goal. So it sits low in
+the order. The strong evidence is what a session does later, on cases
+nobody arranged, as Roman sees it. That is what he has given all day:
+his corrections are the judgement of the one mind that knows the goal.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
