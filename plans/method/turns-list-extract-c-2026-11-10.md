@@ -1,0 +1,570 @@
+One reader and one pass, group c, nights 161 to 175 and dry runs 1 to 5.
+
+How this extract was made (read this first):
+
+- Columns 1, 7 and 10 are the lead's. This page fills columns 2, 3, 4, 5, 6, 8, 9, the status-line part of 11, and the named part of 12.
+- All times are UTC. Status lines before 2026-10-25 02:00 UTC are in BST. This page converts them, or names them "BST".
+- A read's landing time is the commit time of `git log --diff-filter=A` for the file.
+- A sub-read is placed in the turn of the night whose walls it reads. Its landing time is given, and the page says when it landed after the next run started.
+- Night 164a has no read page of its own. `plans/night164-read.md` names it as W-F. So the row is not thin by the brief's rule, but it holds one wall only.
+- From night 170 the reads place a wall by fact (F1 to F37), not by cause. Those walls carry `[C?]` and the fact in the label.
+- The dry run reads cite no cause of the wall guide. Their walls carry `[C?]`.
+- Column 8 uses the "Same as night N's W" column of `plans/night172-read.md` to `plans/night175-read.md`, the "as night N's W" words of the night 170 and 171 reads, the "Dry run 5: wall k" words of the dry 6 reads, and the frame a read names. A match by a word alone is "not sure".
+- A frame counts as "built before the next run" when a status line or a commit says built, on the branch, or closed before the next run's start. A commit hash in a worktree is not on the night's commit. Then the cell says so.
+
+### night 161
+- read pages: `plans/night161-read.md`
+- read landed: 2026-10-24 04:58 (commit 50609cd3). Run end: 04:31 (runs.tsv). Gap: 0:27
+- 2: "Night 161 is held on the review: a right diff gets a verdict, and a criterion keeps behaviour and not his notes about a check" (`plans/stack.md:953`, sprint 17, 2026-10-24 01:10 BST).
+- 3: A sprint section: "Sprint 17, recommended on night 160's read, 2026-10-24 01:10", row 8 (`plans/stack.md:934`, `:981`).
+- 4: 9 walls.
+  - n161-W1: re-slice after b_4's cancel loses his correction; b_5 has no show_python criterion [C1] (W1) (source: plans/night161-read.md:282). The read also names C12 and C9.
+  - n161-W2: two line-1 contests his words do not make cancel b_2 and b_4 [C8] (W2) (source: plans/night161-read.md:283)
+  - n161-W3: frame 201's hold turns two right passes into wrong fails [C9] (W3) (source: plans/night161-read.md:284)
+  - n161-W4: the Tester cannot write a passable version_option test [C?] (W4) (source: plans/night161-read.md:285)
+  - n161-W5: b_5 pages carry other items' rows; "take them off" reaches nothing [C11] (W5) (source: plans/night161-read.md:286)
+  - n161-W6: the team-note door reads "On line 11, use ..." as a drop [C8] (W6) (source: plans/night161-read.md:287)
+  - n161-W7: a Vision Keeper report with no words becomes a three-item question [C10] (W7) (source: plans/night161-read.md:288)
+  - n161-W8: merged changes outside the criteria, frame 306 [C1] (W8) (source: plans/night161-read.md:289)
+  - n161-W9: window drops and the end line rise faster than sessions [C?] (W9) (source: plans/night161-read.md:290)
+- 5: Frames 315 and 316 pushed in the read's own commit 50609cd3, 0 min. Then f5bc71fd "frame 201 pass 1 launched", 0 min (git log).
+- 6: 315: built before night 162, pass 1c at 06:35 BST, cross-ticket id refusal 76ab6976 on the branch (stack status 2026-10-24 06:35, git log -- rota/). 316: built before night 162, pass 1b 06:25 BST, 3e229442 (same sources). 317: pushed 06:33 BST from the s309 interview (sprint 18 row 7), built before night 162, pass 1c 06:54 BST (commit 1d49258d, stack status 06:54). All three open at night 162 and measured by it (`plans/stack.md:922-925`).
+- 8: n161-W1: not met in n162, n163; n164a: no read. n161-W2: not met in n162 ("0 wrong line-1 contests from 2", `plans/stack.md:819`); met in n163 as n163-W3: not sure (a contest kept item 1 alive, another sign). n161-W3: not met in the next three reads (n162: "0 right passes turned to fails from 2"). n161-W4: met in n162 as n162-W1: same sign at the same place (the version_option test passes no version source). n161-W5: met in n162 as n162-W3: same sign at the same place (agenda pages carry other items' rows, frame 316); met in n163 as n163-W3: not sure. n161-W6: not met in the next three reads. n161-W7: met in n162 as n162-W6: not sure (a textless send becomes an invented question, another seat). n161-W8: met in n162 as n162-W7: same sign at the same place (frame 306). n161-W9: met in n162 as n162-W8: same sign at the same place. n164a: no read for all.
+- 9: The session: "Night 162 is held on the request line and the re-slice ... The order below is the next sprint (reasoned: the read, section 5; ruled: Roman, 2026-10-16 22:33, so the session starts the rows at once)" (`plans/stack.md:893-897`). No word of Roman in the window (`plans/method/meta-direction-read-2026-11-10.md`, rows 18 to 20). Decided: continued.
+- 11: rota-af, 50 status lines in the window. Session 51917779 by the first id in the headings of frames 315, 316 and 317: not sure.
+- 12: named: ab_contest_plan ("Two contests of line 1 ... cancelled b_2 ... and b_4", W2); gaveup_nothing ("b_5 is stuck", "22 sessions, committed nothing", section 2). Not named: ab_after_giveup, not sure (the read names b_4's cancel and no give-up before it).
+
+### night 162
+- read pages: `plans/night162-read.md`; `plans/night162-s157-read.md` (W2, landed 2026-10-24 13:28)
+- read landed: 2026-10-24 09:33 (commit 045ab3b1). Run end: 09:14 (runs.tsv). Gap: 0:19
+- 2: "Night 162 is held on the request line and the re-slice: a correction of the team's lines keeps the batch, and a re-slice keeps his corrections" (`plans/stack.md:893`, sprint 18, 2026-10-24 05:58 BST).
+- 3: A sprint section, sprint 18, row 9 (`plans/stack.md:875`, `:922`).
+- 4: 9 walls.
+  - n162-W1: b_3's red test passes no version source; code ends with ")" [C5] (W1) (source: plans/night162-read.md:327). The read names "cause 5 or 2 and 12".
+  - n162-W1b: the quarantine lifts on a docstring-only commit [C6] (W1b) (source: plans/night162-read.md:328)
+  - n162-W2: Terminologist s157 invents "raise UsageError" into two criteria [C1] (W2) (source: plans/night162-read.md:329)
+  - n162-W3: b_3 agenda pages carry 28 rows of other items [C11] (W3) (source: plans/night162-read.md:330)
+  - n162-W4: a file of criteria rows merges into his repository [C8] (W4) (source: plans/night162-read.md:331). The read also names cause 6.
+  - n162-W5: the encode door's step names the wrong function [C9] (W5) (source: plans/night162-read.md:332)
+  - n162-W6: a textless propose becomes an invented question [C2] (W6) (source: plans/night162-read.md:333)
+  - n162-W7: merged changes outside the criteria, frame 306 [C1] (W7) (source: plans/night162-read.md:334)
+  - n162-W8: window drops and the end line [C?] (W8) (source: plans/night162-read.md:335)
+- 5: Frame 318 pushed and frames 302, 308, 272 closed in the read's commit 045ab3b1, 0 min. Then 2ee3e5e8 "frame 283, sprint 19 row 2, the interview of s305", 2 min (git log).
+- 6: 318: built before night 163, pass 1b and the re-probe at 14:05 to 14:06 BST, 09fb1d90 "lifts a failing-tests key only when the red moves" on the branch at 14:06 BST (stack status, git log -- rota/). 319: pushed 14:28 BST from the s157 read; pass 1 at 3aa6ccba "in rota_p319 ... on 5758cc46", review 16:29 BST, so built in a worktree and not on night 163's commit 5758cc46 (stack status 2026-10-24 16:24, 16:29).
+- 8: n162-W1: not met in n163, n164 (other items); n164a: no read. n162-W1b: met in n164 as n164-W-B: same sign at the same place (a lift of `tests_failing` on an unchanged red, frame 318). n162-W2: met in n163 as n163-W7: same cause (C1 at the criteria writer, frame 319). n162-W3: met in n163 as n163-W3: same cause (C11, frame 316). n162-W4 to W8: not met in n163, n164; n164a: no read.
+- 9: The session: "Night 163 is held on the test and the quarantine: a Tester writes a test the code can pass, and a quarantine lifts only when the red moves (reasoned: the read, section 5)" (`plans/stack.md:831-833`). No word of Roman found in the window. Decided: continued.
+- 11: rota-04 (16 lines), rota-49 (33), rota-e0 (18). Frame 318 went from rota-04 (10:32 BST) to rota-49 (14:05 BST). Ids by frame headings, not sure: f33f3f44, f3a8d4c2, f1f0bcfa.
+- 12: named: gaveup_nothing ("The death moved to the test", b_3, W1, `plans/stack.md:821`). Not named: none.
+
+### night 163
+- read pages: `plans/night163-walk1-read.md` (2026-10-24 16:35, during the run); `plans/night163-read.md`; `plans/night163-w6-read.md` and `plans/night163-w7w8-read.md` (committed 21:55 with night 164's read; frame 320's status of 21:22 BST names the W6 read, so it existed during night 164)
+- read landed: 2026-10-24 17:17 (commit af6c4d86). Run end: 17:05 (runs.tsv). Gap: 0:12
+- 2: "Night 163 is held on the test and the quarantine: a Tester writes a test the code can pass, and a quarantine lifts only when the red moves" (`plans/stack.md:831`, sprint 19, 10:32 BST). Row 8: "three items on click that are not version_option ... so that frames 311 and 283 get a sample and no door is fitted to one item" (`plans/stack.md:858-861`).
+- 3: A sprint section, sprint 19, rows 8 and 9 (`plans/stack.md:813`).
+- 4: 9 walls.
+  - n163-W1: note door refuses `return` to `return False`; keep route names a missing tool [C8] (W1) (source: plans/night163-read.md:179). The read also names cause 9.
+  - n163-W2: his four corrections to the plan page come back unchanged [C12] (W2) (source: plans/night163-read.md:180). Also cause 8.
+  - n163-W3: item 1 outlives its cancel through another item's rows [C11] (W3) (source: plans/night163-read.md:181)
+  - n163-W4: a behaviour criterion on a docstring item [C1] (W4) (source: plans/night163-read.md:182)
+  - n163-W5: stuck after an all-approve; stop pages hide the cause [C6] (W5) (source: plans/night163-read.md:183)
+  - n163-W6: item 2 dies at its first Liaison session, four refused clarifies [C6] (W6) (source: plans/night163-read.md:184)
+  - n163-W7: the criteria writer invents cases [C1] (W7) (source: plans/night163-read.md:185)
+  - n163-W8: bg_2 starts with no tests, cause not read [C?] (W8) (source: plans/night163-read.md:186)
+  - n163-W9: onboarding s5 and s6 die on the server [C?] (W9) (source: plans/night163-read.md:187)
+- 5: d8fc792a "sprint 20, recommended on night 163's read", 0 min (git log). The walk 1 read at 16:35 had frames 306 and 312 statuses in commits 684b149a and e0710508, 0 min after it.
+- 6: 320 (sprint 20 row 4, W6): pushed 21:22 BST, after night 164a (20:53 BST) and night 164 (21:02 BST) started; pass built 22:22 BST (stack status 21:22 and 22:39 BST; 7f695611). So not built before the next run.
+- 8: n163-W1: met in n164 as n164-W-D: not sure (the same door misses a removal, the opposite sign); met in n165 as n165-W-B: same sign at the same place (22 refusals of `return` to `return False`, frame 283). n163-W2: met in n164 as n164-W-A: not sure (a drop of a test, not of a criterion). n163-W3: not met in n164, n165. n163-W4: met in n165 as n165-W-G: same cause (C1, a docstring item becomes behaviour criteria). n163-W5, W6, W8, W9: not met in n164, n165. n163-W7: met in n165 as n165-W-G: not sure. n164a: no read for all.
+- 9: The session stopped the night "in walk 3 by the rule of 2026-10-09 20:19" and wrote "Night 164 runs from the branch head after row 1 lands, held on the commit door" (`plans/stack.md:766-767`, `:807`). No word of Roman found in the window. Decided: continued.
+- 11: rota-e9, 35 status lines. The id is not mapped.
+- 12: named: gaveup_nothing (bg_2, "20 Developer sessions and 6 asks looped", W1, `plans/stack.md:773-774`); ab_after_giveup (item 1, "Item 1 outlived its cancel", W3). Not named: none.
+
+### night 164a
+- read pages: none of its own. `plans/night164-read.md` names it as W-F.
+- read landed: 2026-10-24 21:55 (commit 76344084). Run end: 20:01 (runs.tsv). Gap: 1:54
+- 2: The same as night 164: "Night 164 runs from the branch head after row 1 lands, held on the commit door, with the same three items and item 2 first" (`plans/stack.md:807`, sprint 20, 18:20 BST).
+- 3: A sprint section, sprint 20 (`plans/stack.md:763`).
+- 4: 1 wall.
+  - n164a-W1: the launch shows the second request on 20 confirms in a row [C?] (W-F) (source: plans/night164-read.md:192). The read: "Not rota's: the launch order".
+- 5: No act found between night 164a and night 164, 1 minute apart (git log). The read landed after night 164 ended.
+- 6: No frame.
+- 8: n164a-W1: not met in n164, n165, n166.
+- 9: The session: "A first launch at 20:53 was a launcher defect, 18 confirm rounds, and is not rota's" (`plans/stack.md:725-726`). Decided: continued (the relaunch as night 164).
+- 11: rota-e9, 3 status lines.
+- 12: named: none (runs.tsv: no stop). Not named: none.
+
+### night 164
+- read pages: `plans/night164-read.md`; `plans/night164-we-read.md` (W-E, landed 22:31, after night 165 started at 22:15); `plans/frame283-wd-read.md` (W-D, landed 22:35, after night 165 started)
+- read landed: 2026-10-24 21:55 (commit 76344084). Run end: 21:42 (runs.tsv). Gap: 0:13
+- 2: Sprint 20: "It measures frames 283, 306 and 312 on the commit and the page, frames 258, 305, 316 and 317 on their night 3 ... and frame 113's share of sessions that write their own results" (`plans/stack.md:808-811`).
+- 3: A sprint section, sprint 20 (`plans/stack.md:763`).
+- 4: 6 walls.
+  - n164-W1: a batch with a retired criterion never reaches the Critic [C6] (W-C) (source: plans/night164-read.md:186)
+  - n164-W2: his drop of a test lands on the criterion; no route removes a test [C1] (W-A) (source: plans/night164-read.md:187). Also cause 10.
+  - n164-W3: the encode door reads "shows" as "prints" [C8] (W-A1) (source: plans/night164-read.md:188)
+  - n164-W4: a new passing test lifts the quarantine on an unchanged red [C6] (W-B) (source: plans/night164-read.md:189)
+  - n164-W5: the note door misses a removed parameter [C8] (W-D) (source: plans/night164-read.md:190)
+  - n164-W6: his first answer returns three times on the Liaison's ruling call [C7] (W-E) (source: plans/night164-read.md:191)
+- 5: 51b5fa07 "frame 317 closed on its night 3", 0 min. First code commit 1d53d881 "fix(core): review skips a retired criterion", 3 min (git log).
+- 6: 321 (sprint 21 row 3, W-A1): pushed 23:34 BST, after night 165 started at 23:15 BST (stack status 2026-10-24 23:34). Not built before the next run. 322 (sprint 21 row 7, the W7 frame of `plans/night163-w7w8-read.md`): pushed 00:34 BST on 10-25, after night 165 started (commit a49c96a0). Not built before the next run.
+- 8: n164-W1: met in n165 as n165-W-C1: same cause (C6, a predicate counts retired criteria, frame 306). n164-W2: met in n165 as n165-W-A: not sure; met in n167 as n167-W1: not sure. n164-W3: met in n165 as n165-W-G: not sure (the Tester's "shows" in the W-G row). n164-W4: not met in the next three reads. n164-W5: met in n165 as n165-W-B: not sure (the same door, the opposite sign). n164-W6: met in n165 as n165-W-E: same sign at the same place (his first answer returns on the Liaison's ruling call); met in n166 as n166-W-B: not sure.
+- 9: The session: "Night 165 runs from the branch head after row 1 lands, cold" (`plans/stack.md:757`), stopped the night "in walk 2 by the rule of 2026-10-09 20:19" (`plans/stack.md:722-723`). No word of Roman found in the window. Decided: continued.
+- 11: rota-4e, 7 status lines: cb81ac7f ("Taken by cb81ac7f, peer name rota-4e", 21:05 BST).
+- 12: named: gaveup_red (bg_2, "4 more tests failed", W-D, and the lifts of W-B). Not named: aside, not sure (the read names bg_1 "green at 37 of 37 ... never merged", W-C, and no seat act that set it aside).
+
+### night 165
+- read pages: `plans/night165-read.md`; `plans/night165-we-read.md` (W-E, 2026-10-25 03:32); `plans/frame306-tester-reds-read.md` (a frame read, 2026-10-25 00:10, during the run)
+- read landed: 2026-10-25 02:19 (commit 97a5f8b6). Run end: 02:05 (runs.tsv). Gap: 0:14
+- 2: "It measures frames 283, 306, 312, 318 and 320 on the branch with sprint 20's six rows, frame 316 at a merge, and frame 281 on its night 3" (`plans/stack.md:760-761`, sprint 21, 22:55 BST).
+- 3: A sprint section, sprint 21 (`plans/stack.md:718`).
+- 4: 11 walls.
+  - n165-W1: his page line numbers reach a seat that does not see the page [C1] (W-A) (source: plans/night165-read.md:150). Also cause 9.
+  - n165-W2: the note door refuses `return` to `return False` 22 times [C8] (W-B) (source: plans/night165-read.md:151)
+  - n165-W3: the pass check counts retired criteria [C6] (W-C1) (source: plans/night165-read.md:152)
+  - n165-W4: the criterion surface names `examples/termui/termui.py::clear` [C5] (W-D) (source: plans/night165-read.md:153). Also cause 8.
+  - n165-W5: his first answer returns twice; the refusal names `text=` [C7] (W-E) (source: plans/night165-read.md:154). Also cause 9.
+  - n165-W6: a Developer's ledger row shows as his assumption [C11] (W-F) (source: plans/night165-read.md:155)
+  - n165-W7: a docstring item becomes behaviour criteria [C1] (W-G) (source: plans/night165-read.md:156)
+  - n165-W8: the Architect repeats a bare symbol, then claims a guess [C5] (W-H) (source: plans/night165-read.md:157)
+  - n165-W9: bg_1 ends with 2 red tests on the bad c1 [C?] (W-I) (source: plans/night165-read.md:158)
+  - n165-W10: s112 sends 141 calls in one turn [C5] (W-J) (source: plans/night165-read.md:159)
+  - n165-W11: bg_3's head changes code he forbade [C?] (W-K) (source: plans/night165-read.md:160)
+- 5: 735aed39 "sprint 22 rows 1 and 2 launched on Opus", 1 min (git log).
+- 6: 324 (W-D, W-H): pushed 03:26, built before night 166 (5b319bc3 on the branch, in 741d2d06; stack status 10:33). 325 (W-F): pushed 03:28, built before night 166 (23588406 in 741d2d06; stack status 05:43).
+- 8: n165-W1: not met in the next three reads. n165-W2: met in n167 as n167-W6: not sure (the door held right refusals); met in n168 as n168-W10: not sure. n165-W3: not met. n165-W4: met in n167 as n167-W5: same sign at the same place (the surface on `examples/`, frame 324). n165-W5: met in n166 as n166-W-B: not sure; met in n168 as n168-W9: same sign at the same place (the Liaison's ruling call fails and his answer returns). n165-W6: not met. n165-W7: met in n166 as n166-W-E: same sign at the same place (frame 322); met in n167 as n167-W9: same sign at the same place. n165-W8 to W11: not met in the next three reads.
+- 9: The session: "then night 166 from that head, cold, the same three items in the same order" (`plans/stack.md:712-716`). Roman, 2026-10-25 11:28: "Ok let's investigate if we over optimised for Qwen quirks, maybe interview Gemma where it fails" (`plans/method/meta-direction-read-2026-11-10.md:72`). The session "put the read ahead of night 166" (same line). Decided: turned (a Gemma read before night 166).
+- 11: rota-80 0ff5597e, rota-4a 96712e6b, rota-3a b18846fb (each "Taken by ..., peer name"), rota-39, rota-bc, rota-3c, rota-d5 (not mapped).
+- 12: named: gaveup_red (bg_1 "ended with 2 red tests", W-I; bg_3, W-K and W-C1); gaveup_nothing (bg_2, "22 refusals of the right change", W-B). Not named: none.
+
+### night 166
+- read pages: `plans/night166-read.md`; `plans/frame322-we-read.md` (W-E, landed 2026-10-26 06:05, during night 167)
+- read landed: 2026-10-25 22:49 (commit 6c9221ab). Run end: 19:59 (runs.tsv). Gap: 2:50
+- 2: "It measures sprint 21 rows 2 to 5 and 7 on their first night, row 1 on its second, and rows 1 and 2 above" (`plans/stack.md:714-716`, sprint 22, 02:30).
+- 3: A sprint section, sprint 22 (`plans/stack.md:669`).
+- 4: 10 walls.
+  - n166-W1: the Tester's three bg_3 tests are red on any code [C5] (W-A) (source: plans/night166-read.md:209). Also cause 8.
+  - n166-W2: the naming door ignores the Liaison's own ask [C2] (W-B) (source: plans/night166-read.md:210)
+  - n166-W3: an unasked answer wakes the Tester before the batch exists [C8] (W-C) (source: plans/night166-read.md:211)
+  - n166-W4: a contest lands as two copies of a sibling criterion [C8] (W-D) (source: plans/night166-read.md:212)
+  - n166-W5: a docstring item becomes behaviour criteria again [C5] (W-E) (source: plans/night166-read.md:213)
+  - n166-W6: the Tester repeats a paraphrased span 24 times [C4] (W-F) (source: plans/night166-read.md:214)
+  - n166-W7: a seat tries to write over his decision [C?] (W-G) (source: plans/night166-read.md:215)
+  - n166-W8: a report stays open [C?] (W-H) (source: plans/night166-read.md:216)
+  - n166-W9: the constraint tick quarantines at onboarding [C?] (W-I) (source: plans/night166-read.md:217)
+  - n166-W10: the Developer writes its own tool results [C?] (W-J) (source: plans/night166-read.md:218)
+- 5: 1782d95a "sprint 23 on night 166's read, frames 328 and 329 pushed", 0 min (git log).
+- 6: 328 (W-A): built before night 167, "Validating at a875a798" at 03:52, a875a798 in 40b16f78 (stack status 2026-10-26 03:52; git merge-base). 329 (W-D): built before night 167, the same gate (stack status 03:52).
+- 8: n166-W1: met in n167 as n167-W7: not sure. n166-W2: met in n168 as n168-W7: same cause (sprint 25 row 5 names "W7, W-B of night 166", `plans/stack.md:548`). n166-W3: met in n169 as n169-W3: same sign at the same place (`msg.answer_tester` at the criteria tick wakes a Tester before any batch). n166-W4: not met. n166-W5: met in n167 as n167-W9: same sign at the same place (frame 322). n166-W6: met in n168 as n168-W2: not sure. n166-W7, W8, W10: not met in the next three reads. n166-W9: met in n167 as n167-W12, n168 as n168-W11, n169 as n169-W8: same sign at the same place (the reads say "as on nights 164 to 168").
+- 9: The session: "The next night runs cold from that head after rows 1 and 2, the same three items in the same order, and measures night 2 of 3" (`plans/stack.md:665-667`). Roman, 2026-10-25 23:09: "how did this hapen and how much outstanding work do we have? do we need to do more work batching?" (`plans/method/meta-direction-read-2026-11-10.md:134`), and his "ok" to four frames at 23:21 (`plans/stack.md:555-556`). Decided: continued.
+- 11: rota-69 (29 lines), rota-b5 (23). Ids by frame 328's heading, not sure: 66edc387, 192bbbc0.
+- 12: named: end_working ("Roman killed it in walk 3 after bg_3 went green", `plans/stack.md:630-631`). Not named: none.
+
+### night 167
+- read pages: `plans/night167-walk2-read.md` (2026-10-26 06:46, during the run); `plans/night167-read.md`; `plans/frame324-w5-read.md` (W5, landed 2026-10-26 18:10, after night 168)
+- read landed: 2026-10-26 07:30 (commit 0ce71247). Run end: 07:13 (runs.tsv). Gap: 0:17
+- 2: "Night 167 ended sprint 23 ... because it was that sprint's night and frame 323's Gemma night" (`plans/stack.md:563-564`). Before the run: "The next night runs cold from that head after rows 1 and 2 ... and measures night 2 of 3" (`plans/stack.md:665-667`, sprint 23, 22:50).
+- 3: A sprint section, sprint 23 (`plans/stack.md:626`), and frame 323's Gemma trial.
+- 4: 12 walls.
+  - n167-W1: a line-1 sentence he asks to remove; no role can remove it [C10] (W1) (source: plans/night167-read.md:94). Also cause 9.
+  - n167-W2: a body's backslash loses one escape level in the call [C4] (W2) (source: plans/night167-read.md:95). Also cause 8.
+  - n167-W3: the one-test guard drops the asked re-encode [C8] (W3) (source: plans/night167-read.md:96)
+  - n167-W4: the quote check refuses the ESC byte form [C8] (W4) (source: plans/night167-read.md:97)
+  - n167-W5: the surface door and one-program door refuse each other's remedy [C9] (W5) (source: plans/night167-read.md:98)
+  - n167-W6: the note door holds 19 right refusals [C?] (W6) (source: plans/night167-read.md:99). The read: "No fault; the door held".
+  - n167-W7: the Tester's test path replaces the module under test [C8] (W7) (source: plans/night167-read.md:100). Also cause 9.
+  - n167-W8: the criterion half refuses an unpaired outer quote [C8] (W8) (source: plans/night167-read.md:101)
+  - n167-W9: a docstring item gets a behaviour criterion first [C5] (W9) (source: plans/night167-read.md:102)
+  - n167-W10: the Gemma seats cut their replies at the output budget [C13] (W10) (source: plans/night167-read.md:103)
+  - n167-W11: the shift page hides a quarantined tick [C11] (W11) (source: plans/night167-read.md:104)
+  - n167-W12: the constraint tick quarantines at onboarding [C?] (W12) (source: plans/night167-read.md:105)
+- 5: 6cb851c8 "frame 283, Night 167's read landed", 2 min; f92dd384 "frame 328, Pass 4, sprint 24 row 2", 5 min (git log). The gate with re-records ran "since 07:21", before the read (`plans/stack.md:594-597`).
+- 6: No new frame. Candidates C1 and C2 are "placed and not pushed" (`plans/stack.md:590-592`).
+- 8: n167-W1: not met in the next three reads. n167-W2: met in n168 as n168-W1: same cause (C4, the escape level); met in n169 as n169-W4: not sure. n167-W3: not met. n167-W4: met in n168 as n168-W2: same sign at the same place (the quote check on a backslash form). n167-W5: not met as a wall (`plans/frame324-w5-read.md` reads it). n167-W6: met in n168 as n168-W10: same sign at the same place (the note door's right refusals, frame 283). n167-W7: met in n170 as n170-W1: not sure. n167-W8: met in n168 as n168-W2: not sure. n167-W9, W10: not met. n167-W11: met in n169 as n169-W7: not sure. n167-W12: met in n168 as n168-W11, n169 as n169-W8, n170 as n170-W14: same sign at the same place.
+- 9: Roman, 2026-10-26 09:00: "If we didn't test Gemma then we haven't tested Gemma". Night 168 runs on Gemma (`plans/method/meta-direction-read-2026-11-10.md:135`). Decided: continued (a second Gemma night).
+- 11: rota-f9, 31 status lines. The id is not mapped.
+- 12: named: ab_contest_plan (W1, "6 removal requests, 4 clarify pages, the contested tick at 3"); gaveup_red (W7, "35 of 35 tests error at fa4e8230"). Not named: gaveup_nothing, not sure (W6 names 19 refused commits on bg_5 and bg_6); ab_after_giveup, not sure.
+
+### night 168
+- read pages: `plans/night168-read.md`; `plans/frame322-case-read.md` (a red case of frame 322, 18:10)
+- read landed: 2026-10-26 18:04 (commit 660b87e7). Run end: 10:05 (runs.tsv). Gap: 7:59
+- 2: "Night 168 runs cold from the head of rows 2 and 3, the same three items in the same order, qwen3.5:9b in every seat unless Roman rules the switch first, and measures night 2 of 3 for frames 328 and 329" (`plans/stack.md:621-624`, sprint 24, 07:32). Then "frame 323's second Gemma night, on Roman's word of 09:01" (`plans/stack.md:499-500`).
+- 3: A sprint section, sprint 24 (`plans/stack.md:561`), and Roman's word of 09:01.
+- 4: 11 walls.
+  - n168-W1: a body's backslash loses an escape level; encode admits the invalid escape [C4] (W1) (source: plans/night168-read.md:104). Also causes 9 and 8.
+  - n168-W2: the quote check refuses a quote of the test on the backslash form [C7] (W2) (source: plans/night168-read.md:105). Also cause 8.
+  - n168-W3: the Developer quotes a superseded criterion text [C?] (W3) (source: plans/night168-read.md:106)
+  - n168-W4: his test corrections reach a Terminologist mode that cannot act [C6] (W4) (source: plans/night168-read.md:107). Also cause 11.
+  - n168-W5: a running batch with a quarantined key keeps the only batch seat [C12] (W5) (source: plans/night168-read.md:108)
+  - n168-W6: the Gemma Critic breaks a claim on the wrong fact [C5] (W6) (source: plans/night168-read.md:109)
+  - n168-W7: the naming door reads his last answer only [C2] (W7) (source: plans/night168-read.md:110)
+  - n168-W8: the page's check line shows where a test failed, not the error [C11] (W8) (source: plans/night168-read.md:111)
+  - n168-W9: the Liaison's ruling on m53 fails; the page returns once [C7] (W9) (source: plans/night168-read.md:112)
+  - n168-W10: the note door refuses 6 right batch_start commits [C?] (W10) (source: plans/night168-read.md:113)
+  - n168-W11: the constraint tick quarantines at onboarding [C?] (W11) (source: plans/night168-read.md:114)
+- 5: 4e9e10a8 "frame 283, Met on night 3 of 3", 3 min; frames 330 to 334 pushed in 205a43fb at 18:10, 6 min (git log).
+- 6: 330 (W5): built before night 169, 3bb5be4b in 322da4b9 (git merge-base; stack status 19:15). 335 (C2, W1 and W2): built, "The mechanism is closed at 0fcbce6d" 19:32, 0fcbce6d in 322da4b9. 336 (C5, W8), 337 (W7), 338 (C3, W4): built, gate on 7121f613 at 20:08, 7121f613 in 322da4b9 (stack status 20:08). Also pushed at this close, not from the read: 331 to 334, "from Roman's 'ok' of 2026-10-25 23:21", one status line each, still open at night 169 (stack status 18:10).
+- 8: n168-W1: met in n169 as n169-W4: same sign at the same place (an invalid escape passes the parse with a warning); met in n171 as n171-W3: not sure. n168-W2, W3, W4, W8, W10: not met in the next three reads. n168-W5: met in n170 as n170-W2: not sure. n168-W6: met in n171 as n171-W9: same sign at the same place (the Critic breaks a claim on "def clear() -> None:"). n168-W7: met in n170 as n170-W4: not sure. n168-W9: met in n170 as n170-W6: not sure; met in n171 as n171-W6: not sure. n168-W11: met in n169 as n169-W8, n170 as n170-W14, n171 as n171-W14: same sign at the same place.
+- 9: Roman, 2026-10-26 18:26: "a note on the gemma work, / I only want to replace with gemma if it can do everything". The session "Closed frame 323 at once, kept qwen3.5:9b in every seat" (`plans/method/meta-direction-read-2026-11-10.md:73`). Roman, 19:30: "are we not fixing all the things in one go before the next night?" (same page, line 137). Decided: stopped the Gemma switch, and turned to many fixes before one night.
+- 11: rota-af, 40 status lines. Session ac089aa1 by meta-direction row 21 and frame 330's heading: not sure.
+- 12: named: pend_behind ("`batch_2` and `batch_3` never start", W5); gaveup_nothing (batch_1 "stayed running with its failing-tests key quarantined", `plans/stack.md:511-512`). Not named: aside, not sure.
+
+### night 169
+- read pages: `plans/l3-residue-read.md` (a case read, 20:37, during the run); `plans/night169-m36-read.md` (20:47, during the run); `plans/night169-read.md`; the 14 `plans/frame3xx-agency-read.md` pages (21:13, on Roman's ask "then do this for the frames that we are working on now"); `plans/frame339-cases-read.md` (2026-10-27 00:43)
+- read landed: 2026-10-26 21:13 (commit f80f02ad). Run end: 20:56 (runs.tsv). Gap: 0:17
+- 2: "Night 169 runs cold from the head of rows 1 and 2, the same three items in the same order, qwen3.5:9b in every seat by row 3, and measures night 3 of 3 for frames 328 and 329" (`plans/stack.md:557-559`, sprint 25, 18:08).
+- 3: A sprint section, sprint 25 (`plans/stack.md:497`).
+- 4: 8 walls.
+  - n169-W1: the removal door reads his permission by one phrase [C11] (W1) (source: plans/night169-read.md:62). Also causes 9 and 8.
+  - n169-W2: his contest of crit_3 lands only after four relays [C5] (W2) (source: plans/night169-read.md:63). Also cause 9.
+  - n169-W3: the Tester wakes before any batch exists [C8] (W3) (source: plans/night169-read.md:64)
+  - n169-W4: a Developer write with an invalid escape passes the parse [C8] (W4) (source: plans/night169-read.md:65)
+  - n169-W5: the seat sends the index's span after its own write moved it [C12] (W5) (source: plans/night169-read.md:66)
+  - n169-W6: the Developer reads the door as stale and logs faults as notes [C5] (W6) (source: plans/night169-read.md:67)
+  - n169-W7: the escalation reaches him as a seat's account of rota's door [C11] (W7) (source: plans/night169-read.md:68)
+  - n169-W8: the constraint tick quarantines at onboarding [C?] (W8) (source: plans/night169-read.md:69)
+- 5: b889c93d "rule C76, an issue is read before it is fixed, and frame 340", 5 min (git log). Frame 339 was pushed at 20:47, before the read landed (stack status 2026-10-26 20:47).
+- 6: 339 (W1): pushed 20:47 from the m36 read, built before night 170, "The mechanism is on the branch" 05:11; 76e18948 in 26a44700 (stack status 2026-10-27 05:11; git merge-base). Method frames pushed in the turn on Roman's words, not from the read: 340, built ("The mechanism is on the branch", 05:11); 341, pushed 21:58 (42caa519), state at night 170 not sure; 342, closed by ruling 23:13.
+- 8: n169-W1: met in n171 as n171-W4: not sure (removals with no grant land, the opposite sign). n169-W2, W5, W6, W7: not met in the next three reads. n169-W3: met in n170 as n170-W7: same sign at the same place (the read says "as night 169's W3"). n169-W4: met in n171 as n171-W3: not sure. n169-W8: met in n170 as n170-W14, n171 as n171-W14, n172 as n172-W11: same sign at the same place.
+- 9: Roman, 2026-10-26 22:08: "No I'm still not hearing what I'm expecting, we found significant issues in the workflow / What follows?" (`plans/method/meta-direction-read-2026-11-10.md:75`). Then about 23:4x: "Fuck it, I want all the fixes in / The walls that arise will be on a new baseline" (`plans/stack.md:429-431`). Decided: turned (sprint 26 by fact, every row built before night 170).
+- 11: rota-b4 (18 lines; 8db3a3f9 by frame 339's heading, not sure), rota-70 e03f97fc, rota-90 0f8527d4 ("Held by 0f8527d4, peer name rota-90, from rota-70 at 02:59").
+- 12: named: gaveup_nothing ("each commit that removes line 518 is refused", W1). Not named: none.
+
+### night 170
+- read pages: `plans/night170-read.md`; `plans/frame339-s128-read.md` (13:44); `plans/frame343-read.md` (13:47); `plans/night170-w8-read.md` (W8, landed 2026-10-28 00:07, after night 171)
+- read landed: 2026-10-27 13:37 (commit 979fb512). Run end: 11:36 (runs.tsv). Gap: 2:01
+- 2: "Night 170 runs after every row below is built" and "Then the gate and night 170 on 339 and 330, night 1 of 3 for both and for 335 to 338 as built" (`plans/stack.md:429`, `:445-446`, sprint 26, 10-26 23:06).
+- 3: A sprint section, sprint 26 by fact (`plans/stack.md:414`).
+- 4: 17 walls.
+  - n170-W1: the test-file door refuses every path for the docstring criterion [C?] (W1, F35, F31) (source: plans/night170-read.md:57)
+  - n170-W2: his "no new test is needed" reaches no row; the quarantine stays [C?] (W2, F20, F3) (source: plans/night170-read.md:58)
+  - n170-W3: the give-up ladder wakes four seats; none lands a row [C?] (W3, F4, F16) (source: plans/night170-read.md:59)
+  - n170-W4: a door's text makes the Liaison contest an unfaulted criterion [C?] (W4, F2) (source: plans/night170-read.md:60)
+  - n170-W5: the Liaison's acts name fewer tests than he asked to remove [C?] (W5, F3, F35) (source: plans/night170-read.md:61)
+  - n170-W6: the Liaison's `rulings.rule` is refused before it lands [C?] (W6, F2) (source: plans/night170-read.md:62)
+  - n170-W7: a Tester wakes on an answer before its batch exists [C?] (W7, F25) (source: plans/night170-read.md:63)
+  - n170-W8: the Terminologist re-sends a landed criterion [C?] (W8, F17) (source: plans/night170-read.md:64)
+  - n170-W9: the Tester re-sends a right failure, as built [C?] (W9, F14) (source: plans/night170-read.md:65)
+  - n170-W10: the survey Architect repeats `model.amend` [C?] (W10) (source: plans/night170-read.md:66)
+  - n170-W11: seats repeat a call after "Your work here is done" [C?] (W11) (source: plans/night170-read.md:67)
+  - n170-W12: onboarding repeats of reads and notes [C?] (W12) (source: plans/night170-read.md:68)
+  - n170-W13: argument form and id refusals that a seat repeats [C?] (W13, F19, F22) (source: plans/night170-read.md:69)
+  - n170-W14: the constraint tick quarantines at onboarding [C?] (W14, F21) (source: plans/night170-read.md:70)
+  - n170-W15: pages after the stop say "check: none yet" [C?] (W15, F21) (source: plans/night170-read.md:71)
+  - n170-W16: fault rows, 4 [C?] (W16) (source: plans/night170-read.md:72)
+  - n170-W17: sessions that end with no landed write and no message, 21 [C?] (W17) (source: plans/night170-read.md:73)
+- 5: 8700a526 "frame 330, The read of night 170", 0 min (git log). Frame 343 was pushed in the read's commit.
+- 6: 343 (W1): built before night 171, "The gate on 9827e38a ... all cleared" at 15:47, and night 171 ran on 9827e38a (stack status 2026-10-27 15:47; runs.tsv). Closed 2026-10-28 10:32 (commit e904b295).
+- 8: n170-W1: met in n172 as n172-W15 and n173 as n173-W13: not sure (the same door, sessions land tests later). n170-W2, W3, W5, W9: not met in the next three reads. n170-W4: met in n171 as n171-W7: not sure. n170-W6: met in n171 as n171-W6, n172 as n172-W6, n173 as n173-W1: same sign at the same place (`rulings.rule` refusals). n170-W7: met in n173 as n173-W10: same sign at the same place. n170-W8: met in n171 as n171-W10 ("as night 170's W8") and n172 as n172-W17: same sign at the same place. n170-W10: met in n173 as n173-W18: not sure. n170-W11, W12, W16, W17: met in n171 (W15, W16, W18, W19), n172 (W18, W19, W21, W22), n173 (W17, W18, W20, W21): same sign at the same place (night counts). n170-W13: met in n171 as n171-W13 and W11, n172 as n172-W16: same sign at the same place. n170-W14: met in n171 as n171-W14, n172 as n172-W11, n173 as n173-W4: same sign at the same place. n170-W15: met in n172 as n172-W12: not sure.
+- 9: Roman, 2026-10-27 14:08: "a few sessions ago we analyzed the completed frames and found that many did not fix the root cause. Go back and review them" (`plans/method/meta-direction-read-2026-11-10.md:77`). Decided: turned (frame 344's audit, sprints 28 to 31, `plans/stack.md:386`).
+- 11: rota-49 c66eae69 ("Taken by c66eae69, peer name rota-49", 13:23).
+- 12: named: gaveup_nothing ("The walk on `format_filename` stopped at the Tester's test door", `plans/stack.md:362-363`). Not named: none.
+
+### night 171
+- read pages: `plans/night171-critic-read.md` (16:48); `plans/night171-read.md`; `plans/night171-w4-read.md` (17:10); `plans/night171-how-it-works-read.md` (23:30)
+- read landed: 2026-10-27 17:00 (commit 324c804e). Run end: 16:42 (runs.tsv). Gap: 0:18
+- 2: "Night 171 after 343's commit: night 2 of 3 for 330, 335, 337, 339, 324 and 328, with a sample for 336 and 338 if a page shows one" (`plans/stack.md:377-378`, sprint 27, 13:37).
+- 3: A sprint section, sprint 27, row 3 (`plans/stack.md:359`).
+- 4: 20 walls.
+  - n171-W1: the contested description row cannot be amended; its tick quarantines [C?] (W1) (source: plans/night171-read.md:58)
+  - n171-W2: the account's description row reaches his pages after a rewording [C?] (W2) (source: plans/night171-read.md:59)
+  - n171-W3: the escape door's advice gives a test that fails on Windows [C?] (W3) (source: plans/night171-read.md:60)
+  - n171-W4: a Developer deletes code he did not ask; the commit lands [C?] (W4) (source: plans/night171-read.md:61)
+  - n171-W5: the Critic's pass door refuses a compound criterion [C?] (W5) (source: plans/night171-read.md:62)
+  - n171-W6: the rulings door refuses his replies; six answers land nothing [C?] (W6) (source: plans/night171-read.md:63)
+  - n171-W7: the rulings door reads a fault as no fault [C?] (W7) (source: plans/night171-read.md:64)
+  - n171-W8: the Liaison's clarify is refused as his own sentence [C?] (W8) (source: plans/night171-read.md:65)
+  - n171-W9: the Critic breaks a requested change against today's code [C?] (W9) (source: plans/night171-read.md:66)
+  - n171-W10: the Terminologist re-sends a landed criterion [C?] (W10) (source: plans/night171-read.md:67)
+  - n171-W11: ids from the wrong table [C?] (W11) (source: plans/night171-read.md:68)
+  - n171-W12: a Vision Keeper overwrites its own decision with unrelated text [C?] (W12) (source: plans/night171-read.md:69)
+  - n171-W13: argument form refusals that a seat repeats [C?] (W13) (source: plans/night171-read.md:70)
+  - n171-W14: the constraint tick quarantines at onboarding [C?] (W14) (source: plans/night171-read.md:71)
+  - n171-W15: seats repeat a call after "Your work here is done" [C?] (W15) (source: plans/night171-read.md:72)
+  - n171-W16: onboarding repeats of reads and notes [C?] (W16) (source: plans/night171-read.md:73)
+  - n171-W17: seats write their own tool results [C?] (W17) (source: plans/night171-read.md:74)
+  - n171-W18: fault rows, 10 [C?] (W18) (source: plans/night171-read.md:75)
+  - n171-W19: sessions that end with no write and no message, 36 [C?] (W19) (source: plans/night171-read.md:76)
+  - n171-W20: CYCLE lines, 3 [C?] (W20) (source: plans/night171-read.md:77)
+- 5: 55c85f46 "frame 344, Night 171 read by fact: 1 of 3", 0 min (git log).
+- 6: No new frame found. The read places walls under facts of frame 344 (commit 55c85f46).
+- 8: n171-W1, W3, W8, W9, W12: not met in the next three reads. n171-W2: met in n172 as n172-W9 ("Same sign as night 171's W2"), n173 as n173-W8, n174 as n174-W7: same sign at the same place. n171-W4: met in n172 as n172-W2 ("Same outcome as night 171's W4"): same sign at the same place; met in n174 as n174-W15: not sure. n171-W5: met in n172 as n172-W1: not sure (the read says "New"); met in n174 as n174-W12: not sure. n171-W6: met in n172 as n172-W6, n173 as n173-W1, n174 as n174-W1: same sign at the same place. n171-W7: met in n172 as n172-W5: not sure (the read says "New"). n171-W10: met in n172 as n172-W17: same sign at the same place. n171-W11: met in n172 as n172-W16, n173 as n173-W15, n174 as n174-W18: same sign at the same place. n171-W13: met in n173 as n173-W14: not sure. n171-W14: met in n172 as n172-W10 and W11, n173 as n173-W2 and W4, n174 as n174-W9 and W11: same sign at the same place. n171-W15 to W20: met in n172 (W18, W19, W20, W21, W22, W23), n173 (W17 to W22), n174 (W19 to W21, W23 to W25): same sign at the same place (the reads' "Same as" column).
+- 9: Roman, 2026-10-27 19:40: "I want all the fixes implemented before the next night / You can run the gate of course" (`plans/method/meta-direction-read-2026-11-10.md:78`). Roman, 10-28 01:05: "Yeah do partial gates for touched files only, full gate once before the night" (same page, line 152). Decided: continued.
+- 11: rota-ba 6d9cf7e1, rota-ea b3bc8a66, rota-24 2911045b (each "peer name"), rota-33 (not mapped).
+- 12: named: gaveup_red (W3, "3 red runs; 6 Developer `tests_failing` sessions"). Not named: none.
+
+### night 172
+- read pages: `plans/night172-read.md`; `plans/f2-night172-read.md` and `plans/f7-night172-read.md` (W5, W6 and W2 to W4, landed 08:38, 1 min after night 173 started); `plans/f1-f15-f21-night172-read.md` (W7 to W9, W12, landed 10:32, after night 173)
+- read landed: 2026-10-28 05:56 (commit 2bb40b06). Run end: 05:40 (runs.tsv). Gap: 0:16
+- 2: The plan of session 6d9cf7e1: "finish sprint 28, measure it with night 172" (`plans/method/meta-direction-read-2026-11-10.md:78`). No Sprint line names night 172 (`plans/stack.md:386-412`).
+- 3: A sprint block, "Sprints 28 to 31, the root fixes of frame 344's audit, 2026-10-27" (`plans/stack.md:386`), and the hand-off plan quoted above.
+- 4: 23 walls.
+  - n172-W1: the Critic fails a two-line docstring example; a pass names one line [C?] (W1, F37) (source: plans/night172-read.md:58)
+  - n172-W2: a Developer rewrites the function; commits remove base code with no grant [C?] (W2, F7, F3) (source: plans/night172-read.md:59)
+  - n172-W3: Developers on `tests_failing` cannot restore the removed code [C?] (W3, F7, F25) (source: plans/night172-read.md:60)
+  - n172-W4: `touch_mistaken` Developers re-send the head's own text [C?] (W4, F8, F7) (source: plans/night172-read.md:61)
+  - n172-W5: the rulings door lands a contest on a line his words do not name [C?] (W5, F2, F3) (source: plans/night172-read.md:62)
+  - n172-W6: the rulings door refuses his replies; four answers land nothing [C?] (W6, F2) (source: plans/night172-read.md:63)
+  - n172-W7: a page reads back an empty answer [C?] (W7, F1) (source: plans/night172-read.md:64)
+  - n172-W8: a confirm page reads back answers of an earlier request [C?] (W8, F15) (source: plans/night172-read.md:65)
+  - n172-W9: rows from other work reach a request's page [C?] (W9, F15) (source: plans/night172-read.md:66)
+  - n172-W10: the onboarding claim tick quarantines with no verdict [C?] (W10, F20, F21) (source: plans/night172-read.md:67)
+  - n172-W11: the Liaison cannot present a quarantine [C?] (W11, F21) (source: plans/night172-read.md:68)
+  - n172-W12: the page says the tests fail; every check line says "Passes" [C?] (W12, F21, F5) (source: plans/night172-read.md:69)
+  - n172-W13: a Tester retires every inherited test on a contest [C?] (W13, F6) (source: plans/night172-read.md:70)
+  - n172-W14: tests of a documentation criterion assert on behaviour [C?] (W14, F31, F14) (source: plans/night172-read.md:71)
+  - n172-W15: the test-file door fires; sessions land tests on the next call [C?] (W15) (source: plans/night172-read.md:72)
+  - n172-W16: ids from the wrong table [C?] (W16, F22) (source: plans/night172-read.md:73)
+  - n172-W17: the Terminologist re-sends a landed criterion [C?] (W17, F17) (source: plans/night172-read.md:74)
+  - n172-W18: seats repeat a refused call [C?] (W18) (source: plans/night172-read.md:75)
+  - n172-W19: onboarding repeats of reads and notes [C?] (W19) (source: plans/night172-read.md:76)
+  - n172-W20: seats write their own tool results [C?] (W20) (source: plans/night172-read.md:77)
+  - n172-W21: fault rows, 1 [C?] (W21, F6) (source: plans/night172-read.md:78)
+  - n172-W22: sessions that end with no write and no message, 41 [C?] (W22) (source: plans/night172-read.md:79)
+  - n172-W23: CYCLE lines, 3 [C?] (W23) (source: plans/night172-read.md:80)
+- 5: 9ab9a357 "frame 330, The read of night 172", 0 min (git log).
+- 6: No new frame. Sprint 32 places the walls under facts F2, F3, F7, F8, F25, F37, F1, F15, F21, F6 (`plans/stack.md:331-357`).
+- 8: n172-W1: met in n174 as n174-W12: not sure (the read says "New"); met in n175 as n175-W14: not sure. n172-W2: not met in n173 ("bg_3 removed no code", `plans/stack.md:278-279`); met in n174 as n174-W15: not sure. n172-W3, W4, W14, W17: not met in the next three reads. n172-W5: met in n173 as n173-W16 and W9: not sure (the read says "New"). n172-W6: met in n173 as n173-W1, n174 as n174-W1, n175 as n175-W6: same sign at the same place. n172-W7: met in n173 as n173-W6: same sign at the same place; not met in n174 ("empty read-backs 3 to 0", `plans/stack.md:235`). n172-W8: met in n173 as n173-W7: same sign at the same place; met in n174 as n174-W6: not sure. n172-W9: met in n173 as n173-W8 and n174 as n174-W7: same sign at the same place. n172-W10: met in n173 as n173-W2, n174 as n174-W9, n175 as n175-W12: same sign at the same place. n172-W11: met in n173 as n173-W4 and n174 as n174-W11: same sign at the same place. n172-W12: not met in n173 ("0"); met in n175 as n175-W1: not sure. n172-W13: not met in n173, n174 ("0"); met in n175 as n175-W10: same sign at the same place (113 `tests.retire` calls, `plans/night175-read.md:206`). n172-W15: met in n173 as n173-W13 and n174 as n174-W17: same sign at the same place. n172-W16: met in n173 as n173-W15 and n174 as n174-W18: same sign at the same place; met in n175 as n175-W10: not sure ("Same family"). n172-W18 to W23: met in n173 (W17 to W22) and n174 (W19 to W21, W23 to W25): same sign at the same place; in n175, W18, W21, W22, W23 met as n175-W17, W16, W18, W19: same sign at the same place.
+- 9: The session: "Night 172 merged 2 of 3 items ... No frame closes on this night" and "Order, the biggest issue first" (`plans/stack.md:311`, `:326-329`). No word of Roman found in the window. Decided: continued.
+- 11: rota-0e 2568e043 ("peer name rota-0e", 04:26).
+- 12: named: gaveup_red ("Walk 3 stopped on a chain of six walls", W2 to W6, `plans/stack.md:313-314`). Not named: none.
+
+### night 173
+- read pages: `plans/night173-read.md`; `plans/seam-night173-read.md` (W1, W9, W16, 12:08)
+- read landed: 2026-10-28 10:32 (commit e904b295). Run end: 10:00 (runs.tsv). Gap: 0:32
+- 2: "Night 173 after rows 1 to 3 land, with a gate on each: night 3 of 3 for frame 343, night 2 of 3 for frames 339 and 324, and the first sample of the three fixes" (`plans/stack.md:352-354`, sprint 32, 05:56).
+- 3: A sprint section, sprint 32, row 5 (`plans/stack.md:309`).
+- 4: 22 walls.
+  - n173-W1: the rulings door refuses both answers to m90; the page stays open [C?] (W1, F2, F3) (source: plans/night173-read.md:58)
+  - n173-W2: the onboarding claim tick quarantines with no verdict [C?] (W2, F20, F21) (source: plans/night173-read.md:59)
+  - n173-W3: the constraint tick is quarantined at the start [C?] (W3, F20) (source: plans/night173-read.md:60)
+  - n173-W4: the Liaison cannot present a quarantine [C?] (W4, F21) (source: plans/night173-read.md:61)
+  - n173-W5: the round tick asks three clarify questions and closes no round [C?] (W5, F20, F22) (source: plans/night173-read.md:62)
+  - n173-W6: a page reads back an empty answer [C?] (W6, F1) (source: plans/night173-read.md:63)
+  - n173-W7: a confirm page reads back an answer of an earlier request [C?] (W7, F15) (source: plans/night173-read.md:64)
+  - n173-W8: rows from other work reach a request's page [C?] (W8, F15) (source: plans/night173-read.md:65)
+  - n173-W9: the rulings door reads a fault from another page's line number [C?] (W9, F2) (source: plans/night173-read.md:66)
+  - n173-W10: a Tester woken before any batch writes 12 fault rows [C?] (W10, F25, F6) (source: plans/night173-read.md:67)
+  - n173-W11: a Tester session fails inside the runner, AttributeError [C?] (W11) (source: plans/night173-read.md:68)
+  - n173-W12: Developers on `tests_failing` re-send a challenge [C?] (W12, F24) (source: plans/night173-read.md:69)
+  - n173-W13: the test-file door fires; sessions land tests later [C?] (W13) (source: plans/night173-read.md:70)
+  - n173-W14: the bg_3 Tester sends six broken bodies per turn [C?] (W14, F19) (source: plans/night173-read.md:71)
+  - n173-W15: ids from the wrong table [C?] (W15, F22) (source: plans/night173-read.md:72)
+  - n173-W16: a landed act reverses his words, `remove` on `clear` [C?] (W16, F3) (source: plans/night173-read.md:73)
+  - n173-W17: seats repeat a refused call [C?] (W17) (source: plans/night173-read.md:74)
+  - n173-W18: onboarding refusals of notes and reads [C?] (W18) (source: plans/night173-read.md:75)
+  - n173-W19: seats write their own tool results [C?] (W19) (source: plans/night173-read.md:76)
+  - n173-W20: fault rows, 12 [C?] (W20, F25) (source: plans/night173-read.md:77)
+  - n173-W21: sessions that end with no write and no message, 26 [C?] (W21) (source: plans/night173-read.md:78)
+  - n173-W22: CYCLE lines, 3 [C?] (W22) (source: plans/night173-read.md:79)
+- 5: 3ec1f966 "frame 344, P7 pass 1c at 4d13a8d8 on w7root", 1 min (git log). Frame 343 closed and frame 330 parked in the read's commit.
+- 6: No new frame. Sprint 33 places the walls under F2, F3, F1, F15, F21, F20, F22, F25, F6 (`plans/stack.md:286-307`).
+- 8: n173-W1: met in n174 as n174-W1 and n175 as n175-W6: same sign at the same place; dry1: not named. n173-W2: met in n174 as n174-W9 and n175 as n175-W12: same sign at the same place. n173-W3: met in n174 as n174-W10, n175 as n175-W13, dry1 as dry1-W2: same sign at the same place (the constraint zero key quarantined at the start). n173-W4: met in n174 as n174-W11: same sign at the same place. n173-W5, W6, W9, W10, W11: not met in the next three reads (n174: "0 `tick:round_close` wakes", "0 sessions; 0 fault rows", "0", `plans/night174-read.md:237-239`). n173-W7: met in n174 as n174-W6: not sure. n173-W8: met in n174 as n174-W7: same sign at the same place; met in dry1 as dry1-W15: not sure. n173-W12: met in n174 as n174-W16: same sign at the same place; met in n175 as n175-W11: not sure. n173-W13: met in n174 as n174-W17: same sign at the same place. n173-W14: met in n175 as n175-W15: not sure. n173-W15: met in n174 as n174-W18: same sign at the same place; met in n175 as n175-W10: not sure. n173-W16: met in n174 as n174-W5 and n175 as n175-W5: same sign at the same place. n173-W17, W20, W21, W22: met in n174 (W19, W23, W24, W25) and n175 (W17, W16, W18, W19): same sign at the same place. n173-W18, W19: met in n174 as n174-W20 and W21: same sign at the same place. dry1 reads count none of the night counts.
+- 9: The session: "Night 173 merged 3 of 3 on 36d2a667, the first 3 of 3 since night 152" (`plans/stack.md:273-274`). Roman, 12:02: "Should we expand scope for improvements to softer issues?" and 12:29: "At what point do we say that the basic core functionality is at least basically functional" (`plans/method/meta-direction-read-2026-11-10.md:153-154`). Decided: continued.
+- 11: rota-a5 77c8dc39 ("peer name rota-a5", 08:38).
+- 12: named: none (runs.tsv: no stop). Not named: none.
+
+### night 174
+- read pages: `plans/night174-cycle2-read.md` (13:11, during the run); `plans/night174-read.md`
+- read landed: 2026-10-28 14:18 (commit 81339806). Run end: 13:58 (runs.tsv). Gap: 0:20
+- 2: "Night 174 after rows 1 to 3 land, with the full gate: night 3 of 3 for frames 339 and 324, night 1 for P7, P89, P12 and the seam fix" (`plans/stack.md:303-304`, sprint 33, 10:38).
+- 3: A sprint section, sprint 33, row 5 (`plans/stack.md:271`).
+- 4: 25 walls.
+  - n174-W1: the rulings door refuses three answers to m53 [C?] (W1, F2, F16) (source: plans/night174-read.md:60)
+  - n174-W2: three pages take a second answer before a ruling lands [C?] (W2, F2) (source: plans/night174-read.md:61)
+  - n174-W3: a ref shown on two lines breaks the line keys [C?] (W3, F28) (source: plans/night174-read.md:62)
+  - n174-W4: the act door refuses his words cut after a lead verb [C?] (W4, F2) (source: plans/night174-read.md:63)
+  - n174-W5: a landed act reverses his words, r_m43 [C?] (W5, F3, F2) (source: plans/night174-read.md:64)
+  - n174-W6: an account answer is read back a walk later [C?] (W6, F15) (source: plans/night174-read.md:65)
+  - n174-W7: constraint rows of user groups under the ambiguity heading [C?] (W7) (source: plans/night174-read.md:66)
+  - n174-W8: a question lands as a contest with a rewrite [C?] (W8, F2) (source: plans/night174-read.md:67)
+  - n174-W9: the onboarding claim tick quarantines with no verdict [C?] (W9, F20, F21) (source: plans/night174-read.md:68)
+  - n174-W10: the constraint tick is quarantined at the start [C?] (W10, F20) (source: plans/night174-read.md:69)
+  - n174-W11: the Liaison cannot present a quarantine [C?] (W11, F21) (source: plans/night174-read.md:70)
+  - n174-W12: the Critic fails an invariant criterion three times [C?] (W12, F37, F31) (source: plans/night174-read.md:71)
+  - n174-W13: the bg_3 touch line names 23 inherited tests [C?] (W13, F35) (source: plans/night174-read.md:72)
+  - n174-W14: his delete of two criteria becomes a respecify [C?] (W14, F3, F6) (source: plans/night174-read.md:73)
+  - n174-W15: the commit gate holds a write with an unread removal note [C?] (W15, F7) (source: plans/night174-read.md:74)
+  - n174-W16: Developers on `tests_failing` re-send a challenge [C?] (W16, F24) (source: plans/night174-read.md:75)
+  - n174-W17: the test-file door fires; sessions land tests later [C?] (W17) (source: plans/night174-read.md:76)
+  - n174-W18: ids from the wrong table [C?] (W18, F22) (source: plans/night174-read.md:77)
+  - n174-W19: seats repeat a refused call [C?] (W19) (source: plans/night174-read.md:78)
+  - n174-W20: onboarding refusals of notes and reads [C?] (W20) (source: plans/night174-read.md:79)
+  - n174-W21: seats write their own tool results [C?] (W21) (source: plans/night174-read.md:80)
+  - n174-W22: merged diffs hold lines he did not ask for [C?] (W22) (source: plans/night174-read.md:81)
+  - n174-W23: fault rows, 0 [C?] (W23, F25) (source: plans/night174-read.md:82)
+  - n174-W24: sessions that end with no write and no message, 30 [C?] (W24) (source: plans/night174-read.md:83)
+  - n174-W25: CYCLE lines, 2 [C?] (W25) (source: plans/night174-read.md:84)
+- 5: 93aa031c "frame 344, The read of night 174", 0 min; a74c10dd "sprint 34 on night 174's read", 0 min (git log).
+- 6: 345 (sprint 34 row 6, "Row 6 became frame 345", `plans/method/meta-above-frame-read-2026-11-10.md:139`): pushed 14:45 "held by no session", 1 status line before night 175 (stack status 2026-10-28 14:45). Still open at the next run, not built.
+- 8: n174-W1: met in n175 as n175-W6: same sign at the same place ("Same shape as night 174's W1 on a new page"); dry1, dry2: not named. n174-W2, W6, W11, W13, W15, W17, W20, W21, W22: not met in the next three reads. n174-W3: met in n175 as n175-W7: same sign at the same place (page m6). n174-W4: met in n175 as n175-W3: not sure. n174-W5: met in n175 as n175-W5: same sign at the same place. n174-W7: met in dry1 as dry1-W15: not sure. n174-W8: met in n175 as n175-W8: not sure (the read says "New"). n174-W9: met in n175 as n175-W12: same sign at the same place. n174-W10: met in n175 as n175-W13 and dry1 as dry1-W2: same sign at the same place. n174-W12: met in n175 as n175-W14: same sign at the same place (the Critic's review loop; `plans/stack.md:175-176` names nights 171, 174 and 175). n174-W14: met in n175 as n175-W2: same sign at the same place ("Same shape as night 174's W14"). n174-W16: met in n175 as n175-W11: not sure. n174-W18: met in n175 as n175-W10: not sure. n174-W19, W23, W24, W25: met in n175 as n175-W17, W16, W18, W19: same sign at the same place. dry2: no wall of these.
+- 9: Roman, 14:30: "Sounds like we need less doors and more in depth test cases" (`plans/method/meta-direction-read-2026-11-10.md:156`). Frame 345 "pushed on Roman's go" at 14:45 (commit 6bd52ad4). The seam "landed at dfcffd40 on Roman's word of 14:45" (`plans/stack.md:244`). Decided: turned (deep Liaison cases beside the nights).
+- 11: rota-27 2ebac251 ("peer name rota-27", 12:16).
+- 12: named: none (runs.tsv: no stop). Not named: none.
+
+### night 175
+- read pages: `plans/night175-read.md`; `plans/w14-faulted-approve-read-2026-10-29.md` (00:43); `plans/w5-read-2026-10-29.md` (05:25); `plans/critic-loop-read-2026-10-29.md` (05:29, W14); `plans/criteria-json-write-read-2026-10-29.md` (05:32, W9). The frame and audit reads of 2026-10-29 to 2026-10-31 (`f324-terminologist-s280`, `seam-words`, `seam-words-gemma`, `r3-wrong-cases`, `r-wrong-cases`, `relay-c1`, `f347`, `f347-quote`, `f349`, `f350`, the three close reads, `f348-ask`, `f353-reds`, `forgotten-read-2026-10-31.md`) fall in the turn by date and read no wall of night 175.
+- read landed: 2026-10-29 00:43 (commit b3150d2e). Run end: 2026-10-28 19:18 (runs.tsv). Gap: 5:25
+- 2: "Night 175 after row 1 lands: night 1 for the seam, W11 and W10, night 2 for P7, P89 and P12" (`plans/stack.md:257-259`, sprint 34, 14:18).
+- 3: A sprint section, sprint 34, row 5 (`plans/stack.md:231`).
+- 4: 19 walls.
+  - n175-W1: the `tests_missing` tick on c_2 and c_3 stops bg_3 [C?] (W1, F20, F6) (source: plans/night175-read.md:57)
+  - n175-W2: his deletion of c_2 and c_3 never retires the rows [C?] (W2, F3) (source: plans/night175-read.md:58)
+  - n175-W3: a reading door takes one word of his sentence as a fault [C?] (W3, F2) (source: plans/night175-read.md:59)
+  - n175-W4: a reading door reads "Removing lines 7 and 8 is right" as approve [C?] (W4, F2) (source: plans/night175-read.md:60)
+  - n175-W5: landed rulings reverse him [C?] (W5, F2, F3) (source: plans/night175-read.md:61)
+  - n175-W6: the account page m75 takes two answers and lands nothing [C?] (W6, F2, F16) (source: plans/night175-read.md:62)
+  - n175-W7: a ref shown on two lines loses its second lines [C?] (W7, F28) (source: plans/night175-read.md:63)
+  - n175-W8: an answer to a question replaces the answer to the page [C?] (W8, F2) (source: plans/night175-read.md:64)
+  - n175-W9: a Developer writes the criteria into the code [C?] (W9, F35) (source: plans/night175-read.md:65)
+  - n175-W10: the Tester tries to retire criteria through `tests.retire` [C?] (W10, F22) (source: plans/night175-read.md:66)
+  - n175-W11: seats ask again after two answers [C?] (W11, F24) (source: plans/night175-read.md:67)
+  - n175-W12: the onboarding claim tick quarantines [C?] (W12, F20, F21) (source: plans/night175-read.md:68)
+  - n175-W13: the constraint tick is quarantined [C?] (W13, F20, F21) (source: plans/night175-read.md:69)
+  - n175-W14: the Critic review cycles on bg_1 [C?] (W14, F37) (source: plans/night175-read.md:70)
+  - n175-W15: parse refusals and cut replies [C?] (W15, F21, F22) (source: plans/night175-read.md:71)
+  - n175-W16: fault rows, 3 [C?] (W16, F25) (source: plans/night175-read.md:72)
+  - n175-W17: seats repeat a refused call [C?] (W17) (source: plans/night175-read.md:73)
+  - n175-W18: sessions that end with no write and no message, 75 [C?] (W18) (source: plans/night175-read.md:74)
+  - n175-W19: CYCLE lines, 4 [C?] (W19) (source: plans/night175-read.md:75)
+- 5: W14's pass 1 "runs in `rota_w14` from 00:48", an agent, 5 min (`plans/stack.md:210-211`). First commit 442310e6 "frame 345, Review p1", 10 min (git log).
+- 6: 346 (sprint 35 row 5, W9): pushed 2026-10-29 05:33, closed 2026-10-30 03:11, before dry run 1 (stack status). W14 (row 1) built in place at 346b266c, no frame (`plans/stack.md:170-172`). Frames 347, 348 and 352 descend from frame 345's residues, not from this read; 347 closed 10-30 14:37, 348 closed 10-31 01:55, 352 pushed 10-31 01:55 and open at dry run 1 (stack status). Frame 353 comes from Roman's ruling of 10-31 00:58.
+- 8: n175-W1: met in dry1 as dry1-W7: same sign at the same place (the `tests_missing` key quarantined, "could not write the tests after 3 attempts"); the causes differ (dry1: a dotted surface ref). n175-W6: met in dry1 as dry1-W5: not sure. n175-W13: met in dry1 as dry1-W2: same sign at the same place. n175-W15: met in dry3 as dry3-W1: not sure (a cut reply of another seat). n175-W16: met in dry1 as dry1-W12: not sure. n175-W2 to W5, W7 to W12, W14, W17 to W19: not met in the next three reads (the dry reads count no night signs).
+- 9: Roman, 2026-10-29 01:53: "Ok so instead of faffing with nights try to develop the right behaviour in the liaison with test cases, and maybe a Gemma trial". The session "Recorded 'Nights stop' at once" (`plans/method/meta-direction-read-2026-11-10.md:80`; `plans/stack.md:151-153`). Then 10-31 00:57: "I will not sit in the seat untill it delivers multiple changes on multiple repos and is responsive. Use it yourelf" (same page, line 83). Decided: stopped (nights), then turned (dry runs with the session in the seat).
+- 11: rota-62 161c371b and b1e2e13a, rota-6d a9a43280 (each "peer name"), rota-7b (d5c14419 by frame 353's heading), rota-86 (00ca90d0 by frame 347's heading, not sure), rota-21, rota-b8, rota-a4 (not mapped).
+- 12: named: gaveup_nothing (bg_3, "The `tests_missing` tick on c_2 and c_3 stops bg_3", W1). Not named: none.
+
+### dry1
+- read pages: `plans/dry1-first-wall-read-2026-10-31.md` (2026-10-31 11:23), `plans/dry1-second-wall-read-2026-10-31.md` (12:36), `plans/dry1-third-wall-read-2026-11-01.md` (11-01 08:28), `plans/dry1-fourth-wall-read-2026-11-01.md` (08:42), `plans/dry1-fifth-wall-read-2026-11-01.md` (18:55), `plans/dry1-turn14-read-2026-11-01.md` (11-02 00:06), `plans/dry1-turn15-read-2026-11-02.md` (01:55), `plans/dry1-turn16-read-2026-11-02.md` (02:43), `plans/dry1-turn17-read-2026-11-02.md` (11:17); beside them `plans/f354-binder-read-2026-11-01.md` and `plans/f357-read2-2026-11-01.md`
+- read landed: first read 2026-10-31 11:23, last read 2026-11-02 11:17 (git log). Run end: "dry1 on click is at rest since 2026-11-02 11:19 with one merged change" (`plans/archive/stack-2026-11-02.md:195`). The first stop was 03:44 to 03:56 (frame 353 status 11:23). Gap: 7:27 from the first stop to the first read; the last read landed 2 min before the at-rest time.
+- 2: Frame 353, Ends when, second part: "one dry run on a small Python repository with this session in the Principal seat, each page answered within one turn, ends with a merged change the session can read or with the first wall of the chain named and placed" (`plans/archive/stack-2026-10-31.md:100`, 2026-10-31 01:58).
+- 3: A frame's line: frame 353, and the long term plan step 2 (`plans/stack.md:86-90`, 2026-10-31 03:04).
+- 4: 17 walls (first read 3, second 3, third 1, fourth 1, fifth 2, turn 14 2, turn 15 1, turn 16 2, turn 17 2).
+  - dry1-W1: reconcile wakes one session per prose file, 39 on click [C?] (first, 1) (source: plans/dry1-first-wall-read-2026-10-31.md:5)
+  - dry1-W2: constraint zero quarantined; the predicate wants every area [C?] (first, 2) (source: plans/dry1-first-wall-read-2026-10-31.md:6)
+  - dry1-W3: page m3 empty; `present_principal(refs=[])` accepted [C?] (first, 3) (source: plans/dry1-first-wall-read-2026-10-31.md:7)
+  - dry1-W4: s1 re-presented; Ollama timeouts quarantine m4 and m5 [C?] (second, 1 and 4) (source: plans/dry1-second-wall-read-2026-10-31.md:7)
+  - dry1-W5: how_it_works repeats; the landed approve is never read [C?] (second, 2) (source: plans/dry1-second-wall-read-2026-10-31.md:8)
+  - dry1-W6: the run waits for signoff behind five open presents [C?] (second, 3) (source: plans/dry1-second-wall-read-2026-10-31.md:9)
+  - dry1-W7: a dotted surface ref passes the vet; encode refuses every test [C?] (third, 1) (source: plans/dry1-third-wall-read-2026-11-01.md:7)
+  - dry1-W8: an exhausted batch has no restart from the seat [C?] (fourth, 1) (source: plans/dry1-fourth-wall-read-2026-11-01.md:7)
+  - dry1-W9: the Developer loops on a wrong test; each re-encode resets the key [C?] (fifth, 1) (source: plans/dry1-fifth-wall-read-2026-11-01.md:7)
+  - dry1-W10: a dropped request returns as items with an account page [C?] (fifth, 2) (source: plans/dry1-fifth-wall-read-2026-11-01.md:8)
+  - dry1-W11: a `loop_cap` park gets no park page; the run is quiescent [C?] (turn 14, 4) (source: plans/dry1-turn14-read-2026-11-01.md:23)
+  - dry1-W12: old fault rows shown as failures of "this run" [C?] (turn 14, 2) (source: plans/dry1-turn14-read-2026-11-01.md:13)
+  - dry1-W13: a contest of a check line on the park page lands `answered` [C?] (turn 15, 1 and 2) (source: plans/dry1-turn15-read-2026-11-02.md:12)
+  - dry1-W14: page m144 says the team gave up after a merge [C?] (turn 16, 2) (source: plans/dry1-turn16-read-2026-11-02.md:8)
+  - dry1-W15: page m145 puts 15 re-survey constraints to the seat [C?] (turn 16, 4) (source: plans/dry1-turn16-read-2026-11-02.md:10)
+  - dry1-W16: a drop on the description loops as `contested` [C?] (turn 17, 2) (source: plans/dry1-turn17-read-2026-11-02.md:8)
+  - dry1-W17: the Liaison rules all 18 lines `drop` [C?] (turn 17, 3) (source: plans/dry1-turn17-read-2026-11-02.md:9)
+- 5: Frame 354 pushed in the first read's commit a79fd411, 0 min (git log). Then 97aa58aa "Run 2 of dry1", 56 min.
+- 6: 354 (W1): closed 2026-11-01 08:28. 355 (W4): closed 11-01 02:13. 356 (W7): closed 11-01 18:25. 357 (W10): built, "The mechanism of the ruled shape B is on the branch" at a84a1cf4, 11-02 13:44, validating. 358 (W15): built, pass 1c "cherry-picked to the branch as a84a1cf4", 11-02 13:06. Frame 330 took W8 and W14 as amended Ends-when clauses and closed 11-02 11:17 (commit bcb03cb5). All before dry run 2 at 13:44 (stack status lines quoted).
+- 8: dry1-W1: met in dry4 as dry4-W1: same sign at the same place (reconcile sessions per prose file); dry2, dry3: not named. dry1-W5: met in dry3 as dry3-W1: not sure. dry1-W9: met in dry4 as dry4-W17: not sure. dry1-W14: met in dry4 as dry4-W14: not sure (a stopped page with a wrong count, another key). dry1-W16: met in dry3 as dry3-W2: not sure ("Drop it" landed as a contest). dry1-W2 to W4, W6 to W8, W10 to W13, W15, W17: not met in the next three reads.
+- 9: The session closed frame 353 at 12:36: part 2 "on its second branch: the cold walk reached no merge" (`plans/method/meta-above-frame-read-2026-11-10.md:79`). Then "dry1 on click is at rest since 2026-11-02 11:19 with one merged change and nothing waiting on the principal" (`plans/archive/stack-2026-11-02.md:195`). No word of Roman found in the window (`plans/method/meta-direction-read-2026-11-10.md`, rows 33 and 34). Decided: continued (dry run 2 on tips, step 3).
+- 11: rota-7b d5c14419, rota-fc 05666872, rota-40 393648aa, rota-84 066a0dbd, rota-4e 208997ee (each "peer name"), rota-11 (3b83d22b by frame 356's heading, not sure), rota-cb (62bcfbfb by frame 357's heading, not sure). Hand-off: frame 357 "Taken by 208997ee, peer name rota-4e, at f5e32712" (11-02 11:02).
+- 12: named: none (runs.tsv: no stop). Not named: none.
+
+### dry2
+- read pages: `plans/dry2-wall1-read-2026-11-02.md`; beside it the design page `plans/design-item-already-held-2026-11-02.md` (14:28)
+- read landed: 2026-11-02 14:17 (commit 5b2282a0). Run end: 14:11, "dry2 turn 5 ... nothing waits on the principal" (`plans/archive/stack-2026-11-02.md:207`). Gap: 0:06
+- 2: Frame 359, Ends when: "a merged change on tipsI that the seat can read, with each page answered in the turn it arrived; third, every wall of the chain read and placed before its fix" (`plans/archive/stack-2026-11-02.md:196`, 2026-11-02 12:30).
+- 3: A frame's line: frame 359, and the long term plan step 3, "Measure: a merge on each" (`plans/stack.md:91-94`).
+- 4: 1 wall.
+  - dry2-W1: an item the code already holds has no end but a failed start [C?] (result 1 to 3) (source: plans/dry2-wall1-read-2026-11-02.md:7)
+- 5: Frame 359 closed and frame 360 pushed in the read's commit 5b2282a0, 0 min. Then 77574292 "Handed to ce483c7b (rota-df)", 0 min (git log).
+- 6: 360: built before dry run 3. Pass 1 at 17:32 cherry-picked as 657cf1a8, pass 1b at 18:00 as a6ef4214; both in 44088319 (stack status; git merge-base). Open, validating.
+- 8: dry2-W1: met in dry4 as dry4-W8: same sign at the same place (the stall rule counts empty starts; frame 360's status of 2026-11-04 00:23 counts dry run 4 for its third condition); not met in dry3; dry5: "360: 0 of 1" (`plans/dry5-read-2026-11-04.md:70`).
+- 9: The session: "Closed on its three conditions" (`plans/archive/stack-2026-11-02.md:208`). Roman ruled 17:15 on frame 360: "option 1, shape A of the design page" (`plans/stack.md:2120`). Decided: continued.
+- 11: rota-4e 208997ee to rota-df ce483c7b (commits 77574292 and 3adb4726).
+- 12: named: ab_drop ("the stopped page m34 is correct under frame 330's rule but wrong in meaning", result 3; the drop is in frame 359's status of 14:10). Not named: none.
+
+### dry3
+- read pages: `plans/dry3-wall1-read-2026-11-02.md`; beside it `plans/onboarding-demand-read-2026-11-03.md` (11-03 00:47, on Roman's order)
+- read landed: 2026-11-02 23:22 (commit 1622b17e). Run end: 21:34, "8 turns from 18:42 to 21:34 of wall time"; turn 8 at 23:07 ran 0 sessions (`plans/stack.md:2135`). Gap: 1:48 from 21:34, 0:14 from turn 8
+- 2: The dry3 recipe: "Both candidates carry a guard clause of the shape of dry2's ... and they carry it on purpose ... That is the shape of frame 360's wall" (`plans/dry3-recipe-2026-11-02.md:210`, stack status 2026-11-02 14:27).
+- 3: A page and a frame's line: `plans/dry3-recipe-2026-11-02.md`, frame 360's status of 14:27 (`plans/stack.md:2118`), and the long term plan step 3.
+- 4: 4 walls.
+  - dry3-W1: the account page of 235 rows cuts the Liaison's reply; key quarantines [C?] (wall A) (source: plans/dry3-wall1-read-2026-11-02.md:7)
+  - dry3-W2: stopped page m39 says "after 0 attempts"; "Drop it" lands as contest [C?] (wall A loop) (source: plans/dry3-wall1-read-2026-11-02.md:8)
+  - dry3-W3: the rest line has no frontier read [C?] (wall B) (source: plans/dry3-wall1-read-2026-11-02.md:10)
+  - dry3-W4: `rota run` never reaps a dead claim after a hand stop [C?] (result 4) (source: plans/dry3-wall1-read-2026-11-02.md:10)
+- 5: Frame 361 pushed in the read's commit 1622b17e, 0 min. Then 7381ca1f "the dry3 survey scored against the icalendar key", 55 min (git log).
+- 6: 361: built before dry run 4, the lazy default 7b432beb at 02:17 on the branch, pass 1c at 02:17 (git log -- rota/; stack status 02:17). Open, validating. Also pushed in the turn on Roman's order, not from the read: 362, doors built before dry run 4 (9a8cd26f in 97939168, git merge-base).
+- 8: dry3-W1: not met in dry4 ("the first run on icalendar with neither", stack status 2026-11-03 05:30), dry5 ("0 quarantined `observed_entries` keys", `plans/dry5-read-2026-11-04.md:71`), dry6. dry3-W2: met in dry4 as dry4-W14: not sure (another key with "after 0 attempts"). dry3-W3: not in dry4's wall list; frame 362's status of 2026-11-03 05:35 says "frame 361's wall B, the rest line with no frontier read, seen again": not sure. dry3-W4: not met in the next three reads.
+- 9: Roman, 2026-11-03 00:38: "well ok, / Start by reading what everyone needs from onboarding, / then think about how to create a system that delivers that / iterate on that design, / then tell me what you think" (`plans/method/meta-direction-read-2026-11-10.md:86`). Decided: turned (frame 362, the onboarding design).
+- 11: rota-df ce483c7b to rota-5b 07f209e6 ("Handed at the 300k line ... to the free standby rota-5b", 01:10; "Taken by 07f209e6", 01:13).
+- 12: named: none (runs.tsv: no stop). Not named: none.
+
+### dry4
+- read pages: `plans/dry4-read-2026-11-03.md`
+- read landed: 2026-11-03 07:32 (commit 99041e8e). Run end: 07:19, "Turn 8, 06:29 to 07:19" (`plans/stack.md:1841`). Gap: 0:13
+- 2: "Then dry run 4 on icalendarI, Run F of the dive's section 6: the fold sentence under lazy with the doors working" (`plans/stack.md:1828`, frame 362 status 2026-11-03 02:08).
+- 3: A frame's line: frame 362 (`plans/stack.md:1805`).
+- 4: 19 walls.
+  - dry4-W1: one `reconcile` key quarantines on the prose files [C?] (1) (source: plans/dry4-read-2026-11-03.md:122)
+  - dry4-W2: the 40-session limit ends 5 of 8 turns [C?] (2) (source: plans/dry4-read-2026-11-03.md:123)
+  - dry4-W3: 4 pages carry the team's duplicate term senses [C?] (3) (source: plans/dry4-read-2026-11-03.md:124)
+  - dry4-W4: the guess misses `parser/string.py` by word match [C?] (4) (source: plans/dry4-read-2026-11-03.md:125)
+  - dry4-W5: all 6 criteria name `q_split` as their surface [C?] (5) (source: plans/dry4-read-2026-11-03.md:126)
+  - dry4-W6: the Architect's annotate cuts 5 replies [C?] (6) (source: plans/dry4-read-2026-11-03.md:127)
+  - dry4-W7: the stored k0 headline reaches the seat as question m39 [C?] (7) (source: plans/dry4-read-2026-11-03.md:128)
+  - dry4-W8: 6 empty starts counted as attempts by the stall rule [C?] (8) (source: plans/dry4-read-2026-11-03.md:129)
+  - dry4-W9: 2 pages carry the team's own questions [C?] (9) (source: plans/dry4-read-2026-11-03.md:130)
+  - dry4-W10: the first-touch block is absent from m40 [C?] (10) (source: plans/dry4-read-2026-11-03.md:131)
+  - dry4-W11: the stopped page returns after "ok" [C?] (11) (source: plans/dry4-read-2026-11-03.md:132)
+  - dry4-W12: the seat's correction lands as a touch act, no criteria act [C?] (12) (source: plans/dry4-read-2026-11-03.md:133)
+  - dry4-W13: the right edit of `_foldline` judged a mistake [C?] (13) (source: plans/dry4-read-2026-11-03.md:134)
+  - dry4-W14: `touch_mistaken` quarantine; page says "after 0 attempts" [C?] (14) (source: plans/dry4-read-2026-11-03.md:135)
+  - dry4-W15: the Tester tests `q_split` [C?] (15) (source: plans/dry4-read-2026-11-03.md:136)
+  - dry4-W16: a test file written to `.github/workflows/` [C?] (16) (source: plans/dry4-read-2026-11-03.md:137)
+  - dry4-W17: the Developer rewrites `q_split` to fit the tests [C?] (17) (source: plans/dry4-read-2026-11-03.md:138)
+  - dry4-W18: 4 `unresolved` wakes; the woken session sends nothing [C?] (18) (source: plans/dry4-read-2026-11-03.md:139)
+  - dry4-W19: the structural review stops the change; m63 stays open [C?] (19) (source: plans/dry4-read-2026-11-03.md:140)
+- 5: 82539bf2 "frame 362, 07:32. The read on Opus", 0 min (git log). The slice's pass 1 agent started 07:21, before the read (stack status 07:21).
+- 6: No new frame. Walls 8 and 14 went to frame 360, wall 13 to frame 362. Wall 13 built at 40980c59 and wall 14 at a66b9a31, both in 79b1cdb0, before dry run 5 (stack status 2026-11-04 00:22, 00:37, 01:08; git merge-base).
+- 8: dry4-W1: met in dry5 as dry5-W1: same sign at the same place ("as dry run 4 wall 1"). dry4-W2: met in dry5 as dry5-W2 and dry6b as dry6b-W5: same sign at the same place. dry4-W3: met in dry5 as dry5-W3: same sign at the same place; met in dry6b as dry6b-W4: not sure (none reached the seat). dry4-W4: met in dry5 as dry5-W7: same cause (the word match of "split"). dry4-W9: met in dry5 as dry5-W13: same sign at the same place. dry4-W13 and W14: met in dry5 as dry5-W12: same sign at the same place ("as dry run 4 walls 13 and 14"). dry4-W16: met in dry5 as dry5-W9: same sign at the same place. dry4-W19: met in dry5 as dry5-W14: not sure. dry4-W5 to W8, W10 to W12, W15, W17, W18: not met in dry5, dry6, dry6b. dry6: walls 1 to 4 are machine faults.
+- 9: The session: "Run F did not merge" (`plans/dry4-read-2026-11-03.md:5`). Roman, 09:58: "Ok, the high level capabilities, are they factored into the requirements? They are demanding" (`plans/method/meta-direction-read-2026-11-10.md:87`). Roman, 11-04 00:07: "Yes, add it (Recommended)", capability 11 (same page, line 206). Decided: continued (the slice), and a capability added.
+- 11: rota-5b 07f209e6 to a vacancy at 09:12 ("Handed to nobody yet"), then rota-b1 535a30c6 ("Taken by 535a30c6 ... from the vacancy", 11-04 00:06), then rota-c1 (9f60e445, named in frame 362's status of 15:47).
+- 12: named: gaveup_red ("4 of 5 checks red and the page m63 open", result; wall 14). Not named: none.
+
+### dry5
+- read pages: `plans/dry5-read-2026-11-04.md`; `plans/f362-dry5-walls-read.md` (walls 10 and 11, 14:49)
+- read landed: 2026-11-04 14:35 (commit 0e176a56). Run end: 14:31, turn 9 "14:17 to 14:31" (`plans/dry5-read-2026-11-04.md`, section 2). Gap: 0:04
+- 2: "the fold sentence with no unit, the seeded character-count break, the nine counts of design 4.2 step 6 and shape 4.3, and the counts of frames 357, 358, 360 and 361" (`plans/stack.md:1911`, frame 362 status 2026-11-04 12:13).
+- 3: A frame's line and a brief: frame 362, and `f362_dry5_brief.md` in a session scratchpad (named in the same status).
+- 4: 14 walls.
+  - dry5-W1: a `reconcile` key quarantines on 23 prose files [C?] (1) (source: plans/dry5-read-2026-11-04.md:50)
+  - dry5-W2: the 40-session limit ends 6 of 9 turns [C?] (2) (source: plans/dry5-read-2026-11-04.md:51)
+  - dry5-W3: 5 term pages on the team's duplicate senses [C?] (3) (source: plans/dry5-read-2026-11-04.md:52)
+  - dry5-W4: the m16 question returns after the seat answered [C?] (4) (source: plans/dry5-read-2026-11-04.md:53)
+  - dry5-W5: the root wake fires 7 times and restates lines [C?] (5) (source: plans/dry5-read-2026-11-04.md:54)
+  - dry5-W6: a fault: 6 falsified claims require a ruling [C?] (6) (source: plans/dry5-read-2026-11-04.md:55)
+  - dry5-W7: the guess on `q_split` and `property.py` by word match [C?] (7) (source: plans/dry5-read-2026-11-04.md:56)
+  - dry5-W8: `model.amend` refused; 75-character and 75-octet rows collide [C?] (8) (source: plans/dry5-read-2026-11-04.md:57)
+  - dry5-W9: tests written to `.github/workflows/` [C?] (9) (source: plans/dry5-read-2026-11-04.md:58)
+  - dry5-W10: the write doubles every backslash of `string.py` [C?] (10) (source: plans/dry5-read-2026-11-04.md:59)
+  - dry5-W11: the Critic passes a diff that breaks a pushed commitment [C?] (11) (source: plans/dry5-read-2026-11-04.md:60)
+  - dry5-W12: `touch_mistaken` quarantine, then "The team gave up" [C?] (12) (source: plans/dry5-read-2026-11-04.md:61)
+  - dry5-W13: 2 pages ask what the owner already said [C?] (13) (source: plans/dry5-read-2026-11-04.md:62)
+  - dry5-W14: "Stuck: b_1 stops here. It breaks ." names no file [C?] (14) (source: plans/dry5-read-2026-11-04.md:63)
+- 5: 47a3bde0 "handover note of 9f60e445, draft", 2 min; 728eb4ac "fix(scheduler): key the root record on the harvest's lines", pass 4h, 6 min (git log).
+- 6: No new frame. Walls 5 and 14 went to pass 4h (728eb4ac, 6c52885a), wall 10 to pass 4i (defd4bbf, 9752cb62, 7bdf1d01 at 15:02), wall 11's harness fix landed at 17:26 (81d3d022 and others). All before dry run 6; 728eb4ac in cd03aa46 (git log -- rota/; git merge-base).
+- 8: dry5-W2: met in dry6b as dry6b-W5: same sign at the same place ("Dry run 5: wall 2"). dry5-W3: met in dry6b as dry6b-W4: same sign at the same place (`term_collision` sessions, none reached the seat); dry6 names the same collisions in prose: not sure. dry5-W6: met in dry6b as dry6b-W3: same sign at the same place ("Dry run 5: wall 6, with 6 claims"). dry5-W7: met in dry6c as dry6c-W8: same cause (the word match of "split"). dry5-W14: met in dry6c as dry6c-W9: same sign at the same place ("Dry run 5: wall 14"). dry5-W8: not met (dry6b: "No session reached the collision"). dry5-W10: not met (dry6c-W5 says "Dry run 5: no"). dry5-W1, W4, W5, W9, W11 to W13: not met in dry6, dry6b, dry6c.
+- 9: The session: "the merge did not land and the break was never seeded ... The consumers do not act" (`plans/stack.md:1915`). No word of Roman found in the window but "pause" at 11-04 18:26 (`plans/method/meta-direction-read-2026-11-10.md:191`). Decided: continued (passes 4h and 4i).
+- 11: rota-c1 9f60e445 to rota-e9 94cb1260 ("Taken by 94cb1260, peer name rota-e9, from 9f60e445 (rota-c1)", 11-04 15:47); rota-07, one line (11-06 03:57).
+- 12: named: gaveup_red (wall 12, "m70 'The team gave up'"). Not named: none.
+
+## The counts of this extract
+
+- Turns: 21. Thin turns: 0 by the brief's rule. Night 164a holds one wall from another night's read.
+- Walls: 267.
+- Walls met again in the next three reads: 152. Of them, 46 have only "not sure" matches.
+- Frames produced by a read: 28. Built before the next run: 23. Not built: 319 (built in a worktree, not on the run's commit), 320, 321, 322, 345. Frames pushed in the turns on Roman's words or owed lists are named in their cells and not counted: 331 to 334, 340 to 342, 347, 348, 352, 362.
+
+## What this extract could not find
+
+- Session ids for rota-e9 (night 163), rota-f9 (night 167), rota-33 (night 171), rota-21, rota-b8 and rota-a4 (night 175). Some other ids come from frame headings and are marked "not sure".
+- For night 164's "aside", night 167's "gaveup_nothing" and "ab_after_giveup", night 161's "ab_after_giveup" and night 168's "aside", the reads do not map a batch to the class. Those cells read "not sure".
+- The state of frame 341 at night 170: its status lines carry no time before that night.
+
+## An expected answer formed while reading (kept apart from the turns)
+
+- From night 170 on, the reads count the same signs every night (repeats, fault rows, sessions with no write, CYCLE lines, the onboarding ticks). So most "same sign at the same place" matches of nights 170 to 175 are these counts. A reader of the table can separate them from the walls that the build session acted on.
