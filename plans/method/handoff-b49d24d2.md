@@ -80,6 +80,16 @@ costs less of his attention, and the records get shorter.
   and not the state; 104 of 227 batches that did not merge are a give-up
   of the Developer, and the nights got better because the queue went.
   The last fact bears on "which turns went well".
+- One more fact of frame 364, at 12:19, for the question on the spiral:
+  one set of models on the same three requests merged 0 to 3 across
+  nights 164 to 175. The spread between equal nights is as wide as any
+  effect in the records. So the build session cannot tell a good turn
+  from a bad one by one run or by two. The test of the meta design, "a
+  count over two runs", tests nothing. The rota fact is the spread. The
+  meta fact is that the session orders its work by a count with that
+  spread.
+- Pass 1b is committed at 80a96d7a with 0 new reds. Its diff review
+  runs, to `plans/f363-putdown-review-p1b.md`.
 
 ## Meta and rota
 
