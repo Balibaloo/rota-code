@@ -393,6 +393,48 @@ recorded runs show the one desk for the outside at work 3 times, with no
 record from outside the repository as a result. This page does not say
 whether a fact from outside entered by another path. No read looked.
 
+## Mass 5, the structure: the compare
+
+The read is `plans/method/product-mass5-read-2026-11-10.md`, one agent
+on Opus, about 332k. The reader took 20 statements from the design
+pages. It read the end state of all 11 runs, 30 of 4,209 refused calls
+drawn with seed 364, and the rules of records by query.
+
+The expectation, 05:30, had four parts.
+
+1. At the end of 8 or more of the 11 runs, every open obligation shows
+   on a page or on the agenda. This fails: 11 of 11 runs end with an
+   open class of row that no open page names. In 10 runs the class is
+   an open report to the Liaison, and this session has not checked that
+   such a row is an obligation. Five questions between desks end
+   `unresolved` with no climb, in 5 runs. A fault shows on no page.
+2. The door's fact is right on 24 or more of the 30 refusals. This
+   holds at the line: 24 true, 1 false, 5 cannot be told.
+3. The next call follows the door's route on fewer than half. This
+   holds: 10 of 30. In 10 more, the session ended or the refusal was
+   cut from its next prompt.
+4. One writer holds on most tables. This holds by count: 21 rows in 8
+   runs have two roles.
+
+What the expectation did not name:
+
+- The doors refused 4,209 calls in the 10 files. 1,418 of them appear
+  in no later prompt of their session.
+- 7 databases hold 18 to 243 ledger rows with `author = 'principal'`
+  that the loop wrote.
+- The quarantined messages of 4 runs are the person's own replies.
+- Every database holds three clock columns.
+- **The run files share turns.** Dry runs 3, 4 and 5 share 418 to 436
+  turns with the same session id and completion. Dry runs 7 and 8 share
+  648. 1,027 of the 4,209 refusals have a twin in another file.
+
+A correction that this read makes to the pages above. The pool of 1,858
+sessions counts a shared session one time per file. So the counts of
+masses 2, 4 and 6 that sum sessions over runs count some sessions more
+than one time: the sessions before the first batch start, the share of
+onboarding, and the pool of the draw of mass 6. The next step counts the
+sessions that are a run's own.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
