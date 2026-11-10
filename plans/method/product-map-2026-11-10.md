@@ -1222,8 +1222,11 @@ under that one question. It replaces the map as a list of findings.
 - The measure does not point at the destination. It counts a merge with
   a seat that agrees. The target page and the completion line do the
   same.
-- The noise is as large as any effect. Equal nights spread from 0 to 3
-  merges.
+- The noise is not known. Nights with the same models and requests
+  spread from 0 to 3 merges, at different commits of rota. (Corrected
+  2026-11-10 after the list of turns. This line said "the noise is as
+  large as any effect" and called those nights equal. See the section
+  "The list of turns against this map".)
 - The runs share state, so a count is not a fresh observation.
 
 **So a turn reacts to its newest wall.**
@@ -1244,6 +1247,55 @@ known cause and a cheap fix. The first act is not the fix. The first
 act is the compare of the run with the expectation that was written
 before it. The wall is fixed in this turn only if it stands between the
 turn's question and its answer.
+
+## The list of turns against this map
+
+The list is `plans/method/turns-list-2026-11-10.md`, by session 4a1d361a
+on frame 363, from one brief that both sessions wrote. It holds 107
+turns: 95 nights and 12 dry runs. This session read its result, its
+pairs of equal runs, its chains of walls and its limits, and not the
+table.
+
+**Two corrections to this map** (observed: the list):
+
+1. **The noise.** By the strict rule, the same commit, requests and
+   models, the records hold 4 pairs of equal runs. Only nights 110 and
+   111 have both counts, both 0 merged of 3, and both started from one
+   database. The spread of 0 to 3 merges is over nights at different
+   commits. So this map was wrong to call those nights equal and to
+   call the spread noise. The true statement: the records hold no pair
+   of equal runs with fresh state, so the noise between equal runs is
+   not measured. A difference between two runs can be the change, the
+   noise or both, and the records cannot say which.
+2. **The question before a run.** 88 of 91 turns with a read have a line
+   before the run that says what the run is for. The line is the
+   question of the last fix, "frame N validates on night X". Only dry
+   run 1 and blind run 1 ask about the whole. So the test case above
+   needs one more condition. The compare with the expectation helps only
+   when the expectation is about the destination. An expectation at the
+   scale of one fix makes each turn pass its own test.
+
+**Where the list agrees with this map:**
+
+- A turn reacts at once. The median time from a read to the first act
+  is 1 minute.
+- The walls return. 449 of 789 named walls were met again in the next
+  three reads, 304 of them by a firm match.
+- The changes are mostly records and doors. Of 5,895 commits between
+  runs, 4,420 touch a record only, 730 touch the door files, 190 a
+  prompt, and 60 the harness.
+- 36 turns hold a class of stop that no read of the turn named.
+
+**One thing the chains show** (reasoned, from the 27 firm chains): many
+chains name a part of rota's own machinery as the wall, a refusal text,
+a quarantine, a parser or a door, and several name the frame that built
+it. The fix of one turn is then a wall of the next turns. A count of
+those chains is not made.
+
+**A fault that this session shares:** a script that opens a database in
+read-only mode still makes SQLite write the shared-memory file beside
+it. The reads of this map used the same mode, so they likely touched
+the same files. No row changes by it.
 
 ## The compare for step 1
 
