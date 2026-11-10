@@ -265,9 +265,12 @@ def step(
     # restore moves the head, so the wake drains on the next tick.
     # His keep on a removal line orders the same restore (pass 2, part 1).
     from .restore import restore_kept
-    kept, _why = restore_kept(conn)
-    if kept:
+    # A reason is a note on the stray row, so it lands even when the tick
+    # goes on to dispatch.
+    kept, why = restore_kept(conn)
+    if kept or why:
         conn.commit()
+    if kept:
         result.note = "restored " + ", ".join(
             f"{d['path']} at {d['restored'][:8]}" for d in kept)
         result.productive = True
@@ -276,6 +279,8 @@ def step(
         if wake.kind == "tick:touch_mistaken" and wake.refs:
             from .restore import restore_wake
             done, reasons = restore_wake(conn, wake.refs[0])
+            if reasons:
+                conn.commit()
             if done and not reasons:
                 conn.commit()
                 result.wake = wake

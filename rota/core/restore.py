@@ -227,6 +227,14 @@ def restore_wake(conn: sqlite3.Connection, batch_id: str) -> tuple[list, list]:
         (batch_id, head["head_commit"])).fetchall()
     if not rows:
         return [], []
+    failed = conn.execute(
+        "SELECT path, note FROM touch_strays WHERE batch_id = ? AND commit_sha = ? "
+        "AND status = 'mistake' AND note LIKE ? ORDER BY path",
+        (batch_id, head["head_commit"], f"%{FAILED}%")).fetchone()
+    if failed is not None:
+        # The reason stands on the row, so the wake goes to the Developer
+        # with no second try (frame 173 review p2, high 2).
+        return [], [f"{failed['path']}: {failed['note'].split(FAILED, 1)[1]}"]
     out = restore_head(conn, batch_id, [(r["path"], None, "the Architect's judgement")
                                         for r in rows])
     if "rows" in out:
@@ -242,7 +250,8 @@ def restore_kept(conn: sqlite3.Connection) -> tuple[list, list]:
     `row` and the removal key as its ref (frame 173, pass 2). The tick
     runs this as it runs `restore_wake`, because the ruling lands in
     `principal.land` and a commit belongs to no door. A key whose stray
-    row is closed or whose head moved past it restores nothing again."""
+    row is closed or whose head moved past it restores nothing again. A
+    reason goes on the row's note once, and `touch_mistaken` carries it."""
     from ..roles.principal import removal_key_parts
 
     try:
@@ -253,21 +262,49 @@ def restore_kept(conn: sqlite3.Connection) -> tuple[list, list]:
             "r.status = 'landed' ORDER BY rr.ruling_id").fetchall()
     except sqlite3.OperationalError:  # a database older than the tables
         return [], []
-    done, reasons = [], []
+    keeps: dict[str, dict[str, tuple[set[int], list[str]]]] = {}
     for r in rows:
         parts = removal_key_parts(r["ref"])
         if parts is None:
             continue
         batch_id, grain, index = parts
+        got = keeps.setdefault(batch_id, {}).setdefault(grain, (set(), []))
+        got[0].add(index)
+        got[1].append(f"his ruling {r['ruling_id']}")
+    done, reasons = [], []
+    for batch_id, grains in keeps.items():
         head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                             (batch_id,)).fetchone()
-        if head is None or not head["head_commit"] or conn.execute(
-                "SELECT 1 FROM touch_strays WHERE batch_id = ? AND "
-                "commit_sha = ? AND path = ? AND status IN ('open', 'mistake')",
-                (batch_id, head["head_commit"], grain)).fetchone() is None:
+        if head is None or not head["head_commit"]:
             continue
-        out = restore_stray(conn, batch_id, grain, f"his ruling {r['ruling_id']}",
-                            only={index})
-        (done if "restored" in out else reasons).append(
-            out if "restored" in out else f"{grain}: {out['reason']}")
+        sha = head["head_commit"]
+        live = {s["path"]: s for s in conn.execute(
+            "SELECT path, status, note FROM touch_strays WHERE batch_id = ? AND "
+            "commit_sha = ? AND status IN ('open', 'mistake')", (batch_id, sha))}
+        # A row that holds a failed restore waits for a new note or a new
+        # head. The tick does not try it again (frame 173 review p2, high 2).
+        asks = [(g, None if live[g]["status"] == "mistake" else idx,
+                 " and ".join(dict.fromkeys(acts)))
+                for g, (idx, acts) in sorted(grains.items())
+                if g in live and FAILED not in (live[g]["note"] or "")]
+        if not asks:
+            continue
+        # The head's `mistake` rows go back in the same commit, or the
+        # head moves past them and `touch_mistaken` wakes nobody.
+        held = sorted(g for g, s in live.items()
+                      if s["status"] == "mistake" and g not in grains)
+        stuck = [g for g in held if FAILED in (live[g]["note"] or "")]
+        if stuck:
+            for g, _only, _act in asks:
+                why = f"{stuck[0]} at the same head could not go back"
+                _note_failed(conn, batch_id, sha, g, why)
+                reasons.append(f"{g}: {why}")
+            continue
+        out = restore_head(conn, batch_id, asks + [
+            (g, None, "the Architect's judgement") for g in held])
+        if "rows" in out:
+            done.extend(out["rows"])
+            continue
+        _note_failed(conn, batch_id, sha, out["grain"], out["reason"])
+        reasons.append(f"{out['grain']}: {out['reason']}")
     return done, reasons

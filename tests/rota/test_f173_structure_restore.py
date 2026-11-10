@@ -282,3 +282,31 @@ def test_one_row_that_cannot_go_back_holds_the_whole_head(run):
     assert got["src/missing.py::f"] == (
         "mistake", "removal: y restore: the fork does not hold src/missing.py")
     assert [w.refs for w in P.touch_mistaken(conn)] == [("bg_1",)]
+
+
+def test_a_keep_that_cannot_go_back_writes_the_reason_once(run):
+    """Review p2, high 2: a keep whose restore had a reason wrote nothing
+    and ran again on every tick. The reason goes on the row once, the row
+    reads `mistake`, and `touch_mistaken` wakes one Developer with it."""
+    from rota.core.restore import restore_kept
+    conn, root = run
+    gone = FORK.replace(GONE, b"", 1).replace(
+        b"    assert isinstance(line, str)\n", b"    line = str(line)\n", 1).replace(
+        b"    folded_lines: list[str] = []\n", b"    folded_lines = []\n", 1)
+    old = _head(conn, root, gone, status="open")
+    _keep(conn, old)
+    first = restore_kept(conn)
+    conn.commit()
+    second = restore_kept(conn)
+    conn.commit()
+    assert first[0] == [] and len(first[1]) == 1 and "context" in first[1][0], first
+    assert second == ([], []), second
+    row = conn.execute("SELECT status, note FROM touch_strays").fetchone()
+    assert row["status"] == "mistake"
+    assert row["note"].count("restore: ") == 1 and "context" in row["note"], row["note"]
+    assert _git(root, "rev-parse", "HEAD") == old
+    wakes = P.touch_mistaken(conn)
+    assert [w.refs for w in wakes] == [("bg_1",)]
+    done, reasons = restore_wake(conn, "bg_1")
+    assert done == [] and "context" in reasons[0], reasons
+    assert conn.execute("SELECT note FROM touch_strays").fetchone()[0] == row["note"]
