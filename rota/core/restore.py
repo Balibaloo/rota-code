@@ -135,8 +135,9 @@ def restore_head(conn: sqlite3.Connection, batch_id: str,
     if claim is not None and claim["claimed_head"]:
         conn.execute("UPDATE batches SET claimed_head = NULL WHERE id = ?",
                      (batch_id,))
-    # Every row at the old head reads closed, and the new head holds no row,
-    # so `touch_mistaken` and `mergeable` both drain.
+    # Every restored row at the old head reads closed. Only the rows that
+    # the restore did not close move to the new head, so `touch_mistaken`
+    # and `mergeable` drain for the restored rows only.
     for r in rows:
         conn.execute(
             "UPDATE touch_strays SET status = 'restored', "
@@ -145,7 +146,26 @@ def restore_head(conn: sqlite3.Connection, batch_id: str,
             (f" restored at {sha[:8]} by the structure, ordered by {r['act']}",
              batch_id, head, r["grain"]))
         r["restored"] = sha
+    _carry_strays(conn, batch_id, head, sha)
     return {"restored": sha, "rows": rows}
+
+
+def _carry_strays(conn: sqlite3.Connection, batch_id: str, old: str,
+                  new: str) -> None:
+    """Write each `open` or `mistake` row of the old head that the restore
+    did not close again at the new head, with its path, status and note.
+
+    Review p2 of frame 173, finding 1: his keep on one of two `open` rows
+    moved the head. The other row stayed on the old head, so
+    `touch_strayed` drained and `mergeable` opened with no judgement (law
+    12). The carried row is the same row and not a new judgement. Nobody
+    judged it, and the restore commit did not touch its grain. The row stays
+    at the old head too, as `code_commit` leaves a row behind."""
+    conn.execute(
+        "INSERT OR IGNORE INTO touch_strays (batch_id, commit_sha, path, status, "
+        "note) SELECT batch_id, ?, path, status, note FROM touch_strays "
+        "WHERE batch_id = ? AND commit_sha = ? AND status IN ('open', 'mistake')",
+        (new, batch_id, old))
 
 
 # The note prefix of a row that the structure could not put back. The tick

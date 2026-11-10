@@ -330,3 +330,47 @@ def test_a_file_red_on_run_2_of_3_gets_no_stopped_clause(run):
     said = _red_run_words(conn, "bg_1", ["inh_1"])
     assert said == "It passed on run 1 and failed first on run 2, at bbbbbbbb", said
     assert "after the team stopped" not in said
+
+
+def test_a_keep_on_one_of_two_open_rows_carries_the_other_to_the_new_head(run):
+    """Review p2 of frame 173, finding 1: his keep on `_foldline` moved the
+    head, and the `open` row of `_escape_char` stayed on the old head. The
+    Architect's wake drained and the merge gate opened with no judgement."""
+    import ast
+    from rota.core.lifecycle import mergeable
+    from rota.core.restore import restore_kept
+    conn, root = run
+    other = f"{PATH}::_escape_char"
+    _head(conn, root, FORK.replace(GONE, b"", 1), status="open")
+    tree = ast.parse(FORK.decode())
+    fn = next(n for n in tree.body if getattr(n, "name", "") == "_escape_char")
+    one = next(n for n in fn.body[1:] if n.lineno == n.end_lineno)
+    gone2 = FORK.splitlines(keepends=True)[one.lineno - 1]
+    (root / PATH).write_bytes((root / PATH).read_bytes().replace(gone2, b"", 1))
+    _git(root, "commit", "-qam", "two")
+    two = _git(root, "rev-parse", "HEAD")
+    conn.execute("UPDATE batches SET head_commit = ?", (two,))
+    conn.execute("UPDATE touch_strays SET commit_sha = ?", (two,))
+    conn.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+                 "VALUES ('bg_1', ?, ?, 'open', 'removal: x')", (two, other))
+    conn.commit()
+    _keep(conn, two)
+    before = int(_git(root, "rev-list", "--count", "HEAD"))
+    done, reasons = restore_kept(conn)
+    conn.commit()
+    assert reasons == [] and len(done) == 1
+    assert int(_git(root, "rev-list", "--count", "HEAD")) == before + 1
+    head = conn.execute("SELECT head_commit FROM batches").fetchone()[0]
+    assert head != two
+    assert conn.execute("SELECT status FROM touch_strays WHERE commit_sha = ? "
+                        "AND path = ?", (two, GRAIN)).fetchone()[0] == "restored"
+    carried = conn.execute("SELECT status, note FROM touch_strays WHERE "
+                           "commit_sha = ? AND path = ?", (head, other)).fetchone()
+    assert tuple(carried) == ("open", "removal: x")
+    assert conn.execute("SELECT COUNT(*) FROM touch_strays WHERE commit_sha = ?",
+                        (head,)).fetchone()[0] == 1
+    wakes = P.touch_strayed(conn)
+    assert len(wakes) == 1 and other in wakes[0].detail
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                 "VALUES ('v1', 'bg_1', ?, 'pass')", (head,))
+    assert mergeable(conn, "bg_1") == f"touch strayed, unjudged: {other}"
