@@ -193,3 +193,18 @@ Findings:
 Probes: `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f639-4fa5-8bd4-0cc91eeff019/scratchpad/f173r3_probe_test.py`, two pytest cases on the test module's fixture, run with `-n 0 -s --rootdir .` from the worktree. Both passed.
 
 Usage: the counts are not shown to this agent. The context stayed under the cap of about 35k.
+
+## Look, cb931415
+
+Verdict: pick. The six points hold, one low finding.
+
+1. The insert names `batch_id, commit_sha, path, status, note`, the full schema. The copied status is `open` or `mistake`, inside the CHECK set.
+2. The SELECT filters `batch_id = ?`, so a row of another batch at the same sha stays.
+3. The UPDATE to `restored` runs before `_carry_strays`, so the kept row is not selected. The test asserts one row at the new head.
+4. `mergeable` (lifecycle.py:1197), `touch_strayed` (predicates.py:2868), `touch_mistaken` (predicates.py:2888) and `_mistake_rows` (runner.py:536) all filter `commit_sha = head_commit`. The old-head row changes no answer.
+5. Not a defect for the pick. A `foreseen` row leaves his page (`batches_strays`, head-filtered) until the next commit. `_removal_strays` (api.py:27643) reads judged rows with no head filter, so the next `code_commit` carries the foreseen row again (F7). No gate reads `foreseen`.
+6. The file passes 14 (16 s). With `_carry_strays` a no-op the new test is red at the `carried` assertion.
+
+Finding 1, low, CONFIRMED: the red is `TypeError: 'NoneType' object is not iterable`, not an assertion message. Fix: `assert carried is not None, head` before the tuple compare.
+
+Probe: `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f639-4fa5-8bd4-0cc91eeff019/scratchpad/probe_nocarry.py` patches `restore._carry_strays` and runs the one test. Worktree `C:/Users/roman/rota_f173r4` at cb931415.
