@@ -155,3 +155,73 @@ def test_a_ruling_lands_on_either_frame(stack):
                   "--at", "02:35") == 0
     assert append(stack, "21", "--ruling", "Met on night 3, pass 1 runs now",
                   "--at", "02:36") == 0
+
+
+# The put-down warns where it can hurt, and it refuses nothing for a warning
+# (ruled: Roman, 2026-10-18 02:25, "enabling not inhibiting").
+
+def put_down(path: Path, frame: str, sid: str = "aaaa1111") -> int:
+    return status.main(["--stack", str(path), "--sid", sid, "--no-commit",
+                        frame, "--put-down", "no longer needed"])
+
+
+def gone(path: Path, frame: str) -> bool:
+    return frame not in {f.number for f in state.parse(
+        state.read_lines(path), bounded=False)}
+
+
+def test_a_frame_of_another_session_is_put_down_with_one_line(stack, capsys):
+    assert put_down(stack, "20", sid="cccc3333") == 0
+    out = capsys.readouterr().out
+    assert "WARNING: session aaaa1111 holds frame 20, and session cccc3333 puts it down." in out
+    assert gone(stack, "20")
+
+
+@pytest.fixture
+def f33(stack, monkeypatch):
+    """The suite's reader of `open_frames`, pointed at the fixture stack."""
+    from tests.rota import test_f33_debts_name_open_frames as reader
+    monkeypatch.setattr(reader, "STACK", stack)
+    return reader
+
+
+def test_a_debt_that_names_the_frame_gets_one_line_and_the_put_down_runs(
+        stack, f33, monkeypatch, capsys):
+    monkeypatch.setattr(f33, "debts", lambda: [
+        ("tests/rota/test_x.py:9", "held by frame 21: a wall"),
+        ("tests/rota/test_y.py:4", "held by frame 20"),
+        ("tests/rota/test_z.py:5", "held by frame 99")])
+    assert put_down(stack, "21") == 0
+    lines = [x for x in capsys.readouterr().out.splitlines() if "open_frames" in x]
+    assert lines == [
+        "WARNING: tests/rota/test_f33_debts_name_open_frames.py::"
+        "test_each_debt_names_an_open_frame reads state.open_frames, and it turns "
+        "red on 1 debts that name frame 21: tests/rota/test_x.py:9 (frame 21)."]
+    assert gone(stack, "21")
+
+
+def test_the_live_owed_debt_is_found_by_the_real_reader(stack, f33, capsys):
+    """The real `debts()` runs, on a stack that holds the owed set's frame."""
+    from tests.rota.test_case_reachability import OWED_FRAME
+    owed = OWED_FRAME.split()[-1]
+    stack.write_bytes(STACK.replace("### 21.", "### %s." % owed).encode("utf-8"))
+    assert put_down(stack, owed) == 0
+    out = capsys.readouterr().out
+    assert "turns red on" in out and "OWED (" in out
+    assert gone(stack, owed)
+
+
+def test_a_reader_of_another_stack_and_a_broken_reader_refuse_nothing(
+        stack, f33, monkeypatch, capsys):
+    monkeypatch.setattr(f33, "STACK", stack.parent / "other.md")
+    assert put_down(stack, "20") == 0
+    assert "open_frames" not in capsys.readouterr().out
+
+    def broken():
+        raise RuntimeError("no cases")
+
+    monkeypatch.setattr(f33, "STACK", stack)
+    monkeypatch.setattr(f33, "debts", broken)
+    assert put_down(stack, "21") == 0
+    assert "did not run (no cases)" in capsys.readouterr().out
+    assert gone(stack, "21")

@@ -409,6 +409,12 @@ RANK = {"high": 0, "med": 1, "low": 2, "": 3}
 NAME_LIMIT = 100
 ROW_LIMIT = 300
 SINCE_LIMIT = 12000
+# A session puts a frame down by itself, with one reason that Roman reads in
+# one place (ruled: Roman, 2026-11-10 08:17). The status tool writes the
+# words on the frame's last status line and the row under the section.
+PUT_DOWN = "Put down by"
+PUT_DOWN_SECTION = "## Put down"
+PUT_DOWN_ROW = re.compile(r" Put down (\d{4}-\d\d-\d\d \d\d:\d\d) \(")
 
 
 def archives_since(stack: Path, since: str) -> list[tuple[str, Path]]:
@@ -423,17 +429,41 @@ def archives_since(stack: Path, since: str) -> list[tuple[str, Path]]:
     return sorted(dated, reverse=True)
 
 
+def is_put_down(frame: Frame) -> bool:
+    """The frame's last status line says that a session put it down."""
+    marks = frame.statuses
+    return bool(marks) and STATUS.match(frame.lines[marks[-1]]).group(3) \
+        .startswith(PUT_DOWN)
+
+
 def closed_since(archives: list[tuple[str, Path]]) -> list[str]:
-    """The frame headings of the archive files, newest file first."""
+    """The frame headings of the archive files, newest file first.
+
+    A frame that the status tool put down is in an archive file too, and it
+    did not close, so it is left out.
+    """
     rows: list[str] = []
     for day, path in archives:
-        for line in read_lines(path):
-            m = HEAD.match(line)
-            if m:
-                name = HOLDERS.sub("", m.group(2)).strip()
-                rows.append(cut("%s. %s" % (m.group(1), name), NAME_LIMIT)
+        for f in parse(read_lines(path), bounded=False):
+            if not is_put_down(f):
+                name = HOLDERS.sub("", f.heading).strip()
+                rows.append(cut("%s. %s" % (f.number, name), NAME_LIMIT)
                             + " (archived %s)" % day)
     return rows
+
+
+def put_down_since(lines: list[str], since: str) -> list[str]:
+    """The lines of the stack's `## Put down` section from `since`, newest first."""
+    rows: list[tuple[str, str]] = []
+    inside = False
+    for line in lines:
+        if line.startswith("#"):
+            inside = line.rstrip() == PUT_DOWN_SECTION
+            continue
+        m = PUT_DOWN_ROW.findall(line) if inside and line.startswith("- ") else []
+        if m and m[-1][:10] >= since:
+            rows.append((m[-1], cut(line, ROW_LIMIT)))
+    return [row for _, row in sorted(rows, key=lambda r: r[0], reverse=True)]
 
 
 def dated_statuses(frames: list[tuple[Frame, bool]],
@@ -507,16 +537,17 @@ def fold_rulings(rows: list[tuple[str, Frame, bool, str]]) -> list[str]:
 
 
 def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
-    """The page for Roman's return: four sections and nothing else.
+    """The page for Roman's return: five sections and nothing else.
 
     His attention is the scarcest budget, and a return should cost one
     screen (reasoned: `plans/method/design.md`, section 2, autonomy). So
     the page holds at `cap` characters. The oldest rows of the closed, the
-    assumed and the ruled sections go, the longest section first, and the
-    page says how many went. The waits are never cut, because they are
-    what he must answer.
+    put down, the assumed and the ruled sections go, the longest section
+    first, and the page says how many went. The waits are never cut,
+    because they are what he must answer.
     """
-    frames = parse(read_lines(stack))
+    lines = read_lines(stack)
+    frames = parse(lines)
     head = ["State since %s of %s, printed %s." % (
         since, stack.as_posix(), time.strftime("%Y-%m-%d %H:%M"))]
     archives = archives_since(stack, since)
@@ -536,11 +567,12 @@ def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
                               cut(f.waits, FIELD_LIMIT)) for f in asks]
 
     sections = [("Closed since %s" % since, closed),
+                ("Put down since %s" % since, put_down_since(lines, since)),
                 ("Decided under assumption since %s" % since, assumed),
                 ("Waits on Roman", waits),
                 ("Rulings since %s" % since, ruled)]
     shown = [len(rows) for _, rows in sections]
-    cuttable = (0, 1, 3)
+    cuttable = (0, 1, 2, 4)
 
     def page() -> str:
         out = list(head)
@@ -578,9 +610,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--limit", type=int, default=STATUS_LIMIT,
                    help="characters of the last status line")
     p.add_argument("--since", default="",
-                   help="YYYY-MM-DD: print what closed, what was assumed, what "
-                        "waits on Roman and his rulings since that date, and "
-                        "nothing else")
+                   help="YYYY-MM-DD: print what closed, what was put down, "
+                        "what was assumed, what waits on Roman and his "
+                        "rulings since that date, and nothing else")
     args = p.parse_args(argv)
     for value in (args.sid, args.sender):
         bad = handover._check_sid(value) if value else ""

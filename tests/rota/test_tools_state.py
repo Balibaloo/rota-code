@@ -381,10 +381,10 @@ def since_repo(repo):
     return repo
 
 
-def test_since_prints_four_sections_and_nothing_else(since_repo, capsys):
+def test_since_prints_five_sections_and_nothing_else(since_repo, capsys):
     out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
     heads = [x for x in out.splitlines() if x.startswith("## ")]
-    assert heads == ["## Closed since 2026-10-17",
+    assert heads == ["## Closed since 2026-10-17", "## Put down since 2026-10-17",
                      "## Decided under assumption since 2026-10-17",
                      "## Waits on Roman", "## Rulings since 2026-10-17"]
     assert "Held by" not in out and "Live things" not in out
@@ -530,3 +530,145 @@ def test_the_cap_cuts_closed_rows_and_never_the_waits(since_repo, capsys):
     rulings = out.split("## Rulings since")[1]
     assert "older rows cut" in rulings
     assert "[high] 13. A high ask" in out and "[med] 11. The open ask" in out
+
+
+# The put-down: a session puts a frame down with one reason (ruled: Roman,
+# 2026-11-10 08:17).
+
+BATCH = ("### 15. A batch frame (2026-10-20) (Roman) (aaaa1111)\n\n"
+         "- **Site: y.** Meta workflow.\n- Waits on: nothing.\n"
+         "- Status 2026-10-20 09:00 (rota-01): batched.\n\n")
+PUT_STACK = STACK.replace("## Parked", "## The batches\n\n" + BATCH + "## Parked")
+DAY = "2031-01-02"
+ARCHIVE = "plans/archive/stack-%s.md" % DAY
+
+
+def put(repo: Path, frame: str, reason: str, *argv: str) -> int:
+    return append(repo, frame, "--sid", "aaaa1111", "--put-down", reason, *argv)
+
+
+def row(frame: str, title: str, reason: str) -> str:
+    return "- %s. %s Put down %s 03:04 (rota-39): %s Block: %s." % (
+        frame, title, DAY, reason, ARCHIVE)
+
+
+def frames_of(repo: Path) -> dict[str, state.Frame]:
+    return {f.number: f for f in state.parse(
+        state.read_lines(repo / "plans" / "stack.md"), bounded=False)}
+
+
+@pytest.fixture
+def put_repo(repo, clock):
+    write(repo, PUT_STACK)
+    enrol(repo, "aaaa1111", "rota-39")
+    return repo
+
+
+def test_a_put_down_under_the_batches_moves_the_block_whole(put_repo):
+    assert put(put_repo, "15", "the batch ended", "--no-commit") == 0
+    text = (put_repo / "plans" / "stack.md").read_bytes().decode("utf-8")
+    assert text == (STACK + "\n## Put down\n\n" + status.PUT_DOWN_HEAD + "\n\n"
+                    + row("15", "A batch frame (2026-10-20)", "the batch ended")
+                    + "\n").replace("## Parked", "## The batches\n\n## Parked"), \
+        "every other byte of the stack stays"
+    last = "- Status %s 03:04 (rota-39): Put down by aaaa1111: the batch ended" % DAY
+    assert (put_repo / ARCHIVE).read_bytes().decode("utf-8") == (
+        "# Frames popped on %s\n\n" % DAY + BATCH.rstrip("\n") + "\n" + last + "\n")
+
+
+def test_a_put_down_of_a_parked_frame_names_its_holder_and_continues(put_repo, capsys):
+    assert put(put_repo, "12", "parked too long", "--no-commit") == 0
+    out = capsys.readouterr().out
+    assert "WARNING: session bbbb2222 holds frame 12, and session aaaa1111 puts it down." in out
+    assert "12" not in frames_of(put_repo)
+    archived = (put_repo / ARCHIVE).read_bytes().decode("utf-8")
+    assert "### 12. A parked frame that must not print" in archived
+    assert "parked words." in archived
+    text = (put_repo / "plans" / "stack.md").read_bytes().decode("utf-8")
+    assert "## Parked\n\n## Put down\n" in text
+    assert row("12", "A parked frame that must not print (2026-10-01)",
+               "parked too long") in text
+
+
+def test_a_second_put_down_appends_and_its_line_stands_first(put_repo):
+    assert put(put_repo, "15", "first", "--no-commit") == 0
+    assert put(put_repo, "10", "second", "--no-commit") == 0
+    archived = (put_repo / ARCHIVE).read_bytes().decode("utf-8")
+    assert archived.count("# Frames popped on") == 1
+    assert archived.index("### 15.") < archived.index("### 10.")
+    assert "\n\n### 10. The held frame" in archived, "a blank line parts the blocks"
+    text = (put_repo / "plans" / "stack.md").read_bytes().decode("utf-8")
+    section = text.split("## Put down\n")[1].splitlines()
+    rows = [x for x in section if x.startswith("- ")]
+    assert rows == [row("10", "The held frame changes a door (2026-10-17)", "second"),
+                    row("15", "A batch frame (2026-10-20)", "first")]
+
+
+def test_the_put_down_section_is_not_part_of_the_last_parked_frame(put_repo):
+    put(put_repo, "15", "done", "--no-commit")
+    lines = frames_of(put_repo)["12"].lines
+    assert not any("Put down" in x for x in lines)
+    assert lines[-1] == "", "the frame ends at the line before the section"
+
+
+def test_a_put_down_keeps_crlf_and_lf(put_repo):
+    put(put_repo, "15", "lf", "--no-commit")
+    for rel in ("plans/stack.md", ARCHIVE):
+        assert b"\r" not in (put_repo / rel).read_bytes()
+    (put_repo / ARCHIVE).unlink()
+    write(put_repo, PUT_STACK, eol="\r\n")
+    put(put_repo, "15", "crlf", "--no-commit")
+    for rel in ("plans/stack.md", ARCHIVE):
+        data = (put_repo / rel).read_bytes()
+        assert data.count(b"\n") == data.count(b"\r\n"), rel
+    assert b"Put down by aaaa1111: crlf\r\n" in (put_repo / ARCHIVE).read_bytes()
+
+
+@pytest.mark.parametrize("frame, reason", [("15", ""), ("15", "  \n "), ("99", "why")])
+def test_an_empty_reason_or_an_unknown_frame_changes_nothing(put_repo, frame, reason):
+    before = (put_repo / "plans" / "stack.md").read_bytes()
+    assert put(put_repo, frame, reason) == 2
+    assert (put_repo / "plans" / "stack.md").read_bytes() == before
+    assert not (put_repo / "plans" / "archive").exists()
+
+
+def test_no_commit_commits_nothing(put_repo):
+    head = git(put_repo, "rev-parse", "HEAD")
+    assert put(put_repo, "15", "batch", "--no-commit") == 0
+    assert git(put_repo, "rev-parse", "HEAD") == head
+
+
+def test_the_commit_holds_the_stack_and_the_archive_alone(put_repo, capsys):
+    git(put_repo, "commit", "-q", "-am", "the batch stack")
+    (put_repo / "other.txt").write_bytes(b"two\n")
+    git(put_repo, "add", "other.txt")
+    assert put(put_repo, "15", "the batch ended") == 0
+    assert "committed" in capsys.readouterr().out
+    files = git(put_repo, "show", "--name-only", "--format=", "HEAD").split()
+    assert sorted(files) == [ARCHIVE, "plans/stack.md"]
+    assert git(put_repo, "log", "-1", "--format=%s") == \
+        "docs(plans): frame 15, put down, the batch ended"
+    assert git(put_repo, "diff", "--cached", "--name-only") == "other.txt"
+
+
+def test_since_prints_the_put_down_line_and_not_a_close(put_repo, capsys):
+    put(put_repo, "15", "the batch ended", "--no-commit")
+    archive(put_repo, DAY, (put_repo / ARCHIVE).read_bytes().decode("utf-8")
+            + "\n### 7. A closed door frame (2026-10-10)\n")
+    out = page(put_repo, "--since", "2031-01-01", capsys=capsys)
+    closed = out.split("## Closed since 2031-01-01")[1].split("## Put down since")[0]
+    assert "7. A closed door frame (2026-10-10) (archived %s)" % DAY in closed
+    assert "15." not in closed, "a put-down frame did not close"
+    section = out.split("## Put down since 2031-01-01")[1].split("## Decided")[0]
+    assert row("15", "A batch frame (2026-10-20)", "the batch ended") in section
+    later = page(put_repo, "--since", "2031-01-03", capsys=capsys)
+    assert later.split("## Put down since 2031-01-03\n")[1].startswith("None.")
+
+
+def test_a_put_down_frame_leaves_open_frames_and_the_counts(put_repo, capsys):
+    stack = put_repo / "plans" / "stack.md"
+    assert 15 in state.open_frames(stack)
+    assert "Live things: 3 of 10" in page(put_repo, capsys=capsys)
+    put(put_repo, "15", "done", "--no-commit")
+    assert state.open_frames(stack) == {10, 11, 12}
+    assert "Live things: 2 of 10" in page(put_repo, capsys=capsys)
