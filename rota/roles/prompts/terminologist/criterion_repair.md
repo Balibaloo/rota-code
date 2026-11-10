@@ -17,6 +17,11 @@ the right callable does not exist yet, name it the way you intend it. "The email
 rewrite leans on a term, name it, and if the term does not exist, that gap is
 the real finding.
 
+`[the commitments that bind the files of this item]` lists what the code
+already promises, each with its id. When the rewrite restates one of them,
+send that id as `keeps=` on `criteria.respecify`. When the rewrite asks for
+the change, send no `keeps`.
+
 Then answer the asker with refs to the criterion, so the question closes and
 their next encode meets the new words.
 
