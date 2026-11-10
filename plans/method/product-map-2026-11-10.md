@@ -348,6 +348,51 @@ the 5 Developer sessions are from dry run 7. No drawn session failed,
 and 38 sessions of the pool did. 25 of the 36 wake kinds are not in the
 draw. "True" is one reader's check.
 
+## Mass 4, the model of the project: the compare
+
+The read is `plans/method/product-mass4-read-2026-11-10.md`, one agent
+on Opus, about 298k. The reader took 18 statements from the design pages
+and drew 40 records about the project from dry runs 1, 2, 3 and 8, ten
+per run, with seed 364.
+
+The expectation, 05:09, had four parts. The expectation was not blind.
+
+1. More than 6 in 10 of the checked records are true. This holds: 27
+   of 37 are true, 7 true in part, 3 false.
+2. Fewer than 1 in 5 is read by a delivery desk. This holds: 0 of 40.
+   Outside the draw, in dry run 8, one Tester session carried 19
+   constraint texts and 6 Developer sessions carried one glossary row.
+3. Fewer than 1 in 5 reached the person on a page. This fails by a
+   little: 10 of 40, on 6 pages. None of the 10 records of dry run 8
+   reached a page.
+4. None states a promise to a party outside the repository. This fails
+   by one: one constraint of dry run 8 names a party and a behaviour.
+
+What the expectation did not name:
+
+- Six of the 40 records say something that a person cannot read from
+  the one file or symbol the record points at.
+- The person dropped such records two times in his own words. The rows
+  keep their text and their mark `observed` after the drop.
+- 12 of the 40 records carry a mark of observed, reasoned or decided.
+- A Critic verdict "falsified" a true statement two times in dry run 8.
+- Onboarding wakes took 414 of the 813 sessions of the four runs.
+
+Limits of this read. 14 of the 40 drawn records are challenges, and no
+area row and no description item came into the draw. "Says more than
+its one file" is the reader's judgement.
+
+## Mass 8, the outside: from the read of mass 6
+
+No reader ran for this mass. The 1,858 sessions hold 3 sessions of the
+Researcher, and the draw of mass 6 took all 3 (observed: the mass 6
+read, Part B and Part E). Each woke on a question from the Tester. Two
+calls of `web.search` were refused. None of the 3 left a record or a
+message, and the Vision Keeper answered the Tester in each case. So the
+recorded runs show the one desk for the outside at work 3 times, with no
+record from outside the repository as a result. This page does not say
+whether a fact from outside entered by another path. No read looked.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
