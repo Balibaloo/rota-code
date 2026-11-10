@@ -227,3 +227,20 @@ def test_the_restore_commit_in_the_wake_says_the_wake_is_done(run):
     out = code_commit(ctx, "put the assert back")
     assert out["committed"] is True, out
     assert "This wake is done" in out.get("next", ""), out
+
+
+def test_the_stopped_page_names_run_6_and_fddff3af(run):
+    from rota.roles.principal import _red_run_words
+    conn, _root = run
+    seq = 0
+    for test in ("inh_7bed8d74", "inh_c55c4bf6"):
+        for attempt, sha, result in [(1, "99619246", "pass"), (2, "99619246", "pass"),
+                                     (3, "67e0b2d0", "pass"), (4, "a585c4ea", "pass"),
+                                     (5, "a585c4ea", "pass"), (6, "fddff3af", "fail")]:
+            seq += 1
+            conn.execute("INSERT INTO test_run_journal (id, batch_id, test_id, "
+                         "commit_sha, result, attempt) VALUES (?, 'bg_1', ?, ?, ?, ?)",
+                         (f"tr{seq}", test, sha + "0" * 32, result, attempt))
+    said = _red_run_words(conn, "bg_1", ["inh_7bed8d74", "inh_c55c4bf6"])
+    assert said == ("They passed on runs 1 to 5 and failed first on run 6, "
+                    "at fddff3af, after the team stopped"), said

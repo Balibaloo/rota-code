@@ -2551,6 +2551,38 @@ RED_CLAUSE_WORDS = 20
 RED_FILES_SHOWN = 2
 
 
+def _red_run_words(conn: sqlite3.Connection, batch: str,
+                   test_ids: list[str]) -> str:
+    """One sentence that names the run that made the red files fail, or "".
+
+    Dry run 8's m59 said two files "still fail after 3 attempts". Both
+    passed on runs 1 to 5 and failed on run 6 only, at fddff3af, after the
+    key had stopped (frame 173, pass 2). A file that never passed gets no
+    sentence. A file that passed on every earlier run was green at each
+    counted attempt, so its red run came after the team stopped (reasoned:
+    the read of dry run 8, section 5)."""
+    firsts: set[tuple[int, str]] = set()
+    for test in test_ids:
+        rows = conn.execute(
+            "SELECT attempt, commit_sha, result FROM test_run_journal WHERE "
+            "batch_id = ? AND test_id = ? ORDER BY seq", (batch, test)).fetchall()
+        green = [r["attempt"] for r in rows if r["result"] == "pass"]
+        red = [r for r in rows if r["result"] != "pass"
+               and (not green or r["attempt"] > max(green))]
+        if not green or not red:
+            return ""
+        if set(green) != set(range(1, red[0]["attempt"])):
+            return ""
+        firsts.add((red[0]["attempt"], (red[0]["commit_sha"] or "")[:8]))
+    if len(firsts) != 1:
+        return ""
+    run, sha = next(iter(firsts))
+    they = "It" if len(test_ids) == 1 else "They"
+    runs = "run 1" if run == 2 else f"runs 1 to {run - 1}"
+    return (f"{they} passed on {runs} and failed first on run {run}, "
+            f"at {sha}, after the team stopped")
+
+
 def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
                what: str = "") -> str:
     """
@@ -2588,7 +2620,11 @@ def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
             head = f"{subject} still fail{'s' if len(files) == 1 else ''}{tail}"
             error = next((errors[f] for f in shown if errors[f]), "")
             room = RED_CLAUSE_WORDS - len(head.split())
-            return head + (f": {_cut_words(error, room)}" if error and room > 0 else "")
+            since = _red_run_words(conn, batch, [
+                r["test_id"] for r in own + project
+                if (r["path"] or r["test_id"]) in shown])
+            return head + (f": {_cut_words(error, room)}" if error and room > 0
+                           else "") + (f". {since}" if since else "")
     if kind == "criterion_owed":
         # The fallback said "c1, m26", rota's ids (the review of slice 2,
         # pass 1, finding 4). The check goes by its words.
