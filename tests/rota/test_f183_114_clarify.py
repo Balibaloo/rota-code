@@ -116,3 +116,66 @@ def test_a_liaison_tick_that_can_clarify_sees_his_answers(w3):
     wake = Wake("liaison", "tick:unresolved", refs=("m34",))
     got = resolve_inbound(w3, wake)
     assert got["prior_answers"][0]["question"] == M30
+
+
+BASE_RED = ["inh_16dcb40b", "inh_70337a4f", "inh_e2eb1d19"]
+PATHS = {"inh_16dcb40b": "src/icalendar/tests/test_issue_1445.py",
+         "inh_70337a4f": "src/icalendar/tests/test_rfc_6868.py",
+         "inh_e2eb1d19": "src/icalendar/tests/test_time.py",
+         "inh_02554f55": "src/icalendar/tests/test_other.py"}
+
+
+@pytest.fixture
+def w5(w3):
+    """The config row `base_run:bg_1` with its three red tests, and one test
+    that the base run found green."""
+    for tid, path in PATHS.items():
+        w3.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                   "VALUES (?, 'bg_1', NULL, ?, '')", (tid, path))
+    base = {t: {"result": "fail", "output": "F [100%]"} for t in BASE_RED}
+    base["inh_02554f55"] = {"result": "pass", "output": ". [100%]"}
+    w3.execute("INSERT INTO config (key, value) VALUES ('base_run:bg_1', ?)",
+               (json.dumps(base),))
+    w3.commit()
+    return w3
+
+
+def _developer(conn):
+    return build("developer", conn, mode="tests_failing", batch_id="bg_1",
+                 session_id="s_dev",
+                 allow=prompts.mode_tools("developer", "tests_failing"))
+
+
+def test_an_escalation_of_tests_red_at_the_base_ends_the_session(w5):
+    """W5. m34 named the three tests red at bg_1's base and climbed to m54."""
+    from rota.core.predicates import unresolved
+    from rota.roles import api
+
+    sb = _developer(w5)
+    with pytest.raises(api.EndRefusal) as got:
+        sb.call("msg.escalate_architect", refs=BASE_RED)
+    assert "found inh_16dcb40b, inh_70337a4f, inh_e2eb1d19 red" in str(got.value)
+    assert sb.ctx.outbound == []
+    # No m34, so no rung and no Liaison wake comes from it.
+    assert unresolved(w5) == []
+
+
+def test_a_mixed_escalation_climbs_without_the_tests_red_at_the_base(w5):
+    sb = _developer(w5)
+    with pytest.raises(ValueError) as got:
+        sb.call("msg.escalate_architect", refs=["inh_16dcb40b", "inh_02554f55"])
+    assert "Send msg.escalate_architect(refs=['inh_02554f55'])" in str(got.value)
+    assert [o.args for o in sb.ctx.offers
+            if o.op == "msg.escalate_architect"] == [{"refs": ["inh_02554f55"]}]
+    sb.call("msg.escalate_architect", refs=["inh_02554f55"])
+    assert [m["body_refs"] for m in sb.ctx.outbound] == [["inh_02554f55"]]
+
+
+def test_a_test_not_red_at_the_base_still_climbs(w5):
+    from rota.core.predicates import unresolved
+
+    _msg(w5, "m60", 60, "developer", "architect", "escalate", ["inh_02554f55"],
+         status="unresolved")
+    w5.commit()
+    assert [(w.role, w.refs) for w in unresolved(w5)] == [
+        ("architect", ("m60",))]

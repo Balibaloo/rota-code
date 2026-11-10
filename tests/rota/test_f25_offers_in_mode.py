@@ -394,19 +394,23 @@ def test_the_base_run_fact_names_no_escalation_in_answer(db, monkeypatch):
     sb = _narrowed("developer", db, "answer", batch_id="b1")
     sb.ctx.offers = []
     said = sandbox.project_tests_fact(sb.ctx, ["inh_1"]) or ""
-    assert "the fix is not yours. End the session with no call" in said, said
+    assert ("the fix is not yours. The base run excuses it from every gate, "
+            "so it needs no call from you") in said, said
     assert "msg.escalate_architect" not in said, said
     assert "escalated these refs already" not in said, said
     assert _unheld(sb, "msg.challenge_tester", said) == []
 
 
-def test_the_base_run_fact_names_the_escalation_where_held(db, monkeypatch):
+def test_the_base_run_fact_names_no_escalation_where_held(db, monkeypatch):
+    """The escalation door refuses a base-red test, so the text names no
+    call where the mode holds the escalation (frames 183 and 114, W5)."""
     _red_at_base(monkeypatch)
     sb = _narrowed("developer", db, "tests_failing", batch_id="b1")
     sb.ctx.offers = []
     said = sandbox.project_tests_fact(sb.ctx, ["inh_1"]) or ""
-    assert "Send msg.escalate_architect(refs=['inh_1'])" in said, said
-    assert [o.op for o in sb.ctx.offers] == ["msg.escalate_architect"]
+    assert "msg.escalate_architect" not in said, said
+    assert "needs no call from you" in said, said
+    assert sb.ctx.offers == []
 
 
 def _two_answers(db, role="tester"):

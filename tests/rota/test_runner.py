@@ -3703,7 +3703,8 @@ _F207_QUOTE = ("DeprecationWarning: 'isolated_filesystem' is deprecated and "
 _F207_FACT = (
     "the base run at this batch's start found inh_00000000 red too. The "
     "base run said: " + _F207_QUOTE + ". Your diff did not break it, and "
-    "the fix is not yours. Send msg.escalate_architect(refs=['inh_00000000'])")
+    "the fix is not yours. The base run excuses it from every gate, so it "
+    "needs no call from you")
 
 
 def _f207_db(tmp_path, own: list[str], result: str):
@@ -3738,11 +3739,13 @@ def test_the_fix_wake_keeps_its_sentence_when_the_base_run_passed(tmp_path):
         "restore what it changed; a challenge has no side here")
 
 
-def test_a_challenge_on_a_base_red_project_test_is_offered_an_admitted_escalation(tmp_path):
+def test_a_challenge_on_a_base_red_project_test_is_offered_no_call(tmp_path):
     """Frame 207, night 140: s322 challenged `inh_f3b0c3db` and the door
-    said it passed before this batch. The door now quotes the base run and
-    names the escalation, and the doors admit that call."""
-    from rota.core.sandbox import dry_run
+    said it passed before this batch. The door now quotes the base run.
+    Dry run 8's m34 escalated three such tests to his page, so the door
+    names no escalation, and the escalation door ends the session
+    (frames 183 and 114, build 2, W5)."""
+    from rota.roles import api
 
     conn = _f207_db(tmp_path, [], "fail")
     sb, _, _ = _f120_push(conn)
@@ -3754,10 +3757,11 @@ def test_a_challenge_on_a_base_red_project_test_is_offered_an_admitted_escalatio
         "-- the criterion and the test -- and yours names no criterion. "
         "inh_00000000 has no criterion: it is the project's own test and "
         + _F207_FACT)
-    offers = [o for o in sb.ctx.offers if o.op == "msg.escalate_architect"]
-    assert [o.args for o in offers] == [{"refs": ["inh_00000000"]}]
-    res = dry_run(sb, offers[0].op, offers[0].args, offers[0].then)
-    assert res.admitted, res.refusal
+    assert [o for o in sb.ctx.offers if o.op == "msg.escalate_architect"] == []
+    with pytest.raises(api.EndRefusal, match="the base run at this batch's "
+                       "start found inh_00000000 red, before any change"):
+        sb.call("msg.escalate_architect", refs=["inh_00000000"])
+    assert sb.ctx.outbound == []
 
 
 def test_a_challenge_pairing_a_criterion_with_a_base_red_project_test_quotes_the_base_run(tmp_path):

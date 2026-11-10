@@ -2359,6 +2359,9 @@ def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
         return False
     if _sent_this_session(ctx, "architect", "escalate"):
         return False
+    # The base-red door refuses these refs (frames 183 and 114, W5).
+    if _base_red_refs(ctx, refs):
+        return False
     return _same_refs_refusal(ctx, "architect", "escalate", refs) is None
 
 
@@ -2383,8 +2386,11 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
     Frame 207, night 140: the doors said "passed before this batch" from a
     constant, and `inh_f3b0c3db` was red at bg_2's base. Now the sentence
     comes from the record `harness.record_base_run` wrote. A test that is
-    red at the base is not the Developer's to fix. The escalation is the
-    admitted call for it, so the text names that call exactly.
+    red at the base is not the Developer's to fix. The text named the
+    escalation as its call, and dry run 8's m34 climbed to a page about
+    three such tests. The base run excuses them from every gate, and a red
+    project test is a note with no question (ruled: Roman, 2026-10-08,
+    point 3). So the text names no call (frames 183 and 114, build 2, W5).
     """
     from . import harness
 
@@ -2419,19 +2425,12 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
             f"the base run at this batch's start found {', '.join(red)} red "
             f"too. The base run said: {quote}. Your diff did not break "
             f"{'it' if len(red) == 1 else 'them'}, and the fix is not yours")
-        # Frame 135's law: `_escalation_admitted` asks the mode, so
-        # developer/answer, which lacks the escalation, gets the end.
-        if _escalation_admitted(ctx, red):
-            said = f"Send msg.escalate_architect(refs={red!r})"
-            if offer:
-                api._offer(ctx, said, "msg.escalate_architect",
-                           {"refs": red})
-            parts.append(said)
-        elif api._holds(ctx, "msg.escalate_architect"):
-            parts.append("You escalated these refs already. End the "
-                         "session with no call")
-        else:
-            parts.append("End the session with no call")
+        # The escalation door refuses these refs, so frame 135's law
+        # leaves no call to name (frames 183 and 114, build 2, W5).
+        parts.append(
+            f"The base run excuses {'it' if len(red) == 1 else 'them'} from "
+            f"every gate, so {'it needs' if len(red) == 1 else 'they need'} "
+            f"no call from you")
     if passed:
         parts.append(f"{', '.join(passed)} passed before this batch. Read "
                      f"code.diff and restore what your change broke")
@@ -3433,6 +3432,53 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # An ended session lets the tick cap carry the batch on (frame 132's
     # design, section 3.4).
     return _escalation_or_step(ctx, refs, fact, END_STEP)
+
+
+def _base_red_refs(ctx: api.Ctx, refs) -> list[str]:
+    """The refs that are project tests the base run of their batch found red."""
+    from . import harness
+
+    base, batches = [], {}
+    for ref in refs or ():
+        if not isinstance(ref, str):
+            continue
+        row = ctx.conn.execute(
+            "SELECT batch_id FROM tests WHERE id = ? AND criterion_id IS NULL",
+            (ref,)).fetchone()
+        if row is None or not row["batch_id"]:
+            continue
+        if row["batch_id"] not in batches:
+            batches[row["batch_id"]] = harness.base_red_ids(
+                ctx.conn, row["batch_id"])
+        if ref in batches[row["batch_id"]]:
+            base.append(ref)
+    return base
+
+
+def _base_red_escalation(ctx: api.Ctx, refs) -> None:
+    """Refuse an escalation on project tests that the base run found red.
+
+    A red project test is a note with no question (ruled: Roman,
+    2026-10-08, point 3). Dry run 8's m34 named three tests red at bg_1's
+    base, and `unresolved` climbed it to his page m54 (frames 183 and 114,
+    build 2, W5). The gates excuse these tests already. An escalation of
+    them alone ends the session. A mixed one is offered again without them,
+    so the rest still climbs and he never reads the excused tests.
+    """
+    refs = [r for r in refs if isinstance(r, str)]
+    base = _base_red_refs(ctx, refs)
+    if not base:
+        return
+    rest = [r for r in refs if r not in base]
+    them = "it" if len(base) == 1 else "them"
+    fact = (f"the base run at this batch's start found {', '.join(base)} "
+            f"red, before any change. The base run excuses {them} from every "
+            f"gate, so the escalation does not name {them}")
+    if not rest:
+        raise api.EndRefusal(f"{fact}. End the session with no call")
+    raise ValueError(api._offer(
+        ctx, f"{fact}. Send msg.escalate_architect(refs={rest!r})",
+        "msg.escalate_architect", {"refs": rest}))
 
 
 def _landed_ruling_refusal(ctx: api.Ctx, refs, text: str,
@@ -4912,6 +4958,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # still defined in the worktree is a fact about the files.
         if verb == "escalate" and recipient == "architect":
             _escalation_over_removed_grain(ctx, refs or [])
+            _base_red_escalation(ctx, refs or [])
         # One check, for every pair that reaches a Tester or a Developer and
         # for the question a Tester or a Developer sends (W10).
         _unbuilt_refusal(ctx, recipient, verb, refs or [])
