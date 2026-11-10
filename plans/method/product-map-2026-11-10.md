@@ -1006,6 +1006,48 @@ edit, which B makes honest and does not move. No record shows a
 stronger model at the Developer's desk on these stops, except night 62,
 which "failed the same way". The choice of the model is Roman's.
 
+## The exploration continues: the model as a variable
+
+The read is `plans/method/product-model-read-2026-11-10.md`, one blind
+agent on Opus, about 298k. This session judged from the agent's reply
+and did not read the page whole.
+
+**Expected** (on frame 364, 12:00): under 10 runs with a different
+model at a desk, each mixed with a change of the code. The records
+cannot say whether a stronger model moves the stop. Fails if one clean
+pair exists.
+
+**Found** (observed: the read): the expectation holds, and the gap is
+wider than expected.
+
+- No clean pair exists. The Developer's desk ran qwen3.5:9b in every
+  recorded run and night, 2,232 distinct sessions. The model changed at
+  the Critic's and the Tester's desk on 5 nights, and at the Liaison's
+  desk in the dry runs.
+- At the Developer's desk 27% of the sessions commit, and a door refuses
+  25.6% of the calls. In 10 drawn last turns, 4 repeat a refused write,
+  4 say in prose that the work is done, and 2 send a message.
+- No benchmark is a whole request. 19 of 25 register cases of the
+  Developer run on qwen3:8b, which no night ran at that desk.
+- The card holds about 8 GB. Gemma 12B hangs on it past 1,536 prompt
+  tokens. Night 167 changed models 84 times.
+
+**Not expected, and a correction to the revised reading:**
+
+- On nights 167 and 168 the Developer's model did not change, and its
+  share of sessions that commit fell from 27% to 8%. So the desk where
+  the work stops is not the cause of the stop. Point 2 of the revised
+  reading says where the stop shows. It does not say that the
+  Developer's model is the cause.
+- One set of models on the same three requests merged 0 to 3 across
+  nights 164 to 175. The spread between equal nights is as wide as the
+  gap between the nights with a different model. A count over two runs
+  cannot test a change. This touches each test of the product design
+  and of the meta design.
+- The product design cites night 62 with a stronger model at the
+  Developer's desk. This read found no such session in the night files.
+  The two statements are not reconciled.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
