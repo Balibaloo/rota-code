@@ -394,3 +394,14 @@ def test_on_the_rows_a_batch_with_no_commitment_is_a_change(rows8):
     with pytest.raises(Wall) as got:
         _encode(rows8, "c1", "test_foldline.py", TST_C1_V2)
     assert api.BASE_GREEN_WORDS in str(got.value)
+
+
+def test_on_the_rows_an_untied_test_green_at_the_base_lands_with_the_note(rows8):
+    """W1 on the rows: commitments bind bg_1 and no row ties c1, so the
+    kind is unknown. No route asks the Terminologist, so v2 lands with the
+    note, and v1, red at the base, lands with none."""
+    assert api.criterion_kind(rows8, "bg_1", "c1") == (api.UNKNOWN, None)
+    out = _encode(rows8, "c1", "test_foldline.py", TST_C1_V2)
+    assert out["id"] == "tst_c1" and api.BASE_GREEN_NOTE in out["note"]
+    out = _encode(rows8, "c1", "test_foldline.py", TST_C1_V1)
+    assert api.BASE_GREEN_NOTE not in out.get("note", "")

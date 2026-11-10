@@ -13462,7 +13462,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # Frame 182, dry run 8: tst_c1 v2 passed on the unchanged code, and
     # tst_c3 failed on code that kept its commitment. The base run judges
     # the test before any Developer is asked to fit it.
-    _base_wall = _base_verdict_refusal(ctx, batch_id, criterion_id, path, body)
+    _base_wall = _base_verdict_refusal(ctx, batch_id, criterion_id, path, body,
+                                       notes=_run_notes)
     if _base_wall:
         raise Wall(_base_wall)
     if invented_note:
@@ -23883,10 +23884,15 @@ BASE_GREEN_WORDS = (
 BASE_RED_WORDS = (
     "This test fails on the code before the change, and that code already "
     "keeps {commitment}. The test is wrong, not the code.")
+#: The note of `tests.encode` on a test green at the base whose criterion
+#: no row ties to a commitment (frame 182, pass 2, part 3).
+BASE_GREEN_NOTE = (
+    "At the base this test is green. If the criterion asks for a change, "
+    "this test proves nothing about it.")
 
 
 def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
-                          body: str) -> str | None:
+                          body: str, notes: list | None = None) -> str | None:
     """
     The refusal for a body whose base verdict contradicts its criterion.
 
@@ -23898,13 +23904,27 @@ def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
     A criterion of unknown kind gets no refusal, because a guess inverted
     W2 (the review of pass 1, high 1). An error at the base is no verdict
     on the test: the run could not start, or the file did not collect.
+
+    A test green at the base on a criterion of unknown kind lands with
+    `BASE_GREEN_NOTE` in `notes`. No route lets the structure ask the
+    Terminologist about one criterion: `criterion_repair` wakes on a
+    Tester's unresolved message only (frame 182, pass 2, part 3).
     """
     from ..core import harness as _harness
 
     if not batch_id:
         return None
     kind, kept = criterion_kind(ctx.conn, batch_id, criterion_id)
-    if kind == UNKNOWN or (kind == CHANGE and _claimed(ctx.conn, batch_id)):
+    if kind == UNKNOWN:
+        if notes is not None and not _claimed(ctx.conn, batch_id):
+            try:
+                ran = _harness.run_at_base(ctx.conn, batch_id, path, body)
+            except Exception:  # noqa: BLE001 -- a run that cannot start proves nothing
+                ran = None
+            if ran is not None and ran[0] == "pass":
+                notes.append(BASE_GREEN_NOTE)
+        return None
+    if kind == CHANGE and _claimed(ctx.conn, batch_id):
         return None
     try:
         ran = _harness.run_at_base(ctx.conn, batch_id, path, body)
