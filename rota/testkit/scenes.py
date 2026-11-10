@@ -1736,13 +1736,18 @@ CLOCKS = {"config_history.at", "finding_rulings.at"}
 _RUN_TIME = re.compile(
     r"((?:passed|failed|errors?|skipped|xfailed|xpassed|warnings?|deselected"
     r"|no tests ran)(?: \(\w+\))? in )\d+(?:\.\d+)?s\b")
+# The counts of a cut note. A pushed output can carry the scene's root, and
+# the cut counts the raw text, so each build counts its own root's length.
+# The root is often in the part the cut drops, where `_norm` cannot reach it.
+# So the counts are the free part, as the root is (frame 182, pass 2c).
+_CUT_COUNTS = re.compile(r"(CUT [^:\n]+: )[\d,]+ of [\d,]+( \w+ are not shown\.)")
 
 
 def _clocked(col: str, v):
     if not isinstance(v, str):
         return v
     if col in TIMED:
-        return _RUN_TIME.sub(r"\1<t>s", v)
+        return _CUT_COUNTS.sub(r"\1<n> of <n>\2", _RUN_TIME.sub(r"\1<t>s", v))
     if col in CLOCKS:
         return "<t>"
     if col in HASHED:
