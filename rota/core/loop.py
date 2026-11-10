@@ -263,6 +263,15 @@ def step(
     # Frame 173, build 3: a removed statement that the fork holds goes back
     # by the structure before a Developer is woken to type it back. The
     # restore moves the head, so the wake drains on the next tick.
+    # His keep on a removal line orders the same restore (pass 2, part 1).
+    from .restore import restore_kept
+    kept, _why = restore_kept(conn)
+    if kept:
+        conn.commit()
+        result.note = "restored " + ", ".join(
+            f"{d['path']} at {d['restored'][:8]}" for d in kept)
+        result.productive = True
+        return result
     for wake in ready:
         if wake.kind == "tick:touch_mistaken" and wake.refs:
             from .restore import restore_wake

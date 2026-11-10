@@ -21,11 +21,14 @@ from pathlib import Path
 
 
 def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
-                  act: str) -> dict:
+                  act: str, *, only: set[int] | None = None,
+                  row_head: str | None = None) -> dict:
     """Put back each fork statement of `grain` that the head lacks, and
     commit. `act` names who ordered the restore: his ruling id or the
     Architect's judgement. Returns {"restored": sha, "statements": [...]}
-    or {"reason": one sentence}. A reason changes nothing."""
+    or {"reason": one sentence}. A reason changes nothing. `only` names the
+    base indexes to put back, as his keep names one statement. `row_head`
+    names the head of the row to mark, when an earlier restore moved it."""
     from . import harness, worktrees
     from ..roles.api import _base_texts, removed_statements
 
@@ -65,7 +68,8 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
     got = removed_statements(base, now)
     if got is False:
         return {"reason": f"{path} does not parse at the fork or at the head"}
-    lost = sorted({i for o, i in got[0] if not owner or o == owner})
+    lost = sorted({i for o, i in got[0] if (not owner or o == owner)
+                   and (only is None or i in only)})
     if not lost:
         return {"reason": f"the head holds every statement of {grain}"}
     ol = base.splitlines(keepends=True)
@@ -107,7 +111,7 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
         "note = COALESCE(note, '') || ? WHERE batch_id = ? AND commit_sha = ? "
         "AND path = ? AND status IN ('open', 'mistake')",
         (f" restored at {sha[:8]} by the structure, ordered by {act}",
-         batch_id, head, grain))
+         batch_id, row_head or head, grain))
     return {"restored": sha, "statements": said, "path": path}
 
 
@@ -169,8 +173,49 @@ def restore_wake(conn: sqlite3.Connection, batch_id: str) -> tuple[list, list]:
         "AND status = 'mistake' ORDER BY path",
         (batch_id, head["head_commit"])).fetchall()
     done, reasons = [], []
+    # Pass 2, open question 2: the first restore moves the head, so each
+    # row is marked at the head that holds it.
     for r in rows:
-        out = restore_stray(conn, batch_id, r["path"], "the Architect's judgement")
+        out = restore_stray(conn, batch_id, r["path"], "the Architect's judgement",
+                            row_head=head["head_commit"])
         (done if "restored" in out else reasons).append(
             out if "restored" in out else f"{r['path']}: {out['reason']}")
+    return done, reasons
+
+
+def restore_kept(conn: sqlite3.Connection) -> tuple[list, list]:
+    """Restore each statement that his landed keep names on a removal line.
+
+    His keep lands as a `ruled_refs` row with act `keep`, target kind
+    `row` and the removal key as its ref (frame 173, pass 2). The tick
+    runs this as it runs `restore_wake`, because the ruling lands in
+    `principal.land` and a commit belongs to no door. A key whose stray
+    row is closed or whose head moved past it restores nothing again."""
+    from ..roles.principal import removal_key_parts
+
+    try:
+        rows = conn.execute(
+            "SELECT rr.ruling_id, rr.ref FROM ruled_refs rr JOIN rulings r "
+            "ON r.id = rr.ruling_id WHERE rr.act = 'keep' AND "
+            "rr.target_kind = 'row' AND rr.ref LIKE 'removal|%' AND "
+            "r.status = 'landed' ORDER BY rr.ruling_id").fetchall()
+    except sqlite3.OperationalError:  # a database older than the tables
+        return [], []
+    done, reasons = [], []
+    for r in rows:
+        parts = removal_key_parts(r["ref"])
+        if parts is None:
+            continue
+        batch_id, grain, index = parts
+        head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                            (batch_id,)).fetchone()
+        if head is None or not head["head_commit"] or conn.execute(
+                "SELECT 1 FROM touch_strays WHERE batch_id = ? AND "
+                "commit_sha = ? AND path = ? AND status IN ('open', 'mistake')",
+                (batch_id, head["head_commit"], grain)).fetchone() is None:
+            continue
+        out = restore_stray(conn, batch_id, grain, f"his ruling {r['ruling_id']}",
+                            only={index})
+        (done if "restored" in out else reasons).append(
+            out if "restored" in out else f"{grain}: {out['reason']}")
     return done, reasons

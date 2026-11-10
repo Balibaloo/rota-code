@@ -130,3 +130,82 @@ def test_a_head_without_the_file_returns_the_reason(run):
     conn.execute("UPDATE batches SET head_commit = ? WHERE id = 'bg_1'", (sha,))
     out = restore_stray(conn, "bg_1", GRAIN, "r_m45")
     assert "gone at the head" in out["reason"]
+
+
+# Pass 2: his keep, the closed restore wake, the stopped page, two rows.
+
+def _keep(conn, sha: str) -> str:
+    """His landed keep on the removal line, through the one row builder."""
+    from rota.roles.principal import removal_key, ruling_rows
+    key = removal_key("bg_1", GRAIN, 129)
+    conn.execute("INSERT INTO messages (id, seq, thread_id, from_role, to_role, "
+                 "verb, body_refs) VALUES ('m31', 1, 't1', 'liaison', 'principal', "
+                 "'present', '[\"fold\"]')")
+    conn.execute("INSERT INTO rulings (id, ask_id, status) VALUES ('r_m45', 'm31', 'landed')")
+    rows = ruling_rows(conn, "r_m45", [key], {key: {
+        "verdict": "approve", "act": "keep", "target_kind": "row",
+        "target": key.split("|", 1)[1], "words": "keep the assert"}})
+    for r in rows:
+        conn.execute(f"INSERT INTO ruled_refs ({', '.join(r)}) VALUES "
+                     f"({', '.join('?' * len(r))})", tuple(r.values()))
+    conn.commit()
+    return key
+
+
+def test_the_removal_line_is_keyed_and_takes_keep(run):
+    from rota.roles.api import line_menu, _REMOVAL_ROWS
+    from rota.roles.principal import removal_key, render_page
+    conn, root = run
+    _head(conn, root, FORK.replace(GONE, b"", 1), status="open")
+    page, order = render_page(conn, "present", ["fold"])
+    key = removal_key("bg_1", GRAIN, 129)
+    assert order[-1] == key, order
+    assert f"  {len(order)}. The change removes code" in page, page
+    assert line_menu(conn, key, order, page) == ("removal", ["keep", "approve"])
+    assert _REMOVAL_ROWS["keep"] == ("approve", "keep", "row")
+
+
+def test_his_keep_lands_as_an_act_and_the_tick_restores(run):
+    from rota.core.restore import restore_kept
+    conn, root = run
+    old = _head(conn, root, FORK.replace(GONE, b"", 1), status="open")
+    key = _keep(conn, old)
+    row = conn.execute("SELECT act, target_kind, target, words FROM ruled_refs "
+                       "WHERE ref = ?", (key,)).fetchone()
+    assert (row["act"], row["target_kind"]) == ("keep", "row")
+    assert row["target"] == f"bg_1|{GRAIN}|129" and row["words"] == "keep the assert"
+    done, reasons = restore_kept(conn)
+    conn.commit()
+    assert reasons == [] and len(done) == 1, reasons
+    assert (root / PATH).read_bytes() == FORK
+    assert "his ruling r_m45" in _git(root, "log", "-1", "--format=%s")
+    assert conn.execute("SELECT status FROM touch_strays WHERE commit_sha = ?",
+                        (old,)).fetchone()[0] == "restored"
+    assert restore_kept(conn) == ([], [])
+
+
+def test_two_mistake_rows_at_one_head_both_read_restored(run):
+    conn, root = run
+    old = _head(conn, root, FORK.replace(GONE, b"", 1))
+    other = "src/icalendar/parser/string.py::_escape_char"
+    conn.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+                 "VALUES ('bg_1', ?, ?, 'mistake', 'removal: x')", (old, other))
+    lines = (root / PATH).read_bytes()
+    # A second statement gone in a second grain, at the same head.
+    import ast
+    tree = ast.parse(FORK.decode())
+    fn = next(n for n in tree.body if getattr(n, "name", "") == "_escape_char")
+    one = next(n for n in fn.body[1:] if n.lineno == n.end_lineno)
+    gone2 = FORK.splitlines(keepends=True)[one.lineno - 1]
+    (root / PATH).write_bytes(lines.replace(gone2, b"", 1))
+    _git(root, "commit", "-qam", "two")
+    two = _git(root, "rev-parse", "HEAD")
+    conn.execute("UPDATE batches SET head_commit = ?", (two,))
+    conn.execute("UPDATE touch_strays SET commit_sha = ?", (two,))
+    conn.commit()
+    done, reasons = restore_wake(conn, "bg_1")
+    conn.commit()
+    assert reasons == [] and len(done) == 2, (done, reasons)
+    assert (root / PATH).read_bytes() == FORK
+    assert [r[0] for r in conn.execute("SELECT status FROM touch_strays")] == [
+        "restored", "restored"]

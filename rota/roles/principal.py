@@ -1373,6 +1373,10 @@ def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
 
     if not isinstance(ref, str):
         return None
+    # A removal line is a stray row, and the table has no id column. The
+    # key names the row (frame 173, pass 2).
+    if removal_ref_held(conn, ref):
+        return "touch_strays"
     # A stopped step that names no row is a line he rules on. Its home is
     # its quarantine row, so his ruling stages no false fault (review p4 of
     # frame 354, finding 4).
@@ -3015,6 +3019,15 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     # page about its item, whatever kind of page that is. The line is not
     # numbered, so `parse_reply` reads the same order.
     gone = removal_line(conn, refs) if returned else ""
+    # Frame 173, pass 2: on a page with numbered lines the removal line of
+    # one statement takes the number after the page's last line. His keep
+    # then names it, and no other line's number moves. A clarify and the
+    # shift page number no row, so the line stays unnumbered there.
+    keys = [k for k in removal_keys(conn, refs) if k] if gone and verb in (
+        "present", "confirm") and not (ask_id or "").startswith(SHIFT_ASK) else []
+    if len(keys) == 1:
+        order = [*order, keys[0]]
+        gone = f"  {len(order)}. {gone}"
     unnamed = account_unnamed_line(conn, ask_id) if returned else ""
     top = "\n".join(x for x in (back, unnamed, gone) if x)
     # The held lines render for the seat too, so "show me m52" lands on a
@@ -3074,6 +3087,34 @@ def account_unnamed_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
 def _request_page(conn: sqlite3.Connection, body_refs: str | None) -> bool:
     refs = [r for r in json.loads(body_refs or "[]") if not _is_reading(r)]
     return page_owner(conn, refs) is not None
+
+
+# The ref of one removed statement on a page: batch, grain, base index.
+# `touch_strays` has no id, so the key is its own ref (frame 173, pass 2).
+REMOVAL_REF = "removal|"
+
+
+def removal_key(batch_id: str, grain: str, index: int | str) -> str:
+    return f"{REMOVAL_REF}{batch_id}|{grain}|{index}"
+
+
+def removal_key_parts(ref) -> tuple[str, str, int] | None:
+    """(batch, grain, base index) of a removal key, or None."""
+    if not isinstance(ref, str) or not ref.startswith(REMOVAL_REF):
+        return None
+    body, _sep, index = ref[len(REMOVAL_REF):].rpartition("|")
+    batch, _sep2, grain = body.partition("|")
+    if not batch or not grain or not index.isdigit():
+        return None
+    return batch, grain, int(index)
+
+
+def removal_ref_held(conn: sqlite3.Connection, ref) -> bool:
+    """True when a stray row of the key's batch and grain exists."""
+    parts = removal_key_parts(ref)
+    return parts is not None and conn.execute(
+        "SELECT 1 FROM touch_strays WHERE batch_id = ? AND path = ?",
+        parts[:2]).fetchone() is not None
 
 
 # The removals that one page names. The rest are counted, so ten removals
@@ -3144,6 +3185,13 @@ def removal_line(conn: sqlite3.Connection, refs: list[str]) -> str:
     return f"The change removes code that no answer of yours allowed: {said}." if said else ""
 
 
+def removal_keys(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
+    """The removal key of each statement that `removal_line` names."""
+    batches = [b for b in (_live_batch(conn, item)
+                           for item in sorted(_reached(conn, refs))) if b is not None]
+    return _removal_named(conn, batches)[1]
+
+
 def merged_removal_line(conn: sqlite3.Connection) -> str:
     """One line for the end-of-run summary about the code that the merged
     changes removed and that no grant of his allows, or "".
@@ -3163,9 +3211,17 @@ def _removal_words(conn: sqlite3.Connection, batches: list) -> str:
     """The removals of the head commits of `batches` that no grant of his
     allows, in plain words: at most three named by kind, function and first
     line, and a count of the rest. "" when there is none."""
+    return _removal_named(conn, batches)[0]
+
+
+def _removal_named(conn: sqlite3.Connection, batches: list
+                   ) -> tuple[str, list[str]]:
+    """The words of `_removal_words` and the removal key of each named
+    statement, in the order of the words."""
     from .api import _gone_targets, batch_ruled_refs
 
     places: dict[str, list[str]] = {}
+    keys: dict[str, list[str]] = {}
     for batch in batches:
         if not batch["head_commit"]:
             continue
@@ -3183,20 +3239,25 @@ def _removal_words(conn: sqlite3.Connection, batches: list) -> str:
                     continue
                 where = (g["owner"] or path.rsplit("/", 1)[-1])
                 places.setdefault(where, []).append(_behaviour_words(path, g))
+                keys.setdefault(where, []).append(
+                    removal_key(batch["id"], r["path"], g["no"])
+                    if g["no"] is not None else "")
     count = sum(len(v) for v in places.values())
     if not count:
-        return ""
+        return "", []
     parts: list[str] = []
+    named: list[str] = []
     left = _REMOVALS_NAMED
     for where, said in places.items():
         if left <= 0:
             break
         shown = said[:left]
+        named += keys[where][:len(shown)]
         left -= len(shown)
         parts.append(f"in {where}, " + " and ".join(shown))
     more = count - _REMOVALS_NAMED
     tail = f", and {more} more" if more > 0 else ""
-    return "; ".join(parts) + tail
+    return "; ".join(parts) + tail, named
 
 
 def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:
@@ -3914,6 +3975,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # design, 2.3).
     readings = {k: v for k, v in per_item.items() if _is_reading(k)}
     per_item = {k: v for k, v in per_item.items() if not _is_reading(k)}
+    # A removal line rules a stray row, and no owner takes its relay. Its
+    # `ruled_refs` row is the record, and the tick reads a keep there
+    # (frame 173, pass 2).
+    per_item = {k: v for k, v in per_item.items()
+                if removal_key_parts(k) is None}
     # A stopped step that names no row is a line he rules on. A contest or a
     # revise runs the step again, and an approve drops it. Review p3 of frame
     # 354, finding 1: his '1 contest: try again' lifted nothing. The lift is
