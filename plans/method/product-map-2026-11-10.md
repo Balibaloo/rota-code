@@ -435,6 +435,29 @@ than one time: the sessions before the first batch start, the share of
 onboarding, and the pool of the draw of mass 6. The next step counts the
 sessions that are a run's own.
 
+### The count of each run's own sessions, and the correction withdrawn
+
+One agent on Opus, about 158k, with scripts in `lineage/` in this
+session's scratchpad. The expectation, 05:54: dry runs 4 to 8 each start
+from a copy, and the runs' own sessions are between 1,100 and 1,300 of
+1,858. The expectation fails if the own sessions are above 1,700.
+
+The expectation fails, and the correction above is withdrawn. With the
+time of each turn in the fingerprint, 1,855 of the 1,858 sessions are
+distinct, and the only copy is the known one: the first 137 sessions of
+dry run 6c are dry run 6b. The sessions that dry runs 3, 4, 5, 7 and 8
+share have the same prompt and the same completion and a different
+time. So each run computed them again. The sums of sessions in the
+compares of masses 2, 4 and 6 stand as counts of work done.
+
+What changes is the weight of the counts as evidence. Without the time,
+1,460 sessions are distinct: 395 sessions repeat an earlier run's
+session word for word. 136 of the 199 sessions of dry run 8 repeat a
+session of dry run 7 or 3, and all 123 onboarding sessions before its
+first batch start are among them. The pages: 114 of the 134 are
+distinct. So the runs on icalendarI are one onboarding seen six times,
+and a count over them is not six observations.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
