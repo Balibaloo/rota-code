@@ -1313,6 +1313,60 @@ read-only mode still makes SQLite write the shared-memory file beside
 it. The reads of this map used the same mode, so they likely touched
 the same files. No row changes by it.
 
+## The turns where the measured count moved
+
+The read is `plans/method/moved-count-read-2026-11-10.md`, one agent on
+Opus, about 414k, by the brief
+`plans/method/moved-count-brief-2026-11-10.md` that sessions 1efd37b1
+and 4a1d361a wrote. This session judged from the agent's reply and did
+not read the page whole.
+
+**Expected** (on frame 364, 16:13): 3 to 6 moves that hold. Half or
+more lie at a change of conditions. Two at most show a mechanism in the
+rows, and those are changes to the structure of rota and not doors.
+Fails if most moves follow a door with a mechanism seen, or if no
+series has a move.
+
+**Found** (observed: the read):
+
+- The first expectation failed. 46 moves hold, at 36 nights, in 8
+  series. 14 of them reverse within six nights. 123 more moves last one
+  night.
+- The second holds and is stronger. 20 of the 46 moves lie at a change
+  of conditions. 21 of the other 26 have a change of conditions inside
+  their own eight nights. 5 moves are clear of one: merged batches at
+  nights 121, 126 and 144, the waiting batches at night 122, and the
+  sessions for each merge at night 159.
+- The third cannot be compared. A script gave the grades for 510
+  candidate commits, and the reader checked four rows by hand. The
+  script gave "mechanism seen" to 47, "change seen in the rows" to 156
+  and "timing only" to 307.
+- 73 of 85 turns have a move in the next three runs. So a change before
+  a move is near certain by timing alone.
+- The reverse view shows nothing. A move follows 10 of the 10 largest
+  answers to a wall and 8 of the 10 largest other changes.
+- The clearest case is night 96. The new review line of frame 90 shows
+  in the review session of the merged batch and in 0 of 302 other
+  sessions. Changes to the harness fall inside the same window.
+
+**What the result means for the reading** (reasoned):
+
+- The records cannot name a good turn. The counts move at almost every
+  turn, the conditions change at almost every move, and each change has
+  a move after it. This is the same statement as "a turn cannot tell
+  whether a change helped", now from a read that tried to tell and
+  could not. It does not rest on the wrong claim about noise.
+- The picture must not say that the good turns are the turns with a
+  rise. A rise exists, from 8 nights with a merge of 33 to 20 of 33,
+  and nothing in the records ties it to a change.
+- What would let a turn tell: the same conditions on both sides of one
+  change, and more than one run on each side. No turn of the 107 had
+  that.
+
+**Limits:** the grades come from a script. No database exists for night
+134. 135 of 1,207 commits name no frame and have no origin. Nights 82
+to 132 hold no page text.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
