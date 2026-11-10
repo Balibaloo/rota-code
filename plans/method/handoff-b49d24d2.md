@@ -57,11 +57,14 @@ costs less of his attention, and the records get shorter.
 - Gaps 6, 2, 4 and 1 of the list of 7fd2421e have a read and a compare.
 - The meta synthesis, a draft. He has not corrected a finding.
 - The put-down tool. Pass 1 is at 2ef34070, reviewed in
-  `plans/f363-putdown-review-p1.md`. Pass 1b repairs 7 findings and is
-  in the working tree, not committed, while the implementer runs one
-  more gate. The four files are `rota/tools/status.py`,
-  `rota/tools/state.py` and their two test files. Commit them when the
-  gate names 0 new reds. A diff review of pass 1b is owed by rule C53.
+  `plans/f363-putdown-review-p1.md`. Pass 1b repairs 7 findings, at
+  80a96d7a, with 0 new reds of the gate. Its review,
+  `plans/f363-putdown-review-p1b.md`, accepts it: the 7 repairs hold,
+  and 27 put-downs in a row on a copy of the real stack give the right
+  bytes. Owed before the first real use, as one small pass: a stack
+  write that fails after the open leaves a cut stack, a cut archive
+  append leaves half a block, and the page cap of `state --since` cuts 7
+  of 27 put-down rows. No agent runs now.
   The tool has moved no frame, and the 27 put-downs wait on his word.
 - The draft of reasons for the 88 silent frames,
   `plans/method/meta-putdown-draft-2026-11-10.md`, with this session's
@@ -88,8 +91,9 @@ costs less of his attention, and the records get shorter.
   count over two runs", tests nothing. The rota fact is the spread. The
   meta fact is that the session orders its work by a count with that
   spread.
-- Pass 1b is committed at 80a96d7a with 0 new reds. Its diff review
-  runs, to `plans/f363-putdown-review-p1b.md`.
+- Roman's answer can come to this session's terminal after the
+  hand-off. This session then sends his words to the taker by message,
+  word for word, and the taker records them on frame 363.
 
 ## Meta and rota
 
