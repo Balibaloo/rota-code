@@ -7,7 +7,34 @@ and the compare of each read are in
 `plans/method/say-back-test-2026-11-10.md`. This page is a reading. It
 is not a design, and it changes no rule.
 
-## Result first
+## Result first, after three tests (15:55)
+
+The sessions can pass words to each other. The goal is not lost where
+the words pass. It is lost between a session that holds the words and
+the same session's act.
+
+- The channel is sound, with one closed state: a session that waits on
+  a dialog to Roman sees no message.
+- What a note holds does not change the share of takers that Roman
+  corrects.
+- Of 26 corrections by Roman after a take, 21 repeat a thing that he
+  had said before. In 16 of the 26, his words stood in a place that the
+  taker was told to read. In 2, his words stood nowhere lasting. Those
+  2 are the root question of today, and I built the first synthesis on
+  them.
+- The memory files record 85 repeats of faults, and about 47 of them
+  after the rule was written down.
+- When Roman looks, he corrects about four takers in ten. The note, the
+  kind of work and the speed of the first act do not tell which ones.
+
+So the three things below are cut down. "The place" explains 2 of 26
+corrections. "The first acts" names a fact and no cause. "The judge"
+stands, and it is the only thing in the records that finds a miss.
+
+The reads do not show why a session acts against words that it holds.
+That is the open question of this research.
+
+## The first result, kept as it was written at 14:15
 
 My hypothesis was wrong in its main part. I said that the goal is lost
 at a hand-off because the note carries the next act and not the

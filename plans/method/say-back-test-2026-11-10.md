@@ -439,6 +439,41 @@ said: a good summariser keeps a thing that was said once. The outside
 evidence against a note is withdrawn. The claim that a check decays in
 use is withdrawn. The synthesis page is corrected in six places.
 
+#### Test 2, the corrections traced back, landed about 15:53
+
+The page is `boundary-test-place-2026-11-10.md`. It covers 26
+corrections: 18 from read 2 and 8 of today. "The same thing" is one
+reader's judgement, and the search used keywords.
+
+Against the expectation, at least a third: held, and by much more.
+
+- 21 of 26 corrections repeat a thing that Roman said before the take.
+- In 16 of the 26, his words stood in a place that the taker was told
+  to read. By place, with overlaps: a memory file in the loaded index
+  8, the brief or the intent page 7, the note 7, the rules pages 6, the
+  frame 3.
+- In 3, the words stood in a lasting place that the taker was not told
+  to read: the page of his words twice, the completion page once.
+- In 2, the words stood nowhere lasting. Both are "spiral well".
+- 5 are new.
+- The memory files: 49 files, 23 with a strike, 85 strikes in all, and
+  about 47 repeats after the rule was written.
+- The reader found no method for the other direction. The records show
+  a breach only when Roman corrects it.
+
+What it changes. "The place" was my first of three things, and it
+explains 2 of 26. I built it on today's root question and took one case
+for the pattern. The pattern is the opposite: the words stood where the
+taker was told to read, and the taker acted against them. This session
+did the same twice today. It typed a time from an estimate with the
+rule in its loaded index. It told Roman a result before the test, with
+that lesson in its own note of the morning.
+
+So the research on communication ends with this answer to Roman's
+doubt. The sessions can communicate. Communication is not where the
+goal is lost. The loss is between the words that a session holds and
+its act, and the reads so far do not show the cause.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
