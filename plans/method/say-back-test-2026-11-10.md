@@ -98,4 +98,32 @@ fails if rota-3d read the message at once and chose not to answer.
 
 ## The compare
 
-Not written yet.
+### The control, 13:21
+
+Rota-82 answered in about five minutes, with no reading from me.
+
+- Its goal: to learn how the project changes from a bad spiral to a
+  good one, where each turn of run, read and fix starts from where the
+  last one ended. Frame 363 is the build session's half of a turn and
+  frame 364 is rota's half.
+- Its question: what does Roman mean by "spiral well", and is one turn
+  across both sides the right unit to cut the scope by. It waits on his
+  answer from 11:38.
+- It holds back every read, plan, build and put-down until then.
+
+Against the expectation. The goal is near the reply of rota-a4, so that
+part held: Roman's own question carried the goal, and the message of
+13:05 did not. Two differences show, and each changes the next act.
+
+1. The wait. Rota-82 waits on Roman for the meaning. Rota-a4 holds the
+   question to him back and makes one picture with the other sessions.
+   Roman's "Can you read between the lines?" reached rota-a4 by the
+   message and did not reach rota-82. So the message moved one act. It
+   is not proven that rota-a4 understood. It can be a copy of my
+   recommendation.
+2. The side. Rota-82 puts one turn across both sides. Rota-a4 puts the
+   goal on the rota side, as I expected.
+
+So far: a say-back of three lines found two differences in ten minutes
+that no note showed. Hypothesis 2 holds for the finding. The closing is
+not tested. Rota-3d has not answered, so hypothesis 0 is open.
