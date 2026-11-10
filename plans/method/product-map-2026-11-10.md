@@ -706,6 +706,35 @@ the function alone and no test.
 This also gives claim 2 its plainest case: the tests that the loop
 wrote passed on code that does not fold at a space, in 2 of 3 runs.
 
+## Blind run 1: why the run stopped
+
+The read is `plans/method/product-blind1-stop-read-2026-11-10.md`, one
+agent on Opus, about 138k. The expectation, 07:20: rota's agenda printed
+the sign command that rota's door then refused, so the stop is rota's.
+The expectation holds, with two additions.
+
+- The agenda prints `reply with: rota sign blind1 m8 --say '...'` for
+  m8 (observed: `rota/cli.py` 787). The sign command lands a reply only
+  on a row of `pending_asks`, and that list drops every `converse` row
+  (observed: `rota/roles/principal.py` 186 to 189). So that command can
+  never land.
+- The Liaison put its question to the person as a `converse`, the verb
+  that rota classes as shown and not asked.
+- The driver has a second fault. The open gate was the page m4, and a
+  reply on m4 lands on a scratch copy. The driver offers each page one
+  time and did not offer m4 again.
+- No dry run holds a `converse` from the Liaison to the person. The
+  blind seat was the first seat to ask a question at a page and get a
+  question back.
+
+The read could not say what the Liaison does with a second reply on
+m4. That needs a run.
+
+This joins row 9 of the mass 1 grid: a question at a page got no answer
+on 2 of 2 pages. Frame 364 does not close on this read: the run has no
+merge to score. The stop is a wall of rota's, and the redirect of frame
+363 holds the order in which a wall becomes a frame.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
