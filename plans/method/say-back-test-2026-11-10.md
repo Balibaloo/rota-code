@@ -174,7 +174,7 @@ question and the answer".
 The limits stay. One session answered the case. I wrote the case and I
 judged the answer. Roman has not read it. Rota-3d is still silent.
 
-### Read 1, the channel as fact, landed 14:11
+### Read 1, the channel as fact, landed about 14:11
 
 The page is `boundary-channel-read-2026-11-10.md`. The reader scanned
 the transcripts of the five sessions.
@@ -214,7 +214,7 @@ by a message.
 Hypothesis 0 is now a fact with a cause. The cause is the dialog, not
 the content of a message and not the session's will.
 
-### Read 3, practice in other fields, landed 14:13
+### Read 3, practice in other fields, landed about 14:12
 
 The page is `boundary-practice-read-2026-11-10.md`. Several sites
 refused the reader, so many numbers come from abstracts. The page marks
@@ -248,7 +248,7 @@ fields needed to find their 34%. The fields also put weight where I put
 none: on the moment that the responsibility passes, and on a check by
 the sender after the receiver's first acts.
 
-### Read 4, theory from first principles, landed 14:14
+### Read 4, theory from first principles, landed about 14:13
 
 The page is `boundary-theory-read-2026-11-10.md`. The conditions are
 the reader's own derivation from sourced results, and the page marks
@@ -289,7 +289,7 @@ the order. The strong evidence is what a session does later, on cases
 nobody arranged, as Roman sees it. That is what he has given all day:
 his corrections are the judgement of the one mind that knows the goal.
 
-### Read 2, the hand-offs of this project, landed 14:16
+### Read 2, the hand-offs of this project, landed about 14:14
 
 The page is `boundary-handoffs-read-2026-11-10.md`. 93 hand-offs have a
 note and a taker's transcript. The reader drew 30 by the seed and added
@@ -376,7 +376,9 @@ Then the content of a note is not the cause.
 
 ## The compare of the research
 
-### Read 5, published work on agents, landed 14:08
+The landing times below come from the start at 14:00 and each reader's run time. I first typed them from an estimate, and one was ahead of the clock.
+
+### Read 5, published work on agents, landed about 14:08
 
 The page is `boundary-agents-read-2026-11-10.md`, 46 sources. I checked
 the two sources with the most weight against their abstracts. Both
