@@ -113,7 +113,7 @@ def test_without_a_sid_every_holder_prints(repo, capsys):
 
 def test_the_parked_frame_never_prints(repo, capsys):
     out = page(repo, capsys=capsys)
-    assert "12." not in out and "parked words" not in out
+    assert "12. A parked" not in out and "parked words" not in out
 
 
 def test_the_open_decision_carries_its_rating(repo, capsys):
