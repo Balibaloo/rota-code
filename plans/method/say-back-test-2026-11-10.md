@@ -337,6 +337,48 @@ on a dialog. It fires at the first idle moment after the dialog
 closes. That settles open fact 3 of the channel read. A held message
 is not lost: rota-3d read it when the dialog closed.
 
+## The test of the synthesis, started 15:35
+
+I told Roman the synthesis before any test of it. That repeats an error
+of this morning. So three readers now try to break it. Roman sent "."
+at the moment that I said "I wait". I read that as: do not wait.
+
+The three acts, in parallel:
+
+1. All 93 hand-offs, split by the kind of work that crosses: one frame
+   with a build, or work above a frame. With the time to the first act,
+   and the hand-offs that went best. Page:
+   `boundary-test-kinds-2026-11-10.md`.
+2. Every correction that Roman typed after a take, traced back. Did he
+   say the same thing before, and where did it stand at the take? With
+   the strike counts of the memory files. Page:
+   `boundary-test-place-2026-11-10.md`.
+3. A check of the outside numbers that carry the most weight, against
+   the primary sources. Page: `boundary-test-sources-2026-11-10.md`.
+
+The expectations, written before any reader starts:
+
+1. Kinds. Hand-offs of work above a frame get at least twice the share
+   of corrections of hand-offs of one frame with a build. That would
+   support my explanation that a frame's heading carries its goal. It
+   fails if the shares are near equal. I expect no relation between the
+   time to the first act and a correction for frames with a build.
+2. Place. I expect this test to break "the place" in part. The memory
+   files count strikes against rules that stand in a lasting place and
+   are loaded each session. So a lasting place is not enough. I expect
+   that at least a third of his corrections repeat a thing that stood
+   in a lasting place at the take. If so, the place is needed and not
+   sufficient, and the synthesis says too much.
+3. Sources. I expect that at least 2 of the 10 numbers are wrong, or
+   come from a setting that the reader did not state.
+
+"The judge" has no test here. A hand-off that nobody judged leaves no
+verdict in the records.
+
+### The compare
+
+Not written yet.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
