@@ -246,6 +246,61 @@ a plan that sets the order. Against the eight findings:
 
 The put-down tool is built and reviewed. It has moved no frame.
 
+## The scope: what is read, and what is not yet
+
+Roman, 2026-11-10 11:34: "Slow down, keep the scope complete" (ruled:
+Roman, in his words). So the exploration does not go on to a plan. This
+list is the whole scope of the meta side. A part leaves the list only
+when it has a read and a compare. Session b49d24d2 had cut two parts as
+"limits with no read", parts 9 and 10 below. That cut is withdrawn.
+
+Read, with a compare in the map:
+
+1. The eight parts of the way of working: purpose, the work loop, the
+   shape of a solution, the actors, the records, the instruments,
+   continuity, learning. One blind read each.
+2. The connections, tested two times against the records and the
+   transcripts.
+3. Eight moments of choice in the transcripts.
+4. Every unit above a frame, 114 of them, and how each one ended.
+5. What exists for each statement: the rules, what was built, his
+   rulings.
+6. The 88 silent frames, one by one.
+7. His turning messages from 2026-10-11 to 2026-11-10, 40 in full.
+8. 36 status lines against the transcripts of their sessions.
+
+Not read yet, or read thin:
+
+9. The two soft counts: "done" in the sprint rows, and "not seen again"
+   in the read of the work loop.
+10. The stretches where a plan set the order. The page rests on one, 69
+    hours. The records hold 11 plans, and no read measured how long the
+    work followed each one or what ended it.
+11. His direction before 2026-10-11. The build started on 2026-09-04.
+    The read of his turning messages starts five weeks later, and 106
+    of its 146 messages were read in short form.
+12. The agents: what a brief holds, what an agent returns, what its own
+    transcript shows against its ten lines, and the model of each role.
+    The check of the status lines did not open an agent's transcript.
+13. The cost: the tokens and the hours of a frame, a pass, a read and a
+    hand-off, against what each one moved.
+14. The reserve and the context lines: the standby, the 300k and 350k
+    lines, and what a session does near them. Two reads touch this, and
+    none holds it.
+15. The mechanical repeats that no finding explains: the heredoc fault,
+    the commit footer, a time typed by hand.
+16. Real closes against their `Ends when` line. The draw held 3.
+17. The standing instructions as a whole: the hooks, the brief, the
+    memory index and the agent pages, and which of them fire together
+    at one moment. One table lists them, and no read tested them.
+
+Outside the meta side, and named so that the scope stays whole:
+
+18. The rota side, frame 364. Its exploration continues, with the 11
+    partial capabilities next.
+19. The joins of the two sides, after both are read out.
+20. Roman's own look at the rota reading.
+
 ## For Roman's correction
 
 This page is a picture to correct, and not a plan. Three places where
