@@ -25,6 +25,11 @@ tip as a split, twice, on a real run (tipsAD and tipsAH, 2026-09-09). When
 the item's own words name a function, that name is the surface, whatever
 the list holds.
 
+**A criterion that restates a commitment names it.** `[the commitments that
+bind the files of this item]` lists what the code already promises, each
+with its id. Send that id as `keeps=` on the criterion that restates it, and
+send no `keeps` on a criterion of the change.
+
 **An item whose tickets cannot mean anything consistent is not criteria
 work.** Writing criteria for a contradiction launders it into looking decided:
 `msg.challenge_vision_keeper` with the item, `quotes=` copying the words that

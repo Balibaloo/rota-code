@@ -609,7 +609,13 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     -- `criteria.respecify` stamps it on an owed wake. A newer ruled set
     -- makes the criterion owed, so a surface of the old guess is rewritten
     -- before a test rests on it (frame 362, slice 2, dry run 7's c1 to c3).
-    guess_ruling TEXT NOT NULL DEFAULT ''
+    guess_ruling TEXT NOT NULL DEFAULT '',
+    -- The stated commitment that the criterion restates, or NULL for a
+    -- criterion of the change. The Terminologist writes it at
+    -- `criteria.specify` with `keeps=`, from the commitments that bind the
+    -- item's files. The encode door reads the kind of the criterion from it
+    -- (frame 182, pass 2: the words never decide).
+    commitment_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer

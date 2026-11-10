@@ -141,7 +141,6 @@ def dry8_rows(monkeypatch):
 @pytest.fixture
 def kept_c3(db, dry8_rows):
     """Pass 2's tie, a `criteria.commitment_id` column, cites the commitment."""
-    db.execute("ALTER TABLE criteria ADD COLUMN commitment_id TEXT")
     db.execute("UPDATE criteria SET commitment_id = ? WHERE id = 'c3'", (KEPT,))
     db.commit()
 
@@ -288,3 +287,110 @@ def test_a_batch_with_no_git_worktree_has_no_base_run(db, tmp_path):
     sb = build("tester", db, batch_id="bg_1", mode="tests_missing")
     assert api._base_verdict_refusal(sb.ctx, "bg_1", "c1", "test_foldline.py",
                                      TST_C1_V2) is None
+
+
+# --- pass 2: the tie at `criteria.specify`, on dry run 8's rows -------------
+
+# cw_7039d1d2d899 binds content_line.py on dry run 8, not the files of bg_1.
+CONTENT_LINE = "Long content lines are folded so they are less than 75 characters"
+
+
+@pytest.fixture
+def rows8(db):
+    """Dry run 8's rows on this fixture's file, with no stub: two stated
+    commitments of the parser, a constraint with no party, the ruled guess
+    and the batch's predicted file. c3 is not written yet."""
+    for cid, path, said in ((DRY8_BOUND["id"], "fold.py", DRY8_LINE),
+                            (KEPT, "content_line.py", CONTENT_LINE)):
+        db.execute("INSERT INTO constraints (id, headline, text, party, "
+                   "behaviour, witness) VALUES (?, ?, ?, 'parser', ?, ?)",
+                   (cid, f"{path}: {said}", f"parser rely on this: {said}",
+                    said, "wk_" + cid[3:]))
+        db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+                   "grain_kind) VALUES (?, ?, 'path')", (cid, path))
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('escape_char', 'escape_char', 'escape_char')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+               "grain_kind) VALUES ('escape_char', 'fold.py', 'path')")
+    db.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
+               "grain_kind, confidence) VALUES ('i1', 1, '', 'fold.py', 'path', "
+               "'expected')")
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+               "VALUES ('bg_1', 'fold.py', 'path')")
+    db.execute("DELETE FROM criteria WHERE id = 'c3'")
+    db.commit()
+    return db
+
+
+def _seat(db):
+    from rota.roles import prompts
+    return build("terminologist", db, mode="criteria",
+                 allow=prompts.mode_tools("terminologist", "criteria"))
+
+
+def _specify_c3(db, **keeps):
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    sb = _seat(db)
+    sb.call("criteria.specify", id="c3", ticket_id="tk_1", text=C3, **keeps)
+    session_commit(db, SessionResult(session_id="s152", role="terminologist",
+                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+
+
+def test_the_criteria_wake_shows_the_bound_commitments_with_their_ids(rows8):
+    """s152 wrote c1 to c3 and saw no commitment id. The wake now shows the
+    commitments that bind the item's files, and no other."""
+    from rota.core.runner import CRITERIA_BOUND_KEY, Wake, push_working_set
+    pushed = push_working_set("terminologist", _seat(rows8),
+                              Wake("terminologist", "tick:criteria", refs=("i1",)))
+    shown = pushed[CRITERIA_BOUND_KEY]
+    assert [r["id"] for r in shown] == [DRY8_BOUND["id"]]
+    assert set(shown[0]) == {"id", "text", "witness"}
+
+
+def test_c3_that_keeps_a_commitment_refuses_tst_c3_and_lands_the_right_test(rows8):
+    """W2 on the rows: c3 restates the bound commitment, so tst_c3, red at
+    the base, is wrong. The right c3 test lands."""
+    kept = DRY8_BOUND["id"]
+    _specify_c3(rows8, keeps=kept)
+    assert rows8.execute("SELECT commitment_id FROM criteria WHERE id = 'c3'"
+                         ).fetchone()[0] == kept
+    assert api.criterion_kind(rows8, "bg_1", "c3") == (api.KEPT, kept)
+    with pytest.raises(Wall) as got:
+        _encode(rows8, "c3", "test_foldline_75octets.py", TST_C3)
+    assert api.BASE_RED_WORDS.format(commitment=kept) in str(got.value)
+    assert _encode(rows8, "c3", "test_foldline_75octets.py",
+                   RIGHT_C3)["id"] == "tst_c3"
+
+
+def test_a_keeps_outside_the_bound_set_is_refused_with_the_bound_ids(rows8):
+    """cw_7039d1d2d899 binds content_line.py, not the item's files."""
+    with pytest.raises(ValueError) as got:
+        _seat(rows8).call("criteria.specify", id="c3", ticket_id="tk_1",
+                          text=C3, keeps=KEPT)
+    said = str(got.value)
+    assert KEPT in said and DRY8_BOUND["id"] in said
+    assert "escape_char" not in said
+
+
+def test_a_keeps_where_no_commitment_binds_is_refused(rows8):
+    rows8.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?",
+                  (DRY8_BOUND["id"],))
+    rows8.execute("DELETE FROM constraints WHERE id = ?", (DRY8_BOUND["id"],))
+    with pytest.raises(ValueError) as got:
+        _seat(rows8).call("criteria.specify", id="c3", ticket_id="tk_1",
+                          text=C3, keeps="cw_x")
+    assert api.NO_COMMITMENT_WORDS in str(got.value)
+
+
+def test_on_the_rows_a_batch_with_no_commitment_is_a_change(rows8):
+    """Files, a reaching constraint and no commitment: tst_c1 v2, green at
+    the base, proves nothing about c1."""
+    for cid in (DRY8_BOUND["id"], KEPT):
+        rows8.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?",
+                      (cid,))
+        rows8.execute("DELETE FROM constraints WHERE id = ?", (cid,))
+    assert api.criterion_kind(rows8, "bg_1", "c1") == (api.CHANGE, None)
+    with pytest.raises(Wall) as got:
+        _encode(rows8, "c1", "test_foldline.py", TST_C1_V2)
+    assert api.BASE_GREEN_WORDS in str(got.value)

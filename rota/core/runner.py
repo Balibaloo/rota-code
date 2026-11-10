@@ -4548,6 +4548,8 @@ RULED_CHARS = 3000
 START_RULED_KEY = "the principal's words on this change, newest last"
 # Frame 362, door 2: the key of the pushed constraint read.
 BOUND_KEY = "the constraints that bind the files of this batch"
+# Frame 182, pass 2: the key of the commitments in the criteria wake.
+CRITERIA_BOUND_KEY = "the commitments that bind the files of this item"
 # The Tester's ask travels in the header of its block, so a batch that no
 # commitment binds keeps the Tester text from before the slice. The static
 # paragraph cost one of the two one-per-reply cases wherever it sat (frame
@@ -5094,6 +5096,16 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             block = _criteria_raise_lines(sb, hint)
             if block:
                 pushed[RAISE_LINES_KEY] = block
+            # Dry run 8's s152 saw the docstring of `_foldline` and no
+            # commitment id, so no criterion could name what it restates.
+            # `criteria.specify` takes `keeps=` from this set only (frame 182,
+            # pass 2). An item that no commitment binds gets no block.
+            from ..roles.api import item_commitments
+
+            bound = item_commitments(sb.ctx.conn, wake.refs[0])[1]
+            if bound:
+                pushed[CRITERIA_BOUND_KEY] = [
+                    {k: b[k] for k in ("id", "text", "witness")} for b in bound]
 
     # The same rule pointed at the decision record. `decisions.search` was
     # the single largest gap in the one-wake-one-completion conversion map

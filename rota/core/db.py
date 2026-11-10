@@ -215,6 +215,10 @@ def commitment_columns(conn: sqlite3.Connection) -> None:
     if "criteria" in have and not _has_column(conn, "criteria", "guess_ruling"):
         conn.execute("ALTER TABLE criteria ADD COLUMN guess_ruling TEXT "
                      "NOT NULL DEFAULT ''")
+    # NULL is every older criterion's truth, since no door tied a criterion
+    # to a commitment before the column (frame 182, pass 2).
+    if "criteria" in have and not _has_column(conn, "criteria", "commitment_id"):
+        conn.execute("ALTER TABLE criteria ADD COLUMN commitment_id TEXT")
     # The empty string is every older constraint's truth, since no door
     # stated a party before the columns (pass 2).
     for column in ("party", "behaviour", "witness"):

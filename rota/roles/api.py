@@ -4818,6 +4818,43 @@ def touch_commitments(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
     return [r for r in _bound_rows(conn, batch_id, diff)[1] if "party" in r]
 
 
+def item_commitments(conn: sqlite3.Connection, item_id: str
+                     ) -> tuple[list[str], list[dict]]:
+    """The files of `item_id`'s code line and the stated commitments that
+    bind them, as the delivery push shows a commitment.
+
+    The criteria wake comes before the batch. On dry run 8, s152 wrote c1
+    to c3 and s153 grouped bg_1. So the files are his ruled set of the code
+    line, else the live batches' predicted rows, else the newest guess. The
+    reach rule is `_bound_rows`', so the seat and the Critic read one set
+    (frame 182, pass 2)."""
+    from ..core.lifecycle import grain_file, predicted_rows
+    from ..core.scheduler import code_line_basis
+
+    if not item_id or not commitments_held(conn):
+        return [], []
+    basis = code_line_basis(conn, item_id)
+    rows = [{"grain": g, "grain_kind": "path"} for g in basis["grains"]] if basis else []
+    if not rows:
+        rows = [r for b in conn.execute(
+            "SELECT id FROM batches WHERE item_id = ? AND status NOT IN "
+            "('merged', 'abandoned') ORDER BY id", (item_id,))
+            for r in predicted_rows(conn, b["id"])]
+    if not rows:
+        last = conn.execute("SELECT item_ver, ruling_id FROM touch_guesses "
+                            "WHERE item_id = ? ORDER BY rowid DESC LIMIT 1",
+                            (item_id,)).fetchone()
+        rows = [dict(r) for r in conn.execute(
+            "SELECT grain, grain_kind FROM touch_guesses WHERE item_id = ? AND "
+            "item_ver = ? AND ruling_id = ? ORDER BY rowid",
+            (item_id, last["item_ver"], last["ruling_id"]))] if last else []
+    files = list(dict.fromkeys(f for f in (grain_file(r) for r in rows) if f))
+    if not files:
+        return [], []
+    return files, [_commitment_row(conn, c)
+                   for c in stated_commitments(conn, files)[0]]
+
+
 def commitments_held(conn: sqlite3.Connection) -> bool:
     """Whether the file holds the stated-commitment columns and the harvest
     tables. The page reads this before it reads a commitment.
@@ -7266,12 +7303,40 @@ def _shown_verdict(ctx: Ctx, ticket_id: str) -> str:
     return basis["verdict"] if basis else ""
 
 
+#: The refusal of a `keeps` on an item whose files no commitment binds.
+NO_COMMITMENT_WORDS = "no commitment binds these files"
+
+
+def _kept_commitment(ctx: Ctx, ticket_id: str, keeps: str) -> str:
+    """The commitment id that `keeps` names, or a refusal.
+
+    Only an id of the set that the criteria wake shows is a tie. The kind of
+    the criterion gates a test at the encode door, so an invented id would
+    gate on a guess (frame 182, pass 2)."""
+    row = ctx.conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                           (ticket_id,)).fetchone()
+    files, bound = item_commitments(ctx.conn, row["item_id"] if row else "")
+    ids = [b["id"] for b in bound]
+    if not ids:
+        where = f": {', '.join(files)}" if files else ""
+        raise ValueError(f"keeps={keeps!r} names nothing, because "
+                         f"{NO_COMMITMENT_WORDS}{where}. Send the criterion "
+                         f"without keeps")
+    if keeps not in ids:
+        raise ValueError(f"keeps={keeps!r} names no commitment that binds the "
+                         f"files of {ticket_id}, so send one of "
+                         f"{', '.join(ids)} or no keeps")
+    return keeps
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None,
-                     surface_refs: list[str] | None = None) -> dict:
+                     surface_refs: list[str] | None = None,
+                     keeps: str | None = None) -> dict:
     """Criteria are written in glossary terms and name the surface a test
-    would exercise; neither list is decoration."""
+    would exercise; neither list is decoration. `keeps` names the stated
+    commitment that the criterion restates."""
     # `ticket_id` that names an item. The model put the item under
     # `ticket_id` and the ticket under `id`, and each refusal named one of
     # the two, so it fixed one per round and flipped back the next: three
@@ -7449,10 +7514,12 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False, ticket_id=ticket_id)
     _exception_from_a_source(ctx, ticket_id, text, surface)
-    ctx.writes.append(("criteria", id, {
-        "ticket_id": ticket_id, "text": text,
-        "surface_refs": json.dumps(surface),
-        "guess_ruling": _shown_verdict(ctx, ticket_id)}))
+    payload = {"ticket_id": ticket_id, "text": text,
+               "surface_refs": json.dumps(surface),
+               "guess_ruling": _shown_verdict(ctx, ticket_id)}
+    if keeps:
+        payload["commitment_id"] = _kept_commitment(ctx, ticket_id, keeps)
+    ctx.writes.append(("criteria", id, payload))
     # The glossary entries the criterion rests on, as `term` refs.
     for ref in term_refs or []:
         if isinstance(ref, str):
