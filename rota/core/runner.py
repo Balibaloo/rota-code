@@ -4503,15 +4503,24 @@ def _red_rows_by_output(rows: list[dict]) -> list[dict]:
     return out
 
 
-def _guess_seed(conn, batch_id: str) -> dict | None:
+def _guess_seed(conn, batch_id: str, item: str | None = None) -> dict | None:
     """The current guess set of a batch's item: its paths and symbols, and
-    the principal's words when the set rests on a ruling."""
-    row = conn.execute("SELECT item_id FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    the principal's words when the set rests on a ruling.
+
+    `item` names the item when no batch exists yet. The criteria wake comes
+    before the batch, and F35 keeps one reader of the guess (frame 182,
+    pass 2d)."""
+    if item is None:
+        got = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                           (batch_id,)).fetchone()
+        row = {"item_id": got["item_id"]} if got else None
+    else:
+        row = {"item_id": item}
     # Under an owed contest of his the seed is his words, and no path of
     # the set he contested. s150 copied that set 6 of 6 (frame 362).
     from .scheduler import owed
 
-    found = owed(conn, batch_id) if row else None
+    found = owed(conn, batch_id if item is None else item) if row else None
     # A contest of the batch's plan leaves the guess as he read it (the
     # review of 36a2edd2, finding 6).
     if found is not None and found["line"] == "guess":

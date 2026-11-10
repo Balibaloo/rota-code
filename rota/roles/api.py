@@ -4841,13 +4841,14 @@ def item_commitments(conn: sqlite3.Connection, item_id: str
             "('merged', 'abandoned') ORDER BY id", (item_id,))
             for r in predicted_rows(conn, b["id"])]
     if not rows:
-        last = conn.execute("SELECT item_ver, ruling_id FROM touch_guesses "
-                            "WHERE item_id = ? ORDER BY rowid DESC LIMIT 1",
-                            (item_id,)).fetchone()
-        rows = [dict(r) for r in conn.execute(
-            "SELECT grain, grain_kind FROM touch_guesses WHERE item_id = ? AND "
-            "item_ver = ? AND ruling_id = ? ORDER BY rowid",
-            (item_id, last["item_ver"], last["ruling_id"]))] if last else []
+        # F35: the guess has one reader, so the newest guess comes from the
+        # seed and not from a second query (frame 182, pass 2d).
+        from ..core.runner import _guess_seed
+
+        seed = _guess_seed(conn, "", item=item_id) or {}
+        rows = ([{"grain": g, "grain_kind": "path"} for g in seed.get("paths") or ()]
+                + [{"grain": g, "grain_kind": "symbol"}
+                   for g in seed.get("symbols") or ()])
     files = list(dict.fromkeys(f for f in (grain_file(r) for r in rows) if f))
     if not files:
         return [], []
