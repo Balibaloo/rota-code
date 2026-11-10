@@ -853,14 +853,17 @@ def base_verdict(conn: sqlite3.Connection, batch_id: str,
                  test_id: str) -> tuple[str, str]:
     """
     The verdict of the test's current body at the batch base, and the base
-    run's last line. The verdict is `pass`, `fail` or `none`.
+    run's last line. The verdict is `pass`, `fail`, `error` or `none`.
 
-    An error at the base is `fail`, because the body could not pass there.
-    `none` means no run of this body at the base is on record.
+    `error` means the body did not run at the base: the run could not
+    start, or the file did not collect. It says nothing about the test (the
+    review of pass 1, medium 3). `none` means no run of this body at the
+    base is on record.
     """
     row = conn.execute("SELECT body FROM tests WHERE id = ? AND batch_id = ?",
                        (test_id, batch_id)).fetchone()
     entry = _criterion_base(conn, batch_id).get(test_id) or {}
     if row is None or entry.get("body") != body_key(row["body"]):
         return "none", ""
-    return ("pass" if entry.get("result") == "pass" else "fail"), entry.get("last", "")
+    result = entry.get("result")
+    return (result if result in ("pass", "fail") else "error"), entry.get("last", "")

@@ -23755,46 +23755,44 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
         f"wrong. Encode it again with the same id.")
 
 
-def _same_words(a: str, b: str) -> bool:
-    """Two texts that differ only in case, spaces and a last full stop."""
-    def norm(s: str) -> str:
-        return " ".join(str(s or "").casefold().split()).rstrip(".")
-    return bool(norm(a)) and norm(a) == norm(b)
+#: The kinds of a criterion, as `criterion_kind` reads them from the rows.
+KEPT, CHANGE, UNKNOWN = "kept", "change", "unknown"
 
 
-def criterion_commitment(conn, batch_id, criterion_id) -> str | None:
+def criterion_kind(conn, batch_id, criterion_id) -> tuple[str, str | None]:
     """
-    The commitment that a criterion restates, or None for a change criterion.
+    Whether a criterion restates a commitment, from the rows only.
 
-    The rows decide, never a reading of the words (frame 182). A criterion
-    restates a commitment when its test row cites a `commitment_id`, when
-    its own surface refs cite a bound commitment, or when its text is the
-    text of a commitment that binds the batch.
+    The words never decide (frame 182). The Terminologist paraphrases, and
+    on dry run 8 c3's words matched no commitment's words (the review of
+    pass 1, high 1). The answer is one of three:
+
+    - `kept` and the commitment id: a test row of the criterion, or the
+      criterion's own `commitment_id` column when the file has one, cites it.
+    - `change`: no commitment binds the batch, so nothing can be kept.
+    - `unknown`: commitments bind the batch, and no row ties the criterion.
+      The tie is written at `criteria.specify`, which is frame 182's pass 2.
     """
+    from ..core.db import _has_column
+
     row = conn.execute(
         "SELECT commitment_id FROM tests WHERE criterion_id = ? AND batch_id = ? "
         "AND commitment_id IS NOT NULL LIMIT 1", (criterion_id, batch_id)).fetchone()
+    if row is None and _has_column(conn, "criteria", "commitment_id"):
+        row = conn.execute("SELECT commitment_id FROM criteria WHERE id = ? "
+                           "AND commitment_id IS NOT NULL", (criterion_id,)).fetchone()
     if row is not None:
-        return row["commitment_id"]
-    crit = conn.execute("SELECT text, surface_refs FROM criteria WHERE id = ?",
-                        (criterion_id,)).fetchone()
-    if crit is None or not batch_id:
-        return None
+        return KEPT, row["commitment_id"]
+    if not batch_id:
+        return UNKNOWN, None
     try:
         from ..core import worktrees as _wt
         bound = _bound_rows(conn, batch_id, _wt.batch_files(conn, batch_id) or [])[1]
-    except Exception:  # noqa: BLE001 -- no index or no tree: nothing binds
-        return None
-    try:
-        refs = {str(r) for r in json.loads(crit["surface_refs"] or "[]")}
-    except ValueError:
-        refs = set()
-    for b in bound:
-        heads = [b.get("text"), b.get("behaviour"),
-                 str(b.get("headline") or "").partition(": ")[2]]
-        if b["id"] in refs or any(_same_words(crit["text"], h) for h in heads):
-            return b["id"]
-    return None
+    except Exception:  # noqa: BLE001 -- no index or no tree: the kind is unread
+        return UNKNOWN, None
+    if any("party" in b for b in bound):
+        return UNKNOWN, None
+    return CHANGE, None
 
 
 #: The base-verdict refusals of `tests.encode` (frame 182, dry run 8).
@@ -23817,13 +23815,16 @@ def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
     because the base keeps the commitment. A claimed batch changes no code,
     so its tests must pass at the base, and the first refusal stays silent.
     A batch with no git worktree has no base to run, and the door is silent.
+    A criterion of unknown kind gets no refusal, because a guess inverted
+    W2 (the review of pass 1, high 1). An error at the base is no verdict
+    on the test: the run could not start, or the file did not collect.
     """
     from ..core import harness as _harness
 
     if not batch_id:
         return None
-    kept = criterion_commitment(ctx.conn, batch_id, criterion_id)
-    if kept is None and _claimed(ctx.conn, batch_id):
+    kind, kept = criterion_kind(ctx.conn, batch_id, criterion_id)
+    if kind == UNKNOWN or (kind == CHANGE and _claimed(ctx.conn, batch_id)):
         return None
     try:
         ran = _harness.run_at_base(ctx.conn, batch_id, path, body)
@@ -23833,9 +23834,9 @@ def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
         return None
     verdict, said = ran
     last = _harness.last_line(said)
-    if kept is None and verdict == "pass":
+    if kind == CHANGE and verdict == "pass":
         return f"{BASE_GREEN_WORDS} The base run ended with: {last}"
-    if kept is None or verdict == "pass":
+    if kind == CHANGE or verdict != "fail":
         return None
     crit = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                             (criterion_id,)).fetchone()

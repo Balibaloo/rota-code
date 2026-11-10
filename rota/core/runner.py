@@ -3724,8 +3724,8 @@ def _base_verdict_lines(conn: sqlite3.Connection,
         verdict, last = base_verdict(conn, row["batch_id"], ref)
         if verdict == "none":
             continue
-        colour = "green" if verdict == "pass" else "red"
-        lines.append(f"\n{ref}: at the base this test is {colour}. "
+        said = {"pass": "is green", "fail": "is red"}.get(verdict, "did not run")
+        lines.append(f"\n{ref}: at the base this test {said}. "
                      f"The base run ended with: {last}")
     return lines
 

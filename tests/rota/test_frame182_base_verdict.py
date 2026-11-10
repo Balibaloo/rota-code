@@ -106,13 +106,37 @@ def db(tmp_path):
     return conn
 
 
-@pytest.fixture
-def kept_c3(monkeypatch):
-    """c3's text is the text of a commitment that binds the batch."""
-    row = {"id": KEPT, "headline": f"fold.py: {C3}", "text": C3,
-           "party": "parser", "behaviour": C3}
+# cw_99502ef494ad as dry run 8's `constraints` holds it, on this fixture's
+# file. Its words are not c3's words.
+DRY8_LINE = "Lines of text SHOULD NOT be longer than 75 octets, excluding the line"
+DRY8_BOUND = {"id": "cw_99502ef494ad", "headline": f"fold.py: {DRY8_LINE}",
+              "text": f"parser rely on this: {DRY8_LINE}", "party": "parser",
+              "behaviour": DRY8_LINE}
+
+
+def _bind(monkeypatch, rows):
     monkeypatch.setattr(api, "_bound_rows",
-                        lambda conn, bid, diff: (["fold.py"], [row]))
+                        lambda conn, bid, diff: (["fold.py"], rows))
+
+
+@pytest.fixture
+def change(monkeypatch):
+    """No commitment binds the batch, so each criterion asks for a change."""
+    _bind(monkeypatch, [])
+
+
+@pytest.fixture
+def dry8_rows(monkeypatch):
+    """Dry run 8's rows: a commitment binds the batch, and no row ties c3."""
+    _bind(monkeypatch, [DRY8_BOUND])
+
+
+@pytest.fixture
+def kept_c3(db, dry8_rows):
+    """Pass 2's tie, a `criteria.commitment_id` column, cites the commitment."""
+    db.execute("ALTER TABLE criteria ADD COLUMN commitment_id TEXT")
+    db.execute("UPDATE criteria SET commitment_id = ? WHERE id = 'c3'", (KEPT,))
+    db.commit()
 
 
 def _encode(db, cid, path, body):
@@ -122,7 +146,7 @@ def _encode(db, cid, path, body):
                    path=path, body=body)
 
 
-def test_tst_c1_v2_green_at_the_base_is_refused(db):
+def test_tst_c1_v2_green_at_the_base_is_refused(db, change):
     """W1: v2 passes on the unchanged fold, so it proves nothing."""
     with pytest.raises(Wall) as got:
         _encode(db, "c1", "test_foldline.py", TST_C1_V2)
@@ -136,7 +160,7 @@ def test_tst_c1_v2_green_at_the_base_is_refused(db):
     assert not (Path(wt) / "test_foldline.py").exists()
 
 
-def test_tst_c1_v1_red_at_the_base_lands(db):
+def test_tst_c1_v1_red_at_the_base_lands(db, change):
     assert _encode(db, "c1", "test_foldline.py", TST_C1_V1)["id"] == "tst_c1"
 
 
@@ -162,19 +186,45 @@ def test_a_right_c3_test_green_at_the_base_lands(db, kept_c3):
                    RIGHT_C3)["id"] == "tst_c3"
 
 
-def test_a_change_criterion_test_red_at_the_base_is_not_a_kept_refusal(db):
-    """Without a tie in the rows, c3 is a change criterion: dry run 8's c3
-    words differ from cw_99502ef494ad's, so tst_c3 lands."""
-    assert api.criterion_commitment(db, "bg_1", "c3") is None
-    assert _encode(db, "c3", "test_foldline_75octets.py",
-                   TST_C3)["id"] == "tst_c3"
+@pytest.mark.parametrize("body", [TST_C3, RIGHT_C3], ids=["tst_c3", "right_c3"])
+def test_on_dry_run_8s_rows_the_kind_is_unknown_and_both_c3_tests_land(
+        db, dry8_rows, body):
+    """The review of pass 1, high 1: with no row tie, a guess of the kind
+    refused the right c3 test and landed the wrong one. The door is silent."""
+    assert api.criterion_kind(db, "bg_1", "c3") == (api.UNKNOWN, None)
+    assert _encode(db, "c3", "test_foldline_75octets.py", body)["id"] == "tst_c3"
 
 
-def test_a_test_row_that_cites_a_commitment_makes_the_criterion_kept(db):
+def test_the_kind_comes_from_the_rows(db, monkeypatch):
+    _bind(monkeypatch, [])
+    assert api.criterion_kind(db, "bg_1", "c3") == (api.CHANGE, None)
+    _bind(monkeypatch, [DRY8_BOUND])
+    assert api.criterion_kind(db, "bg_1", "c3") == (api.UNKNOWN, None)
+    # The words of a bound commitment are no tie.
+    _bind(monkeypatch, [{**DRY8_BOUND, "behaviour": C3, "text": C3}])
+    assert api.criterion_kind(db, "bg_1", "c3") == (api.UNKNOWN, None)
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, commitment_id, "
                "path, body) VALUES ('tst_g','bg_1','c3',?,'g.py','')", (KEPT,))
-    assert api.criterion_commitment(db, "bg_1", "c3") == KEPT
-    assert api.criterion_commitment(db, "bg_1", "c1") is None
+    assert api.criterion_kind(db, "bg_1", "c3") == (api.KEPT, KEPT)
+    assert api.criterion_kind(db, "bg_1", "c1") == (api.UNKNOWN, None)
+
+
+# A body that does not collect at the base: the module is the change's.
+NO_COLLECT = "from fold_v2 import _foldline\n\n\ndef test_x():\n    assert _foldline('a')\n"
+
+
+def test_an_error_at_the_base_is_no_verdict_on_the_test(db, kept_c3):
+    """The review of pass 1, medium 3: a run that did not collect says
+    nothing about the test, so no refusal fires and the line says so."""
+    sb = build("tester", db, batch_id="bg_1", mode="tests_missing")
+    assert api._base_verdict_refusal(sb.ctx, "bg_1", "c3", "test_v2.py",
+                                     NO_COLLECT) is None
+    _store(db, "tst_c3", "c3", "test_v2.py", NO_COLLECT)
+    harness.record_criterion_bases(db, "bg_1")
+    assert harness.base_verdict(db, "bg_1", "tst_c3")[0] == "error"
+    lines = _base_verdict_lines(db, {"resolved_refs": {"tst_c3": {}}})
+    assert lines and lines[0].startswith(
+        "\ntst_c3: at the base this test did not run. The base run ended with: ")
 
 
 def _store(db, tid, cid, path, body):
@@ -195,7 +245,7 @@ def test_the_reader_says_none_before_the_base_run_and_after_a_replace(db):
     assert harness.base_verdict(db, "bg_1", "tst_c1")[0] == "pass"
 
 
-def test_the_challenge_wake_carries_the_base_verdict(db):
+def test_the_challenge_wake_carries_the_base_verdict(db, dry8_rows):
     """Frame 171: m39 challenged tst_c3, and s171 held it. The wake now
     says that the test is red on the code before the change."""
     _store(db, "tst_c3", "c3", "test_foldline_75octets.py", TST_C3)
