@@ -197,7 +197,8 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
 
         held |= {m for m, _ in open_merged_touch_notes(conn)}
         rows = [r for r in rows if r["id"] not in held]
-    return [
+    rows, parked = _with_parked_batch(conn, rows)
+    asks = [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
             rendered=(page := render_page(conn, r["verb"],
@@ -206,6 +207,112 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
             order=page[1])
         for r in rows
     ]
+    for ask in asks:
+        if parked.get(ask.message_id):
+            ask.rendered += PARKED_PAGES + "".join(
+                f"\n  {r['id']}: {_first_sentence(r)}"
+                for r in parked[ask.message_id])
+    return asks
+
+
+# The line of the park page that names the pages it holds (frames 183 and
+# 114, build 2, W7).
+PARKED_PAGES = ("\n\nThese pages wait until the batch resumes. Ask for one by "
+                "its id:")
+
+
+def _first_sentence(row) -> str:
+    """The first sentence of a page's words, or its verb and refs."""
+    text = " ".join((row["body_text"] or "").split())
+    if not text:
+        return f"{row['verb']} on {', '.join(json.loads(row['body_refs'] or '[]'))}"
+    return re.split(r"(?<=[.?!])\s", text, maxsplit=1)[0]
+
+
+def batch_of_page(conn: sqlite3.Connection, message_id: str) -> str | None:
+    """The batch a page is tied to, or None.
+
+    Four ties, in this order: a ref that names a batch, a ref that is a test
+    of a batch, a ref that is a criterion of a batch's item, and the root page
+    of the thread by the first two ties. Dry run 8's m58 reaches bg_1 only
+    through its thread m44 (frames 183 and 114, build 2, W7).
+    """
+    row = conn.execute("SELECT body_refs, thread_id FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    if row is None:
+        return None
+    refs = [r for r in json.loads(row["body_refs"] or "[]") if isinstance(r, str)]
+    found = _batch_of_refs(conn, refs, criteria=True)
+    if found or not row["thread_id"] or row["thread_id"] == message_id:
+        return found
+    root = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                        (row["thread_id"],)).fetchone()
+    if root is None:
+        return None
+    return _batch_of_refs(conn, [r for r in json.loads(root["body_refs"] or "[]")
+                                 if isinstance(r, str)], criteria=False)
+
+
+def _batch_of_refs(conn, refs: list[str], *, criteria: bool) -> str | None:
+    for ref in refs:
+        if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+            return ref
+    for ref in refs:
+        hit = conn.execute("SELECT batch_id FROM tests WHERE id = ? "
+                           "AND batch_id IS NOT NULL", (ref,)).fetchone()
+        if hit:
+            return hit["batch_id"]
+    if not criteria:
+        return None
+    for ref in refs:
+        hit = conn.execute(
+            "SELECT b.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+            "JOIN batches b ON b.item_id = t.item_id WHERE c.id = ? "
+            "ORDER BY b.rowid DESC LIMIT 1", (ref,)).fetchone()
+        if hit:
+            return hit["id"]
+    return None
+
+
+def _with_parked_batch(conn: sqlite3.Connection, rows: list) -> tuple[list, dict]:
+    """The rows that stay pending, and the pages each park page holds.
+
+    A page on a `deferred` batch waits with the batch, and its park page
+    names it. The page stays `open`, so it is pending again when the batch
+    resumes. A batch with no open park page among the rows holds nothing,
+    because no page would then name the held pages. Dry run 8 showed him
+    five pages, and four were on the parked bg_1 (frames 183 and 114, W7).
+    """
+    from ..core.scheduler import park_ask_batch
+
+    def park_page(r, batch: str) -> bool:
+        # The page the park made. Dry run 8's park page m59 has no park id,
+        # and it is the one present that names the batch itself.
+        return park_ask_batch(r["id"]) == batch or (
+            r["verb"] == "present"
+            and batch in json.loads(r["body_refs"] or "[]"))
+
+    tied = {}
+    for r in rows:
+        batch = batch_of_page(conn, r["id"])
+        if batch and conn.execute(
+                "SELECT 1 FROM batches WHERE id = ? AND status = 'deferred'",
+                (batch,)).fetchone():
+            tied[r["id"]] = batch
+    pages = {}
+    for r in rows:
+        if r["id"] in tied and park_page(r, tied[r["id"]]):
+            pages.setdefault(tied[r["id"]], r["id"])
+    parked: dict[str, list] = {}
+    keep = []
+    for r in rows:
+        batch = tied.get(r["id"])
+        page = pages.get(batch) if batch else None
+        if page and page != r["id"]:
+            parked.setdefault(page, []).append(r)
+            continue
+        keep.append(r)
+    return keep, parked
 
 
 def pending_replies(conn: sqlite3.Connection) -> list[Ask]:

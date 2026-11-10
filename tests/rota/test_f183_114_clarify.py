@@ -179,3 +179,87 @@ def test_a_test_not_red_at_the_base_still_climbs(w5):
     w5.commit()
     assert [(w.role, w.refs) for w in unresolved(w5)] == [
         ("architect", ("m60",))]
+
+
+M54 = ("The roles are struggling to reconcile the behavior of 'unknown' values "
+       "and parameters across RFC 7265 and RFC 6868. Can you clarify the "
+       "priority?")
+M57 = ("Criterion c3 requires lines to be at most 75 octets, but the current "
+       "implementation of folding (cw_7039d1d2d899) fails to meet this limit "
+       "when processing multi-byte unicode characters (as shown in tst_c3). If "
+       "we strictly enforce the 75-octet limit, some words may be split.")
+M58 = ("Does \"keep everything else as before\" mean that the resulting folded "
+       "output must maintain the exact same character sequence (including "
+       "newlines and spaces) as the original, with the only change being the "
+       "insertion of newlines at spaces?")
+
+
+@pytest.fixture
+def w7(w5):
+    """The five open pages of dry run 8 at the stop, with bg_1 `deferred`."""
+    w5.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1', 'tk_1', "
+               "'The _foldline function must not split a word at any point.')")
+    w5.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c3', 'tk_1', "
+               "'Every line is at most 75 octets long.')")
+    w5.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst_c3', 'bg_1', 'c3', 'tests/test_c3.py', '')")
+    w5.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1', 'principal', 'Fold long lines at a space, and keep "
+               "everything else as before.', 1)")
+    _msg(w5, "m44", 44, "architect", "vision_keeper", "propose", ["bg_1"])
+    _msg(w5, "m52", 52, "liaison", "principal", "clarify", ["bg_1", "tk_1"], M52,
+         cause="m51", thread="m51", status="open")
+    _msg(w5, "m54", 54, "liaison", "principal", "clarify", BASE_RED, M54,
+         thread="m34", status="open")
+    _msg(w5, "m57", 57, "liaison", "principal", "clarify",
+         ["c3", "cw_7039d1d2d899", "tst_c3", "d_57ad7f6b9b"], M57,
+         thread="m39", status="open")
+    _msg(w5, "m58", 58, "liaison", "principal", "clarify", ["e_m1"], M58,
+         cause="m44", thread="m44", status="open")
+    _msg(w5, "m59", 59, "liaison", "principal", "present",
+         ["bg_1", "folds_long_lines", "c1", "c3"], status="open")
+    w5.execute("UPDATE batches SET status = 'deferred' WHERE id = 'bg_1'")
+    w5.commit()
+    return w5
+
+
+def test_every_page_of_the_parked_batch_has_a_tie_to_it(w7):
+    from rota.roles.principal import batch_of_page
+
+    assert {m: batch_of_page(w7, m) for m in ("m52", "m54", "m57", "m58", "m59")} == {
+        m: "bg_1" for m in ("m52", "m54", "m57", "m58", "m59")}
+    assert batch_of_page(w7, "m30") == "bg_1"
+    assert batch_of_page(w7, "m45") == "bg_1"
+    # A criterion of the batch's item is the third tie.
+    _msg(w7, "m61", 61, "liaison", "principal", "clarify", ["c1"], "Which?",
+         status="open")
+    assert batch_of_page(w7, "m61") == "bg_1"
+
+
+def test_an_open_page_on_a_parked_batch_waits_with_the_batch(w7):
+    """W7. At the stop he had five pages, and four were on the parked bg_1."""
+    from rota.roles.principal import pending_asks
+
+    asks = pending_asks(w7)
+    assert [a.message_id for a in asks] == ["m59"]
+    page = asks[0].rendered
+    for mid, said in (("m52", M52.split(". ")[0] + "."),
+                      ("m54", M54.split(". ")[0] + "."),
+                      ("m57", M57.split(". ")[0] + "."),
+                      ("m58", M58)):
+        assert f"\n  {mid}: {said}" in page, page
+    # The held pages stay open, so no write is needed when the batch resumes.
+    assert {r[0] for r in w7.execute(
+        "SELECT id FROM messages WHERE status = 'open'")} == {
+        "m52", "m54", "m57", "m58", "m59"}
+    w7.execute("UPDATE batches SET status = 'running' WHERE id = 'bg_1'")
+    asks = pending_asks(w7)
+    assert [a.message_id for a in asks] == ["m52", "m54", "m57", "m58", "m59"]
+    assert all("These pages wait" not in a.rendered for a in asks)
+
+
+def test_a_parked_batch_with_no_open_park_page_holds_no_page(w7):
+    from rota.roles.principal import pending_asks
+
+    w7.execute("UPDATE messages SET status = 'answered' WHERE id = 'm59'")
+    assert [a.message_id for a in pending_asks(w7)] == ["m52", "m54", "m57", "m58"]
