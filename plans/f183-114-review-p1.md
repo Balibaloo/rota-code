@@ -55,3 +55,22 @@ All under `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f6
 ## (f) Usage
 
 About 108k input tokens, about 13k output tokens, about 121k total. Over the 60k cap. The cause was six probe rounds on the copy.
+
+## Second look, b74c8d9f
+
+Verdict: pick. The three commits close high 1, high 2 and the lows. One low stays open, finding 1 below.
+
+(a) Points
+1. Confirmed on the copy. `pending_asks` gives `m59` only. With `m59` answered and `bg_1` deferred it gives nothing. With `bg_1` running it gives `m52, m54, m57, m58`. The `m59` page names the four under "These pages wait until the batch resumes".
+2. Read. `_tells_the_stop` admits two kinds: the park row by `park_ask_batch(id)`, and a `present` whose `stalled:<id>` config key names the batch. No other page kind on a deferred batch shows. A page on a deferred batch with no stopping page open is hidden. The state page says "Stuck: bg_1 stops here" and names no page. See finding 1.
+3. Confirmed on the copy. The door joins `messages` on `r.ask_id` and keeps `clarify` and `converse` asks. `m57` gets None, `r_m46` is on `m31`, a present. `m52` gets `r_m45_2` on `bg_1` once, with his words. The second send gets None. `m54` and `m58` get None.
+4. Confirmed on `w5`. The words are "inh_16dcb40b was red before this change, so send msg.escalate_architect on the rest." The offer's refs are `["inh_02554f55"]`. The words name the dropped test only. The kept test is in the refs, not in the words. Low, see finding 2.
+5. Not from these commits. `instructions_for` is equal for all 196 l-cases at 3e673298 and b74c8d9f. The STALE is a cassette miss at a turn, `test_l1.py:195`. No cassette under qwen3:8b carries "already ruled on these rows", "red before this change, so send" or "These pages wait until the batch", so no text of the three commits reached a recorded turn. The register shows 10 l-cases re-recorded at 01:33-01:35, all on the challenge path, 9 green and `L1-DV-log-the-choice-the-criteria-did-not-make` 0/5. `casestatus.status("qwen3:8b")` at b74c8d9f reads 155 green, 20 PROV, 31 FAIL, 0 STALE. The moved text sits in a build 2 commit before 3e673298. The gate's re-record is the right discharge for the 9 green. The 0/5 case and the three open misses, `L1-TE-specify-criteria` and two L3 chains, need a read, not a re-record.
+6. Clean. `_deferred_batch`, `_tells_the_stop`, `held_pages` and the seven test names do not exist at 3e673298. `held_pages` has one caller, `render_page`. The new file passes 16. The `-k` selection with `-n 0` passes 385, skips 20, xfails 1.
+
+(b) Findings
+1. Low. `rota/roles/principal.py:712-760`, `parked_line`. CONFIRMED: with `m59` answered the state page is "Stuck: bg_1 stops here. It breaks ... A new commit on the change starts it again." and `pending_asks` is empty. The four clarifies wait unnamed. Nothing is lost, they return on resume, and their answers reach a parked team. PLAUSIBLE: a batch `deferred` and not `parked` gets no Stuck line, so its pages hide with no line at all. Fix: give `parked_line` the held pages of the batch through a batch-keyed `held_pages`.
+2. Low. `rota/core/sandbox.py:3269-3275`. The offer says "the rest" and names no kept test. Fix: write the kept refs in the words.
+
+(c) Probes, in the scratchpad `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f639-4fa5-8bd4-0cc91eeff019/scratchpad/`: `p1.py` point 1 on `dry8.db`, `p2.py` the state page, `p3b.py` the door on the four rows, `p5b.py` and `p5c.py` the instruction dump and diff, `p5d.py` to `p5h.py` the register, read-only by uri. Worktrees `C:/Users/roman/rota_f183r2` and `C:/Users/roman/rota_f183base`.
+(d) Usage: about 130k input, 10k output, 140k total.
