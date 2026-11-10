@@ -171,3 +171,25 @@ All under
 
 The input and output counts are not shown to this session. One worktree,
 three saved probes, two test runs, no sub-agent.
+
+## Second look, dfce26a4
+
+Worktree `C:/Users/roman/rota_f173r3` at dfce26a4. Four commits on 10849da8. Read-only.
+
+Verdict: fix first. Open question 1 of the pass 3 report is a defect of the high 2 class. The four highs are fixed.
+
+- 1 Pass. `worktrees.commit(only=...)` stages and commits the named paths only, with a pathspec on the commit too. `lifecycle.merge` line 297 and `code_commit` pass no `only`, so the `add -A` branch runs as before. `test_an_untracked_file_stays_out_of_the_restore_commit` passes, and the untracked file reads `??` after the commit.
+- 2 Pass. `restore_head` moves every file in memory and writes the disk after the last ask. Test: one restorable row and one missing file give no commit, the head stays, the failed row reads "removal: y restore: the fork does not hold src/missing.py", the other row keeps its note. Probe: two restorable rows give one commit, count 3 to 4, both rows `restored`, one sha.
+- 3 Pass. `_note_failed` writes "restore: <reason>" once, guarded by `NOT LIKE '%restore: %'`, and sets `mistake`. The second `restore_kept` returns `([], [])`. `touch_mistaken` gives one wake, and `runner._mistake_rows` puts `path (note)` in the Developer's text. `restore_wake` returns the row's reason with no retry and no second note. `loop.step` commits a reason at once.
+- 4 Pass. `_red_run_words` reads `test_run_journal` only. Both fixtures pass: "They passed on runs 1 to 5 and failed first on run 6, at fddff3af" and "It passed on run 1 and failed first on run 2, at bbbbbbbb". The clause is gone from the code.
+- 5 Question 1: a defect, fix before the pick, see finding 1. Question 2: an open item for after dry run 9, a note that replaces the text re-arms the restore, which is a fair reading of "until the note changes". Question 3: an open item, confirm. His keep says the removal was a mistake, so `mistake` is the right status, and `touch_strayed` drains for that row because his ruling supersedes the Architect's judgement. Question 4: an open item. The restore runs before the dispatch on the first ready tick, so a quarantine of `touch_mistaken` comes only after three Developer dispatches that follow a noted failure.
+- 6 Pass. `restore_head`, `FAILED`, `_note_failed` and the `only` argument are new against 10849da8, and no other definition carries the names. `row_head` is gone from every file. The test file: 13 passed. The related set with `-n 0`: 863 passed, 17 skipped, 6355 deselected, 0 failed, 673s.
+
+Findings:
+
+1. `rota/core/restore.py` `restore_kept` about 262 to 309, and `restore_head` about 142. High. CONFIRMED by probe `test_p5q1_keep_moves_head_and_leaves_open_row`: two `open` rows at one head, his keep on `_foldline`, `restore_kept` moves the head, the `_escape_char` row stays `open` at the old head, `touch_strayed` returns `[]`, and the `mergeable` stray query at the new head returns no row. The Architect's unjudged stray is dropped in silence, and the merge gate opens. The m45 path of dry run 8 reaches it with two removals in one commit. Fix: `restore_head` carries every `open` row of the old head that it did not restore to the new sha, one UPDATE of `commit_sha` where `status = 'open'`.
+2. `rota/core/restore.py` `_note_failed` line 157 to 168. Low. PLAUSIBLE: the guard `NOT LIKE '%restore: %'` matches any note that holds the words, an Architect's note included, so a true failure then writes nothing and the row never carries the reason. Fix: a separate marker column or a prefix check on the note's own tail.
+
+Probes: `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f639-4fa5-8bd4-0cc91eeff019/scratchpad/f173r3_probe_test.py`, two pytest cases on the test module's fixture, run with `-n 0 -s --rootdir .` from the worktree. Both passed.
+
+Usage: the counts are not shown to this agent. The context stayed under the cap of about 35k.
