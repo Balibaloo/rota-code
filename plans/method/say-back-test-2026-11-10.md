@@ -214,6 +214,40 @@ by a message.
 Hypothesis 0 is now a fact with a cause. The cause is the dialog, not
 the content of a message and not the session's will.
 
+### Read 3, practice in other fields, landed 14:13
+
+The page is `boundary-practice-read-2026-11-10.md`. Several sites
+refused the reader, so many numbers come from abstracts. The page marks
+each source as opened or as a summary only. I checked none of them.
+
+Against the expectation: the form held, and the hope behind it failed.
+
+- Held: the five fields share a live exchange with questions and a
+  written record, a list of topics set before the handover, and a
+  receiver who repeats, restates or asks.
+- Held, the thing I did not have: a time with both sides present. The
+  fields add two more that I did not expect. A visible moment where the
+  responsibility passes. A check after that moment, by an overlap or by
+  a review from the sender.
+- Failed: I expected that these methods carry the reason. No field
+  shows that. Company commanders matched the intent of the commander
+  one level up in 34% of 32 new cases (Shattuck). A person who decides
+  for a patient matches the patient's choice in 68% of cases, and a
+  talk beforehand does not raise that share.
+- The best measured effect is I-PASS in hospitals: errors fell 23% over
+  10,740 admissions, with no control group. A randomised trial of the
+  same tool found no effect on harm.
+- The check is the first thing to decay. Receivers read back in 17% of
+  observed hospital handovers.
+
+What it changes. The say-back is the known practice, and the known
+practice does not prove that the purpose arrived. Where a field tested
+the purpose on new cases, most receivers missed it. My case for rota-a4
+is that kind of test, and one pass by one session is far less than the
+fields needed to find their 34%. The fields also put weight where I put
+none: on the moment that the responsibility passes, and on a check by
+the sender after the receiver's first acts.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
