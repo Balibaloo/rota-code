@@ -174,6 +174,46 @@ question and the answer".
 The limits stay. One session answered the case. I wrote the case and I
 judged the answer. Roman has not read it. Rota-3d is still silent.
 
+### Read 1, the channel as fact, landed 14:11
+
+The page is `boundary-channel-read-2026-11-10.md`. The reader scanned
+the transcripts of the five sessions.
+
+Against the expectation: held, and the facts are sharper than the
+expectation.
+
+- 24 messages went among the five sessions on 2026-11-10. 17 reached an
+  idle receiver, and its model saw them in 0.0 to 1.5 seconds. 3 reached
+  a working receiver and joined at its next tool call, in 2 to 23
+  seconds. 4 reached a receiver that waited on a question dialog to
+  Roman. Two of those waited until he answered, 6 minutes and 57
+  minutes.
+- Rota-3d opened a question dialog to Roman at 12:27:14, one minute
+  after its take. The question starts "Last night you asked whether the
+  project can change to spiral well". The transcript holds no answer.
+  The message of rota-82 at 12:41 and my message of 13:05 were never
+  seen. The file had not changed at 14:08.
+- A sender cannot tell a read message from an unread one. Each send
+  returns the same text. Only a reply proves a read. The request for an
+  idle notice gave no notice.
+- Over all days, 135 of 141 sends show in a receiver's transcript. The
+  hand-off tool has 65 measured hand-offs, median 6 seconds.
+- The public documentation does not say what happens while a session
+  waits on a dialog.
+
+What it changes. The channel is fast and sound for a session that works
+or is idle. It is closed for a session that waits on Roman. A hook of
+this project tells each session to ask Roman by a dialog when it is
+blocked. So the ruled way to ask him is the one state in which no
+session can reach the asker. The holder of frame 363 followed its note,
+asked him the meaning of "spiral well", and has been out of reach since
+12:27. Roman answered that same kind of question in this window with
+"Can you read between the lines?", and his answer cannot reach rota-3d
+by a message.
+
+Hypothesis 0 is now a fact with a cause. The cause is the dialog, not
+the content of a message and not the session's will.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
