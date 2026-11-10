@@ -23768,12 +23768,23 @@ def criterion_kind(conn, batch_id, criterion_id) -> tuple[str, str | None]:
     pass 1, high 1). The answer is one of three:
 
     - `kept` and the commitment id: a test row of the criterion, or the
-      criterion's own `commitment_id` column when the file has one, cites it.
-    - `change`: no commitment binds the batch, so nothing can be kept.
-    - `unknown`: commitments bind the batch, and no row ties the criterion.
-      The tie is written at `criteria.specify`, which is frame 182's pass 2.
+      criterion's own `commitment_id` column, cites it. The Terminologist
+      writes the column at `criteria.specify` with `keeps=`.
+    - `change`: the batch's files are known, constraints reach them, and
+      none of those constraints is a stated commitment.
+    - `unknown`: any other case. Commitments bind the batch and no row ties
+      the criterion. Or the batch has no files. Or no constraint reaches
+      the files. Or constraint zero reaches them, so an area is unsurveyed.
+
+    No constraint on surveyed files is `unknown`, not `change`. On dry run
+    8 every area of bg_1's files is surveyed, and 16 stated commitments
+    reach them. A survey record says that an area was read. It does not
+    say that the harvest stated each commitment of the files. A refusal on
+    that guess is the inversion of the review of pass 1, high 1, and the
+    composition's rule is that only a fact gates.
     """
     from ..core.db import _has_column
+    from ..onboarding.boot import ZERO
 
     row = conn.execute(
         "SELECT commitment_id FROM tests WHERE criterion_id = ? AND batch_id = ? "
@@ -23787,10 +23798,12 @@ def criterion_kind(conn, batch_id, criterion_id) -> tuple[str, str | None]:
         return UNKNOWN, None
     try:
         from ..core import worktrees as _wt
-        bound = _bound_rows(conn, batch_id, _wt.batch_files(conn, batch_id) or [])[1]
+        files, bound = _bound_rows(conn, batch_id,
+                                   _wt.batch_files(conn, batch_id) or [])
     except Exception:  # noqa: BLE001 -- no index or no tree: the kind is unread
         return UNKNOWN, None
-    if any("party" in b for b in bound):
+    if not files or not bound or any("party" in b or b.get("id") == ZERO
+                                     for b in bound):
         return UNKNOWN, None
     return CHANGE, None
 

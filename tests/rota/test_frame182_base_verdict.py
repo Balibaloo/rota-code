@@ -119,10 +119,17 @@ def _bind(monkeypatch, rows):
                         lambda conn, bid, diff: (["fold.py"], rows))
 
 
+# escape_char as dry run 8's `constraints` holds it: a constraint that
+# reaches bg_1's files and holds no party, so it is no stated commitment.
+DRY8_RULE = {"id": "escape_char", "headline": "escape_char",
+             "text": "escape_char"}
+
+
 @pytest.fixture
 def change(monkeypatch):
-    """No commitment binds the batch, so each criterion asks for a change."""
-    _bind(monkeypatch, [])
+    """A constraint reaches the files and no commitment binds them, so each
+    criterion asks for a change."""
+    _bind(monkeypatch, [DRY8_RULE])
 
 
 @pytest.fixture
@@ -196,9 +203,9 @@ def test_on_dry_run_8s_rows_the_kind_is_unknown_and_both_c3_tests_land(
 
 
 def test_the_kind_comes_from_the_rows(db, monkeypatch):
-    _bind(monkeypatch, [])
+    _bind(monkeypatch, [DRY8_RULE])
     assert api.criterion_kind(db, "bg_1", "c3") == (api.CHANGE, None)
-    _bind(monkeypatch, [DRY8_BOUND])
+    _bind(monkeypatch, [DRY8_RULE, DRY8_BOUND])
     assert api.criterion_kind(db, "bg_1", "c3") == (api.UNKNOWN, None)
     # The words of a bound commitment are no tie.
     _bind(monkeypatch, [{**DRY8_BOUND, "behaviour": C3, "text": C3}])
@@ -207,6 +214,21 @@ def test_the_kind_comes_from_the_rows(db, monkeypatch):
                "path, body) VALUES ('tst_g','bg_1','c3',?,'g.py','')", (KEPT,))
     assert api.criterion_kind(db, "bg_1", "c3") == (api.KEPT, KEPT)
     assert api.criterion_kind(db, "bg_1", "c1") == (api.UNKNOWN, None)
+
+
+@pytest.mark.parametrize("files, rows", [
+    ([], []),
+    (["fold.py"], []),
+    (["fold.py"], [{"id": "k0", "headline": "this area has not been surveyed",
+                    "text": ""}]),
+], ids=["no_files", "no_reaching_constraint", "constraint_zero"])
+def test_a_kind_with_no_rows_to_read_is_unknown_and_v2_lands(
+        db, monkeypatch, files, rows):
+    """The review's second look, medium 2: an empty bound set read as
+    `change`, and the green refusal fired on a guess."""
+    monkeypatch.setattr(api, "_bound_rows", lambda conn, bid, diff: (files, rows))
+    assert api.criterion_kind(db, "bg_1", "c1") == (api.UNKNOWN, None)
+    assert _encode(db, "c1", "test_foldline.py", TST_C1_V2)["id"] == "tst_c1"
 
 
 # A body that does not collect at the base: the module is the change's.
