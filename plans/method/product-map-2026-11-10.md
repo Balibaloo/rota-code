@@ -1205,6 +1205,46 @@ expectation holds.
   are 4,259 and 1,450. Each count of this map that uses the copy of dry
   run 6 is short by those 12 sessions.
 
+## One turn of the loop, from the rota side
+
+(reasoned: this session, 2026-11-10 13:05, after Roman's words to
+session 7fd2421e: "None of the other sessions understand, they're all
+doing their own thing and don't understand the goal of spiraling well".
+The words are as that session reported them.)
+
+One turn is: rota runs, the build session reads the run, and the build
+session changes rota. A good turn leaves rota nearer its destination
+and leaves the next turn wiser. This section puts the reads of this map
+under that one question. It replaces the map as a list of findings.
+
+**A turn today cannot tell whether a change helped.**
+
+- The measure does not point at the destination. It counts a merge with
+  a seat that agrees. The target page and the completion line do the
+  same.
+- The noise is as large as any effect. Equal nights spread from 0 to 3
+  merges.
+- The runs share state, so a count is not a fresh observation.
+
+**So a turn reacts to its newest wall.**
+
+- The doors grew from 25 to 503 sites, and 31 of 40 came in for one
+  seen fault.
+- The nights got better because a queue went away. The give-ups at the
+  Developer's desk did not move.
+- The fold request stops at a new place after each change of rota.
+
+**What one good turn needs from rota:** a measure that points at the
+destination, with less noise than the effect of one change, so that the
+turn can keep a change or discard it. Shape A of the product design is
+a first form of that measure, and it does not yet answer the noise.
+
+**The case that tests this reading:** a run names one new wall with a
+known cause and a cheap fix. The first act is not the fix. The first
+act is the compare of the run with the expectation that was written
+before it. The wall is fixed in this turn only if it stands between the
+turn's question and its answer.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
