@@ -54,12 +54,14 @@ and a seeded draw gave the reads that corrected the most.
 
 ## What waits on Roman
 
-His go on the design. The question was asked in the terminal and by a
-dialog at the hand-off. If the status line of frame 363 holds no answer,
-the question is open: build shape B, with steps 1 and 2 first?
+Nothing blocks the first build step. He gave the go by a dialog choice
+after 08:31: "Go, items 1 and 2 (Recommended)". The go covers the
+put-down tool with the reasons for the 88 silent frames, and the list of
+rule text to remove, which he sees before any text leaves. Each later
+item comes to him with its own question first.
 
-After his go, these go to him one at a time, each with its provenance
-first. The design page holds the plain words.
+These go to him one at a time, each with its provenance first. The
+design page holds the plain words.
 
 - Step 2 is a list of rule removals. A rule change is an amendment until
   he rules it. Show him the list.
