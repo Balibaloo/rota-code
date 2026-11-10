@@ -289,6 +289,44 @@ the order. The strong evidence is what a session does later, on cases
 nobody arranged, as Roman sees it. That is what he has given all day:
 his corrections are the judgement of the one mind that knows the goal.
 
+### Read 2, the hand-offs of this project, landed 14:16
+
+The page is `boundary-handoffs-read-2026-11-10.md`. 93 hand-offs have a
+note and a taker's transcript. The reader drew 30 by the seed and added
+the 2 of today, so the page covers 32. The labels are the reader's own
+judgement, and the page states its rules.
+
+Against the expectation: failed, in the way that I named beforehand as
+the one that changes the picture most.
+
+- "More than half of the notes hold no goal": 18 of 32 state no goal or
+  question, and 14 do. 20 of 32 quote Roman. So the notes are not as
+  bare as I said.
+- "Roman corrects the taker in its first hour in more than half of the
+  takes": 2 of 32. In three hours, 9 of 32, and 4 of those 9 are only a
+  pause for a machine reason. He typed nothing at all in 13 of the 32
+  windows.
+- The split. Notes that quote Roman: 6 of 20 corrected in three hours.
+  Notes that do not: 3 of 12. Notes that state a goal or a question: 4
+  of 14. Notes that do not: 5 of 18. The shares are equal.
+- The taker's first edit, commit or agent comes at a median of 2.55
+  minutes after the take. The taker wrote to the sender in 22 of 32
+  hand-offs, and the sender wrote back in 5.
+- 55 of 151 hand-off receipts have no note at all.
+
+What it changes. Hypothesis 1 said that the goal is lost because a note
+carries the next act and not the question. The records do not support
+it. What a note holds does not move the share of corrections. Two other
+facts stand out. A taker acts inside three minutes, before anybody can
+check what it understood. And in 13 of 32 windows nobody who knows the
+goal looked at all.
+
+The limit is large. A correction counts only when Roman watches, so a
+low count can mean that the taker understood or that he was away. The
+numbers are small. Most of the 32 hand-offs carry one frame with a
+build, and a frame's heading holds its own goal. Today's hand-offs
+carry a review whose goal is above any frame.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
