@@ -406,6 +406,39 @@ show. What stands is a base rate: about four takers in ten need a
 correction when the judge looks, and the note, the kind of work and the
 speed do not tell which ones. He looked at 48 of 93.
 
+#### Test 3, the outside numbers, landed about 15:48
+
+The page is `boundary-test-sources-2026-11-10.md`. The checker read 12
+claims against their sources.
+
+Against the expectation, at least 2 of 10: held, and by more. 5 stand
+as stated. 6 left out a condition that changes the meaning. 1 number
+was wrong.
+
+The corrections that touch what I told Roman:
+
+- Intent, 34%: the battalion commanders themselves judged 17 of 32 as a
+  match, 53%. The 34% is the researcher's stricter count. It was a
+  paper exercise.
+- The randomised trial of I-PASS: it found no difference, and it was
+  too small to rule out the effect of the first study.
+- The read-back, 17%: 8 of 48 handovers in one hospital service. The
+  paper does not say that a read-back was taught there. So it shows no
+  decay, and I said that it does.
+- The summary, 17%: a mean over 24 set-ups from 0% to 98%, with the
+  constraint in the first turn. A strong model kept 98%. The list kept
+  apart still kept over 90%.
+- The raw trace against the notes: the paper has no such test and says
+  that no view wins on every measure. I told Roman that it speaks
+  against a note as the carrier. It does not.
+- The gain from questions at a hand-off is +3.3 to +3.5 points and not
+  +4.69.
+
+What it changes. The outside evidence for "the place" is weaker than I
+said: a good summariser keeps a thing that was said once. The outside
+evidence against a note is withdrawn. The claim that a check decays in
+use is withdrawn. The synthesis page is corrected in six places.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter

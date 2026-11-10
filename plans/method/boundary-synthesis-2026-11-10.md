@@ -58,9 +58,10 @@ Read 3, other fields. Medicine, aviation, the military and shift
 operations share a live exchange with questions, a fixed list of
 topics, an active receiver, a visible moment where the responsibility
 passes, and a check after that moment. No field shows that the purpose
-arrives. Commanders matched the intent from one level up in 34% of new
-cases. The read-back decays in use, to 17% of observed hospital
-handovers.
+arrives. In one paper exercise, battalion commanders judged that 17 of
+32 acts of their company commanders matched their intent, and the
+researcher's stricter count was 34%. In one hospital service, receivers
+read back in 8 of 48 observed handovers.
 
 Read 4, theory. Seven conditions: delivery, shared words, the goal
 above the tasks, the current state, the unwritten part, ownership, and
@@ -73,18 +74,21 @@ how much evidence is enough.
 
 Read 5, published work on agents. Direct loss of history is 2.8% of
 the failures of multi-agent systems, and failures of verification are
-23.5%. A summary of a long session keeps 17% of the constraints that
-the user stated once, and a list kept apart from the summary keeps over
-90%. A taker does better with the raw trace of the first agent than
-with its notes. No source measures whether a receiver understood before
-it acted.
+23.5%. In one study, summaries of a long session kept 17% of the
+constraints that the user stated once in the first turn, as a mean over
+24 set-ups that run from 0% to 98%. A list kept apart from the summary
+kept over 90%. A second study gave a taker the repository alone, the
+first agent's notes, or its raw trace. Each kind of context cut the
+taker's effort, and the paper says that no kind wins on every measure.
+No source measures whether a receiver understood before it acted.
 
 ## The three things, each with its evidence
 
 ### 1. The place
 
-- Outside: 17% against over 90%, for a summary against a list kept
-  apart (read 5).
+- Outside: a mean of 17% against over 90%, for a summary against a list
+  kept apart (read 5). The 17% depends on the summariser. The weakest
+  kept 0% and one strong model kept 98%.
 - Theory: a goal is a thing above the tasks, and a task list does not
   determine its purpose (read 4, condition 3).
 - Here: Roman asked the root question at 00:26, at 11:38 and again
@@ -119,8 +123,8 @@ it acted.
 
 - Theory: the strong evidence is action on cases that nobody arranged,
   judged by the one who knows the goal (read 4).
-- Outside: where a field tested the purpose on new cases, most
-  receivers missed it (read 3).
+- Outside: where a field tested the purpose on new cases, about half
+  of the receivers missed it, in one paper exercise (read 3).
 - Here: Roman is the only judge, and he typed nothing in 13 of 32
   windows (read 2). Today he judged every session, and each one needed
   corrections. So a low count of corrections in the records can mean an
@@ -138,13 +142,16 @@ it acted.
   the records can show.
 - Hypothesis 2, a say-back finds a difference: held today, twice. It is
   the known practice. No measurement inside or outside shows that it
-  proves understanding, and in use it decays.
+  proves understanding. I wrote that it decays in use. The source does
+  not show that.
 - Hypothesis 3, a session that holds the question changes its act: one
   session, one case that I wrote and judged. That is weak evidence by
   the order of read 4.
-- My recommendation of a centre page written by me: read 5 speaks
-  against a sender's account as the carrier. A place that holds his
-  words as he said them is a different thing from my account of them.
+- My recommendation of a centre page written by me: I wrote that read 5
+  speaks against a sender's account as the carrier. The check of the
+  source withdrew that. The study has no test of the raw trace against
+  the notes. So the outside work neither supports nor refutes a centre
+  page.
 
 ## The join with the picture of the project
 
@@ -175,11 +182,25 @@ it.
 - Most of the 32 hand-offs are frames with a build. The claim that a
   frame's heading carries its goal is my explanation, and no read
   tested it.
-- Many outside numbers come from abstracts. I checked two sources of
-  read 5 and none of reads 3 and 4.
+- A checker read 12 outside claims against their sources at 15:48. 5
+  stand as stated, 6 left out a condition and 1 number was wrong. This
+  page now states the 6 with their conditions. The page of the check is
+  `boundary-test-sources-2026-11-10.md`. The three research pages are
+  not corrected, so read them with that page.
 - No read looked at a hand-off that went well and asked why.
 - No read measured what a taker does with the raw transcript of the
-  sender, which read 5 names as better than a note.
+  sender.
+
+## After the first test, 15:47
+
+A reader labelled all 93 hand-offs by the kind of work. 87 carry one
+frame with a build. Roman corrected the taker in 20 of the 44 frame
+builds that he watched. So the explanation under "The place", that a
+frame's heading carries its goal across a hand-off, fails. The speed of
+the first act does not go with a correction, so the first bullet under
+"The first acts" names a fact and no cause. What stands is a base rate:
+about four takers in ten need a correction when the judge looks, and
+nothing that the reads measured tells which ones.
 
 ## Questions that the reads open, for a test and not for a rule
 
