@@ -458,6 +458,47 @@ first batch start are among them. The pages: 114 of the 134 are
 distinct. So the runs on icalendarI are one onboarding seen six times,
 and a count over them is not six observations.
 
+## Mass 7, the ground: the compare
+
+The read is `plans/method/product-mass7-read-2026-11-10.md`, one agent
+on Opus, about 288k. The reader took 18 statements from the design pages
+and read the ground of all 11 runs.
+
+The expectation, 06:00, had four parts.
+
+1. On most runs on icalendarI the harness holds fewer than 10 of the
+   162 test files. This holds for half. Dry runs 3, 4 and 5 hold 1 of
+   162. Dry runs 6c, 7 and 8 hold 162.
+2. The result of the repository's own tests at one commit differs
+   between runs. This holds: 157 pass in dry run 6c, 159 in dry runs 7
+   and 8.
+3. A failure of the ground ends a session in 3 or more runs, and the
+   page names it in true words on fewer than half. This holds: 38
+   sessions in 4 runs ended on `LLMUnavailable`, and the pages say "the
+   team could not read a part of the code".
+4. The merged change sits with test files of made names. This holds on
+   3 of 3 merges.
+
+What the expectation did not name:
+
+- The index is complete in 11 of 11 runs.
+- No run holds a record of a stack decision.
+- In 4 runs the provisioner installed no package of the repository's
+  test group.
+- The repository's own tests are red at the base in dry runs 6c, 7 and
+  8, in 3 to 5 files.
+- Each of the 3 merges moved the person's main branch. The commits of
+  the desks carry the person's name and address.
+- Two of the 3 merged diffs remove the final newline of a file.
+- In dry runs 4 and 5 a door named `.github/workflows` as the only test
+  folder, and the Tester wrote tests there.
+- The copies were reset between runs by start scripts, so the end state
+  of dry runs 3 to 8 comes from the reflog and the rows.
+
+Limits of this read. The end state of 6 runs is rebuilt from the reflog
+and the object store. Statement 18, the clean workspace, rests on what
+the reader took as rota's leavings.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
