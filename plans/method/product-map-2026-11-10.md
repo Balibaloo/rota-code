@@ -1100,6 +1100,89 @@ door runs and cannot show a refusal. The mass 5 read counted 4,209
 refusals. The two reads did not use one source, and nobody has
 reconciled the counts.
 
+## The exploration continues: dry run 9 against the claims
+
+The check is `plans/method/product-dry9-check-2026-11-10.md`, one agent
+on Opus, about 169k. The check is not blind: the agent read this map.
+Dry run 9 ran on 2026-11-10 on icalendarI with the fold request, and an
+Opus session sat in the seat with the key closed.
+
+**Expected** (on frame 364, 12:33): no merge. The stop is an act of a
+model at the Tester's or the Developer's desk. No claim of the map
+changes. Fails if dry run 9 merged or shows a new kind of stop.
+
+**Found** (observed: the check): no merge. The other two failed.
+
+- The batch parked after attempt 10 of 10 with 6 of 166 tests red. By
+  the last act the stop is a known class, the Developer gave up with
+  code still red.
+- By the root the stop is a new class. The Terminologist made up the
+  function name `fold_long_lines`. The doors then made the team build
+  that function. The Developer had found `_foldline` itself in 4
+  sessions.
+- C4 as corrected does not fit this run: no criterion names `_foldline`,
+  and no commit goes to `string.py`. In this run the fact did not
+  arrive, which is the first form of C4.
+- Point 5 of the revised reading goes the other way here. The seat said
+  "stop here", and 31 more sessions ran.
+- The run holds a check that no code can pass, "assert 70 == 75", and a
+  dropped criterion whose test stayed.
+- Two pages said "Before I build this" and "The team then stops here",
+  and the run did neither.
+- The Liaison ran gemma4:12b-it-qat on 1,300 to 7,400 prompt tokens with
+  no hang. The line of the model read on the hang at 1,536 tokens does
+  not hold for that model on that desk.
+
+**What the result means for the reading** (reasoned):
+
+- The fold request has run eight times. It stopped on the wrong file
+  one time, on the Developer's edit three times, and on a made name one
+  time. One request gives a different stop on each change of rota. So
+  "where the small model stops" is not one point in these records. It
+  moves with the code of rota, as the commit share of the Developer
+  moved with no change of its model.
+- The doors read and this run join. The desks that write records hold
+  the most doors. A door there accepted a made name, and the doors after
+  it enforced the name on the Developer. A door checks the form of a
+  record and not whether the record is true.
+- The seat's word has no fixed effect. A "no" cancels work that the
+  person wanted kept, and a "stop" does not stop the work.
+
+## The state of the exploration of the records
+
+(reasoned: this session, at the end of the reads of 2026-11-10.)
+
+What the records say, with their weight:
+
+1. The skeleton holds: the commit, the approval before work, the merge
+   conditions, the index. Strong: it holds on every row.
+2. The measures, the target page and the completion line test a merge
+   and never the person. Strong: it is a fact about the pages.
+3. Rota tells the person almost nothing true about a merge or a stop.
+   Medium: 0 of 12 merges, 28% of stops, on runs with a seat that
+   agrees.
+4. A merge can be sound by the merge conditions and wrong. Medium: the
+   fold heads, night 152, and three first merges against a convention
+   of the project.
+5. The work stops where the Developer writes code, and the cause is not
+   separated. Weak as a cause: one model at that desk, and the stop
+   moves with rota's code.
+6. The capability on click rose over the nights. Medium: the nights
+   share state, and equal nights spread from 0 to 3 merges.
+7. The doors are general in aim, grew by reaction, and are not in the
+   design. One reader, one draw of 40.
+
+What the records cannot say:
+
+- Whether a person can run rota alone and read the result.
+- Whether a stronger model at the Developer's desk moves the stop.
+- Whether any change helps, from a count over two runs.
+- Which kinds of request a small model can build, beyond five sentences
+  on three repositories.
+
+Each of these needs a run. The question on shape A is the door to them,
+and it waits until the synthesis is in front of Roman.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
