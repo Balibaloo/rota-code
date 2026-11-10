@@ -71,6 +71,31 @@ note or a message. No session here is blind to his question. The test
 shows whether a say-back finds a difference. It does not show that a
 taker of next week holds the goal.
 
+## Hypothesis 0, added at 13:20 on Roman's doubt
+
+Roman, about 13:18: "I'm not sure that we know how to communicate
+between sessions even directly". The three hypotheses above assume that
+a direct message works. That is not tested. So the channel comes first.
+
+What the records of this window show, 10:16 to 13:16 today:
+
+- Six messages sent. Each send returned "in that session's inbox, not
+  yet read". A send proves the inbox and not the read.
+- Rota-82 answered the message of 10:16 inside one turn of Roman's.
+  Rota-a4 answered the message of 13:05 in about five minutes.
+- Rota-3d has not answered the message of 13:05 after fifteen minutes.
+  This window cannot see whether rota-3d read it.
+- No sender today asked a receiver to say a message back before the
+  message of 13:05. So no record shows that a message was understood.
+- The brief says that a session parked on a prompt drains nothing. A
+  session that waits on a question to Roman can then hold a message
+  unread for hours.
+
+Expectation: the channel delivers to a session that works, and fails
+silently to a session that is parked or idle. It holds if rota-3d is
+parked on a question or reads the message only at its next turn. It
+fails if rota-3d read the message at once and chose not to answer.
+
 ## The compare
 
 Not written yet.
