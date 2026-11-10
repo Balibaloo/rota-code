@@ -28,7 +28,8 @@ the list holds.
 **A criterion that restates a commitment names it.** `[the commitments that
 bind the files of this item]` lists what the code already promises, each
 with its id. Send that id as `keeps=` on the criterion that restates it, and
-send no `keeps` on a criterion of the change.
+send no `keeps` on a criterion of the change. When the block is empty, send
+no `keeps`.
 
 **An item whose tickets cannot mean anything consistent is not criteria
 work.** Writing criteria for a contradiction launders it into looking decided:
