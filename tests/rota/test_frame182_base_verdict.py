@@ -405,3 +405,25 @@ def test_on_the_rows_an_untied_test_green_at_the_base_lands_with_the_note(rows8)
     assert out["id"] == "tst_c1" and api.BASE_GREEN_NOTE in out["note"]
     out = _encode(rows8, "c1", "test_foldline.py", TST_C1_V1)
     assert api.BASE_GREEN_NOTE not in out.get("note", "")
+
+
+@pytest.mark.parametrize("cid, path, body, tie", [
+    ("c3", "test_foldline_75octets.py", TST_C3, "kept"),
+    ("c1", "test_foldline.py", TST_C1_V2, "change"),
+], ids=["kept_red", "change_green"])
+def test_a_claim_gets_no_base_refusal_of_either_kind(rows8, cid, path, body, tie):
+    """The review of pass 1, low 5: on a claim the base is the head, so a
+    red kept test is the run that disproves the claim (frame 360)."""
+    if tie == "kept":
+        _specify_c3(rows8, keeps=DRY8_BOUND["id"])
+    else:
+        for c in (DRY8_BOUND["id"], KEPT):
+            rows8.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?",
+                          (c,))
+            rows8.execute("DELETE FROM constraints WHERE id = ?", (c,))
+    rows8.execute("UPDATE batches SET claimed_head = head_commit")
+    rows8.commit()
+    assert api.criterion_kind(rows8, "bg_1", cid)[0] == tie
+    out = _encode(rows8, cid, path, body)
+    assert out["id"] == f"tst_{cid}"
+    assert api.BASE_GREEN_NOTE not in out.get("note", "")

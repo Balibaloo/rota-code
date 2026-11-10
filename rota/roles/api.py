@@ -23899,7 +23899,7 @@ def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
     A test of a change that passes at the base proves nothing about the
     change. A test of a kept commitment that fails at the base is wrong,
     because the base keeps the commitment. A claimed batch changes no code,
-    so its tests must pass at the base, and the first refusal stays silent.
+    so its tests must pass at the base, and both refusals stay silent.
     A batch with no git worktree has no base to run, and the door is silent.
     A criterion of unknown kind gets no refusal, because a guess inverted
     W2 (the review of pass 1, high 1). An error at the base is no verdict
@@ -23924,7 +23924,10 @@ def _base_verdict_refusal(ctx, batch_id, criterion_id, path: str,
             if ran is not None and ran[0] == "pass":
                 notes.append(BASE_GREEN_NOTE)
         return None
-    if kind == CHANGE and _claimed(ctx.conn, batch_id):
+    # On a claim the base is the head. A red kept test at the base is then
+    # the red run that disproves the claim, and frame 360's route owns it
+    # (the review of pass 1, low 5).
+    if _claimed(ctx.conn, batch_id):
         return None
     try:
         ran = _harness.run_at_base(ctx.conn, batch_id, path, body)
