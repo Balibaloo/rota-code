@@ -260,6 +260,20 @@ def step(
     # through to dispatch and died on `'-' is not a role in the graph`. The
     # action had a test; the routing to it did not, because the test called
     # `_perform` directly.
+    # Frame 173, build 3: a removed statement that the fork holds goes back
+    # by the structure before a Developer is woken to type it back. The
+    # restore moves the head, so the wake drains on the next tick.
+    for wake in ready:
+        if wake.kind == "tick:touch_mistaken" and wake.refs:
+            from .restore import restore_wake
+            done, reasons = restore_wake(conn, wake.refs[0])
+            if done and not reasons:
+                conn.commit()
+                result.wake = wake
+                result.note = "restored " + ", ".join(
+                    f"{d['path']} at {d['restored'][:8]}" for d in done)
+                result.productive = True
+                return result
     for wake in ready:
         if wake.role in ("", SCHEDULER) or wake.kind.startswith("do:"):
             # Counted like any other dispatch. Returning early here meant

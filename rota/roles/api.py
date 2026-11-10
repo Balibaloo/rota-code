@@ -27950,22 +27950,35 @@ def _base_texts(tree, fork: str, paths: list[str]) -> dict[str, str | None]:
     return {p: ("" if t is None else t) for p, t in zip(rels, texts[1:])}
 
 
-def _removal_entry(base: str, now: str) -> dict | None | bool:
-    """The `dropped` entry of the base statements that `now` lacks, None
-    when nothing is lost, or False when a text does not parse. Each line is
-    numbered in code.source numbering of the base. The entry is marked
-    `compared`, so `_gone_statements` names each line it holds."""
+def removed_statements(base: str, now: str) -> tuple[list, list] | bool:
+    """(each lost statement as (owner, base index), each lost definition
+    name), or False when a text does not parse. The one reader of a removal:
+    the commit's note and the structure's restore both read it (frame 173,
+    build 3)."""
     import ast as _ast
     try:
         old, new = _ast.parse(base), _ast.parse(now)
     except (SyntaxError, ValueError):
         return False
-    ol, nl = base.splitlines(), now.splitlines()
     lost: list[tuple[str, int]] = []
     defs: list[str] = []
-    _lost_in_block(old.body, new.body, ol, nl, "", _pair_defs(old, new), lost, defs)
+    _lost_in_block(old.body, new.body, base.splitlines(), now.splitlines(), "",
+                   _pair_defs(old, new), lost, defs)
+    return lost, defs
+
+
+def _removal_entry(base: str, now: str) -> dict | None | bool:
+    """The `dropped` entry of the base statements that `now` lacks, None
+    when nothing is lost, or False when a text does not parse. Each line is
+    numbered in code.source numbering of the base. The entry is marked
+    `compared`, so `_gone_statements` names each line it holds."""
+    got = removed_statements(base, now)
+    if got is False:
+        return False
+    lost, defs = got
     if not lost and not defs:
         return None
+    ol = base.splitlines()
     spans = _def_spans(base)
     lines: list = []
     named: list[str] = []

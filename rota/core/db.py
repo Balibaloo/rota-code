@@ -522,6 +522,8 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         _widen_ruled_ref_acts(conn)
         _widen_statement_states(conn)
         _widen_candidate_kinds(conn)
+        # Frame 173, build 3: the structure's restore closes a stray row.
+        _widen_check(conn, "touch_strays", (), "'restored'")
         # The same for the description flag: 0 is every older item's truth, since
         # no seat could describe an item before the column existed.
         if not _has_column(conn, "items", "is_description"):

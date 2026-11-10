@@ -428,7 +428,7 @@ CREATE TABLE IF NOT EXISTS touch_strays (
     commit_sha  TEXT NOT NULL,
     path        TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
-                CHECK (status IN ('open','foreseen','mistake')),
+                CHECK (status IN ('open','foreseen','mistake','restored')),
     note        TEXT,
     PRIMARY KEY (batch_id, commit_sha, path)
 );
