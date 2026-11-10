@@ -474,6 +474,40 @@ doubt. The sessions can communicate. Communication is not where the
 goal is lost. The loss is between the words that a session holds and
 its act, and the reads so far do not show the cause.
 
+## The read of the misses, started 15:54
+
+The question that the tests leave: why does a session act against words
+that it holds? One reader takes the 16 corrections where Roman's words
+stood in a place that the taker was told to read. For each, it reads
+the taker's transcript before the wrong act. Page:
+`boundary-misses-read-2026-11-10.md`.
+
+The reader gives each miss one class:
+
+- Not in view. The session never opened the place, and the words were
+  not in its loaded context.
+- In view, not recalled. The words were loaded or opened, and nothing
+  near the act mentions them.
+- Recalled, read differently. The session names the rule near the act
+  and reads it so that the act is allowed.
+- Recalled, set aside. The session names the rule and follows another
+  rule, a hook or an instruction in its place.
+
+The expectation, written before the reader starts. Most of the 16 are
+"in view, not recalled": 9 or more. The wrong act follows a trigger
+that names the next act, a line of the note, the result of an agent or
+a hook. It fails if most are "recalled". Then the cause is the meaning
+of the words or a conflict of rules, and not attention.
+
+What each outcome would mean. "Not recalled" says that words in a pile
+do not act at the moment of the act. "Read differently" says that the
+words do not carry his meaning, which is the unwritten part of the
+theory read. "Set aside" says that the rules fight each other.
+
+### The compare of the misses
+
+Not written yet.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter

@@ -7,7 +7,7 @@ and the compare of each read are in
 `plans/method/say-back-test-2026-11-10.md`. This page is a reading. It
 is not a design, and it changes no rule.
 
-## Result first, after three tests (15:55)
+## Result first, after three tests (15:54)
 
 The sessions can pass words to each other. The goal is not lost where
 the words pass. It is lost between a session that holds the words and
