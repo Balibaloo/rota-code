@@ -930,6 +930,82 @@ person. A change can be right by its behaviour and still break a
 convention of the project, and no check of rota reads those conventions
 at the merge.
 
+## The exploration continues: where the work stops
+
+The read is `plans/method/product-stops-read-2026-11-10.md`, one blind
+agent on Opus, about 349k. It classed every batch that did not merge in
+all runs and nights, and checked 30 drawn batches by hand. This session
+judged from the agent's reply and did not read the page whole.
+
+**Expected** (on frame 364, 11:38): under half of the stops are an act
+of a model that the rows can name. The Developer's edit is the largest
+of those. The other stops are a contest, a cap or the server. Fails if
+the rows cannot class over half of the stops.
+
+**Found** (observed: the read): the first expectation failed. The stop
+is an act of a model on 59% of the stops by the last act, and on about
+85% by the root (reasoned by the reader). The second holds.
+
+- 304 batches: 77 merged, 227 did not. 23 requests never reached a
+  batch.
+- The Developer gave up with nothing accepted: 58. The Developer gave
+  up with code still red or failed by the Critic: 46. A batch waited
+  behind a stuck batch: 47, and 45 of those sit behind a model that gave
+  up.
+- The seat's contest cancelled the batch after a give-up: 21. Empty
+  batches from a loop on a contested request: 18. Contested at the plan
+  page: 17. Request text written again: 8. Run cut: 7. Set aside by the
+  seat: 3. The model server: 1.
+- The desk at the stop is the Developer on qwen3.5:9b in 116 of the 125
+  stops that name a desk.
+- A page names the step at the stop on 29 of 105 stops, and 15 of those
+  use plain words (nights 133 to 175 only). No page names a queue, a
+  cancel by a contest, the end of a run or a failure of the server.
+- The runner's account gives "wrote its own tool results" as its most
+  common reason, 9,059 lines. No page says it.
+- A contest or a revise on the first line cancels the batch with all
+  its work. 8 of the 39 contests that did this asked the team to keep
+  going.
+- Over the thirds of the nights, merges per night went from 0.29 to
+  1.26. The give-ups stayed at about 30 per third. The waiting class
+  went from 25 to 1.
+- The hand check found 3 wrong classes in 30.
+
+**Limits:** 68 batches share their first session with an earlier night,
+so the nights are not independent. No query separates wrong code from a
+wrong test. Before night 133 the seat approved every page.
+
+## The reading, revised after these three reads
+
+This section replaces points 1 and 5 of "The reading at this
+resolution". Points 2 to 4 stand. (reasoned: this session.)
+
+1. **The person is tested nowhere.** The measures of the runs, the
+   target page and the completion line all test a merge. The one test
+   with a reader shows that a change is readable and that rota tells the
+   person nothing about it: a page says what merged on 0 of 12.
+2. **The small model stops at the Developer's edit, and not only on the
+   fold.** The fold read gave one point. The stops read gives the body:
+   104 of 227 batches that did not merge are a give-up of the
+   Developer, and 45 more wait behind one. The work that made the nights
+   better removed the queue and did not move the give-ups.
+3. **Rota is not yet honest about the stop.** A page names the step on
+   28% of the stops. The most common reason in the runner's own account
+   never reaches a page.
+4. **A merge can be sound and wrong outside the fold.** Night 152 merged
+   a flag that does nothing on a test that always passes. Each of the
+   three first merges breaks a convention of its project.
+5. **The seat's word can destroy work.** A contest cancels the batch
+   with its work, also when the words ask the team to continue.
+
+**What this does to the product design** (reasoned): shape A stays
+first, because every count above comes from runs that share state and a
+seat that agrees. The order after A is open again. The design put shape
+B before shape C. The stops read says that the largest stop is the
+edit, which B makes honest and does not move. No record shows a
+stronger model at the Developer's desk on these stops, except night 62,
+which "failed the same way". The choice of the model is Roman's.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
