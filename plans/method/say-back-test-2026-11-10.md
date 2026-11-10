@@ -174,6 +174,59 @@ question and the answer".
 The limits stay. One session answered the case. I wrote the case and I
 judged the answer. Roman has not read it. Rota-3d is still silent.
 
+## The research on boundaries, ruled 13:58
+
+Roman, about 13:45: "Well are you sure? Do we need to research inter
+session communication from first principles?" I answered that I am not
+sure, and that the question is what must cross a boundary so that the
+next mind holds the goal and not only the next act. I recommended a
+centre page first. He ruled by a dialog at 13:58: "Resserch, don't worry
+about context limits here". So the research comes first, and this window
+runs it past the context warnings of the brief, on his word.
+
+Five blind readers, in parallel, each with no hypothesis in its brief:
+
+1. The channel as fact: `boundary-channel-read-2026-11-10.md`.
+2. The hand-offs of this project: `boundary-handoffs-read-2026-11-10.md`.
+3. Practice where a failed handover costs lives:
+   `boundary-practice-read-2026-11-10.md`.
+4. Theory, from first principles: `boundary-theory-read-2026-11-10.md`.
+5. What is published on agents built on language models:
+   `boundary-agents-read-2026-11-10.md`.
+
+The expectations, written at 13:59 before any reader starts:
+
+1. Channel. A working session reads a message inside two minutes. A
+   session that waits on a dialog or a prompt reads nothing until the
+   answer. The transcript of rota-3d shows the message of 13:05 unread
+   or read late for that reason. Fails if rota-3d read it at once.
+2. Hand-offs. More than half of the notes open with the state or the
+   next act and hold no goal in Roman's words. Roman corrects the taker
+   in its first hour in more than half of the takes. Fails if the notes
+   open with the goal, or if corrections are rare.
+3. Practice. Each field uses a fixed form and a read-back, and each
+   carries the reason above the task. I expect one thing that I do not
+   have: a time when both sides are present and the receiver asks.
+   Fails if the fields rest on a document alone.
+4. Theory. Understanding needs evidence from the receiver, and a
+   read-back of words is weak evidence. I expect the theory to say that
+   my say-back is not enough, and that a prediction on a new case is
+   stronger. Fails if the theory holds that a good document is enough.
+5. Agents. The published work names lost context at a hand-off as a
+   main cause of failure, prefers one holder with workers over peers,
+   and has few measurements. Fails if a measured method for peer
+   hand-off exists.
+
+What would change the picture most: reader 2, if the notes that open
+with Roman's words get as many corrections as the notes that do not.
+Then the content of a note is not the cause.
+
+## The compare of the research
+
+Not written yet.
+
+## One thing from the case
+
 One thing the answer gives beyond the test. It names what can cross a
 boundary: the question of the turn, written before the turn. That is a
 finding to test, and no rule.
