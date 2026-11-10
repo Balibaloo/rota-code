@@ -1183,6 +1183,28 @@ What the records cannot say:
 Each of these needs a run. The question on shape A is the door to them,
 and it waits until the synthesis is in front of Roman.
 
+## The two counts that disagreed, reconciled
+
+The read is `plans/method/product-reconcile-2026-11-10.md`, one agent on
+Opus, about 120k. Expected (on frame 364, 12:41): both pairs are true
+together, from different sources. Found (observed: the read): the
+expectation holds.
+
+- Night 62: no database of night 62 exists, and the night files start
+  at night 82. The night is prose only,
+  `plans/archive/stack-2026-09-16.md`:482-492: two sessions of gemma-4
+  at the Developer's desk with no commit. The same lines say "the wake,
+  not the model, was the limit". So the records hold no test of a
+  stronger model at that desk, and the product design quotes the line
+  with a part left out.
+- The refusals: `tool_calls` has no column for a result, so it cannot
+  show a refusal. The mass 5 read counted from `turns`. Its method gives
+  4,209 and 1,418 again on its copies.
+- A new limit: the copy of the dry run 6 database lost its write-ahead
+  log, which holds 12 more sessions. On the original files the counts
+  are 4,259 and 1,450. Each count of this map that uses the copy of dry
+  run 6 is short by those 12 sessions.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
