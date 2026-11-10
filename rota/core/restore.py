@@ -21,24 +21,37 @@ from pathlib import Path
 
 
 def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
-                  act: str, *, only: set[int] | None = None,
-                  row_head: str | None = None) -> dict:
+                  act: str, *, only: set[int] | None = None) -> dict:
     """Put back each fork statement of `grain` that the head lacks, and
     commit. `act` names who ordered the restore: his ruling id or the
     Architect's judgement. Returns {"restored": sha, "statements": [...]}
     or {"reason": one sentence}. A reason changes nothing. `only` names the
-    base indexes to put back, as his keep names one statement. `row_head`
-    names the head of the row to mark, when an earlier restore moved it."""
+    base indexes to put back, as his keep names one statement."""
+    out = restore_head(conn, batch_id, [(grain, only, act)])
+    return out["rows"][0] if "rows" in out else {"reason": out["reason"]}
+
+
+def restore_head(conn: sqlite3.Connection, batch_id: str,
+                 asks: list[tuple[str, set[int] | None, str]]) -> dict:
+    """Put back the statements of every ask at the head in one commit, or
+    put back none. An ask is (grain, `only`, act).
+
+    Review p1 of frame 173, high 2: a partial restore moved the head, and
+    the unrestored `mistake` row stayed on the old head. `touch_mistaken`
+    then woke nobody and the stray gate opened. Returns {"restored": sha,
+    "rows": [...]} or {"reason": one sentence, "grain": the ask that
+    failed}. A reason changes nothing."""
     from . import harness, worktrees
     from ..roles.api import _base_texts, removed_statements
 
     row = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                        (batch_id,)).fetchone()
     tree = harness.worktree_of(conn, batch_id)
+    first = asks[0][0] if asks else ""
     if row is None or not row["head_commit"] or not tree or not Path(tree).is_dir():
-        return {"reason": f"{batch_id} has no worktree and head to restore in"}
+        return {"reason": f"{batch_id} has no worktree and head to restore in",
+                "grain": first}
     head = row["head_commit"]
-    path, _sep, owner = grain.partition("::")
     try:
         root = worktrees.project_root(conn)
     except worktrees.WorktreeError:
@@ -46,16 +59,10 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
     try:
         fork = worktrees.base(tree, root)
     except worktrees.WorktreeError:
-        return {"reason": "git cannot name the fork of the batch"}
-    base = _base_texts(tree, fork, [path]).get(path)
-    if not base:
-        return {"reason": f"the fork does not hold {path}"}
-    target = Path(tree) / path
-    if not target.is_file():
-        return {"reason": f"{path} is gone at the head"}
-    # A restore commits its own path only, and a tracked change in the
-    # tree could be in that path. So the restore waits for a tree that holds
-    # only committed work (law 1: the structure writes no seat's change).
+        return {"reason": "git cannot name the fork of the batch", "grain": first}
+    # A restore commits its own paths only, and a tracked change in the
+    # tree could be in those paths. So the restore waits for a tree that
+    # holds only committed work (law 1: the structure writes no seat's change).
     furniture = set(worktrees.batch_furniture(conn, batch_id))
     dirty = [p for p in subprocess.run(
         [*worktrees.GIT, "-C", str(tree), "status", "--porcelain", "-z",
@@ -63,57 +70,101 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
         capture_output=True).stdout.decode("utf-8", "replace").split("\0")
         if p and p[3:] not in furniture]
     if dirty:
-        return {"reason": "the worktree holds uncommitted changes"}
-    raw = target.read_bytes()
-    now = raw.decode("utf-8", "replace").replace("\r\n", "\n")
-    got = removed_statements(base, now)
-    if got is False:
-        return {"reason": f"{path} does not parse at the fork or at the head"}
-    lost = sorted({i for o, i in got[0] if (not owner or o == owner)
-                   and (only is None or i in only)})
-    if not lost:
-        return {"reason": f"the head holds every statement of {grain}"}
-    ol = base.splitlines(keepends=True)
-    nl = now.splitlines(keepends=True)
-    spans = _statement_spans(base)
-    said: list[str] = []
-    # The last statement first, so an insert does not move the next place.
-    for i in sorted(lost, reverse=True):
-        end = spans.get(i, i)
-        at = _place(ol, nl, i, end)
-        if isinstance(at, str):
-            return {"reason": at}
-        nl[at:at] = ol[i:end + 1]
-        said.append(ol[i].strip())
-    text = "".join(nl)
-    if b"\r\n" in raw:
-        text = text.replace("\n", "\r\n")
-    target.write_bytes(text.encode("utf-8"))
-    said.reverse()
-    message = (f"rota: restore {'; '.join(s[:60] for s in said)} in {grain}, "
-               f"ordered by {act}")
+        return {"reason": "the worktree holds uncommitted changes", "grain": first}
+    # Each file's text moves in memory through every ask. A file reaches
+    # the disk only when every ask has its place.
+    raws: dict[str, bytes] = {}
+    nows: dict[str, list[str]] = {}
+    rows: list[dict] = []
+    for grain, only, act in asks:
+        path, _sep, owner = grain.partition("::")
+        base = _base_texts(tree, fork, [path]).get(path)
+        if not base:
+            return {"reason": f"the fork does not hold {path}", "grain": grain}
+        target = Path(tree) / path
+        if path not in raws:
+            if not target.is_file():
+                return {"reason": f"{path} is gone at the head", "grain": grain}
+            raws[path] = target.read_bytes()
+            nows[path] = raws[path].decode("utf-8", "replace").replace(
+                "\r\n", "\n").splitlines(keepends=True)
+        got = removed_statements(base, "".join(nows[path]))
+        if got is False:
+            return {"reason": f"{path} does not parse at the fork or at the head",
+                    "grain": grain}
+        lost = sorted({i for o, i in got[0] if (not owner or o == owner)
+                       and (only is None or i in only)})
+        if not lost:
+            return {"reason": f"the head holds every statement of {grain}",
+                    "grain": grain}
+        ol = base.splitlines(keepends=True)
+        nl = list(nows[path])
+        spans = _statement_spans(base)
+        said: list[str] = []
+        # The last statement first, so an insert does not move the next place.
+        for i in sorted(lost, reverse=True):
+            end = spans.get(i, i)
+            at = _place(ol, nl, i, end)
+            if isinstance(at, str):
+                return {"reason": at, "grain": grain}
+            nl[at:at] = ol[i:end + 1]
+            said.append(ol[i].strip())
+        nows[path] = nl
+        said.reverse()
+        rows.append({"statements": said, "path": path, "grain": grain, "act": act})
+    for path, raw in raws.items():
+        text = "".join(nows[path])
+        if b"\r\n" in raw:
+            text = text.replace("\n", "\r\n")
+        (Path(tree) / path).write_bytes(text.encode("utf-8"))
+    acts = list(dict.fromkeys(r["act"] for r in rows))
+    message = ("rota: restore " + "; ".join(
+        f"{'; '.join(s[:60] for s in r['statements'])} in {r['grain']}" for r in rows)
+        + f", ordered by {' and '.join(acts)}")
     try:
-        sha = worktrees.commit(tree, message, only=(path,))
+        sha = worktrees.commit(tree, message, only=tuple(raws))
     except worktrees.WorktreeError as exc:
-        target.write_bytes(raw)
-        return {"reason": f"the commit failed: {exc}"}
+        for path, raw in raws.items():
+            (Path(tree) / path).write_bytes(raw)
+        return {"reason": f"the commit failed: {exc}", "grain": first}
     if sha is None:
-        return {"reason": "the restore changed no byte"}
+        return {"reason": "the restore changed no byte", "grain": first}
     claim = conn.execute("SELECT claimed_head FROM batches WHERE id = ?",
                          (batch_id,)).fetchone()
     conn.execute("UPDATE batches SET head_commit = ? WHERE id = ?", (sha, batch_id))
     if claim is not None and claim["claimed_head"]:
         conn.execute("UPDATE batches SET claimed_head = NULL WHERE id = ?",
                      (batch_id,))
-    # The row at the old head reads closed, and the new head holds no row,
+    # Every row at the old head reads closed, and the new head holds no row,
     # so `touch_mistaken` and `mergeable` both drain.
+    for r in rows:
+        conn.execute(
+            "UPDATE touch_strays SET status = 'restored', "
+            "note = COALESCE(note, '') || ? WHERE batch_id = ? AND commit_sha = ? "
+            "AND path = ? AND status IN ('open', 'mistake')",
+            (f" restored at {sha[:8]} by the structure, ordered by {r['act']}",
+             batch_id, head, r["grain"]))
+        r["restored"] = sha
+    return {"restored": sha, "rows": rows}
+
+
+# The note prefix of a row that the structure could not put back. The tick
+# does not try the row again until its note changes (frame 173 review p2,
+# high 2).
+FAILED = "restore: "
+
+
+def _note_failed(conn: sqlite3.Connection, batch_id: str, head: str,
+                 grain: str, reason: str) -> None:
+    """Write "restore: <reason>" on the stray row once, and read the row as
+    a `mistake`, so `touch_mistaken` wakes the Developer with the reason."""
     conn.execute(
-        "UPDATE touch_strays SET status = 'restored', "
-        "note = COALESCE(note, '') || ? WHERE batch_id = ? AND commit_sha = ? "
-        "AND path = ? AND status IN ('open', 'mistake')",
-        (f" restored at {sha[:8]} by the structure, ordered by {act}",
-         batch_id, row_head or head, grain))
-    return {"restored": sha, "statements": said, "path": path}
+        "UPDATE touch_strays SET status = 'mistake', note = "
+        "CASE WHEN COALESCE(note, '') = '' THEN ? ELSE note || ' ' || ? END "
+        "WHERE batch_id = ? AND commit_sha = ? AND path = ? "
+        "AND status IN ('open', 'mistake') AND COALESCE(note, '') NOT LIKE ?",
+        (FAILED + reason, FAILED + reason, batch_id, head, grain,
+         f"%{FAILED}%"))
 
 
 def _statement_spans(text: str) -> dict[int, int]:
@@ -164,7 +215,8 @@ def _place(ol: list[str], nl: list[str], i: int, end: int) -> int | str:
 def restore_wake(conn: sqlite3.Connection, batch_id: str) -> tuple[list, list]:
     """Try the restore of every `mistake` row at the head of `batch_id`.
     Returns (the restores, the reasons). The scheduler sends the wake to
-    the Developer only when a reason stands."""
+    the Developer only when a reason stands. All rows go back in one
+    commit, or none goes back, and the row that failed holds the reason."""
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch_id,)).fetchone()
     if head is None or not head["head_commit"]:
@@ -173,15 +225,14 @@ def restore_wake(conn: sqlite3.Connection, batch_id: str) -> tuple[list, list]:
         "SELECT path FROM touch_strays WHERE batch_id = ? AND commit_sha = ? "
         "AND status = 'mistake' ORDER BY path",
         (batch_id, head["head_commit"])).fetchall()
-    done, reasons = [], []
-    # Pass 2, open question 2: the first restore moves the head, so each
-    # row is marked at the head that holds it.
-    for r in rows:
-        out = restore_stray(conn, batch_id, r["path"], "the Architect's judgement",
-                            row_head=head["head_commit"])
-        (done if "restored" in out else reasons).append(
-            out if "restored" in out else f"{r['path']}: {out['reason']}")
-    return done, reasons
+    if not rows:
+        return [], []
+    out = restore_head(conn, batch_id, [(r["path"], None, "the Architect's judgement")
+                                        for r in rows])
+    if "rows" in out:
+        return out["rows"], []
+    _note_failed(conn, batch_id, head["head_commit"], out["grain"], out["reason"])
+    return [], [f"{out['grain']}: {out['reason']}"]
 
 
 def restore_kept(conn: sqlite3.Connection) -> tuple[list, list]:

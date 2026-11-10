@@ -259,3 +259,26 @@ def test_an_untracked_file_stays_out_of_the_restore_commit(run):
     assert _git(root, "show", "--name-only", "--format=", "HEAD").split() == [PATH]
     assert _git(root, "status", "--porcelain", "--", "src/new_dev.py") == \
         "?? src/new_dev.py"
+
+
+def test_one_row_that_cannot_go_back_holds_the_whole_head(run):
+    """Review p1, high 2: a partial restore moved the head and left the
+    other `mistake` row on the old head. Now no commit is made, both rows
+    keep `mistake`, and the row that failed holds the reason."""
+    conn, root = run
+    old = _head(conn, root, FORK.replace(GONE, b"", 1))
+    conn.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+                 "VALUES ('bg_1', ?, 'src/missing.py::f', 'mistake', 'removal: y')",
+                 (old,))
+    done, reasons = restore_wake(conn, "bg_1")
+    conn.commit()
+    assert done == [] and len(reasons) == 1, (done, reasons)
+    assert _git(root, "rev-parse", "HEAD") == old
+    assert conn.execute("SELECT head_commit FROM batches").fetchone()[0] == old
+    assert (root / PATH).read_bytes() == FORK.replace(GONE, b"", 1)
+    got = {r["path"]: (r["status"], r["note"]) for r in conn.execute(
+        "SELECT path, status, note FROM touch_strays")}
+    assert got[GRAIN] == ("mistake", NOTE)
+    assert got["src/missing.py::f"] == (
+        "mistake", "removal: y restore: the fork does not hold src/missing.py")
+    assert [w.refs for w in P.touch_mistaken(conn)] == [("bg_1",)]
