@@ -63,12 +63,24 @@ the baseline. The taker holds frame 362 with 357, 358, 360 and 361.
 
 ## What comes next, in order
 
-1. **The review's verdict, the fix if any, the pick, one gate.** If
-   this session handed off before the review returned, read
-   `plans/f182-review-p1.md` first; if it is not there, the reviewer is
-   still running or was cut, and the review brief says what to probe.
-   Then the pick onto the checkout, the gate, the baseline if clean.
-   Then pass 2, the commitment tie, item 5 above. About 3 cycles.
+1. **The gate's result, read at the hand-off.** Pass 1 and 1b are
+   picked onto the checkout as six commits ending at `3ca24c92`'s pick,
+   after the review's second look said pick (`plans/f182-review-p1.md`).
+   The gate runs on the pick with re-record from about 01:30 on
+   2026-11-10; its output is in this session's tasks folder, and the gate
+   prints only what moved. Store the baseline if it is clean.
+2. **Pass 2 of frame 182, cold implementer**, two items. First, the
+   medium the second look carried: `criterion_kind` reads `change` when
+   `_bound_rows` returns no rows because no file was predicted or no
+   constraint reaches the files; the right reading is `unknown` there,
+   and `change` only when constraints reach the files and none is a
+   commitment. This session tried the two-line fix in the worktree and
+   two of 1b's own tests went red, because their "change" fixtures have
+   no reaching constraints; the fixtures need constraints that are not
+   commitments, and the question of what `change` means by rows is the
+   pass's first decision. Second, the tie: item 5 above. Before the pass
+   rests on it, run tst_c1 v2 at the base once (frame 363's add 1).
+   About 3 cycles.
 2. **The clarify door reads three rows that exist**, frames 183 and 114
    with the read's W3 and W7, about 3 cycles: a clarify on refs with a
    landed ruling goes back to the seat; a red-at-base inherited test

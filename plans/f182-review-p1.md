@@ -230,3 +230,38 @@ All probes are in
 ## (f) Usage
 
 Input tokens: about 100k. Output tokens: about 14k. Total: about 114k.
+
+## Second look, commit 3ca24c92
+
+Verdict: pick, with one medium to carry into pass 2.
+
+1. The high is closed on dry run 8's rows. CONFIRMED. `criterion_kind`
+   reads the rows only: a `tests.commitment_id` or `criteria.commitment_id`
+   tie gives `kept`, no bound commitment gives `change`, bound commitments
+   with no tie give `unknown`. The text tie and the surface tie are gone.
+   `probe_dry8.py` shows the same rows as before: tst_c3 and tst_c1 with
+   `commitment_id` NULL, c3's surface refs on the function. On those rows
+   `_bound_rows` holds the three `parser` commitments, so the kind is
+   `unknown`, no refusal fires, and the challenge line still carries the
+   base verdict. `test_on_dry_run_8s_rows_the_kind_is_unknown_and_both_c3_tests_land`
+   pins it. The new test file: 11 passed in 22 s, `-n 0`.
+2. Medium, carried. `change` is still a guess when `_bound_rows` is empty.
+   CONFIRMED. `_bound_rows` returns `[]` at `rota/roles/api.py` line 4790
+   when the batch has no predicted rows and no diff, and at line 4797 when
+   no constraint reaches the files. Both read as `change`. On the fixture
+   with no index and no stub, `test_right_c3.py` still refuses `RIGHT_C3`
+   as green at the base and lands `TST_C3`. A batch before its first
+   commit, or a surface with no indexed commitment, gets pass 1's shape.
+   Fix: return `unknown` when `_bound_rows` gives no rows and the batch
+   has no predicted files, and `change` only when constraints reach the
+   files and none is a commitment.
+3. The shadow defect is gone. CONFIRMED. One `_same_words` remains, at
+   `rota/roles/api.py` line 617, and the diff 9a60cade to 3ca24c92 holds no
+   hunk there, so it is the original. It has 18 call sites. Pass 1's copy
+   at line 23758 was removed in 3ca24c92. A scan of every `def` and every
+   upper-case constant that the five commits add to `api.py`, `harness.py`
+   and `runner.py` against 9a60cade finds no other name that existed.
+4. `base_verdict` now returns `error` as its own word, and the challenge
+   line says "did not run" for it. That closes medium 3 and low 7.
+5. Not read: whether `criteria.commitment_id` has a writer. `criterion_kind`
+   reads it behind `_has_column`, so the column waits for pass 2.
