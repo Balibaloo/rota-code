@@ -499,6 +499,83 @@ Limits of this read. The end state of 6 runs is rebuilt from the reflog
 and the object store. Statement 18, the clean workspace, rests on what
 the reader took as rota's leavings.
 
+## Mass 9, the measures: the compare
+
+The read is `plans/method/product-mass9-read-2026-11-10.md`, one agent
+on Opus, about 242k. The reader listed 19 instruments and set each one
+against six parts of the destination sentence: P1 a careful person, P2
+alone, P3 a small Python repository, P4 a merged change, P5 they can
+read, P6 honest about where small models stop.
+
+The expectation, 06:21, had four parts.
+
+1. Most of the measures look at one session at one desk. This holds:
+   the register loads 206 cases, and each takes one session or a chain
+   of two. No case takes a whole request.
+2. The measures of a whole request keep no judgement of "alone" or of
+   "can read". This holds. No instrument decides a result from the
+   person's reading of the merged change.
+3. No instrument gives a number for where the small model stops, apart
+   from the notes on the reds. This holds in part. The night counters
+   give a count of made-up turns by desk, 78 on night 175.
+4. The blind test is the only measure with a key before the run, and
+   it ran one time. This fails in part: the answer keys of onboarding
+   are 6 keys with a score. The blind test ran 1 of its 72 designed
+   runs, and its score is not recorded.
+
+What the expectation did not name:
+
+- No record shows a run with a person in the seat.
+- **The nights are a population that this review did not read**: 93
+  nights on clickI, 47 with a merge, with a script that says yes or an
+  agent in the seat. Masses 1 to 7 rest on the 11 dry and blind runs.
+- Every subject repository carries earlier deliveries of rota.
+- The last gate, 2026-11-10: 30 reds and 36 stale cases. 6 of the 29
+  reds on model cases carry an attribution.
+
+## Step 5: the connections, written before the break test
+
+These are this session's claims across the masses (reasoned: the
+compares above). One reader tries to break each one, on the records of
+the dry runs and on the nights, which no claim was made from.
+
+- **C1. Rota keeps the person's word and does not carry it down.** The
+  words are kept, the ruling has a version, approval comes before work,
+  and the tool does not rule for the person (masses 1, 2, 5). But a
+  landed contest leaves its row unchanged (masses 1 and 2), a drop
+  leaves the records unchanged and marked `observed` (mass 4), the
+  person's own replies are quarantined in 4 runs (mass 5), and a later
+  session rewrites rows he approved (mass 6).
+- **C2. The gate of the merge is sound, and what the gate reads is
+  not.** The merge conditions decide every merge (mass 3, 9 of 9). But
+  the test does not follow from the criterion's words, the Tester reads
+  the code under test, a test goes green with no change of code after
+  it is written again, no verdict fails on any batch, and a Critic
+  verdict calls a true statement false (masses 3 and 4).
+- **C3. The model of the project costs half of a run or more and feeds
+  the delivery little.** Onboarding wakes take 48% to 81% of the
+  sessions before the first batch start (mass 2), and no delivery desk
+  read any of 40 drawn records (mass 4).
+- **C4. The fold request stops on a fact that the person gave and that
+  did not arrive.** The guess at signoff names the wrong file, the
+  person names `_foldline` in `string.py`, the criteria still name
+  `q_split` in `parameter.py`, the commits go there, the stray chain
+  judges a mistake, and the batch parks (masses 2, 3 and 7). C4 is C1
+  on one request. The reads cannot tell whether the small model can
+  write the fold when the fact arrives.
+- **C5. Rota says that it stopped, and not truly why.** A failure of
+  the model server shows as "the team could not read a part of the
+  code" (mass 7). A session's last words disagree with its rows in 6 of
+  38 sessions and no row keeps them (mass 6). A fault shows on no page,
+  and 5 questions end unresolved with no climb (mass 5). No instrument
+  measures the stop at the scale of a request (mass 9).
+
+What holds, so that the claims are not read as the whole: one wake is
+one session and one brief, a session commits or discards, the index is
+complete, the worktree keeps the desks' writes in, the door's fact is
+right on 24 of 30, and 22 of 38 sessions leave a record that a later
+act uses.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
