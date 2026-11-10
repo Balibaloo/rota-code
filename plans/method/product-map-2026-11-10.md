@@ -181,6 +181,49 @@ reader of dry runs 1 to 8 reads a page built again from a copy of the
 database, a transcript of a build session, or a turn log cut at 60
 lines.
 
+### The blind read of 24 pages
+
+The read is `plans/method/product-mass1-read-2026-11-10.md`, one agent
+on Opus, about 338k. The reader took 18 statements from the design pages
+and marked each one against each of the 24 drawn pages.
+
+The expectation, 03:52, had three parts.
+
+1. The statements about the record hold on most pages. This holds for
+   two statements and fails for one. The words are kept on 22 of 22
+   pages that can be told, and the tool rules for the person on 0 of 23.
+   The confirmed reading does not hold: on 10 of 18 pages no later page
+   shows the Liaison's reading back, and on 13 of 20 a desk got the
+   reading before the person saw it. Three of the 13 are a reply of
+   "ok" to a confirm page, and the reader's check counts them. The
+   check is the reader's reading of the composition's sentence.
+2. The statements about altitude hold on fewer than half. This does not
+   hold as written. "No ids on the page" holds on 20 of 24, and "the
+   header says what the page is for" on 23 of 24. But no statement that
+   the reader found tests whether a person can answer a page without
+   knowledge of rota's rows or of the code. The grid does not measure
+   the altitude. The site line of frame 364 is not tested by this read.
+3. The statements about attention hold on fewer than half, and the
+   clarify pages fail most. This holds in direction. "One page at a
+   time" holds on 3 of 23, and "nothing is asked twice" on 10 of 21.
+   All 8 clarify pages show no default.
+
+What the expectation did not name: a contest left the contested row
+unchanged on 4 of 4 pages that can be told, and a question at a page got
+no answer on 2 of 2. The counts are small.
+
+Limits of this read. One reader made one reading of one draw. 21 of the
+24 page texts are a render by today's code on an older copy. Rows 10 and
+12 to 15 and row 18 of the grid take their statement from
+`plans/principal-flow.md`, which is capability 10 and a partial in
+`rota/COMPLETION.md`. So the grid mixes statements of a built part with
+statements of a part that is owed. The read did not separate the two.
+
+Blind run 1, from the read's Part D: the tool refused the seat's reply
+to the Liaison's question m8 two times with "m8 is not an open gate",
+and the row m8 has `status='open'` (observed: the read, Part D item 8).
+The read gives no cause.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
