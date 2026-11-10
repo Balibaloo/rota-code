@@ -127,3 +127,20 @@ part held: Roman's own question carried the goal, and the message of
 So far: a say-back of three lines found two differences in ten minutes
 that no note showed. Hypothesis 2 holds for the finding. The closing is
 not tested. Rota-3d has not answered, so hypothesis 0 is open.
+
+### The channel, 13:49
+
+Rota-3d holds frame 363 and has not answered the message of 13:05 in 44
+minutes. Its one status line is the take at 12:26. No idle notice came.
+This window cannot see whether rota-3d works in a long turn, waits on a
+prompt, or read the message and chose silence. Rota-a4 waits on the
+synthesis of rota-3d and has the same blind view.
+
+Against the expectation: the silent failure held. The cause is not
+seen, so the part "parked or idle" is not confirmed. Hypothesis 0 as
+Roman said it holds: the sessions have no read receipt, no view of a
+peer's state, and before today no say-back. Two of three sessions
+answered, and the one that holds the centre frame did not.
+
+At 13:49 the case went to rota-a4 alone, with the compare of the two
+say-backs.
