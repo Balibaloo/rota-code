@@ -218,6 +218,12 @@ def w7(w5):
          cause="m44", thread="m44", status="open")
     _msg(w5, "m59", 59, "liaison", "principal", "present",
          ["bg_1", "folds_long_lines", "c1", "c3"], status="open")
+    # The quarantine's wake sent this key with m59, as dry run 8's config holds.
+    w5.execute("INSERT INTO config (key, value) VALUES ('stalled:m59', "
+               "'[\"developer|tick:tests_failing|bg_1\"]')")
+    # The true park row was answered before the stop.
+    _msg(w5, "m_park_e65413c486_bg_1", 60, "liaison", "principal", "present",
+         ["bg_1"])
     w5.execute("UPDATE batches SET status = 'deferred' WHERE id = 'bg_1'")
     w5.commit()
     return w5
@@ -258,8 +264,37 @@ def test_an_open_page_on_a_parked_batch_waits_with_the_batch(w7):
     assert all("These pages wait" not in a.rendered for a in asks)
 
 
-def test_a_parked_batch_with_no_open_park_page_holds_no_page(w7):
+def test_the_hold_lasts_while_the_batch_is_deferred(w7):
+    """Review p1, finding 1. His one reply to m59 brought the four back."""
     from rota.roles.principal import pending_asks
 
     w7.execute("UPDATE messages SET status = 'answered' WHERE id = 'm59'")
+    assert pending_asks(w7) == []
+    w7.execute("UPDATE batches SET status = 'running' WHERE id = 'bg_1'")
     assert [a.message_id for a in pending_asks(w7)] == ["m52", "m54", "m57", "m58"]
+
+
+def test_a_criteria_page_on_the_parked_batch_is_held_too(w7):
+    """Review p1, finding 2. m31 names bg_1, and it does not tell the stop."""
+    from rota.roles.principal import pending_asks, render_page
+
+    _msg(w7, "m31", 31, "liaison", "principal", "present",
+         ["bg_1", "folds_long_lines", "c1", "c3"], status="open")
+    asks = pending_asks(w7)
+    assert [a.message_id for a in asks] == ["m59"]
+    assert "\n  m31: " in asks[0].rendered
+    # The seat's view of m59 names the held pages too (finding 4).
+    seat = render_page(w7, "present", ["bg_1", "folds_long_lines", "c1", "c3"],
+                       ask_id="m59", returned=False)[0]
+    assert "\n  m52: " in seat
+
+
+def test_an_open_park_page_tells_the_stop_with_the_held_pages(w7):
+    from rota.roles.principal import pending_asks
+
+    w7.execute("UPDATE messages SET status = 'open' "
+               "WHERE id = 'm_park_e65413c486_bg_1'")
+    asks = {a.message_id: a.rendered for a in pending_asks(w7)}
+    assert list(asks) == ["m59", "m_park_e65413c486_bg_1"]
+    for page in asks.values():
+        assert all(f"\n  {m}: " in page for m in ("m52", "m54", "m57", "m58"))

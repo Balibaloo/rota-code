@@ -197,8 +197,8 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
 
         held |= {m for m, _ in open_merged_touch_notes(conn)}
         rows = [r for r in rows if r["id"] not in held]
-    rows, parked = _with_parked_batch(conn, rows)
-    asks = [
+    rows = _with_parked_batch(conn, rows)
+    return [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
             rendered=(page := render_page(conn, r["verb"],
@@ -207,12 +207,6 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
             order=page[1])
         for r in rows
     ]
-    for ask in asks:
-        if parked.get(ask.message_id):
-            ask.rendered += PARKED_PAGES + "".join(
-                f"\n  {r['id']}: {_first_sentence(r)}"
-                for r in parked[ask.message_id])
-    return asks
 
 
 # The line of the park page that names the pages it holds (frames 183 and
@@ -274,45 +268,69 @@ def _batch_of_refs(conn, refs: list[str], *, criteria: bool) -> str | None:
     return None
 
 
-def _with_parked_batch(conn: sqlite3.Connection, rows: list) -> tuple[list, dict]:
-    """The rows that stay pending, and the pages each park page holds.
+def _deferred_batch(conn: sqlite3.Connection, message_id: str) -> str | None:
+    """The batch of the page when its status is `deferred`, or None."""
+    batch = batch_of_page(conn, message_id)
+    if batch and conn.execute(
+            "SELECT 1 FROM batches WHERE id = ? AND status = 'deferred'",
+            (batch,)).fetchone():
+        return batch
+    return None
 
-    A page on a `deferred` batch waits with the batch, and its park page
-    names it. The page stays `open`, so it is pending again when the batch
-    resumes. A batch with no open park page among the rows holds nothing,
-    because no page would then name the held pages. Dry run 8 showed him
-    five pages, and four were on the parked bg_1 (frames 183 and 114, W7).
+
+def _tells_the_stop(conn: sqlite3.Connection, row, batch: str) -> bool:
+    """True for the two pages that tell him the batch stopped.
+
+    One is the park page, by the id that `scheduler.park_ask_id` gives it.
+    The other is a `present` whose wake sent a quarantined key of the batch,
+    the page that `_key_words` writes. Dry run 8's m59 is that page, and its
+    park row was already `answered`. A criteria page such as m31 names the
+    batch too, and it is held (frames 183 and 114, review p1, findings 1, 2).
     """
-    from ..core.scheduler import park_ask_batch
+    from ..core.scheduler import key_parts, park_ask_batch
 
-    def park_page(r, batch: str) -> bool:
-        # The page the park made. Dry run 8's park page m59 has no park id,
-        # and it is the one present that names the batch itself.
-        return park_ask_batch(r["id"]) == batch or (
-            r["verb"] == "present"
-            and batch in json.loads(r["body_refs"] or "[]"))
+    if park_ask_batch(row["id"]) == batch:
+        return True
+    return row["verb"] == "present" and any(
+        batch in key_parts(k)[2] for k in door_rows(conn, row["id"], "stalled"))
 
-    tied = {}
-    for r in rows:
-        batch = batch_of_page(conn, r["id"])
-        if batch and conn.execute(
-                "SELECT 1 FROM batches WHERE id = ? AND status = 'deferred'",
-                (batch,)).fetchone():
-            tied[r["id"]] = batch
-    pages = {}
-    for r in rows:
-        if r["id"] in tied and park_page(r, tied[r["id"]]):
-            pages.setdefault(tied[r["id"]], r["id"])
-    parked: dict[str, list] = {}
+
+def _with_parked_batch(conn: sqlite3.Connection, rows: list) -> list:
+    """The rows that stay pending.
+
+    A page on a `deferred` batch waits with the batch. The status of the batch
+    is the one key, so no open page has to hold the others back. The page
+    stays `open`, so it is pending again when the batch resumes. Dry run 8
+    showed him five pages, and four were on the parked bg_1 (frames 183 and
+    114, W7).
+    """
     keep = []
     for r in rows:
-        batch = tied.get(r["id"])
-        page = pages.get(batch) if batch else None
-        if page and page != r["id"]:
-            parked.setdefault(page, []).append(r)
-            continue
-        keep.append(r)
-    return keep, parked
+        batch = _deferred_batch(conn, r["id"])
+        if batch is None or _tells_the_stop(conn, r, batch):
+            keep.append(r)
+    return keep
+
+
+def held_pages(conn: sqlite3.Connection, ask_id: str | None) -> list:
+    """The open pages that wait on the batch that the page `ask_id` stops.
+
+    Only a page that tells the stop names them. Every such page names them,
+    so he sees what waits while any one of them is open.
+    """
+    batch = _deferred_batch(conn, ask_id) if ask_id else None
+    if batch is None:
+        return []
+    row = conn.execute("SELECT id, verb FROM messages WHERE id = ?",
+                       (ask_id,)).fetchone()
+    if row is None or not _tells_the_stop(conn, row, batch):
+        return []
+    return [r for r in conn.execute(
+        "SELECT id, verb, body_refs, body_text FROM messages "
+        "WHERE status = 'open' AND to_role = 'principal' AND verb != 'converse' "
+        "  AND id != ? ORDER BY seq", (ask_id,))
+        if batch_of_page(conn, r["id"]) == batch
+        and not _tells_the_stop(conn, r, batch)]
 
 
 def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
@@ -2999,6 +3017,13 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     gone = removal_line(conn, refs) if returned else ""
     unnamed = account_unnamed_line(conn, ask_id) if returned else ""
     top = "\n".join(x for x in (back, unnamed, gone) if x)
+    # The held lines render for the seat too, so "show me m52" lands on a
+    # page that names m52 (review p1 of frames 183 and 114, finding 4). The
+    # lines are not numbered, so `parse_reply` reads the same order.
+    held = held_pages(conn, ask_id) if verb == "present" else []
+    if held:
+        page += PARKED_PAGES + "".join(
+            f"\n  {r['id']}: {_first_sentence(r)}" for r in held)
     return (f"{top}\n{page}" if top else page), order
 
 
