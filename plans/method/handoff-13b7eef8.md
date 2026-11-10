@@ -89,6 +89,24 @@ the baseline. The taker holds frame 362 with 357, 358, 360 and 361.
    (W10 of dry run 7, frame 183), the rest line of frame 361 (W14), the
    re-run's attempt count (W9), Roman's milestone of 2026-11-06.
 
+## From frame 363, the redirect (ruled: Roman, 2026-11-10 00:32)
+
+Session 5ee5ec0b (rota-2f) holds the order between runs, frame 363 at
+the head of the stack. The order of builds 1 to 3 before dry run 9
+stands. Three adds from rota-2f, 2026-11-10 about 00:40:
+
+1. Before pass 2 of frame 182 rests on it, run tst_c1 v2 at the base
+   once. Its verdict is reasoned today, not run (the read's section 7).
+2. One fresh implementer per pass, no resume. C39's stop clause holds: a
+   resumed pass cost 131k to 233k, a cold pass 74k to 77k. This session
+   resumed its implementer for the scene fix and for pass 1b before the
+   add arrived; the next pass starts cold.
+3. No dry run 9 before frames 182 and 171, 183 and 114 are on the
+   branch, and the request is written with its key first.
+
+Frame 364 runs a tips dry run of about 30 minutes on the 3080 tonight,
+not during a gate. A gate here takes 20 to 50 minutes.
+
 ## Open and not built
 
 - The run's roles ran on three models by the local profile: the
