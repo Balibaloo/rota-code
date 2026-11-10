@@ -1048,6 +1048,58 @@ wider than expected.
   Developer's desk. This read found no such session in the night files.
   The two statements are not reconciled.
 
+## The exploration continues: what logic the doors hold
+
+The read is `plans/method/product-doors-read-2026-11-10.md`, one blind
+agent on Opus, about 172k. This session judged from the agent's reply
+and did not read the page whole. Roman's words behind the read: "too
+detached from the development to know what kind of logic we are encoding
+in the doors", and "I want to prevent over fitting".
+
+**Expected** (on frame 364, 12:19): over half of 40 drawn refusal sites
+are fitted to one seen fault of a model. Under a quarter are stated on a
+design page. Fails if most are general rules of the workflow and stated.
+
+**Found** (observed: the read; each judgement is the reader's): both
+expectations failed. The doors are more general than this session
+expected, and they are not stated.
+
+- The inventory: 503 refusal sites. `rota/roles/api.py` holds 421 of
+  them in 31,223 lines, and `sandbox.py` 72. The code also holds 49 caps
+  with a number and 50 predicates of the scheduler.
+- By desk, of the 294 sites inside an operation: architect 88, tester
+  82, terminologist 77, liaison 76, vision keeper 49, developer 24 or 55
+  with the write helper, critic 17, researcher 1.
+- The kinds over the 40: 11 rules of the workflow, 11 checks of form or
+  state, 11 guards against one fault of a model, 3 rules of Python, 2
+  caps, 2 internal checks.
+- The judgements: 25 general, 14 general in aim and fitted in the
+  pattern, 1 fitted to one case.
+- 11 of 40 have a line on a design page, 11 more only in a desk prompt,
+  and 18 have no line. `rota/MAP.md` states none of the 40.
+- 31 of 40 origin commits name a night, a run, a case or a model as the
+  reason.
+- 11 of the 36 sites that a text can match never fired in 109
+  databases. Some are newer than most runs.
+- Growth: `api.py` had 25 sites on 2026-08-15 and has 421 today. The
+  two files gained about 7 sites a day in October.
+
+**What would break on a new repository** (observed: the read): mostly
+Python and pytest, and not one repository. A few doors and one prompt
+hold things of click.
+
+**What the result means for the reading** (reasoned): the fear of
+doors fitted to one case does not hold on this draw. A different fact
+holds. The doors grew by reaction, one seen fault at a time, and the
+design pages do not hold them. The desks with the most doors are the
+desks that write records, and the desk where the work stops has the
+fewest.
+
+**Limit:** this read says that `tool_calls` holds a call before the
+door runs and cannot show a refusal. The mass 5 read counted 4,209
+refusals. The two reads did not use one source, and nobody has
+reconciled the counts.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
