@@ -43,23 +43,29 @@ with 357, 358, 360, 361 and 173.
 
 ## What comes next, in order
 
-1. **The gate on frame 182's pick**, started from this session with
-   re-record; its output is in this session's tasks folder,
-   `b006maly0.output`. Then the gate on build 2's pick (six commits,
-   8b4fd369 to db6f4b7b, already on the checkout). Store the baseline
-   after a clean gate. Known: 7 criteria and repair cases and 5 or more
-   Liaison cases re-record; `L1-DV-log-the-choice-the-criteria-did-not-make`
-   read 0 of 5 at 01:33 and needs a read; `L1-DV-put-back-a-removed-block`
-   is a known red that build 3 changes.
-2. **Frame 173, pass 3** runs cold in rota_p173 from `f173_pass3_brief.md`
-   in this session's scratchpad: the structure's commit stages the
-   restored path only, all or nothing per head, a failed restore writes
-   its reason once and the wake runs, the stopped page drops "after the
-   team stopped". Then one review, the pick after build 2's gate, and a
-   gate. Not built, with reasons in frame 173's lines: the commit
-   refusal in a restore wake (Roman's ruling of 2026-10-17 permits writes
-   everywhere), the restore writing stray rows at its head (`mergeable`
-   holds on `no verdict` there).
+1. **The gate on the full checkout**, all 24 commits of the three
+   builds, started from this session at about 03:50 with re-record. Its
+   output is in this session's tasks folder,
+   `C:/Users/roman/AppData/Local/Temp/claude/6d9eb18c9e6274ab/33f037c1-f639-4fa5-8bd4-0cc91eeff019/tasks/btw853efe.output`.
+   The gate before it, on frame 182's pick alone, 02:19 to 03:33: 6 of 7
+   stale cases re-recorded green, `L3-a-challenge-reaches-the-role-that-can-answer-it`
+   0 of 5 and pre-existing (0 of 485 since 2026-10-30, read by an agent),
+   one guard red fixed by pass 2d, one flake caused by this session's
+   pick during the gate. **Do not pick onto the checkout while a gate
+   runs**: a test that inspects source read the checkout mid-pick.
+   Store the baseline after a clean gate. Known reds the picks change:
+   `L1-DV-put-back-a-removed-block` (build 3), and
+   `L1-DV-log-the-choice-the-criteria-did-not-make` read 0 of 5 at 01:33
+   and needs a read. Build 2's six door texts and frame 173's page words
+   make more cases stale; the gate re-records them.
+2. **Frame 173 is built and picked**, passes 1 to 3b, reviewed twice with
+   two second looks. Not built, with reasons in frame 173's lines: the
+   commit refusal in a restore wake (Roman's ruling of 2026-10-17 permits
+   writes everywhere), the restore writing stray rows at its head
+   (`mergeable` holds on `no verdict` there). Open lows: `restore_kept`
+   runs behind `if not ready`; a `foreseen` row leaves his page until
+   the next commit; the carry test is red as a TypeError without the
+   carry.
 3. **Dry run 9 from zero**, after frame 363's add 3: the request written
    with its key first (rota-2f holds frame 363 and the order). Scripts
    `dry8_start.sh` and `dry8_turn.sh` in session 13b7eef8's scratchpad;
