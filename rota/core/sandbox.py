@@ -3435,6 +3435,48 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     return _escalation_or_step(ctx, refs, fact, END_STEP)
 
 
+def _landed_ruling_refusal(ctx: api.Ctx, refs, text: str,
+                           arg: str = "question") -> str | None:
+    """The refusal of a clarify on rows that a landed ruling covers, or None.
+
+    The tie is a shared ref through `ruled_refs`, never a test of sense. Dry
+    run 8's m52 asked m30's question again on bg_1, and r_m45_2 held his
+    answer (frames 183 and 114, build 2, W3). The seat reads his words once.
+    A clarify that names the ruling in its refs has read it and lands. The
+    door shows each ruling once per session, so a second send lands too.
+    """
+    refs = [r for r in refs or () if isinstance(r, str)]
+    if not refs:
+        return None
+    shown = getattr(ctx, "rulings_shown", None)
+    if shown is None:
+        shown = set()
+        ctx.rulings_shown = shown
+    marks = ",".join("?" * len(refs))
+    rows = [r for r in ctx.conn.execute(
+        "SELECT rr.ruling_id, rr.ref, rr.verdict, rr.words FROM ruled_refs rr "
+        "JOIN rulings r ON r.id = rr.ruling_id "
+        f"WHERE r.status = 'landed' AND rr.ref IN ({marks}) "
+        "ORDER BY rr.rowid", refs)
+        if r["ruling_id"] not in refs and r["ruling_id"] not in shown]
+    if not rows:
+        return None
+    shown.update(r["ruling_id"] for r in rows)
+    lines = []
+    for r in rows:
+        said = " ".join((r["words"] or "").split())
+        lines.append(f"{r['ruling_id']} on {r['ref']}, {r['verdict']}"
+                     + (f": \"{said}\"" if said else ""))
+    ids = list(dict.fromkeys(r["ruling_id"] for r in rows))
+    offered = refs + [i for i in ids if i not in refs]
+    said = (f"the principal already ruled on these rows. {'. '.join(lines)}. "
+            f"If that answer settles your question, act on it and send no "
+            f"clarify. If it does not, send the clarify again with "
+            f"{', '.join(ids)} in refs, to show that you read the ruling")
+    return api._offer(ctx, said, "msg.clarify_principal",
+                      {"refs": offered, arg: text})
+
+
 def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
                        refs) -> str | None:
     """
@@ -4197,6 +4239,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # (frame 142, night 135's read, fix 4).
         if verb in ("clarify", "converse") and recipient == "principal":
             api.refuse_answered_question(ctx, text)
+        # A clarify on rows that his landed ruling covers reads the ruling
+        # first. The doors above compare exact words and exact ref lists only
+        # (frames 183 and 114, build 2, W3). The park page is a built page.
+        if (verb == "clarify" and recipient == "principal" and not park
+                and not shift):
+            ruled = _landed_ruling_refusal(
+                ctx, refs, text or "",
+                prose if prose.isidentifier() else "question")
+            if ruled:
+                raise ValueError(ruled)
 
         # The intake fork, armed by the mode: a converse to the principal is
         # the reply to work, and its refs carry what intake produced.

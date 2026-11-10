@@ -2613,6 +2613,15 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         if siblings:
             out["other_reports"] = siblings
 
+    # The gate was the `report` verb since 7d05f031, because the tipsG walk
+    # measured a report. Dry run 8's Liaison asked him again on
+    # `tick:unresolved` and `tick:park_ask` and saw none of his answers
+    # (frames 183 and 114, build 2, W3). So every Liaison wake that can
+    # clarify sees them too.
+    allow = (_wake_allow(wake, conn) if wake.role == "liaison" else [])
+    if row["verb"] == "report" or (
+            wake.role == "liaison"
+            and (allow is None or "msg.clarify_principal" in allow)):
         # What the principal has already said about these rows. A report
         # about a row the principal answered once is not a new question. On
         # the tipsG walk (2026-09-09) the Terminologist reported one collision
