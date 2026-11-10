@@ -190,3 +190,29 @@ restored from the read-only original after each write.
 ## (f) Usage
 
 Input tokens: about 105k. Output tokens: about 16k. Total: about 121k.
+
+## Second look, 23b78d07
+
+Pick. The high and both lows of pass 2 are closed. One new low, in a path no case renders. Seven register cases are stale, so re-earn them in the pick's prompt.
+
+### (a) The points
+
+1. Closed. `test_after_his_correction_respecify_lands_the_tie_refused_under_the_guess` passes: `keeps=cw_99502ef494ad` is refused under the guess, c3 reads not kept, the ruled line lands, `criteria.respecify(..., keeps=)` returns the id, and `criterion_kind` reads `(KEPT, id)` from `criteria.commitment_id` (api.py 23924 to 23928). One door: `_kept_commitment` has two callers, api.py 7544 in specify and 8387 in respecify.
+2. Confirmed, with one gap. The guard is `{"criteria.specify", "criteria.respecify"} & have` and `have = set(sb.functions())` (runner.py 4968 and 5105). The doors live in `criteria.tools` and `criterion_repair.tools`, so the wakes are `tick:criteria`, `tick:criterion_repair`, `tick:criterion_owed` and a relay parked to `criterion_repair` (runner.py 395 to 422). The `try` pushes nothing on a raise, and `test_a_raise_in_the_bound_read_does_not_end_the_wake` pins it. The gap is finding 1.
+3. Confirmed. The pair in order with `-n 0`: 60 passed, 4 xfailed. `_CUT_COUNTS` runs inside `if col in TIMED` only, and TIMED is `test_runs.output`, `test_run_journal.output`, `turns.user`, `turns.system`. The tests whose subject is the count (`test_render_cut`, `test_silent_cuts`, `test_runner` 2519, `test_night46_context` 136) read live strings, not `_clocked`.
+4. Confirmed. Three sentences, imperative, the voice of `criteria.md` lines 30 to 31. The key text equals `CRITERIA_BOUND_KEY` (runner.py 4552).
+5. Confirmed. `refs_item`, `_tie_reply`, `TIE_HELD_WORDS`, `_CUT_COUNTS`: no hit at 129075bd.
+6. `test_frame182_base_verdict.py`: 28 passed. The scene pair: 60 passed, 4 xfailed. The `-k` run with `-n 0`: 391 passed, 17 skipped, 8 xfailed, 0 failed in 423 s. casestatus read-only on the main register: 7 stale. The five of pass 2, and two new from the prompt edit of 23b78d07: `L1-TE-a-ruled-criterion-is-respecified-and-the-tester-told` and `L1-TE-repair-the-criterion-the-tester-cannot-encode`.
+
+### (b) Findings
+
+1. Low. `rota/roles/api.py` 4858 to 4877, `refs_item`, and `rota/core/runner.py` 5105 to 5112. A relay parked to `criterion_repair` carries a message id in its refs. `refs_item` reads items, tickets, criteria, tests and batches, not messages, so the wake holds `criteria.respecify` and sees no bound block. CONFIRMED: `refs_item(conn, ["m10"])` on the dry run 8 copy returns `''`, and `item_commitments(conn, "")[1]` is `[]`. Fix: add a messages row to `refs_item` that reads `body_refs` and resolves the criterion ref.
+2. Low. `rota/testkit/scenes.py` 1743. `[^:\n]+` stops at the first colon, so a CUT title that holds a colon keeps its raw counts. PLAUSIBLE: no title with a colon was seen. Fix: `(CUT .+?: )`.
+
+### (c) Probes
+
+Worktree `C:/Users/roman/rota_f182r2` at 23b78d07. The `refs_item` probe is a heredoc in the transcript. It copies the review's `dry8.db` to the scratchpad as `f182r2_dry8.db` and calls `refs_item` on an item, a criterion and a message ref. casestatus ran with `ROTA_DEV_DB=D:/repos/rota/tests/rota/cassettes.db --model qwen3:8b`. `git grep` at 129075bd for the four names. The three pytest runs above, each `ROTA_MODEL=qwen3:8b -n 0`.
+
+### (d) Usage
+
+Input tokens: about 62k. Output tokens: about 9k. Total: about 71k.
