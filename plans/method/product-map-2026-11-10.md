@@ -1231,8 +1231,10 @@ under that one question. It replaces the map as a list of findings.
 
 **So a turn reacts to its newest wall.**
 
-- The doors grew from 25 to 503 sites, and 31 of 40 came in for one
-  seen fault.
+- The doors of `rota/roles/api.py` grew from 25 sites to 421, and the
+  code holds 503 today. 31 of 40 drawn doors came in for one seen case,
+  and 25 of the 40 are general rules. (Corrected 2026-11-10: this line
+  said "from 25 to 503", which joins two counts.)
 - The nights got better because a queue went away. The give-ups at the
   Developer's desk did not move.
 - The fold request stops at a new place after each change of rota.
@@ -1274,6 +1276,20 @@ table.
    needs one more condition. The compare with the expectation helps only
    when the expectation is about the destination. An expectation at the
    scale of one fix makes each turn pass its own test.
+
+3. **"A seat that agrees"** (found by this session at the check of
+   `plans/method/one-turn-2026-11-10.md`). This map uses the phrase for
+   every run. It holds for the nights before night 133, where a script
+   approved every page. From night 133 a model sat in the seat and
+   contested, and dry run 9 and blind run 1 had a blind seat. The true
+   statement: no person sat in the seat, and no run scored the seat's
+   judgement but blind run 1.
+4. **The picture must not say that nothing builds up.** Over the thirds
+   of the nights, the nights with a merge went from 8 of 33 to 20 of 33
+   to 19 of 32, and the sessions for each merged batch from 906 to 404
+   to 260. The seat was stricter in the last third. The walls return at
+   one rate, and the count that the nights measure still rose. No read
+   looked for the changes behind that rise.
 
 **Where the list agrees with this map:**
 
