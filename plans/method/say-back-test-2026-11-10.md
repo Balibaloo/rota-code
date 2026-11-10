@@ -377,7 +377,34 @@ verdict in the records.
 
 ### The compare
 
-Not written yet.
+#### Test 1, the kinds, landed about 15:47
+
+The page is `boundary-test-kinds-2026-11-10.md`. It covers all 93
+hand-offs. One reader gave all the kinds and the 61 new labels.
+
+Against the expectation: the test cannot decide it, and what it does
+show speaks against my explanation.
+
+- 87 of 93 hand-offs carry a frame with a build. 4 carry work above a
+  frame and 2 are mixed. Four cases are too few to compare. So work
+  above a frame almost never crosses by a hand-off at all.
+- Roman typed in the first three hours of 44 of the 87 frame builds. He
+  corrected the taker in 20 of those 44, and in 13 of 44 with the pauses
+  for a machine reason left out. So when he looks, he corrects three to
+  five takers in ten, on plain frame builds.
+- The time to the first act does not go with a correction: 7 of 30
+  under two minutes, 13 of 52 from two to ten, 2 of 10 over ten. I
+  expected that.
+- The old 32 were typical. The 61 new hand-offs give 13 corrected of 29
+  watched.
+
+What it changes. I explained the equal shares of read 2 by saying that
+a frame's heading carries the frame's goal, so the note does not
+matter. That explanation fails. Frame builds are corrected often when
+Roman watches. The speed of the first act is no cause that the records
+show. What stands is a base rate: about four takers in ten need a
+correction when the judge looks, and the note, the kind of work and the
+speed do not tell which ones. He looked at 48 of 93.
 
 ## The research on boundaries, ruled 13:58
 
