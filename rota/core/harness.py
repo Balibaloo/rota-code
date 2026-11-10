@@ -752,10 +752,19 @@ def run_at_base(conn: sqlite3.Connection, batch_id: str, path: str, body: str,
             return None
         listed = _wt._git(root, "diff", "--name-only", "--no-renames", "-z",
                           base, check=True)
+        # A file the Developer wrote and never committed is no part of the
+        # base either (the two_batches scene: upgrade.py made b1's test
+        # pass "at the base"). Test files and dot folders such as the
+        # environment stay where they are.
+        loose = _wt._git(root, "ls-files", "--others", "--exclude-standard",
+                         "-z", check=True)
     except (_wt.WorktreeError, OSError):
         return None
     rel = path.replace("\\", "/")
-    changed = [p for p in listed.split("\0") if p and p != rel]
+    furniture = {t["path"].replace("\\", "/") for t in tests_for(conn, batch_id)}
+    extra = [p for p in loose.split("\0") if p and p not in furniture
+             and not p.split("/", 1)[0].startswith(".")]
+    changed = [p for p in listed.split("\0") + extra if p and p != rel]
     saved: dict[Path, bytes | None] = {}
 
     def keep(f: Path) -> None:

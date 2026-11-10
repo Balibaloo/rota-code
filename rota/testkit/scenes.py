@@ -614,9 +614,11 @@ IDLE = Session([], allow=("ended a tick with nothing done",))
 # The walk's own answer to every clarify (`probes/walk.py`, its default).
 WALK_ANSWER = "yes to all of it. keep it simple."
 # The Tester's test of c1 on `prorate` itself, for a batch with no module.
-PRORATE_TEST = ("from src.billing.charges import prorate\n\n\n"
+# c1 asks for an upgrade charge, so its test fails on the base code, which
+# has no upgrade module (frame 182). The base `prorate` already gives 1000.
+PRORATE_TEST = ("from src.billing.upgrade import upgrade_charge\n\n\n"
                 "def test_an_upgrade_charges_the_days_used():\n"
-                "    assert prorate(3000, 10, 30) == 1000\n")
+                "    assert upgrade_charge(3000, 10, 30) == 1000\n")
 # The Liaison's park message on a parked b1. The door writes the page's rows
 # from the records (frame 142, ruled: Roman, 2026-10-08).
 PARK_ASK = ["TOOL: msg.present_principal(refs=['i1', 'b1'])"]
@@ -1267,9 +1269,11 @@ def _triage(criterion: str) -> tuple:
     return (("tests.triage", (("criterion_id", criterion), ("verdict", "encodable"))),)
 
 
-_EXPORT_TEST = ("from src.billing.invoices import issue_invoice\n\n\n"
+# A test of c2 fails on the base code, which has no export module, so a
+# door's offered resend lands (frame 182).
+_EXPORT_TEST = ("from src.billing.export import export_invoices\n\n\n"
                 "def test_an_export_lists_every_invoice():\n"
-                "    assert issue_invoice\n")
+                "    assert export_invoices([{'id': 'inv1'}]) == [{'id': 'inv1'}]\n")
 # The Critic's challenge of t1, with the criterion's words and the test's.
 _CHALLENGE = (("refs", ["c1", "t1"]),
               ("quotes", ["an upgrade of 3000 cents used 10 of 30 days charges 1000 cents",
@@ -1433,6 +1437,14 @@ def catalogue() -> list[Call]:
     ]
 
 
+#: A check of c2 that the base code fails, because the base has no export
+#: module. A test of a change must fail before the change (frame 182). The
+#: project test's body follows it, so the call still tests frame 135's door.
+SW_EXPORT_CHECK = ("from src.billing.export import export_invoices\n\n\n"
+                   "def test_sw_an_export_lists_every_invoice():\n"
+                   "    assert export_invoices([{'id': 'inv1'}]) == [{'id': 'inv1'}]\n\n\n")
+
+
 def sweep() -> list[Call]:
     """The right calls. Each must land (the design's change 7, and S7's
     right calls of change 5)."""
@@ -1447,7 +1459,8 @@ def sweep() -> list[Call]:
         out.append(Call("two_batches", f"the project test {path} as an encode", t2,
                         "tests.encode", _encode(f"sw{n}", "c2",
                                                 path.replace("tests/test_", "tests/test_sw_"),
-                                                DISK + path), before=_triage("c2")))
+                                                SW_EXPORT_CHECK + DISK + path),
+                        before=_triage("c2")))
     # A module that does not parse in the sample, such as the planted
     # `src/auth/accounts.py`, has no right write that keeps it.
     for path in sorted(p for p in FILES if p.endswith(".py") and p.startswith("src/")
