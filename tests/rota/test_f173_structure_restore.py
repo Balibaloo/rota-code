@@ -161,6 +161,8 @@ def test_the_removal_line_is_keyed_and_takes_keep(run):
     key = removal_key("bg_1", GRAIN, 129)
     assert order[-1] == key, order
     assert f"  {len(order)}. The change removes code" in page, page
+    # Review p2, low: the numbered line stands after the page's last line.
+    assert page.splitlines()[-1].startswith(f"  {len(order)}. The change"), page
     assert line_menu(conn, key, order, page) == ("removal", ["keep", "approve"])
     assert _REMOVAL_ROWS["keep"] == ("approve", "keep", "row")
 
@@ -243,7 +245,8 @@ def test_the_stopped_page_names_run_6_and_fddff3af(run):
                          (f"tr{seq}", test, sha + "0" * 32, result, attempt))
     said = _red_run_words(conn, "bg_1", ["inh_7bed8d74", "inh_c55c4bf6"])
     assert said == ("They passed on runs 1 to 5 and failed first on run 6, "
-                    "at fddff3af, after the team stopped"), said
+                    "at fddff3af"), said
+    assert "after the team stopped" not in said
 
 
 # Pass 3: the four highs of the two reviews.
@@ -310,3 +313,20 @@ def test_a_keep_that_cannot_go_back_writes_the_reason_once(run):
     done, reasons = restore_wake(conn, "bg_1")
     assert done == [] and "context" in reasons[0], reasons
     assert conn.execute("SELECT note FROM touch_strays").fetchone()[0] == row["note"]
+
+
+
+def test_a_file_red_on_run_2_of_3_gets_no_stopped_clause(run):
+    """Review p2, high 1: the file passed on run 1 and failed on runs 2
+    and 3 while the team still worked. The sentence names the runs only."""
+    from rota.roles.principal import _red_run_words
+    conn, _root = run
+    for seq, (attempt, sha, result) in enumerate(
+            [(1, "aaaaaaaa", "pass"), (2, "bbbbbbbb", "fail"),
+             (3, "cccccccc", "fail")], 1):
+        conn.execute("INSERT INTO test_run_journal (id, batch_id, test_id, "
+                     "commit_sha, result, attempt) VALUES (?, 'bg_1', 'inh_1', ?, ?, ?)",
+                     (f"tr{seq}", sha + "0" * 32, result, attempt))
+    said = _red_run_words(conn, "bg_1", ["inh_1"])
+    assert said == "It passed on run 1 and failed first on run 2, at bbbbbbbb", said
+    assert "after the team stopped" not in said

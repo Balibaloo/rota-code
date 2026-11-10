@@ -2556,11 +2556,11 @@ def _red_run_words(conn: sqlite3.Connection, batch: str,
     """One sentence that names the run that made the red files fail, or "".
 
     Dry run 8's m59 said two files "still fail after 3 attempts". Both
-    passed on runs 1 to 5 and failed on run 6 only, at fddff3af, after the
-    key had stopped (frame 173, pass 2). A file that never passed gets no
-    sentence. A file that passed on every earlier run was green at each
-    counted attempt, so its red run came after the team stopped (reasoned:
-    the read of dry run 8, section 5)."""
+    passed on runs 1 to 5 and failed on run 6 only, at fddff3af (frame 173,
+    pass 2). A file that never passed gets no sentence. The sentence says
+    what `test_run_journal` holds and nothing more. The clause "after the
+    team stopped" was reasoned, and it was false for a file red on run 2
+    of 3 while the team still worked (frame 173 review p2, high 1)."""
     firsts: set[tuple[int, str]] = set()
     for test in test_ids:
         rows = conn.execute(
@@ -2580,7 +2580,7 @@ def _red_run_words(conn: sqlite3.Connection, batch: str,
     they = "It" if len(test_ids) == 1 else "They"
     runs = "run 1" if run == 2 else f"runs 1 to {run - 1}"
     return (f"{they} passed on {runs} and failed first on run {run}, "
-            f"at {sha}, after the team stopped")
+            f"at {sha}")
 
 
 def _key_words(conn: sqlite3.Connection, key: str, kind: str, n: int,
@@ -3063,7 +3063,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         "present", "confirm") and not (ask_id or "").startswith(SHIFT_ASK) else []
     if len(keys) == 1:
         order = [*order, keys[0]]
-        gone = f"  {len(order)}. {gone}"
+        # He reads line N after the page's last line, not above line 1.
+        page, gone = f"{page}\n  {len(order)}. {gone}", ""
     unnamed = account_unnamed_line(conn, ask_id) if returned else ""
     top = "\n".join(x for x in (back, unnamed, gone) if x)
     # The held lines render for the seat too, so "show me m52" lands on a
