@@ -305,6 +305,49 @@ from the criterion's words" is the reader's judgement. The claim about a
 test that turns green with no change of code rests on one reader's read
 of the journal, and no second reader has tried to break it.
 
+## Mass 6, the model as a component: the compare
+
+The read is `plans/method/product-mass6-read-2026-11-10.md`, one agent
+on Opus, about 358k. The reader took 17 statements from the design pages
+and read 38 of 1,858 sessions, drawn with seed 364, five per desk and
+the 3 of the Researcher. The draw script is `draw_sessions.py` in this
+session's scratchpad.
+
+The expectation, 04:46, had three parts. The expectation fails.
+
+1. Fewer than half of the sessions leave a record that a later act
+   uses. This fails: 32 of 38 left a record or a message, and a later
+   session or page used the output of 22.
+2. A session that leaves nothing ends after a refused call or a
+   repeated call. This does not hold. Of the 6 sessions that left
+   nothing, 4 woke on a question that another desk then answered, and
+   2 followed a brief that names an empty end.
+3. An onboarding wake leaves a used record more often than a build
+   wake. This does not hold as a rule. All 5 drawn sessions of the
+   Vision Keeper are a reconcile wake, and nothing used their output.
+
+What the expectation did not name:
+
+- The doors accepted 267 calls and refused 182. The Architect took 116
+  of the refusals.
+- Where the reader could check the output, 18 were true, 12 true in
+  part, 4 false, and 4 allowed no check.
+- After the door, something in the run checked the output of 18
+  sessions. Nothing checked the other 20.
+- Seven sessions wrote their own tool results. One session sent one
+  call 96 times in one turn.
+- One wake of dry run 7 ran 16 times, and one drawn session ran it
+  after another had read "attempt 3 of 3".
+- The first prompt was cut in 3 sessions. All 38 ran at a context of
+  16,384.
+- A later session rewrote rows that the person had approved, and the
+  rows now hold a text that is not the text on his page.
+
+Limits of this read. Five sessions per desk is a small count, and 3 of
+the 5 Developer sessions are from dry run 7. No drawn session failed,
+and 38 sessions of the pool did. 25 of the 36 wake kinds are not in the
+draw. "True" is one reader's check.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
