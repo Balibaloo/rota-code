@@ -267,6 +267,44 @@ count over the 11 is mostly a count over one sentence on one repository.
 Row 14 counts a new test file of the batch's own criteria as a path that
 the prediction did not name.
 
+## Mass 3, build and judgement: the compare
+
+The read is `plans/method/product-mass3-read-2026-11-10.md`, one agent
+on Opus, about 289k. The reader took 20 statements from the design pages
+and read all 9 batches of the 11 runs. No draw was made.
+
+The expectation, 04:30, had three parts.
+
+1. A batch merges within a few Developer sessions, or it does not
+   merge. This holds in commits and not in sessions. Each of the 3
+   merges stands on one Developer commit. Dry run 1 needed 18 Developer
+   sessions for that one commit, and 17 of them wrote nothing.
+2. The batches with no merge stop in the loop of test and code, not at
+   a review or at the gate. This does not hold as written. At the end
+   of their runs, 2 batches stand at a mistake in the head commit from
+   a judged stray, 2 at a head with no verdict, 1 at a criterion with
+   no test, and 1 is abandoned. The expectation did not name the stray
+   chain. The read gives the condition and no cause.
+3. A review's fail changes the code on at most one batch. This holds,
+   and by more than expected: no batch has a fail verdict. The 12
+   violated findings of dry run 5 woke no Developer session.
+
+What the expectation did not name:
+
+- Of 119 Developer sessions, 97 landed no code write.
+- "The test follows from the criterion's words" holds on 0 of 7
+  batches, and the Tester read the code under test in 7 of 8.
+- In 6 batches a test changed from fail to pass at a commit where the
+  code did not change, after the test was written again. In dry run 1,
+  dry run 2 and dry run 5 that change was the last step to green.
+- In dry runs 3, 4 and 5 the repository's own tests in the harness are
+  1 of 162 test files.
+
+Limits of this read. The 9 batches hold 5 of the fold request. "Follows
+from the criterion's words" is the reader's judgement. The claim about a
+test that turns green with no change of code rests on one reader's read
+of the journal, and no second reader has tried to break it.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
