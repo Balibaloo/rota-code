@@ -155,6 +155,32 @@ The connections are step 5. This list names them and says nothing more.
    against the path. One mass is the other possible cut.
 3. Mass 8 is small. It can stand alone or go into mass 2.
 
+## Roman's word on the map
+
+"Ok" (ruled: Roman, 2026-11-10, in the terminal; assumed: the word
+answers the nine masses and the three recommendations, with no
+correction). The seat and intent down are two masses. The outside stands
+alone. This review holds what each measure can show about the
+destination.
+
+## Mass 1, the seat: the compares
+
+### The count of the recorded pages
+
+The expectation, 03:44: 60 to 100 pages in all, and the database of most
+runs exists with each page's text and its reply. Fails if fewer than
+half of the runs keep a database.
+
+The result, `plans/method/product-seat-population-2026-11-10.md`: 134
+pages in 11 databases, and all 11 exist. The count is above the
+expectation, because the database of dry run 1 holds four measures and
+41 pages. The second part does not hold as written: no database stores
+the text of a page, and the page is built again from the rows at each
+call. Only blind run 1 keeps each page whole as the seat saw it. So a
+reader of dry runs 1 to 8 reads a page built again from a copy of the
+database, a transcript of a build session, or a turn log cut at 60
+lines.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
