@@ -37,7 +37,8 @@ The sibling case `L1-DV-build-a-clear-criterion` passed 5 of 5 on the same load 
 
 - Every Developer `batch_start` wake on qwen3:8b shares the cause: the model copies the read file back instead of adding the named function. The clear-criterion case hides it behind a call-count judge (observed: section 3).
 - This is the only register case that expects `ledger.log` (observed: `grep` on `tests/rota/cases/*.yaml`).
-- Other Developer reds in `.rota-gate.json` are at other ticks, `tests_failing`, `answer`, `reopen`, and the yaml comment on `L1-DV-fix-the-code-not-the-test` records the same shape: the seat reads and then writes nothing. A per-case query for cases llama3.1:8b passed and qwen3:8b never passed ran past its time cap and is not in this report.
+- Other Developer reds in `.rota-gate.json` are at other ticks, `tests_failing`, `answer`, `reopen`, and the yaml comment on `L1-DV-fix-the-code-not-the-test` records the same shape: the seat reads and then writes nothing.
+- Six register cases are green under llama3.1:8b and have 0 passed rows under qwen3:8b across every brief (observed: `case_runs`, rows and passed rows per model): this case (llama 1355 of 1484, qwen3:8b 0 of 3672), `L1-RS-say-what-you-tried-when-you-find-nothing` (1395 of 1480, 0 of 3687), `L1-TS-fix-a-test-that-asserts-more-than-its-criterion` (675 of 690, 0 of 3726), `L1-TE-log-the-word-you-took-one-way` (80 of 100, 0 of 3472, already marked red by construction in frame 326), `L1-CR-a-test-that-encodes-nothing-is-a-challenge` (80 of 315, 0 of 25), `L1-VK-an-outside-fact-is-the-researchers` (10 of 140, 0 of 3590). Four of the six are in the baseline's failed list. These are the model-swap reds (reasoned: green on one model, never green on the other, across every brief).
 
 ## 5. Fix shape
 
