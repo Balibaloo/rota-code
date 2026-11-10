@@ -14,6 +14,40 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## The redirect, 2026-11-10 00:32, on Roman's ruling: one seat holds the whole between runs
+
+Roman, 2026-11-10 00:32, after the meta review of 2026-10-26 to
+2026-11-09, `plans/meta-review-2026-11-10.md`: "I want you to take charge
+of redirecting the project" (ruled: T 5ee5ec0b). The review's finding:
+rota merges when the Principal knows the code, five runs on a careful
+person's sentence merged nothing, and each run starts before the frames
+the last run named are built. No seat holds the whole between runs, so he
+steers. Session 5ee5ec0b holds that seat as frame 363. The long term plan
+below stands. This section is the order inside its step 4.
+
+1. **The blind measurement on tips,** frame 364. A Claude agent with no
+   code knowledge sits in the seat, and the request is written with its
+   key before the run. No merge so far tests the destination as written.
+2. **The base verdict,** frames 182 and 171, with session 13b7eef8 or its
+   taker. The base verdict of the first test is run, not reasoned, before
+   pass 2 rests on it (observed: `plans/dry8-read-2026-11-08.md`, section 7).
+3. **One fresh implementer per pass.** Rule C39's stop clause holds: a
+   resumed pass costs 131k to 233k and a cold pass 74k to 77k.
+4. **The clarify door,** frames 183 and 114. Then keep as an act, frame 173.
+5. **Dry run 9,** with the request written first. No dry run starts
+   before items 2 and 4 are on the branch.
+6. **The stale reader** of the state print, and the release of the frames
+   whose holder is dead. The tool prints and offers, and never blocks.
+7. **The worker shape** of `plans/method/build-session-design-2026-10-29.md`.
+
+The turn shows within two cycles or it does not: dry run 9 names no
+repeat wall from a frame the dry run 8 read named, the gate's baseline is
+clean or attributed, his pages per run fall below 12, and one record says
+where the small model stops. If dry run 9 shows the same count of walls,
+or the blind measurement shows the pages do not carry the smallest
+written request, the fault is the wiring thesis, and the next move is
+his words of 2026-10-28, "less doors and more in depth test cases".
+
 ## The long term plan, 2026-10-31 03:04, from the completion line to the destination
 
 Roman, 2026-10-31 03:0x, after the audit `plans/forgotten-read-2026-10-31.md`:
@@ -1631,6 +1665,22 @@ a different question and the night is then opened once.
 **Roman ruled the order on 2026-10-07 00:55** (ruled: Roman, "Ok" to this session's recommendation after the five-day read, `plans/stack.md` of this minute). After night 127's read: 1. **Frame 131, a test calls a plain function as a Click command**, first, ahead of every unclaimed stall frame, because every night since 120 ends on its shape. 2. **Frame 170, a merge's review leaves no trace a person can read**, pushed on the same word. 3. **Frame 144, the night databases as a test tier**, runs to its close after pass 10 and takes no new item. 4. The rest of batch C stays unclaimed until a night shows one of its frames stopping a batch that frames 131 and 152 no longer stop. The reasoning: 24 frames closed in five days against 32 pushed in two, merges per night flat at 0 or 1 from night 116 to 126, and about 3M agent tokens on batch C's doors and nudges while frame 131 stood unclaimed since 2026-10-05 (observed: the five-day read of this session, 2026-10-07 00:40).
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
+
+### 364. No run has tested the destination as written: every merge had the build session's code knowledge in the Principal seat, and no request was written with its key before a run (2026-11-10) (5ee5ec0b)
+
+- **Site: `probes/agent_principal.py`, `probes/seat.py`, `probes/principal_brief.md`, and a copy of the tipsI sample repository.** Rota workflow. Three of three merges needed a row set by hand, a test diagnosis or a correction "as a Principal who knows the code" (observed: `plans/dry1-turn16-read-2026-11-02.md`, Result 5; `plans/dry4-read-2026-11-03.md`, wall 12). The fold request of dry runs 4 to 8 "was never written" (observed: `plans/dry8-read-2026-11-08.md`, Result 5).
+- Ends when: first, a probe shows that the agent Principal driver answers one page against today's loop, or names what it lacks; second, one tier 1 request of `plans/understanding-test-blind-2026-11-03.md` runs on tips from zero by the dry run 2 recipe, with the hash of its key committed before the run, a Claude agent in the seat that holds the request and the facts only, and the build session answering no page; third, a read scores the merged diff and the pages by the blind test's section 3 and counts the pages whose answer needed code knowledge, against the baseline of 3 of 3 merges. The frame closes on the read. A wall the read names is a new frame.
+- Waits on: the 3080, which the gate of frame 182 shares. Priced 3 cycles: the probe and the brief about 60k on Opus, the run about 30 minutes of GPU, the read about 200k on Opus (reasoned: dry run 2 ran 26 minutes, `plans/operating-facts.md` line 389; the dry run 8 read cost 184k).
+- Pointer: `plans/meta-review-2026-11-10.md`, "The order from here", item 1.
+- Sprint: this sprint, beside the build of frame 182 (assumed: his word of 2026-11-10 00:32 covers this one run before the known issues of his order of 2026-11-06 02:01; the question to him named the departure, and his answer gave the session the order). Capability 9 of `rota/COMPLETION.md`, the seat as an exchange, and the destination sentence. Pushed at 14 of 10.
+
+### 363. The build has no seat that holds the whole between runs, so each run starts before the frames the last run named are built, the fixes pool at the door scale, and Roman steers (2026-11-10) (5ee5ec0b) (Roman)
+
+- **Site: the head of `plans/stack.md`, `plans/method/reference.md`, and `rota/tools/state.py`.** Meta workflow. Of dry run 8's 16 walls, 10 were repeats and 7 match 8 frames pushed and never built; nine changes of direction in two weeks were all his; the gate's red floor rose from 6 to 32 and was stored as the baseline (observed: `plans/meta-review-2026-11-10.md`).
+- Ends when: first, the order between runs stands at the stack's head, and the next step of every held frame agrees with it; second, one moment in `plans/method/reference.md` fires after each dry run's read and before any frame: read the run against the destination, re-derive the order, decide build or measure, and say where the model stops, designed from what exists with one review; third, the state print carries one line of capability beside the frame count; fourth, the count on two cycles: dry run 9 names 0 repeat walls from the frames the dry run 8 read named, baseline 10 of 16, and every red of the gate's baseline is attributed to a model's limit or to a frame, baseline 33 with no attribution since 2026-10-30. Residue rule: a repeat wall on dry run 9 is read, and the frame stays open only when its cause is a frame that was placed and not built.
+- Waits on: nothing. Priced about 6 cycles: the order and the page 1, done at the push; the design read of the moment and its review 2, about 100k on Opus; the state print's line 3, an instrument fix (reasoned: C42).
+- Pointer: `plans/meta-review-2026-11-10.md`.
+- Sprint: this sprint, first (ruled: Roman, 2026-11-10 00:32, "I want you to take charge of redirecting the project"). It serves the completion line of `rota/COMPLETION.md`, "Core, by capability", and no single capability. Pushed at 14 of 10; the release of the frames whose holder is dead is item 6 of the redirect and brings the count down.
 
 ### 362. Onboarding was built from what source code offers, and no record says what each seat needs from it, so the survey writes facts nobody reads and misses the commitments everybody needs (2026-11-03) (ce483c7b) (07f209e6) (535a30c6) (9f60e445) (94cb1260) (1b9e813c) (029756dd) (8b2312ef) (0d047fa7) (0ff6bcd7) (13b7eef8)
 
