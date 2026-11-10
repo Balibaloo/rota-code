@@ -224,6 +224,49 @@ to the Liaison's question m8 two times with "m8 is not an open gate",
 and the row m8 has `status='open'` (observed: the read, Part D item 8).
 The read gives no cause.
 
+## Mass 2, intent down: the compare
+
+The read is `plans/method/product-mass2-read-2026-11-10.md`, one agent
+on Opus, about 336k. The reader took 19 statements from the design pages
+and read all 11 requests of the 11 runs. No draw was made.
+
+The expectation, 04:12, had three parts.
+
+1. The confirm step keeps the request's meaning on most requests. This
+   holds, 11 of 11.
+2. On about one request in three, the items hold a piece that the
+   request did not ask as work. This does not hold at the items: 10 of
+   11 request items restate the request, and one adds words. The
+   addition is one layer lower. In 5 of the 8 requests with criteria, a
+   criterion asks for a behaviour that the request does not name, and
+   the person dropped it in 3.
+3. The predicted touch names the files of the merged diff on fewer than
+   half of the merged batches. This fails for the source files: the
+   batch's predicted touch names every changed source file on 3 of 3
+   merges. The expectation joined two different records. The guess
+   beside the item at signoff named the wrong file in 5 of 5 fold runs.
+   The batch's touch named `string.py` in the same runs.
+
+What the expectation did not name:
+
+- Three of 11 requests merged. Three stopped before a batch. Five have
+  a batch and no merge, and all five are the fold request.
+- 54 to 206 sessions ran and 6 to 16 pages went to the person before
+  the first batch start. 48% to 81% of those sessions were onboarding
+  wakes.
+- No run holds an item for what must stay as it is, and 8 requests name
+  such a thing.
+- A landed contest left its target row unchanged in 4 requests. The
+  mass 1 reader reports the same on rows of the same runs. The two
+  readers did not see each other's page.
+
+Limits of this read. The 11 requests are 5 different sentences and one
+request to write tests again. The fold sentence counts six times, so a
+count over the 11 is mostly a count over one sentence on one repository.
+"Adds", "restates" and "work not asked for" are the reader's judgement.
+Row 14 counts a new test file of the batch's own criteria as a path that
+the prediction did not name.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
