@@ -884,6 +884,52 @@ rows. For nights 100 to 132 the reader saw the first line of each page
 only. The seat on the nights was a script or a model. 6 of the 9 night
 draws are one request, `echo_json`.
 
+## The exploration continues: the capabilities and the completion line
+
+The read is `plans/method/product-capability-read-2026-11-10.md`, one
+blind agent on Opus, about 220k. This session judged from the agent's
+reply and did not read the page whole.
+
+**Expected** (on frame 364, 11:24): fewer than half of the 11 partial
+capabilities have a measure that a recorded run tests. Three or more
+lines of the page disagree with the code or the runs. The completion
+line can hold by its letter while the destination does not. Fails if
+most capabilities carry a run measure with a result.
+
+**Found** (observed: the read): the first two hold. The third holds in
+its second half only.
+
+- 1 of 11 capabilities names a count that a run can give.
+- The marks: 3 true, 6 stale, 1 contradicted, 1 not testable. Ten of
+  the eleven states are the reading of 2026-09-12 and 2026-09-13. The
+  page says that it "takes no status update after 2026-09-17". So the
+  page is a record of the target and not of the state.
+- The completion line cannot hold by its letter today. Two capabilities
+  are not built, one is parked, and the gate baseline of 2026-11-10
+  07:19 has 33 reds with no attribution.
+- If the line held, the destination does not follow. No capability and
+  no condition of the line measures "a careful person", "alone" or
+  "they can read".
+
+**Not expected:**
+
+- The page says that a disagreement is "a page to the principal,
+  always". In dry runs 2 to 9, 0 of 120 `conflict` rows reached a page.
+- Each lineage repository merged one time from zero, all on 2026-11-02.
+  The page of the blind test names a broken promise of the project on
+  each of the three merges: no line in the change log, tests outside the
+  test paths, and a guard added to both copies of a function. The dry
+  runs since 2026-11-03 gave no merge.
+- "The shipped profile" of the completion line names no single profile.
+  The Critic ran on qwen3.5:9b in 104 of 110 runs.
+
+**What the result means for the reading** (reasoned): the review now
+has the same gap at three levels. The measures of the runs, the target
+page and the completion line all test a merge, and none tests the
+person. A change can be right by its behaviour and still break a
+convention of the project, and no check of rota reads those conventions
+at the merge.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
