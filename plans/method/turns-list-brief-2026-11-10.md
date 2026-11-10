@@ -43,7 +43,13 @@ a commit, or a database with a query.
 
 1. The run: its name, its dates, the commit of rota that it ran on, the
    requests and the models. Mark two runs as equal when the commit, the
-   requests and the models are the same.
+   requests and the models are the same. The source is the table of
+   `plans/method/product-model-read-2026-11-10.md`, which holds every
+   run and night and names the equal nights. Do not count again. That
+   read found no commit for nights 82 to 86 and for dry run 1. For a
+   night with no commit, the block is the nights whose first session
+   starts between two commits to `rota/`, by the session times and the
+   dates of `git log`. Mark such a block "by date".
 2. The question or the expectation that was written before the run, if
    any. Quote it, with the path and the time. "None" is an answer.
 3. Where the goal of the run stood before it started: a page, a frame's
@@ -57,8 +63,11 @@ a commit, or a database with a query.
    the next run, closed, put aside, or still open at the next run.
 7. What the build session changed before the next run, by kind: a door
    or a refusal, a prompt or a brief of a seat, a cap or a limit, other
-   code of rota, a tool of the build session, a rule or a memory text, a
-   record only. Counts from `git log` between the two runs.
+   code of rota, the harness or the measure of a run (`probes/`), a tool
+   of the build session, a rule or a memory text, a record only. Counts
+   from `git log` on `rota/` and on `probes/` between the two runs. A
+   turn that changed what the run counts must not look like a turn that
+   changed nothing.
 8. Which walls of this turn the next three runs met again, wall by wall.
    For each match say how you matched it: the same cause, the same sign
    at the same place, or not sure. A keyword match alone is "not sure".
@@ -69,6 +78,12 @@ a commit, or a database with a query.
     that corrects or turns the work.
 11. The sessions that held the work inside the turn, and the hand-offs
     between them.
+12. For each block of nights, one line: the stops of each class of the
+    stops read that no read of the turn named.
+
+A thin row. Most blocks of nights have no read page. For such a block
+fill columns 1, 7, 8 and 12 from the rows and from git, and write "no
+read" in the others. Do not fill a cell from prose that is not there.
 
 After the table, three short lists with no reading of yours: the turns
 with no read page; the pairs of equal runs, with their results side by
@@ -83,7 +98,15 @@ The rota side:
   `plans/method/product-seat-population-2026-11-10.md`.
 - The read pages of the runs, `plans/*read*.md`, and `plans/dry9/`,
   `plans/dry-blind1/`.
-- `git log` on `rota/` between two runs.
+- `git log` on `rota/` and on `probes/` between two runs. The harness
+  of a night and the measure change in `probes/`.
+- `plans/method/product-dry9-check-2026-11-10.md` for dry run 9, and
+  `plans/method/product-break-read-2026-11-10.md` for the nights over
+  time.
+- `plans/method/product-reconcile-2026-11-10.md` for the path of the
+  original file of dry run 6.
+- The night logs beside the night files. They hold the runner's account
+  of each stop.
 - Two reads that already count a part. Use their counts, and do not
   count again: `plans/method/product-stops-read-2026-11-10.md`, every
   batch that did not merge, by class; and
@@ -121,6 +144,9 @@ Ask the map tool before you grep the code:
 - "Done" and "not seen again" were soft counts in earlier reads. A frame
   can be done and never closed, and a wall can return under a new name.
   Mark each such cell "not sure", and do not force a class.
+- A read page is the build session's own account. So the list sees only
+  the walls that a read named. Column 12 shows a part of what the reads
+  did not name.
 - One reader and one pass. Say so at the top of the page.
 
 ## How you work
