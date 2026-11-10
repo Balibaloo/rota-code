@@ -506,7 +506,42 @@ theory read. "Set aside" says that the rules fight each other.
 
 ### The compare of the misses
 
-Not written yet.
+The reader ran 19 minutes from 15:54. This compare is written at 16:14.
+The page is `boundary-misses-read-2026-11-10.md`. The classes are one
+reader's judgement, and four cases rest on partial evidence.
+
+Against the expectation, 9 or more "in view, not recalled": 8 of 16.
+The number missed by one and the direction held. The trigger failed.
+
+- In view, not recalled: 8. Recalled, read differently: 3. Not in view:
+  2, where the session opened the file and its reads skipped the lines.
+  Recalled, set aside: 1. Other: 1. Cannot tell: 1.
+- From the last sight of the words to the act, the median is 27 minutes
+  and 40 tool calls for the cases not recalled.
+- The trigger. I expected a line of the note, an agent's result or a
+  hook. In 12 of 16 the wrong act directly follows a message of Roman.
+  A message of another session: 2. An agent's result: 1. The session's
+  own plan: 1. A line of the note: 0.
+- The per-turn hook line "If you are not blocked, continue working"
+  stood between the trigger and the act in 13 of 16.
+- In 15 of 16 the session acted by the same rule at another moment,
+  mostly after the correction. In three cases of today it kept the form
+  of the rule and missed its reach: it wrote an expectation before each
+  act and still cut the scope.
+- The model's thinking is empty in most records. So 7 of the 8 cases
+  "not recalled" cannot be told from a silent recall.
+
+What it changes. The miss does not come from the hand-off. It comes
+when Roman speaks. The session answers his new message with an act, and
+his standing words, last seen about 27 minutes and 40 calls before, do
+not enter that act. He said this himself on 2026-09-16: "You are too
+influenced by me".
+
+One caution on that reading. Roman corrects what he sees, and he sees
+the act that follows his own message. So 12 of 16 can be a fact of
+where he looks, and not a fact of where sessions miss. The records
+cannot separate the two, because they show a miss only when he corrects
+it.
 
 ## The research on boundaries, ruled 13:58
 

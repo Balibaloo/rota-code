@@ -34,6 +34,32 @@ stands, and it is the only thing in the records that finds a miss.
 The reads do not show why a session acts against words that it holds.
 That is the open question of this research.
 
+## After the read of the misses (16:14)
+
+One reader took the 16 corrections where the taker held Roman's words,
+and read each session's record before the wrong act. The page is
+`boundary-misses-read-2026-11-10.md`.
+
+- 8 of 16: the words were in view and nothing near the act recalls
+  them. The last sight was 27 minutes and 40 tool calls before, at the
+  median.
+- 3 of 16: the session named the rule at the act and read it so that
+  the act was allowed.
+- In 12 of 16 the wrong act directly follows a message of Roman. In 0
+  it follows a line of the hand-off note.
+- In three cases of today the session kept the form of a rule and
+  missed its reach.
+
+So the open question has a first answer, with one caution. A session
+acts against words that it holds when a new message of Roman arrives.
+It answers the new message, and the standing words do not enter the
+act. The caution: he corrects what he sees, and he sees what follows
+his own message. The records cannot separate the two.
+
+For the question of this page, the result is plain. The boundary
+between two sessions is not where the goal is lost. The hand-off note
+triggers none of the 16 misses.
+
 ## The first result, kept as it was written at 14:15
 
 My hypothesis was wrong in its main part. I said that the goal is lost
