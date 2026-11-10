@@ -327,6 +327,16 @@ numbers are small. Most of the 32 hand-offs carry one frame with a
 build, and a frame's heading holds its own goal. Today's hand-offs
 carry a review whose goal is above any frame.
 
+### The channel after the dialog closed
+
+Rota-3d answered the message of 13:05 after Roman closed its dialog
+with no option chosen. Its harness then sent the idle notice that I
+asked for at 13:16, and the notice names 14:21 as the end of its turn.
+So the request for an idle notice does not fire while a session waits
+on a dialog. It fires at the first idle moment after the dialog
+closes. That settles open fact 3 of the channel read. A held message
+is not lost: rota-3d read it when the dialog closed.
+
 ## The research on boundaries, ruled 13:58
 
 Roman, about 13:45: "Well are you sure? Do we need to research inter
