@@ -3490,6 +3490,9 @@ def _landed_ruling_refusal(ctx: api.Ctx, refs, text: str,
     answer (frames 183 and 114, build 2, W3). The seat reads his words once.
     A clarify that names the ruling in its refs has read it and lands. The
     door shows each ruling once per session, so a second send lands too.
+    Only a ruling that answered a question page counts. A verdict on the
+    lines of a `present` answers no clarify, and dry run 8's m57 met r_m46,
+    "Line 4: drop it" (review p1 of build 2, finding 3).
     """
     refs = [r for r in refs or () if isinstance(r, str)]
     if not refs:
@@ -3502,9 +3505,14 @@ def _landed_ruling_refusal(ctx: api.Ctx, refs, text: str,
     rows = [r for r in ctx.conn.execute(
         "SELECT rr.ruling_id, rr.ref, rr.verdict, rr.words FROM ruled_refs rr "
         "JOIN rulings r ON r.id = rr.ruling_id "
+        "JOIN messages m ON m.id = r.ask_id "
         f"WHERE r.status = 'landed' AND rr.ref IN ({marks}) "
+        "  AND m.verb IN ('clarify', 'converse') "
         "ORDER BY rr.rowid", refs)
         if r["ruling_id"] not in refs and r["ruling_id"] not in shown]
+    # A ruling repeats a ref once per line of its verdict. Dry run 8's m57
+    # met r_m46 three times, twice on tst_c3 (review p1, finding 3).
+    rows = list({(r["ruling_id"], r["ref"]): r for r in rows}.values())
     if not rows:
         return None
     shown.update(r["ruling_id"] for r in rows)

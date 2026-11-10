@@ -118,6 +118,44 @@ def test_a_liaison_tick_that_can_clarify_sees_his_answers(w3):
     assert got["prior_answers"][0]["question"] == M30
 
 
+def test_a_verdict_on_the_lines_of_a_present_refuses_no_clarify(w3):
+    """Review p1, finding 3. r_m46 ruled m31's lines, and m57 asked about c3."""
+    _msg(w3, "m31", 31, "liaison", "principal", "present", ["bg_1", "c3"])
+    _msg(w3, "m46", 46, "principal", "liaison", "converse", ["bg_1"], cause="m31",
+         thread="m31")
+    w3.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+               "status) VALUES ('r_m46', 'm31', 'm46', '{}', 'Line 4: drop it.', "
+               "'landed')")
+    # The fixture has no c3 row, so tk_1 stands for m57's refs.
+    for n, ref in enumerate(("tk_1", "tk_1")):
+        w3.execute("INSERT INTO ruled_refs (id, ruling_id, ref, verdict, words, "
+                   "words_from, source) VALUES (?, 'r_m46', ?, 'approve', "
+                   "'Line 4: drop it.', 'm46', 'landed')", (f"rr_46_{n}", ref))
+    sb = _liaison(w3)
+    sb.call("msg.clarify_principal", refs=["tk_1"], question=M52)
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_the_refusal_names_each_ruled_ref_once(w3):
+    w3.execute("INSERT INTO ruled_refs (id, ruling_id, ref, verdict, words, "
+               "words_from, source) VALUES ('rr_dup', 'r_m45_2', 'bg_1', "
+               "'approve', ?, 'm45', 'landed')", (R_M45,))
+    sb = _liaison(w3)
+    with pytest.raises(ValueError) as got:
+        sb.call("msg.clarify_principal", refs=["bg_1"], question=M52)
+    assert str(got.value).count("r_m45_2 on bg_1") == 1
+
+
+def test_a_liaison_mode_with_no_tool_list_gets_no_answers(w3, monkeypatch):
+    """Review p1, finding 5. `base` and `landing.base` have no tool list."""
+    from rota.core import runner
+
+    _msg(w3, "m34", 34, "developer", "architect", "escalate", ["bg_1"])
+    monkeypatch.setattr(runner, "_wake_allow", lambda wake, conn: None)
+    got = resolve_inbound(w3, Wake("liaison", "tick:unresolved", refs=("m34",)))
+    assert "prior_answers" not in got
+
+
 BASE_RED = ["inh_16dcb40b", "inh_70337a4f", "inh_e2eb1d19"]
 PATHS = {"inh_16dcb40b": "src/icalendar/tests/test_issue_1445.py",
          "inh_70337a4f": "src/icalendar/tests/test_rfc_6868.py",

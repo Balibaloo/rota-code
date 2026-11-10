@@ -2617,11 +2617,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # measured a report. Dry run 8's Liaison asked him again on
     # `tick:unresolved` and `tick:park_ask` and saw none of his answers
     # (frames 183 and 114, build 2, W3). So every Liaison wake that can
-    # clarify sees them too.
+    # clarify sees them too. A mode with no tool list, `base` and
+    # `landing.base`, cannot clarify, so it gets none (review p1, finding 5).
     allow = (_wake_allow(wake, conn) if wake.role == "liaison" else [])
     if row["verb"] == "report" or (
-            wake.role == "liaison"
-            and (allow is None or "msg.clarify_principal" in allow)):
+            wake.role == "liaison" and "msg.clarify_principal" in (allow or [])):
         # What the principal has already said about these rows. A report
         # about a row the principal answered once is not a new question. On
         # the tipsG walk (2026-09-09) the Terminologist reported one collision
