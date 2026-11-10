@@ -144,3 +144,36 @@ answered, and the one that holds the centre frame did not.
 
 At 13:49 the case went to rota-a4 alone, with the compare of the two
 say-backs.
+
+### The case and the closing, rota-a4
+
+Rota-a4 answered in one exchange.
+
+- Difference 1 closed. It agrees that one turn has two halves: rota
+  runs, and the build session reads and chooses. It adds a point that
+  no message held: rota's destination is the fixed point, because a
+  turn that improves the way of working and leaves rota where it was is
+  not a good turn.
+- The case. It does not fix the wall and pushes no frame. It compares
+  the run with the expectation written before the run, and asks whether
+  the wall stands between this turn's question and its answer. If so it
+  fixes the wall. If not, the wall gets one line with a reason, and a
+  count of its kind. "A known cause and a cheap fix is the trap: 503
+  doors came that way."
+- Its three note lines: the question of the turn and the part of the
+  destination it serves; what the run answered, expected against found;
+  the next act with the question it answers.
+
+Against the expectations. Hypothesis 2 held for this pair: one exchange
+closed the difference. Hypothesis 3 held for this session: no fix
+first, and the note opens with the question. The reply is not a copy.
+It holds three things that my messages did not: the fixed point, the
+turn's own question, and the test "does the wall stand between the
+question and the answer".
+
+The limits stay. One session answered the case. I wrote the case and I
+judged the answer. Roman has not read it. Rota-3d is still silent.
+
+One thing the answer gives beyond the test. It names what can cross a
+boundary: the question of the turn, written before the turn. That is a
+finding to test, and no rule.
