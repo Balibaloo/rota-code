@@ -40,6 +40,24 @@ below stands. This section is the order inside its step 4.
    whose holder is dead. The tool prints and offers, and never blocks.
 7. **The worker shape** of `plans/method/build-session-design-2026-10-29.md`.
 
+The four lines after dry run 8, by the moment of frame 363
+(`plans/f363-moment-read-2026-11-10.md`, design A):
+
+- Destination: no merge on a careful person's sentence, 0 of 5 runs on
+  the icalendar fold sentence, and 3 of 3 merges on the named-function
+  requests had code knowledge in the seat. Step 4 of the long term plan
+  is not reached. The line repeats from dry run 4.
+- Order: 364 (capability 9), 182 and 171 (6, D3), 183 (1, A1) and 114
+  (2, A7), 173 (2, A7), then dry run 9.
+- Next: build. The Destination line repeats, and the first walls dry run
+  9 would meet are frames 182, 171, 183 and 114, placed and not built.
+  The one measure beside the build is frame 364, for a fact no run holds:
+  whether the pages alone carry a written request to a merge.
+- Model: one. `L1-TS-the-run-shows-a-split-word` is 0 of 5 on qwen3:8b:
+  the door holds, and the model does not write the property check from
+  the words (observed: `plans/method/handoff-13b7eef8.md`). Every other
+  wall of dry run 8 is wiring.
+
 The turn shows within two cycles or it does not: dry run 9 names no
 repeat wall from a frame the dry run 8 read named, the gate's baseline is
 clean or attributed, his pages per run fall below 12, and one record says
