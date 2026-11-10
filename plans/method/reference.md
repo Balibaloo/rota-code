@@ -403,7 +403,29 @@ comes first, then the state print, then the sender's note.
   list-price estimate. Nothing is billed on Roman's subscription. Report
   asks and tokens, never cost (ruled: Roman, 2026-10-16, memory
   `rota-night-dollars-are-nominal.md`).
-- [C46, the sprint end] A sprint ends at its design frame's night read. The
+- [C46, the sprint end, amended 2026-11-10] The order is written again at
+  every run's read: a night, a dry run, or any run end to end against the
+  destination (reasoned: frame 363, under Roman's word of 2026-11-10
+  00:32, after eight dry runs wrote no order because the entry below
+  fired at a night's read only; `plans/f363-moment-read-2026-11-10.md` and
+  its review). After C77's reasoning and before any frame moves, the
+  session that holds the order writes four bullets under a dated heading
+  at the top of `plans/stack.md`:
+  1. Destination: three counts. The merges on the destination's request,
+     the step of the long term plan the run reached, and the walls that
+     match frames placed and not built.
+  2. Order: the next frames as `frame <n>`, re-derived from the open
+     frames and the read. Each is a build row or a measure row.
+  3. Next: build while a build row of the Order is open. Measure when
+     every build row is closed, and name the count the run is for. A
+     measure for a fact that no run holds may run beside the build.
+  4. Model: the walls placed under cause 5 of `plans/wall-guide.md` by an
+     interview of C36, or "none placed". A wall with no interview is not
+     named here.
+  `state` prints the Destination and Next lines. Nothing refuses. A
+  placement stays (reasoned) until Roman rules it, as section 4 says, and
+  the order never pauses the session, by C48. The entry before the
+  amendment: A sprint ends at its design frame's night read. The
   session that reads the night crosses off the closed frames, moves the
   frames the night pushed into one order, and writes the order at the top
   of `plans/stack.md` as the next sprint with its date (ruled: Roman,

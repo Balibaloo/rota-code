@@ -57,8 +57,9 @@ Roman steers.
    Rule C76 of 2026-10-26 asks for the root read, and Roman asked for it
    again on 2026-11-08.
 5. **The wiring thesis is not settled.** The wiring grows and does not
-   converge. No record says "the 8B stops here" for a wall, and no door
-   was removed. Roman's "less doors and more in depth test cases" of
+   converge. No read of dry runs 4 to 8 places a wall as a model's limit,
+   and no door was removed. Corrected 2026-11-10 by the review of frame
+   363: one older wall is placed so, frame 201's interview. Roman's "less doors and more in depth test cases" of
    2026-10-28 is the one recorded push the other way.
 
 ## The order from here
