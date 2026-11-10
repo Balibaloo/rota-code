@@ -20,6 +20,7 @@ The menus:
   `rewrite` when his words refuse no shown file and say that the line must name a function or a file that it leaves out: "that function should be named as expected".
 - The read-back line, "Your answer ...": `ok` when it reads him right, `misread`, `misread, drop`, `slightly off` when it is right in substance and needs other words, `rewrite`.
 - The request line: `approve`, `add <quote>` when the reply asks for something that the page leaves out.
+- The removal line, "The change removes code ...": `keep` when he wants the removed statement kept, and the structure puts it back with no model. `approve` lets the removal stand.
 - Any other line: `approve`, `drop`, `rewrite`, and `add <quote>` on an item.
 - Every line: `other <quote>` when no option fits. A quote is his words, copied.
 
