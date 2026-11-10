@@ -3263,6 +3263,16 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
         return api._offer(
             ctx, fact + " Send msg.escalate_architect on the same refs.",
             "msg.escalate_architect", {"refs": once})
+    # A test red at the base never climbs, and the rest still can. A mixed
+    # set offered the end step, where the escalation door takes the rest
+    # (review p1 of frames 183 and 114, finding 6).
+    red = _base_red_refs(ctx, once)
+    rest = [r for r in once if r not in red]
+    if red and rest and _escalation_admitted(ctx, rest):
+        return api._offer(
+            ctx, fact + f" {', '.join(red)} {'was' if len(red) == 1 else 'were'}"
+            f" red before this change, so send msg.escalate_architect on the "
+            f"rest.", "msg.escalate_architect", {"refs": rest})
     if step == END_STEP:
         return _Ending(fact + " " + step + " " + _end_form(ctx, once))
     if offer:

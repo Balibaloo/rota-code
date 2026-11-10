@@ -209,6 +209,25 @@ def test_a_mixed_escalation_climbs_without_the_tests_red_at_the_base(w5):
     assert [m["body_refs"] for m in sb.ctx.outbound] == [["inh_02554f55"]]
 
 
+def test_a_challenge_refusal_on_a_mixed_set_offers_the_rest(w5):
+    """Review p1, finding 6. The mixed set met the end step."""
+    from rota.core.sandbox import END_STEP, _Ending, _escalation_or_step
+
+    sb = _developer(w5)
+    said = _escalation_or_step(sb.ctx, ["inh_16dcb40b", "inh_02554f55"],
+                               "you sent challenge to tester 3 times already.",
+                               END_STEP)
+    assert not isinstance(said, _Ending)
+    assert said == ("you sent challenge to tester 3 times already. inh_16dcb40b "
+                    "was red before this change, so send msg.escalate_architect "
+                    "on the rest.")
+    assert [o.args for o in sb.ctx.offers
+            if o.op == "msg.escalate_architect"] == [{"refs": ["inh_02554f55"]}]
+    # The base-red test alone still meets the end step.
+    alone = _escalation_or_step(sb.ctx, ["inh_16dcb40b"], "fact.", END_STEP)
+    assert isinstance(alone, _Ending)
+
+
 def test_a_test_not_red_at_the_base_still_climbs(w5):
     from rota.core.predicates import unresolved
 
