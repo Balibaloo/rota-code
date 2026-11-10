@@ -576,6 +576,99 @@ complete, the worktree keeps the desks' writes in, the door's fact is
 right on 24 of 30, and 22 of 38 sessions leave a record that a later
 act uses.
 
+## Step 5: the break test, and the claims as they stand
+
+The read is `plans/method/product-break-read-2026-11-10.md`, one agent
+on Opus, about 275k. It checked each claim again on the dry runs and
+then on 98 night files with 28,803 sessions. No claim stands whole.
+
+The expectation, 06:39: C2 breaks in part on fail verdicts, C1 holds in
+part, C3 and C5 hold, C4 cannot be tested on the nights. The first two
+hold. C3 and C5 hold in part only. C4 falls on the dry runs themselves,
+which this session did not expect.
+
+The claims, corrected:
+
+- **C1.** A contest, a revise or a drop changes the criteria, tests,
+  items and guesses that it names in most cases: 31 of 44 on the dry
+  runs. It almost never changes a glossary row, a constraint or a batch
+  row, 1 of 35, because those have no state for it. The quarantined
+  replies come from failures of the model server and are not part of
+  this claim.
+- **C2.** The merge conditions held on every merge in both bodies, 77
+  of 77. A merge can rest on a test that went green when it was written
+  again after a Developer's challenge, which is the designed path: 12
+  merged heads on the nights. "No verdict fails" was an effect of the
+  dry runs. The nights hold 18 fail verdicts, 16 got a new commit, and
+  8 of those batches merged.
+- **C3.** Onboarding wakes are about two in three of the sessions before
+  the first batch start in both bodies. Over a whole night they take
+  14% to 29% of the model time. The text of a project record reaches
+  43% of the delivery prompts of the dry runs and 3% to 23% of those of
+  the nights. No record shows a use of it.
+- **C4 falls.** Only dry run 4 sent its commits to `parameter.py`. In
+  dry runs 5, 7 and 8 the fact arrived: the criteria and the prompts
+  name `_foldline`, and the commits go to `string.py`. Those batches
+  stopped when the Developer removed lines of `_foldline`, the
+  Architect judged the removal a mistake, and the Developer did not put
+  the lines back in 3 attempts.
+- **C5.** A stop shows on a page by the wake that failed, and not by
+  the limit or the rule behind it. 21 of 24 unresolved questions on the
+  nights did not climb. The example of the model server falls: today's
+  code names a server that is down. The mass 6 read was wrong that no
+  row keeps a session's last words.
+
+What the claims left out (observed: the break read):
+
+- The nights changed over time. Nights with a merge: 8 of 33, then 20
+  of 33, then 19 of 32. Sessions per merged batch: 906, then 404, then
+  260.
+- A contest stops work by a cancel. 41 of 63 abandoned batches hold a
+  contested item, and in the later nights the abandoned batches, 63,
+  are close to the merged ones, 65.
+- Open faults grow: 17 in the middle third of the nights, 226 in the
+  late third.
+
+## The reading at this resolution
+
+The question is whether rota, as designed, can reach its destination.
+This is the session's reading after nine masses and one break test
+(reasoned: the compares above). It is not a ruling and holds no fix.
+
+1. **The records cannot answer the question yet, and the reason is the
+   measures.** Of the six parts of the destination, the runs test "a
+   merged change" many times. They test "a careful person", "alone" and
+   "they can read" zero times with a person and one time with a blind
+   agent, which stopped at its third page. Every repository was
+   prepared and carries rota's earlier deliveries.
+2. **The skeleton of the design holds in the rows.** One wake is one
+   session. A session commits or discards, on 30,661 sessions. Approval
+   comes before work. The merge conditions decide 77 of 77 merges. The
+   tool does not rule for the person. The index is complete.
+3. **On click with a yes-sayer in the seat, the capability rose.** The
+   share of nights with a merge went from one in four to three in five,
+   and the sessions per merged batch fell to less than a third.
+4. **Three loops stand between the skeleton and the destination.**
+   - The care loop. A person who contests gets a cancelled batch about
+     as often as a merged one, and is asked again on about half of the
+     pages. The destination names a careful person, and the measures
+     that show progress use a seat that says yes.
+   - The judgement loop. The gate is sound and its inputs are soft: a
+     test written again until green, and a judge that says no on 18 of
+     about 100 nights. So "a change they can read" rests on the person's
+     own reading, and nothing measures that reading.
+   - The cost loop. About two in three sessions before the first batch
+     are onboarding. On the same repository they repeat word for word
+     in each run. The person answers 6 to 16 pages before the work on
+     the request starts.
+5. **Where the small model stops is open, and one read can narrow it.**
+   Three different requests that add a guard to one function merged,
+   each on one commit. The one request that rewrites the inside of a
+   function, the fold, merged 0 of 7 times. In 3 of those runs the
+   right function was named and changed, and the batch stopped on
+   removed lines. The records read so far cannot tell a wrong edit by
+   the model from a right edit that the stray rule refuses.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
