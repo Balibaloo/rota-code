@@ -223,7 +223,50 @@ Then the content of a note is not the cause.
 
 ## The compare of the research
 
-Not written yet.
+### Read 5, published work on agents, landed 14:08
+
+The page is `boundary-agents-read-2026-11-10.md`, 46 sources. I checked
+the two sources with the most weight against their abstracts. Both
+exist. The first matches the reader's numbers. For the second, the
+abstract gives the gains in effort and calls the gain in solved tasks
+"smaller and model-dependent", so the reader's solve rates come from
+the full paper and I did not check them.
+
+Against the expectation, three parts:
+
+- "Lost context at a hand-off is a main cause of failure": failed as
+  written. In the MAST taxonomy the direct loss of history is 2.8% of
+  failures. Failures of verification are 23.5%, and an agent that does
+  not ask is 6.8%. The larger class is that nobody checks.
+- "One holder with workers over peers": held in part. The sources agree
+  that parallel reading is easier than parallel writing, and that the
+  gain from more agents runs from +80.8% to -70.0% by task.
+- "Few measurements": failed. Two measurements bear directly on today.
+
+The two measurements:
+
+1. A summary of a long session keeps 17% of the constraints that the
+   user stated once. Unapproved acts went from 0 of 100 sessions to 30
+   of 100 after the summary. A separate list of the constraints, kept
+   apart from the summary and appended to it, kept over 90% (Wang and
+   others, 2026).
+2. A coding agent that takes over an interrupted task does better with
+   the raw trace of the first agent than with its notes. Against the
+   repository alone, a hand-off with context cut the median count of
+   events by 20% to 59% (KC and Budathoki, 2026).
+
+What it changes. Roman's root question is a thing that he stated once.
+The first measurement is that case, measured: a summary drops what was
+said once, and a list kept apart from the summary keeps it. The second
+measurement speaks against the note as the carrier: the taker did
+better with the record of what happened than with the sender's account
+of it.
+
+What the reader did not find: any measurement of whether a receiver
+understood a hand-off before it acted. No source tests a restatement or
+a first-step check. The nearest result is questions asked at the
+hand-off, at most +4.69% accuracy. So the say-back has no outside
+evidence for or against it.
 
 ## One thing from the case
 
