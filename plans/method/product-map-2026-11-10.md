@@ -826,6 +826,64 @@ holds a merge with no page and no release.
 - Dry run 9 exists (`plans/dry9-read-2026-11-10.md`) and is outside the
   11 runs of this map.
 
+## The exploration continues: "a change they can read"
+
+Roman ruled on frame 363 at 10:38 on 2026-11-10: "Finish exploring
+first". The question on shape A waits until the synthesis is in front of
+him. This read is the first test of the part "a merged change they can
+read". The read is `plans/method/product-readable-read-2026-11-10.md`,
+one blind agent on Opus, about 243k. This session judged from the
+agent's reply and did not read the page whole.
+
+The draw: the 3 merges of dry runs 1 to 3, and 9 of the 74 merges of the
+nights, seed 364. The reader read the diff alone, then the person's
+words, then the pages, and then checked the change itself.
+
+**Expected** (on frame 364, 11:04): the reader can say what each change
+does from the diff alone. The last page told the person less than the
+diff holds on half of the merges or more. A third or more do something
+that the request did not ask. Fails if the pages tell what the diff
+holds.
+
+**Found** (observed: the read): all three hold, and the second is
+stronger than expected.
+
+- The reader can say what the change does from the diff alone on 12 of
+  12. On 7 of them the diff holds something that it does not explain.
+- A page says what merged on 0 of 12. After a merge the person gets one
+  line, "Done: N change(s) built, tested and merged." No page names the
+  commit, the files, the tests added, or what was not checked.
+- The change does what the words ask on 8 of 12, in part on 3, and not
+  at all on 1. It does more than the words ask on 6.
+- The change is right by the reader's own check on 11 of 12.
+
+**Not expected:**
+
+- Night 152 merged a flag that does nothing. Its test asserts
+  `... or True`, so the test always passes. The page said "Done: 3
+  changes built, tested and merged." This is a merge that is sound by
+  the merge conditions and wrong, on a night and not only on the fold.
+- On nights 141 and 173 the person objected to the plan, rota read the
+  words back the wrong way round, and the batch merged with no page in
+  between.
+- 10 of the 12 merge commits are on no branch today. The cause is not
+  read. A night's copy is reset, so this can be an effect of the
+  harness.
+- In dry run 1 the page after the merge said "The team stopped work on
+  this change."
+
+**What the result means for the reading** (reasoned): "they can read"
+fails at the page and not at the change. The changes are small and a
+person who reads Python can read them. Rota tells the person nothing
+about them, so the person must find the commit and read the diff alone.
+Shape E of the product design names this gap. The read also gives the
+judgement loop a second case beside the fold.
+
+**Limits:** the pages of the dry runs are built again from the final
+rows. For nights 100 to 132 the reader saw the first line of each page
+only. The seat on the nights was a script or a model. 6 of the 9 night
+draws are one request, `echo_json`.
+
 ## The compare for step 1
 
 The expectation, written at 03:35 on frame 364: the design pages name
