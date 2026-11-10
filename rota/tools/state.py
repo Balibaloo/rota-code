@@ -453,24 +453,33 @@ def closed_since(archives: list[tuple[str, Path]]) -> list[str]:
 
 
 def put_down_since(lines: list[str], since: str) -> list[str]:
-    """The lines of the stack's `## Put down` section from `since`, newest first."""
+    """The lines of the stack's `## Put down` section from `since`, newest first.
+
+    The cut takes the title only. The reason and the path of the block are
+    what Roman reads, and a cut of the whole row took them (observed:
+    `plans/f363-putdown-review-p1.md`, finding 4).
+    """
     rows: list[tuple[str, str]] = []
     inside = False
     for line in lines:
         if line.startswith("#"):
             inside = line.rstrip() == PUT_DOWN_SECTION
             continue
-        m = PUT_DOWN_ROW.findall(line) if inside and line.startswith("- ") else []
-        if m and m[-1][:10] >= since:
-            rows.append((m[-1], cut(line, ROW_LIMIT)))
+        m = list(PUT_DOWN_ROW.finditer(line)) if inside and line.startswith("- ") else []
+        if m and m[-1].group(1)[:10] >= since:
+            at = m[-1].start()
+            lead = len(re.match(r"- (?:\d+\.\s+)?", line).group(0))
+            rows.append((m[-1].group(1), line[:lead] + cut(line[lead:at], NAME_LIMIT)
+                         + line[at:]))
     return [row for _, row in sorted(rows, key=lambda r: r[0], reverse=True)]
 
 
-def dated_statuses(frames: list[tuple[Frame, bool]],
-                   since: str) -> list[tuple[str, Frame, bool, str]]:
+def dated_statuses(frames: list[tuple[Frame, str]],
+                   since: str) -> list[tuple[str, Frame, str, str]]:
     """Every status line dated at or after `since`, newest first.
 
-    Each frame comes with a flag that says it closed into the archive.
+    Each frame comes with its mark: "closed" or "put down" for a frame of
+    the archive, and empty for a frame of the stack.
     """
     rows = []
     for f, closed in frames:
@@ -511,15 +520,15 @@ def ruling_key(line: str) -> str:
     return "line " + line
 
 
-def since_row(frame: Frame, closed: bool, line: str, again: int = 0) -> str:
+def since_row(frame: Frame, closed: str, line: str, again: int = 0) -> str:
     name = cut(HOLDERS.sub("", frame.heading).strip(), 80)
     tail = " (cited again %d times)" % again if again else ""
-    mark = " (closed)" if closed else ""
+    mark = " (%s)" % closed if closed else ""
     return cut("%s. %s%s :: %s" % (frame.number, name, mark, line),
                ROW_LIMIT - len(tail)) + tail
 
 
-def fold_rulings(rows: list[tuple[str, Frame, bool, str]]) -> list[str]:
+def fold_rulings(rows: list[tuple[str, Frame, str, str]]) -> list[str]:
     """One row per ruling, newest first, with the count of later citations.
 
     The first status that carries a ruling keeps the row. A later status
@@ -553,9 +562,11 @@ def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
     archives = archives_since(stack, since)
     closed = closed_since(archives)
     # A frame that closed while he was away took its status lines to the
-    # archive, so the archive is read too.
-    every = [(f, False) for f in frames] + [
-        (f, True) for _, path in archives
+    # archive, so the archive is read too. A frame put down went there too,
+    # and it did not close (observed: `plans/f363-putdown-review-p1.md`,
+    # finding 1).
+    every = [(f, "") for f in frames] + [
+        (f, "put down" if is_put_down(f) else "closed") for _, path in archives
         for f in parse(read_lines(path), bounded=False)]
     statuses = dated_statuses(every, since)
     assumed = [since_row(f, shut, line) for _, f, shut, line in statuses

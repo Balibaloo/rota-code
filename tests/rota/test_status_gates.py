@@ -182,6 +182,7 @@ def f33(stack, monkeypatch):
     """The suite's reader of `open_frames`, pointed at the fixture stack."""
     from tests.rota import test_f33_debts_name_open_frames as reader
     monkeypatch.setattr(reader, "STACK", stack)
+    monkeypatch.setattr(status, "REPO_STACK", stack)
     return reader
 
 
@@ -225,3 +226,31 @@ def test_a_reader_of_another_stack_and_a_broken_reader_refuse_nothing(
     assert put_down(stack, "21") == 0
     assert "did not run (no cases)" in capsys.readouterr().out
     assert gone(stack, "21")
+
+
+# Finding 3 of `plans/f363-putdown-review-p1.md`, pass 1b. Each test fails on
+# 2ef34070.
+
+def test_a_reader_that_does_not_import_gets_one_line(stack, monkeypatch, capsys):
+    monkeypatch.setattr(status, "REPO_STACK", stack)
+    monkeypatch.setattr(status, "READERS", (("tests.rota.no_such_reader", "test_x"),))
+    assert put_down(stack, "20") == 0
+    lines = [x for x in capsys.readouterr().out.splitlines() if "does not import" in x]
+    assert len(lines) == 1
+    assert lines[0].startswith("WARNING: the reader tests/rota/no_such_reader.py::test_x "
+                               "does not import (")
+    assert lines[0].endswith("so the debts that name frame 20 are not known.")
+    assert gone(stack, "20")
+
+
+def test_another_stack_imports_no_reader(stack, monkeypatch):
+    calls = []
+
+    def recorded(name, *args):
+        calls.append(name)
+        raise ImportError(name)
+
+    monkeypatch.setattr(status.importlib, "import_module", recorded)
+    assert status.REPO_STACK.resolve() != stack.resolve()
+    assert put_down(stack, "20") == 0
+    assert calls == []

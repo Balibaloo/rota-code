@@ -35,19 +35,22 @@ another session holds, or that a debt of the suite names, gets one
 warning line, and the put-down continues.
 
 Exit codes: 0 the line is written and committed, or written with
-`--no-commit`; 1 the line is written and the commit failed; 2 a usage
-error or a frame that the stack does not hold.
+`--no-commit`; 1 the line is written and the commit failed, or a write of
+a put-down failed; 2 a usage error, an empty reason or a frame that the
+stack does not hold.
 """
 from __future__ import annotations
 
 import argparse
 import importlib
 import re
+import shlex
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from rota.paths import REPO
 from rota.tools import handover, state
 
 
@@ -123,6 +126,12 @@ ROMAN_TAG = re.compile(r"\s*\(Roman\)")
 #: adopts rota has no such module, and the check passes over it.
 READERS = (("tests.rota.test_f33_debts_name_open_frames",
             "test_each_debt_names_an_open_frame"),)
+#: The stack that the readers read. The path is compared before the import,
+#: because the import costs about a second on every run (observed:
+#: `plans/f363-putdown-review-p1.md`, finding 3). Tests replace it. The path
+#: comes from the one anchor, `rota/paths.py`, because no other module asks
+#: where it is (`tests/rota/test_viewer.py`).
+REPO_STACK = REPO / "plans" / "stack.md"
 
 
 def cut_block(text: str, frame: str) -> tuple[str, list[str], state.Frame]:
@@ -179,27 +188,57 @@ def add_put_down_line(text: str, line: str) -> str:
     return "\n".join(raw)
 
 
+def _without_put_down(lines: list[str]) -> list[str]:
+    """The lines with no put-down status line and no blank line at the end."""
+    kept = [x for x in lines if not ((m := state.STATUS.match(x))
+                                     and m.group(3).startswith(state.PUT_DOWN))]
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return kept
+
+
+def archived(path: Path, block: list[str]) -> bool:
+    """The archive file holds the block already, from a run whose stack write failed.
+
+    The put-down line of the earlier run has another time, so the compare
+    leaves the put-down lines out. A second copy of a block made a rerun
+    archive the frame twice (observed: `plans/f363-putdown-review-p1.md`,
+    finding 5).
+    """
+    if not path.is_file():
+        return False
+    want = _without_put_down(block)
+    number = state.HEAD.match(want[0]).group(1) if want else ""
+    return any(f.number == number and _without_put_down(f.lines) == want
+               for f in state.parse(state.read_lines(path), bounded=False))
+
+
 def append_block(path: Path, block: list[str], day: str, eol: str) -> None:
     """Append the block to the archive file, and create the file with its head.
 
-    An archive file that exists keeps its own line end.
+    An archive file that exists keeps its own line end and its own bytes.
+    The file opens to append, so a kill during the write cannot cut off
+    the blocks of earlier put-downs (observed: the review of frame 363,
+    finding 8).
     """
     if path.is_file():
         old = path.read_bytes().decode("utf-8")
         if old:
             eol = "\r\n" if "\r\n" in old else "\n"
+        start = old
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        old = "# Frames popped on %s%s" % (day, eol)
+        old = ""
+        start = "# Frames popped on %s%s" % (day, eol)
     lines = list(block)
     while lines and not lines[-1].strip():
         lines.pop()
-    if old and not old.endswith(eol):
-        old += eol
-    if old and not old.endswith(eol * 2):
-        old += eol
-    with open(path, "wb") as fh:
-        fh.write((old + eol.join(lines) + eol).encode("utf-8"))
+    if start and not start.endswith(eol):
+        start += eol
+    if start and not start.endswith(eol * 2):
+        start += eol
+    with open(path, "ab") as fh:
+        fh.write((start[len(old):] + eol.join(lines) + eol).encode("utf-8"))
 
 
 def suite_reds(stack: Path, frame: str) -> list[str]:
@@ -210,12 +249,16 @@ def suite_reds(stack: Path, frame: str) -> list[str]:
     the tool refuses nothing for a warning (ruled: Roman, 2026-10-18 02:25).
     """
     out: list[str] = []
+    if not str(frame).isdigit() or stack.resolve() != Path(REPO_STACK).resolve():
+        return out
     for module, test in READERS:
+        where = "%s.py::%s" % (module.replace(".", "/"), test)
         try:
             reader = importlib.import_module(module)
-        except Exception:
+        except Exception as exc:
+            out.append("WARNING: the reader %s does not import (%r), so the debts "
+                       "that name frame %s are not known." % (where, exc, frame))
             continue
-        where = "%s.py::%s" % (module.replace(".", "/"), test)
         try:
             if Path(reader.STACK).resolve() != stack.resolve():
                 continue
@@ -252,7 +295,7 @@ def name_of(stack: Path, sid: str) -> str:
     return name or sid
 
 
-def put_down(stack: Path, text: str, frame: str, sid: str, reason: str,
+def put_down(stack: Path, frame: str, sid: str, reason: str,
              now: datetime, no_commit: bool) -> int:
     """Write the last status line, move the block to the archive, and record it."""
     reason = one_line(reason)
@@ -262,6 +305,11 @@ def put_down(stack: Path, text: str, frame: str, sid: str, reason: str,
     when = now.strftime("%Y-%m-%d %H:%M")
     day = now.strftime("%Y-%m-%d")
     name = name_of(stack, sid)
+    # The check of the debts takes seconds, so it runs before the read. A read
+    # before it lost a status line that another session wrote in the gap
+    # (observed: `plans/f363-putdown-review-p1.md`, finding 2).
+    warnings = suite_reds(stack, frame)
+    text = stack.read_bytes().decode("utf-8")
     try:
         marked, _ = insert(text, frame, "- Status %s (%s): %s %s: %s" % (
             when, name, state.PUT_DOWN, sid, reason))
@@ -273,18 +321,39 @@ def put_down(stack: Path, text: str, frame: str, sid: str, reason: str,
     if f.holder and f.holder != sid:
         print("WARNING: session %s holds frame %s, and session %s puts it down."
               % (f.holder, frame, sid))
-    for warning in suite_reds(stack, frame):
+    for warning in warnings:
         print(warning)
     archive = stack.parent / "archive" / ("stack-%s.md" % day)
     rel = "%s/archive/%s" % (stack.resolve().parent.name, archive.name)
-    row = "- %s. %s Put down %s (%s): %s Block: %s." % (
-        f.number, put_down_title(f), when, name, reason, rel)
+    # The title is cut and the reason is not, because the reason is what
+    # Roman reads (observed: the review of frame 363, finding 4).
+    stop = "" if reason.endswith((".", "?", "!")) else "."
+    row = "- %s. %s Put down %s (%s): %s%s Block: %s." % (
+        f.number, state.cut(put_down_title(f), state.NAME_LIMIT), when, name,
+        reason, stop, rel)
     new = add_put_down_line(left, row)
     # The archive is written first. A failure between the two writes then
-    # leaves the block in both files, and never in neither.
-    append_block(archive, block, day, "\r\n" if "\r\n" in text else "\n")
-    with open(stack, "wb") as fh:
-        fh.write(new.encode("utf-8"))
+    # leaves the block in both files, and never in neither. A rerun finds the
+    # block in the archive and does not append it again.
+    try:
+        if archived(archive, block):
+            print("the archive %s holds the block of frame %s already, from an "
+                  "earlier run, so it is not appended again." % (rel, frame))
+        else:
+            append_block(archive, block, day, "\r\n" if "\r\n" in text else "\n")
+    except OSError as exc:
+        print("the archive write failed (%s). The stack is unchanged and holds "
+              "frame %s. Check %s for a part of the block." % (exc, frame, rel),
+              file=sys.stderr)
+        return 1
+    try:
+        with open(stack, "wb") as fh:
+            fh.write(new.encode("utf-8"))
+    except OSError as exc:
+        print("the stack write failed (%s). The block of frame %s is in %s, and "
+              "the frame is still in the stack. Run the put-down again: it does "
+              "not archive the block twice." % (exc, frame, rel), file=sys.stderr)
+        return 1
     print("frame %s put down: the block is in %s" % (frame, rel))
     if no_commit:
         return 0
@@ -292,7 +361,9 @@ def put_down(stack: Path, text: str, frame: str, sid: str, reason: str,
              "moves to %s, and one line under %s gives the reason."
              % (frame, when, sid, rel, state.PUT_DOWN_SECTION))
     return commit(stack, frame, "put down, " + reason, when, sid,
-                  also=[archive], prose=prose)
+                  also=[archive], prose=prose,
+                  failed="the put-down is written and the commit failed. The commit "
+                         "takes the archive file of the day whole. Run: ")
 
 
 def ruling_body(words: str, at: str, today: str, workflow: str) -> str:
@@ -315,8 +386,12 @@ def git(repo: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def commit(stack: Path, frame: str, body: str, when: str, sid: str,
-           also: list[Path] | None = None, prose: str = "") -> int:
-    """Commit the stack and the `also` files by pathspec, so nothing else staged goes in."""
+           also: list[Path] | None = None, prose: str = "", failed: str = "") -> int:
+    """Commit the stack and the `also` files by pathspec, so nothing else staged goes in.
+
+    With `failed`, a failed commit prints that text and the exact command
+    that commits the same paths, so the session can run it.
+    """
     repo = stack.resolve().parent
     paths = [str(p.resolve()) for p in [stack] + list(also or [])]
     git(repo, "add", "--", *paths)
@@ -324,8 +399,14 @@ def commit(stack: Path, frame: str, body: str, when: str, sid: str,
                       "session %s." % (frame, when, sid))
     done = git(repo, "commit", "-m", summary(frame, body), "-m", prose,
                "--", *paths)
-    if done.returncode != 0:
+    if done.returncode != 0 and failed:
+        print(failed + shlex.join(
+            ["git", "-C", repo.as_posix(), "commit", "-m", summary(frame, body),
+             "-m", prose, "--"] + [Path(p).as_posix() for p in paths]),
+            file=sys.stderr)
+    elif done.returncode != 0:
         print("the line is written and the commit failed:", file=sys.stderr)
+    if done.returncode != 0:
         print((done.stdout + done.stderr).strip(), file=sys.stderr)
         return 1
     sha = git(repo, "rev-parse", "--short=8", "HEAD").stdout.strip()
@@ -369,13 +450,12 @@ def main(argv: list[str] | None = None) -> int:
     if not stack.is_file():
         print("no stack at %s" % stack, file=sys.stderr)
         return 2
-    text = stack.read_bytes().decode("utf-8")
     now = _clock()
+    if args.put_down is not None:
+        return put_down(stack, args.frame, sid, args.put_down, now, args.no_commit)
+    text = stack.read_bytes().decode("utf-8")
     when = now.strftime("%Y-%m-%d %H:%M")
 
-    if args.put_down is not None:
-        return put_down(stack, text, args.frame, sid, args.put_down, now,
-                        args.no_commit)
     if args.body is not None:
         body = one_line(Path(args.body).read_bytes().decode("utf-8"))
     elif args.text is not None:

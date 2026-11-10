@@ -8,6 +8,9 @@ frame under `## Parked` that must not print.
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import stat
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -548,8 +551,9 @@ def put(repo: Path, frame: str, reason: str, *argv: str) -> int:
 
 
 def row(frame: str, title: str, reason: str) -> str:
-    return "- %s. %s Put down %s 03:04 (rota-39): %s Block: %s." % (
-        frame, title, DAY, reason, ARCHIVE)
+    stop = "" if reason.endswith((".", "?", "!")) else "."
+    return "- %s. %s Put down %s 03:04 (rota-39): %s%s Block: %s." % (
+        frame, title, DAY, reason, stop, ARCHIVE)
 
 
 def frames_of(repo: Path) -> dict[str, state.Frame]:
@@ -672,3 +676,138 @@ def test_a_put_down_frame_leaves_open_frames_and_the_counts(put_repo, capsys):
     put(put_repo, "15", "done", "--no-commit")
     assert state.open_frames(stack) == {10, 11, 12}
     assert "Live things: 2 of 10" in page(put_repo, capsys=capsys)
+
+
+# The repairs of `plans/f363-putdown-review-p1.md`, pass 1b. Each test names
+# its finding, and each one fails on 2ef34070.
+
+def test_since_marks_each_row_of_a_put_down_frame_put_down(put_repo, capsys):
+    """Finding 1: a ruling and an assumption on a put-down frame never read closed."""
+    write(put_repo, PUT_STACK.replace(
+        "- Status 2026-10-20 09:00 (rota-01): batched.\n",
+        "- Status 2026-10-20 09:00 (rota-01): batched.\n"
+        "- Status 2031-01-02 01:00 (rota-01): **ruled. Roman, 2031-01-02 00:59, "
+        "in the terminal: \"drop it\"** (ruled: Roman, in his words).\n"
+        "- Status 2031-01-02 02:00 (rota-01): dropped (assumed: he wanted it "
+        "dropped).\n"))
+    put(put_repo, "15", "he dropped it", "--no-commit")
+    out = page(put_repo, "--since", "2031-01-01", capsys=capsys)
+    rows = [x for x in out.splitlines() if x.startswith("15. ") and " :: " in x]
+    assert len(rows) == 2, out
+    assert all("(2026-10-20) (Roman) (put down) :: " in x for x in rows), rows
+    assert "(closed)" not in out
+
+
+def test_the_put_down_row_keeps_the_reason_and_cuts_the_title(put_repo, capsys):
+    """Finding 4: the cut takes the title, never the reason or the block's path."""
+    title = "A batch frame " + "with a long name " * 12
+    write(put_repo, PUT_STACK.replace("A batch frame (2026-10-20)",
+                                      title + "(2026-10-20)"))
+    reason = "the reason runs long " * 15 + "and ends here."
+    put(put_repo, "15", reason, "--no-commit")
+    text = (put_repo / "plans" / "stack.md").read_bytes().decode("utf-8")
+    stacked = [x for x in text.splitlines() if x.startswith("- 15. ")][0]
+    assert stacked.startswith("- 15. " + state.cut(title + "(2026-10-20)",
+                                                   state.NAME_LIMIT) + " Put down ")
+    assert stacked.endswith(": %s Block: %s." % (reason, ARCHIVE))
+    out = page(put_repo, "--since", "2031-01-01", capsys=capsys)
+    section = out.split("## Put down since 2031-01-01\n")[1].split("\n\n")[0]
+    assert section == stacked, "the print keeps the row the tool wrote"
+    long_row = stacked.replace(state.cut(title + "(2026-10-20)", state.NAME_LIMIT),
+                               title + "(2026-10-20)")
+    write(put_repo, text.replace(stacked, long_row))
+    out = page(put_repo, "--since", "2031-01-01", capsys=capsys)
+    section = out.split("## Put down since 2031-01-01\n")[1].split("\n\n")[0]
+    assert section == stacked, "the print cuts a long title the same way"
+
+
+@pytest.mark.parametrize("reason, shown", [
+    ("plain", "plain."), ("done.", "done."), ("why?", "why?"), ("now!", "now!")])
+def test_a_reason_with_no_end_mark_gets_a_full_stop(put_repo, reason, shown):
+    """The assistant's question 3 of pass 1."""
+    put(put_repo, "15", reason, "--no-commit")
+    text = (put_repo / "plans" / "stack.md").read_bytes().decode("utf-8")
+    assert "(rota-39): %s Block: %s." % (shown, ARCHIVE) in text
+
+
+def test_a_failed_stack_write_leaves_the_block_once_after_a_rerun(put_repo, capsys):
+    """Finding 5: the rerun does not append the block to the archive again."""
+    stack = put_repo / "plans" / "stack.md"
+    before = stack.read_bytes()
+    os.chmod(stack, stat.S_IREAD)
+    try:
+        assert put(put_repo, "15", "first try", "--no-commit") == 1
+    finally:
+        os.chmod(stack, stat.S_IREAD | stat.S_IWRITE)
+    err = capsys.readouterr().err
+    assert "the stack write failed" in err and ARCHIVE in err
+    assert stack.read_bytes() == before
+    assert (put_repo / ARCHIVE).read_bytes().decode("utf-8").count("### 15.") == 1
+    assert put(put_repo, "15", "second try", "--no-commit") == 0
+    assert "holds the block of frame 15 already" in capsys.readouterr().out
+    assert (put_repo / ARCHIVE).read_bytes().decode("utf-8").count("### 15.") == 1
+    assert "15" not in frames_of(put_repo)
+
+
+def test_a_failed_archive_write_exits_1_and_keeps_the_stack(put_repo, capsys):
+    """Finding 5: a directory at the archive path gives exit 1, no traceback."""
+    (put_repo / ARCHIVE).mkdir(parents=True)
+    before = (put_repo / "plans" / "stack.md").read_bytes()
+    assert put(put_repo, "15", "no archive", "--no-commit") == 1
+    assert "the archive write failed" in capsys.readouterr().err
+    assert (put_repo / "plans" / "stack.md").read_bytes() == before
+
+
+def test_a_failed_commit_prints_the_command_that_commits(put_repo, capsys):
+    """Finding 6: the session can run the printed command, and it says whole."""
+    git(put_repo, "commit", "-q", "-am", "the batch stack")
+    hook = put_repo / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_bytes(b"#!/bin/sh\nexit 1\n")
+    assert put(put_repo, "15", "the batch ended") == 1
+    line = [x for x in capsys.readouterr().err.splitlines() if "Run: " in x][0]
+    assert "takes the archive file of the day whole" in line
+    command = line.split("Run: ", 1)[1]
+    assert command.endswith("-- %s %s" % (
+        (put_repo / "plans" / "stack.md").resolve().as_posix(),
+        (put_repo / ARCHIVE).resolve().as_posix()))
+    hook.unlink()
+    subprocess.run(shlex.split(command), check=True, capture_output=True)
+    files = git(put_repo, "show", "--name-only", "--format=", "HEAD").split()
+    assert sorted(files) == [ARCHIVE, "plans/stack.md"]
+
+
+def test_the_archive_opens_to_append_and_never_to_rewrite(put_repo, monkeypatch):
+    """Finding 8: a kill during the write cannot cut off an earlier block."""
+    opened = []
+
+    def recorded(path, mode="r", *args, **kwargs):
+        opened.append((Path(path).name, mode))
+        return open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(status, "open", recorded, raising=False)
+    put(put_repo, "15", "first", "--no-commit")
+    put(put_repo, "10", "second", "--no-commit")
+    assert [m for name, m in opened if name == "stack-%s.md" % DAY] == ["ab", "ab"]
+    archived = (put_repo / ARCHIVE).read_bytes().decode("utf-8")
+    assert archived.startswith("# Frames popped on %s\n\n### 15." % DAY)
+    assert "batched.\n- Status" in archived and "\n\n### 10. " in archived
+
+
+def test_a_line_written_during_the_debt_check_survives(put_repo, monkeypatch):
+    """Finding 2: the stack is read after the check of the debts, not before."""
+    stack = put_repo / "plans" / "stack.md"
+
+    def other_session(path, frame):
+        text = path.read_bytes().decode("utf-8")
+        path.write_bytes(text.replace(
+            "- Pointer: `plans/y.md`.\n",
+            "- Pointer: `plans/y.md`.\n- Status 2031-01-02 03:03 (rota-77): "
+            "another session.\n").encode("utf-8"))
+        return []
+
+    monkeypatch.setattr(status, "suite_reds", other_session)
+    assert put(put_repo, "15", "done", "--no-commit") == 0
+    text = stack.read_bytes().decode("utf-8")
+    assert "(rota-77): another session." in text
+    assert "15" not in frames_of(put_repo)
