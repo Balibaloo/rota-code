@@ -16684,7 +16684,7 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
     from a list is a fact check (the R1 brief, step 3). `refused` holds the
     texts of this session's earlier refusals, so a refusal fires once.
     """
-    from .principal import is_test_row
+    from .principal import REMOVAL_REF, is_test_row
 
     menu = page_menus(conn, order, page_text)[1]
     clauses = page_clauses(his, len(order), menu, offsets=True)
@@ -17098,8 +17098,10 @@ def menu_ruling(conn, rulings: dict, his: str, order: list, page_text: str,
                 shape["target_kind"] = target_kind
             if paths:
                 shape["target"], shape["paths"] = paths[0], paths
+            # A removal kind holds a removal key, so the target is the key
+            # without its prefix. No tick key is split here (F20).
             if kind == "removal" and act == "keep":
-                shape["target"] = ref.split("|", 1)[1]
+                shape["target"] = ref.removeprefix(REMOVAL_REF)
             # Every add on one ref keeps its words, in the order of his
             # reply. Each clause add goes to the one add line, and a second
             # add overwrote the first. s143's row kept one sentence of three

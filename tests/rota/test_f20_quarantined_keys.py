@@ -243,6 +243,9 @@ _QUARANTINE_WRITES = {
 _PIPE_SPLITS = {
     ("rota/core/sandbox.py", "_scalar_kind"): "a type annotation union",
     ("rota/llm/toolproto.py", "_labelled"): "a markdown table row",
+    ("rota/roles/principal.py", "removal_key_parts"): "the one reader of a "
+                                                      "removal key, `removal|"
+                                                      "batch|grain|base index`",
 }
 
 
