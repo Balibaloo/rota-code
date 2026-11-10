@@ -244,3 +244,18 @@ def test_the_stopped_page_names_run_6_and_fddff3af(run):
     said = _red_run_words(conn, "bg_1", ["inh_7bed8d74", "inh_c55c4bf6"])
     assert said == ("They passed on runs 1 to 5 and failed first on run 6, "
                     "at fddff3af, after the team stopped"), said
+
+
+# Pass 3: the four highs of the two reviews.
+
+def test_an_untracked_file_stays_out_of_the_restore_commit(run):
+    """Review p1, high 1: `add -A` put a Developer's new file in the
+    structure's commit. The commit takes the restored path only."""
+    conn, root = run
+    _head(conn, root, FORK.replace(GONE, b"", 1))
+    (root / "src" / "new_dev.py").write_bytes(b"x = 1\n")
+    done, reasons = restore_wake(conn, "bg_1")
+    assert reasons == [] and len(done) == 1, reasons
+    assert _git(root, "show", "--name-only", "--format=", "HEAD").split() == [PATH]
+    assert _git(root, "status", "--porcelain", "--", "src/new_dev.py") == \
+        "?? src/new_dev.py"

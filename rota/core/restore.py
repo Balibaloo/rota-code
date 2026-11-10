@@ -53,7 +53,8 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
     target = Path(tree) / path
     if not target.is_file():
         return {"reason": f"{path} is gone at the head"}
-    # A restore commits the whole tree, so it waits for a tree that holds
+    # A restore commits its own path only, and a tracked change in the
+    # tree could be in that path. So the restore waits for a tree that holds
     # only committed work (law 1: the structure writes no seat's change).
     furniture = set(worktrees.batch_furniture(conn, batch_id))
     dirty = [p for p in subprocess.run(
@@ -92,7 +93,7 @@ def restore_stray(conn: sqlite3.Connection, batch_id: str, grain: str,
     message = (f"rota: restore {'; '.join(s[:60] for s in said)} in {grain}, "
                f"ordered by {act}")
     try:
-        sha = worktrees.commit(tree, message, exclude=tuple(sorted(furniture)))
+        sha = worktrees.commit(tree, message, only=(path,))
     except worktrees.WorktreeError as exc:
         target.write_bytes(raw)
         return {"reason": f"the commit failed: {exc}"}

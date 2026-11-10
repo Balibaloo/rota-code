@@ -202,9 +202,14 @@ def head(path: str | Path) -> str | None:
     return out.stdout.strip() or None if out.returncode == 0 else None
 
 
-def commit(path: str | Path, message: str, exclude: tuple[str, ...] = ()) -> str | None:
+def commit(path: str | Path, message: str, exclude: tuple[str, ...] = (),
+           only: tuple[str, ...] = ()) -> str | None:
     """
     Stage everything and commit. Returns the sha, or None if nothing changed.
+
+    `only` names the paths to stage and commit, and nothing else goes in.
+    The structure's restore commits its own paths only. A Developer's
+    untracked file stays out of that commit (law 1, frame 173 review p1).
 
     None is not a failure. A Developer session that reasoned, read and concluded
     the code was already right has nothing to commit, and inventing an empty
@@ -217,15 +222,23 @@ def commit(path: str | Path, message: str, exclude: tuple[str, ...] = ()) -> str
     # `exclude` names paths the caller does not own: the Tester's test
     # files under a Developer commit (2026-09-14). They stay in the
     # worktree and out of the commit.
-    specs = [":(exclude)" + p.replace(chr(92), "/") for p in exclude if p]
-    subprocess.run([*GIT, "-C", str(path), "add", "-A", "--", ".",
-                    ":(exclude).venv", ":(exclude).rota", *specs],
-                   capture_output=True, text=True)
-    staged = subprocess.run([*GIT, "-C", str(path), "diff", "--cached", "--name-only"],
-                            capture_output=True, text=True).stdout.strip()
+    named = [p.replace(chr(92), "/") for p in only if p]
+    if named:
+        subprocess.run([*GIT, "-C", str(path), "add", "--", *named],
+                       capture_output=True, text=True)
+    else:
+        specs = [":(exclude)" + p.replace(chr(92), "/") for p in exclude if p]
+        subprocess.run([*GIT, "-C", str(path), "add", "-A", "--", ".",
+                        ":(exclude).venv", ":(exclude).rota", *specs],
+                       capture_output=True, text=True)
+    staged = subprocess.run([*GIT, "-C", str(path), "diff", "--cached", "--name-only",
+                             "--", *named], capture_output=True, text=True).stdout.strip()
     if not staged:
         return None
-    out = subprocess.run([*GIT, "-C", str(path), "commit", "-q", "-m", message],
+    # A pathspec on the commit takes those paths only, so an index entry
+    # that another writer staged stays out too.
+    out = subprocess.run([*GIT, "-C", str(path), "commit", "-q", "-m", message,
+                          *(["--", *named] if named else [])],
                          capture_output=True, text=True)
     if out.returncode != 0:
         raise WorktreeError(f"commit failed: {out.stderr.strip()}")
