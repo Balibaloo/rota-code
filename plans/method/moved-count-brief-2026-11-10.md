@@ -62,15 +62,29 @@ write it in a last section of your page, apart from the tables.
    - a rule or a record of the build session, with no code. This is its
      own kind and never joins a code kind.
 
-   For each change, say whether it is the answer to a wall that a read
-   named (a frame of column 6 of the list of turns), or not the answer
-   to a named wall. Keep the two groups apart in every table.
+   For each change, give its origin, one of three:
+   - the answer to a wall that a read named. Column 6 of the list of
+     turns holds only the frames that a read opened. A wall that a read
+     matched to an older frame is not there. The subject of a commit
+     carries "frame N" by convention, and the heading of the frame says
+     what the frame answers;
+   - a row of a sprint or a plan, or a message of Roman, for example "I
+     want all the fixes in";
+   - neither of the two.
 
-   Grade each candidate:
-   - "mechanism seen": the rows after the change show the thing that the
-     change does. Example of the form only: a commit changes how a batch
-     waits, and from that night no batch has the waiting state. Quote
-     the rows and the lines of the diff.
+   Keep the three groups apart in every table.
+
+   Grade each candidate. The moved count is never the evidence for a
+   grade.
+   - "mechanism seen" needs three conditions, all by rows. First, the
+     diff names a state, a kind of row, a text or a path of the code.
+     Second, the rows show that exact thing after the change and not in
+     the three nights before it, or the reverse. Third, the batches or
+     the sessions that make the moved count pass through that thing, by
+     their own rows. Quote the lines of the diff and the rows for each
+     condition.
+   - "change seen in the rows, link to the count not shown": the first
+     two conditions hold and the third does not.
    - "timing only": the change is before the move, and no row shows its
      effect.
    - "conditions changed": part 3.
@@ -102,8 +116,19 @@ write it in a last section of your page, apart from the tables.
 - `plans/method/product-break-read-2026-11-10.md`: the nights over
   time, by thirds.
 - `git log` and `git show` on `rota/` and `probes/`. Read commands only.
-- `plans/stack.md` by pattern for one frame or one night. Do not read
-  it whole.
+- `plans/stack.md` and `plans/archive/stack-*.md` by pattern for one
+  frame or one night. Most frames before 2026-10-30 are in the archive.
+  Do not read a stack page whole.
+- The three extract pages,
+  `plans/method/turns-list-extract-{a,b,c}-2026-11-10.md`. They hold
+  each cell of column 6 whole. The table of the list cuts a cell at
+  about 300 characters.
+- For the second origin of a change, the tables only of two pages:
+  `plans/method/meta-above-frame-read-2026-11-10.md`, the rows of the
+  sprints and the plans, and
+  `plans/method/meta-direction-read-2026-11-10.md`, Roman's messages
+  with their minutes. Use the rows. Do not use the readings of these
+  pages.
 
 ## The limits that you must carry into the page
 
@@ -132,7 +157,8 @@ write it in a last section of your page, apart from the tables.
   word for word. You write the one page yourself.
 - Do not read `plans/method/product-map-2026-11-10.md`,
   `plans/method/one-turn-2026-11-10.md` or a `plans/method/meta-*.md`
-  page. They hold readings, and this read must not copy one.
+  page other than the two tables that the sources name. They hold
+  readings, and this read must not copy one.
 - Mark each claim (observed: where) or (reasoned).
 - Write Simplified Technical English: one topic for each sentence, 25
   words at most, the active voice, the present tense, no idioms. Quotes,
