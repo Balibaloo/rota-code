@@ -102,6 +102,12 @@ list of turns, the read of the chains, the read of the moved counts
   watcher. I sent them no message on 2026-11-11. Wait for a message of
   theirs, and take the name from its `from-name`.
 - My peer name was rota-3d on 2026-11-10 and rota-83 from the restart.
+- Session 7fd2421e is rota-3c from the restart, by the `from-name` of
+  its message of 2026-11-11. Its audit of that day corrects step 10 of
+  the one picture: a second mind with Roman's words named the thing
+  that he then corrected in 5 of 14 cases. He corrects the substance of
+  a proposal, and words at a step do not decide it
+  (`plans/method/judge-audit-compare-2026-11-11.md`).
 
 ## What I did wrong, so the taker does not
 
