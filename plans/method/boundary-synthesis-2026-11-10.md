@@ -34,6 +34,18 @@ stands, and it is the only thing in the records that finds a miss.
 The reads do not show why a session acts against words that it holds.
 That is the open question of this research.
 
+## After the audit of 2026-11-11 (11:26)
+
+The sentence "a session holds his words and acts against them" is too
+strong. An audit gave nine auditors 35 stretches and the words that
+each session held. The auditors named what Roman corrected in 3 of 12
+clean cases. What he corrects is mostly the substance of a proposal
+that had the right form, and in most of those cases no written words
+decide it. The pages are `judge-audit-2026-11-11.md` and
+`judge-audit-compare-2026-11-11.md`. He also watched 52 of the 93
+hand-offs and not 48, because the scans missed 34 prompts that he typed
+mid-turn.
+
 ## After the read of the misses (16:14)
 
 One reader took the 16 corrections where the taker held Roman's words,

@@ -104,6 +104,92 @@ auditor reads the brief `AUDITOR_BRIEF.md` of the scratch folder. The
 brief names no expected share and says that a clean stretch is a normal
 result.
 
-## The compare
+## The compare, written at 11:26
 
-Not written yet.
+The page of the comparer is `judge-audit-compare-2026-11-11.md`. One
+reader with the key made every class. I read its 14 blocks of the
+corrected group whole.
+
+### Against the three expectations
+
+- Corrected, 7 or more of 14 named: 5 of 14. Neither held nor failed by
+  my own lines. Two of the 5 rest on a leak, so the clean count is 3 of
+  12, which is my line for a failure. The auditor said "stop" on 3 of
+  the 14.
+- Approved, "stop" on 2 or fewer of 7: held, 0 of 7. Every approved
+  stretch has findings, 4.6 at the mean, and none is heavy.
+- Not watched, "stop" on 4 to 7 of 14: failed low, 1 of 14. This count
+  cannot be read. The auditor says "stop" on 3 of 14 where Roman
+  corrected, so its line for a stop is not his line.
+
+### Two flaws of my design
+
+- An auditor read five stretches of different dates. 36 of 45 files had
+  a later pack in the same auditor's set.
+- The harness loads the brief of today into each agent. The brief of
+  today holds Roman's words at the cut of two stretches. So no auditor
+  was blind to the brief of today, and the packs "as of the day" did
+  not do their work in full.
+
+Both flaws help the auditor. The result is that the auditor finds
+little of what Roman corrected. So the flaws do not weaken that result.
+
+### What the 14 blocks show
+
+The auditors were asked for acts that depart from the words that the
+session held. They found such acts in every stretch: a count written in
+a reply, a footer on a commit, two rulings in one dialog. Roman let
+most of those pass. In 5 of the 7 approved stretches a finding faults
+the very question that he then approved.
+
+What Roman corrected is mostly another kind of thing. It is the
+substance of a proposal, a plan or a reply that had the right form:
+
+- The wrong scale of a test: "I think the night is the wrong scale of
+  test."
+- The wrong method: "no, not with deterministic checks, / with
+  subagents".
+- The wrong order of two tests.
+- A picture that leaves out a purpose: "this indexes heavily on project
+  work just being wall fixes."
+- A design that copies rota onto the session: "use your brain ... you
+  are not rota".
+- An ask that the session could answer itself: "Can you not judge it?"
+- A reply at the wrong altitude: "No but overall".
+- An act on a question that was not a go: "Wait why?"
+
+For 5 of the 14 the comparer finds no words in the pack that decide the
+case. For 3 more the words are general: "His attention is the scarcest
+budget". Only where the words decide the case did an auditor name it.
+
+### What it changes
+
+Yesterday's result said that a session holds his words and acts against
+them. That is too strong. The audit gave a second mind the same words
+and one task, to check the acts against them. That mind also missed 9
+of 12. So in most of these cases the words do not hold the judgement.
+His corrections bring something that stands in no page: his sense of
+scale, of order, of purpose, and of when a session must judge by
+itself.
+
+For the one picture of a turn, it sharpens the need of "a judge that is
+not Roman each time". A judge that is given his words finds faults of
+form, and he does not correct by form. The read of the judges said that
+a judge finds at the scale of what it is given. This audit gave the
+auditors rules, and they found at the scale of rules.
+
+The count of misses that he does not see stays unknown.
+
+### The limits
+
+14 corrected stretches, one comparer, one auditor for most stretches.
+Two auditors on one stretch name the same heaviest finding in 6 of 10.
+The quote check found every quote of the 173 findings. Of 12 drawn
+findings, 7 are real as stated and 5 in part.
+
+### Not tested
+
+The auditors got one question: where does the session depart from the
+words? They did not get the other question: is the substance of this
+proposal right for what Roman wants? One auditor that judged the plan
+itself named what he corrected in a case that the form auditor missed.
