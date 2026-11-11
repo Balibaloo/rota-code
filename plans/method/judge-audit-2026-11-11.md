@@ -227,3 +227,61 @@ restart of the machine each session has a new peer name. No tool maps a
 session id to the new name, and a session that arms no watcher has no
 row in the peers table. Session 4a1d361a could not reach this session
 for an hour, until a message from here carried the name.
+
+## Step 1 of the test of cases, the compare (11:44)
+
+The page is `roman-cases-read-2026-11-11.md`. The cases stand verbatim
+in the scratch folder of this session, with no comment.
+
+Against the expectation: held on both parts.
+
+- 150 to 400 cases: 251 cases in 587 messages of Roman, over 28 days.
+  83 of the 251 are marked unsure. Two readers agree on 48 of 60 drawn
+  messages.
+- Five kinds hold 40% or more: the five largest hold 137 of 251, 55%.
+  Fix at the right scale 41. Investigate first 30. Order and pace 23.
+  Design of the product 23. The model choice 20. Then: the question is
+  unclear 20, the point is missing 19, stop or another choice 19, the
+  method and the direction 17, sessions and hand-offs 16, decide it
+  yourself 15, what already exists 8.
+
+What it shows by itself. 43% of what Roman types corrects or turns a
+session, 9 times on each day that he types. His message in a case is
+72 characters at the median, and half of the cases are a question. His
+judgement repeats, so past cases can hold what he says next. One reader
+made the kinds, so the kinds are a first sort and no more.
+
+## Step 2 of the test of cases, started at 11:44
+
+The 14 corrected and the 7 approved stretches of this morning. One
+fresh judge for each stretch and each arm, so no judge holds a pack of
+a later date. Each judge gets the brief `ARM_BRIEF.md` of the scratch
+folder. It asks for the substance and not for the form.
+
+- Arm B: the pack of rules and the stretch.
+- Arm C: the pack, the stretch, and every case from before the take of
+  that stretch, verbatim.
+- Arm A is this morning's audit: the pack, the stretch and the question
+  on form. It named what he corrected in 3 of 12 clean cases.
+
+The harness still gives today's brief to every judge. That is the same
+in each arm. The two stretches whose answer stands in today's brief
+stay out of the clean count, as this morning.
+
+The expectations, written before any judge starts:
+
+- Arm B names what he corrected in 4 or 5 of the 12 clean stretches. A
+  question on substance alone adds a little.
+- Arm C names it in 7 or more of 12. It fails if arm C is not at least
+  2 above arm B. Then his past cases do not carry his judgement to a
+  judge, or not in this form.
+- The approved stretches: "correct" on 2 or fewer of 7 in each arm. I
+  doubt this for arm C. A judge that has read 200 corrections can
+  expect a correction everywhere. At 4 or more of 7, the cases make the
+  judge correct too much, and its hits mean less.
+- The hits of arm C lie more in the later stretches, which have more
+  cases before them.
+
+### The compare of step 2
+
+Not written yet.
