@@ -282,6 +282,79 @@ The expectations, written before any judge starts:
 - The hits of arm C lie more in the later stretches, which have more
   cases before them.
 
-### The compare of step 2
+### The compare of step 2, written at 12:14
 
-Not written yet.
+The page of the comparer is `judge-cases-compare-2026-11-11.md`. One
+reader with the key made every class. Each arm has one judge for each
+stretch. The numbers are small, and no test of significance ran.
+
+The three arms, over the 12 clean stretches that Roman corrected:
+
+| | Arm A, rules, form | Arm B, rules, substance | Arm C, rules and cases, substance |
+|---|---|---|---|
+| Names the thing he corrected | 3 | 4 | 6 |
+| Predicts his next sentence | 3 | 2 | 6 |
+
+Over all 21 stretches, the verdict against what he did:
+
+| | Arm A | Arm B | Arm C |
+|---|---|---|---|
+| Expects a correction, of the 14 that he corrected | 3 | 7 | 12 |
+| Expects a correction, of the 7 that he approved | 0 | 2 | 3 |
+
+Against the expectations:
+
+- Arm B names it in 4 or 5 of 12: held, 4.
+- Arm C names it in 7 or more of 12: failed by one, 6. Arm C is 2
+  above arm B, which is my line for "the cases carry something". Two of
+  the classes are weak calls. Without them the arms stand at 4 and 3 of
+  11, one apart.
+- "Correct" on 2 or fewer of the 7 approved: held for arm B with 2,
+  failed for arm C with 3. Each false alarm of arm C cites a case and
+  faults the question that he then approved.
+- The hits of arm C lie in the later stretches: failed. The half with
+  fewer cases has 5 hits of 7, and the half with more has 3 of 7.
+
+What the cases did, and did not do:
+
+- For 3 of the 8 hits of arm C, a case held the same kind of
+  correction. Arm B named all 3 from the pack alone.
+- For 2 stretches a case held the correction, and arm C did not name
+  the thing.
+- Arm C gained 4 stretches over arm B and lost 1. In 3 of the 4 a case
+  held the correction in part.
+
+So a judge does not find his next correction by looking it up among the
+old ones. More cases did not give more hits. What changed with the
+cases is the judge's line: it expects a correction much more often, and
+it is right about that in 12 of 14 and wrong in 3 of 7.
+
+### What the two tests of today say together
+
+1. A judge that checks the form of his rules names what he corrects in
+   a quarter of the cases and gives no false alarm.
+2. A judge that is asked for the substance and holds his past cases
+   names it in half of the cases, predicts his next sentence in half,
+   and gives a false alarm on 3 of 7.
+3. So about half of what he corrects can be seen by a second mind
+   before it reaches him, at the price of alarms on things that he
+   would let pass. The other half was named by no arm.
+4. The gain from his cases is small and rests on few stretches. The
+   gain from asking for the substance and not the form is of the same
+   size.
+
+### What stays open
+
+- No arm was run twice, so the spread between two judges of one arm is
+  not known. This morning two auditors named the same heaviest finding
+  in 6 of 10.
+- The comparer held the key for every class. A blind comparer is the
+  next check of these numbers.
+- The harness gives today's brief to every agent. A clean test needs a
+  folder with no brief.
+- What a false alarm costs is not measured. A session repairs what a
+  judge finds, so an alarm costs the session's time and not his. No
+  read tested that for alarms on substance.
+- The half that no arm named: what is in it, and whether anything but
+  his look can see it.
+- The share of misses that he does not see is still unknown.

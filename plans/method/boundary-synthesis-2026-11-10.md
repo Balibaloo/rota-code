@@ -46,6 +46,19 @@ decide it. The pages are `judge-audit-2026-11-11.md` and
 hand-offs and not 48, because the scans missed 34 prompts that he typed
 mid-turn.
 
+## After the test of cases (12:14)
+
+251 of Roman's 587 messages correct or turn a session, 9 on each day
+that he types, and five kinds hold 55% of them. A judge that is asked
+for the substance and holds his earlier cases named what he corrected
+in 6 of 12 clean stretches, against 4 for a judge with his rules and 3
+for a judge of form. It expected a correction on 12 of the 14 that he
+corrected and on 3 of the 7 that he approved. So about half of what he
+corrects can be seen by a second mind before it reaches him, with false
+alarms. The pages are `roman-cases-read-2026-11-11.md`,
+`judge-cases-compare-2026-11-11.md` and `judge-audit-2026-11-11.md`,
+which holds what stays open.
+
 ## After the read of the misses (16:14)
 
 One reader took the 16 corrections where the taker held Roman's words,
