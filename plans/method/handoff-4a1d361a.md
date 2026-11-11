@@ -109,6 +109,19 @@ list of turns, the read of the chains, the read of the moved counts
   a proposal, and words at a step do not decide it
   (`plans/method/judge-audit-compare-2026-11-11.md`).
 
+- For the taker, not yet in the one picture and not checked by me: a
+  second test of session 7fd2421e, commit 4f2da5c5. A fresh judge that
+  is asked for the substance, with Roman's rules and his earlier cases
+  verbatim, expects a correction on 12 of the 14 stretches that he
+  corrected and on 3 of the 7 that he approved. With his rules only: 7
+  and 2. The audit of form: 3 and 0. Pages:
+  `plans/method/judge-audit-2026-11-11.md`,
+  `plans/method/judge-cases-compare-2026-11-11.md` and
+  `plans/method/roman-cases-read-2026-11-11.md`. It bears on the need
+  "a judge that is not Roman each time", and on its limit "what such a
+  judge must be given is not known". Read the pages, then correct that
+  bullet of the one picture.
+
 ## What I did wrong, so the taker does not
 
 - I asked Roman a question on the meaning by a dialog at my take. It
