@@ -84,6 +84,25 @@ list of turns, the read of the chains, the read of the moved counts
   frame; who started each change in the chains; the place of the last
   change against the first.
 
+## Added on 2026-11-11, after the restart of the machine
+
+- Roman typed "Resume" at 10:38 to this session and to 7fd2421e, and
+  nothing else since 2026-11-10 16:00. He gave no correction of the one
+  picture. I read that as: the exploration continues.
+- One more read landed, `plans/method/stretches-read-2026-11-11.md`:
+  50 orders, the sprints and the plans. Its compare is the last status
+  line of frame 363. The one picture holds its result under "What the
+  picture does not know".
+- The candidates for a stretch that went well on the build side are
+  sprints 19 and 22: many messages of Roman and few that turn the work.
+  No read looked at what differs in them. That is the next read, if one
+  more is right. Part 13 of the scope list, the cost, has no read.
+- After a restart each session has a new peer name. No tool maps a
+  session id to the new name, and sessions 7fd2421e and 1efd37b1 arm no
+  watcher. I sent them no message on 2026-11-11. Wait for a message of
+  theirs, and take the name from its `from-name`.
+- My peer name was rota-3d on 2026-11-10 and rota-83 from the restart.
+
 ## What I did wrong, so the taker does not
 
 - I asked Roman a question on the meaning by a dialog at my take. It
