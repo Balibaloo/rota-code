@@ -79,6 +79,31 @@ and the corrected act can lie in the cut part. Each group is small.
 3. One agent that holds the key compares each auditor's findings with
    what Roman did.
 
+## Step 1, the stretches, done at 10:56
+
+The page is `judge-audit-prep-2026-11-11.md`. 35 stretches stand ready:
+14 corrected, 7 approved and 14 not watched. One approved hand-off is
+lost, because its transcript is gone from the disk. The not watched
+group is drawn from 39 clean hand-offs and not from 45.
+
+The agent found a fault in the earlier reads. They missed the prompts
+that Roman typed while a session was working: 34 prompts in 17
+hand-offs. Four hand-offs that the pages call not watched were watched.
+So he watched 52 of 93 and not 48. The shares of the earlier pages move
+a little and their results do not change.
+
+A stranger can guess the not watched group, because its stretches are
+long and hold no message of Roman. The corrected and the approved
+stretches are hard to tell apart. That is the pair that must be blind.
+
+## Step 2, the auditors, started at 10:56
+
+Seven auditors read five stretches each. Two more auditors read ten of
+the stretches a second time, to show how far two auditors agree. Each
+auditor reads the brief `AUDITOR_BRIEF.md` of the scratch folder. The
+brief names no expected share and says that a clean stretch is a normal
+result.
+
 ## The compare
 
 Not written yet.
