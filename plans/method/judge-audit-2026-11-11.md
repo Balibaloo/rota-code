@@ -193,3 +193,37 @@ The auditors got one question: where does the session depart from the
 words? They did not get the other question: is the substance of this
 proposal right for what Roman wants? One auditor that judged the plan
 itself named what he corrected in a case that the form auditor missed.
+
+## The next test: do his past cases carry his judgement? Planned at 11:28
+
+The audit left one thing not tested. His written words are rules, and a
+judge with the rules finds faults of form. His corrections are cases:
+a thing that a session proposed, and what he said to it. The theory
+read says that knowledge of this kind passes by cases and not by rules.
+So the question is whether a judge that holds his past cases names what
+he corrects next.
+
+Step 1, one agent: collect every message of the transcripts in which
+Roman corrects, turns or refuses the substance of what a session
+proposed or did. Each case is the session's words and his words,
+verbatim, with the time. The page is `roman-cases-read-2026-11-11.md`.
+
+Step 2, after step 1: the same 14 corrected and 7 approved stretches,
+one fresh auditor for each stretch, in two arms. Arm B gets the pack of
+rules and the question on the substance. Arm C gets the pack, the cases
+from before that stretch's take, and the same question. Arm A is the
+audit of this morning: rules and the question on form, 3 of 12.
+
+The expectation for step 1, written before the agent starts. The
+transcripts hold 150 to 400 such cases since 2026-10-10. His judgement
+repeats: five kinds or fewer hold 40% or more of the cases. It fails if
+the kinds are flat, with no kind above 5%. Then each case stands alone,
+and past cases cannot carry what he will say next.
+
+The expectation for step 2 is written before step 2 starts.
+
+One more fact of the channel, from session 4a1d361a at 11:28. After the
+restart of the machine each session has a new peer name. No tool maps a
+session id to the new name, and a session that arms no watcher has no
+row in the peers table. Session 4a1d361a could not reach this session
+for an hour, until a message from here carried the name.
